@@ -3,9 +3,11 @@
 Microservicio FastAPI que responde consultas clínicas del veterinario (chat de Athos) y genera
 sugerencias al cerrar una consulta (Modo Fantasma), citando literatura veterinaria verificable.
 
-- Diseño y decisiones: `tuvetia_rag_documento_final.md`
+- Diseño y decisiones: `docs/tuvetia_rag_documento_final.md`
 - Reglas para Claude Code: `CLAUDE.md`
 - Montaje paso a paso: `SETUP.md`
+- Entornos y migraciones (dev → PR → principal): `docs/MIGRACIONES.md`
+- Contexto para el equipo (Santiago/Pipe): `docs/ATHOS_CONTEXTO_EQUIPO.md`
 
 ## Arrancar en local
     uv venv

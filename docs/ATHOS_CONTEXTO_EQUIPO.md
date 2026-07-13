@@ -1,6 +1,6 @@
 # Athos (RAG) — Contexto para el equipo (Santiago y Pipe)
 
-> Todo lo que necesitan saber del microservicio de Athos y cómo se conecta con las demás partes de la plataforma. El detalle interno del RAG está en `tuvetia_rag_documento_final.md`; las reglas para construirlo, en `CLAUDE.md`; su montaje, en `SETUP.md`.
+> Todo lo que necesitan saber del microservicio de Athos y cómo se conecta con las demás partes de la plataforma. El detalle interno del RAG está en `tuvetia_rag_documento_final.md` (misma carpeta); las reglas para construirlo, en `../CLAUDE.md`; su montaje, en `../SETUP.md`; entornos y migraciones, en `MIGRACIONES.md`.
 
 ## 1. Qué es Athos y qué hace
 Athos es el **microservicio de IA clínica** de la plataforma (FastAPI, desplegado en Railway). Hace dos cosas:
@@ -82,6 +82,22 @@ Filosofía: **gastar la mínima IA**. Un buscador determinístico con un diccion
 - **Ubicación:** Athos en **Railway**; DB en **Supabase**; front en **Vercel**; Phantom lo hace Pipe.
 
 ## 9. Dónde está el detalle
-- Diseño completo del RAG: `tuvetia_rag_documento_final.md`
-- Reglas para Claude Code: `CLAUDE.md`
-- Montaje del microservicio paso a paso: `SETUP.md`
+- Diseño completo del RAG: `tuvetia_rag_documento_final.md` (misma carpeta)
+- Reglas para Claude Code: `../CLAUDE.md`
+- Montaje del microservicio paso a paso: `../SETUP.md`
+- Entornos y migraciones (dev → PR → principal): `MIGRACIONES.md`
+
+## 10. Bitácora de montaje y decisiones (se actualiza)
+> Registro vivo del progreso del microservicio, para que Santiago y Pipe sigan el avance y las decisiones. Última actualización: **2026-07-13**.
+
+**2026-07-13 — Entorno local montado y verificado**
+- Herramientas: `uv`, Node 22, Git, Claude Code, **Supabase CLI 2.109.1**.
+- `.venv` con dependencias (FastAPI, psycopg, pgvector, anthropic, cohere, llama-index…); `GET /health` responde `200`; `ruff` y `pytest` en verde (los tests del RAG aún son *stubs* a la espera de la implementación).
+- Repo Git inicializado (commits locales). **Aún sin push**: esperamos a definir la estructura final del repo.
+
+**2026-07-13 — Metodología de entornos y migraciones (DECIDIDA)**
+- El RAG se desarrolla en un proyecto Supabase **separado** (`tuvetia-athos-dev`), **nunca** contra el proyecto principal/compartido.
+- **`supabase/migrations/`** es la única fuente de verdad; el esquema fluye **dev → PR → principal** con el CLI de Supabase (`supabase db push`), aplicando **los mismos archivos**. Sin copiar bases ni recrear tablas generales.
+- El esquema **base** del principal se replica en dev **solo** vía `../supabase/bootstrap/` (lo aporta el equipo).
+- El MCP de Supabase se **repuntará a dev**; el principal nunca queda escribible por MCP.
+- Runbook: `MIGRACIONES.md`. Reglas duras: `../CLAUDE.md` → *Entornos y migraciones*.

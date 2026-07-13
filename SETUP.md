@@ -99,18 +99,28 @@ Arranca Supabase en **solo lectura**; quita `--read-only` solo cuando confíes e
 
 ## 3 · Base de datos en Supabase (sin Docker)
 
+> **Metodología de entornos y migraciones (cerrada).** Se desarrolla en un proyecto de dev
+> **separado** (`tuvetia-athos-dev`), **nunca** contra el principal/compartido (ref
+> `auxlnexhkmtoedrzfsnz`). Las migraciones (`supabase/migrations/`) son la **única fuente de
+> verdad** y fluyen **dev → PR → principal** con el **CLI de Supabase** (`supabase db push`),
+> aplicando los **mismos archivos** — sin copiar bases ni recrear tablas generales. El esquema
+> base del principal se replica en dev **solo** vía `supabase/bootstrap/`. Runbook completo:
+> **`docs/MIGRACIONES.md`**.
+
 **3.1 Crear un proyecto de DEV** (para no tocar la base compartida):
 1. https://supabase.com → login → **"New project"** → nómbralo `tuvetia-athos-dev`.
 2. Elige y **guarda** la contraseña de la base.
 3. Espera 1–2 min a que quede listo.
 
-**3.2 Traer el esquema base existente:** las tablas base (`corpus_chunks`, `patients`, `clinical_notes`…) ya existen en la base del equipo. Pide a Santiago/Pipe el volcado del esquema o las migraciones del repo, y aplícalas en tu proyecto de dev. Si el plan tiene **Branching**, crea una **rama de desarrollo** en un clic (trae el esquema) — es lo más limpio.
+**3.2 Bootstrapear el esquema base en dev:** las tablas base (`corpus_chunks`, `patients`, `clinical_notes`…) ya existen en el proyecto principal, pero un proyecto de dev **separado no las hereda**. Pide a Santiago/Pipe el **script/volcado del esquema base**, guárdalo en `supabase/bootstrap/000_base_schema.sql` y aplícalo **solo en dev** (SQL Editor o `psql`). **No** va en `supabase/migrations/` ni se PR-ea al principal (ya lo tiene). (Si algún día se habilita **Branching** en el plan, una rama traería el esquema automáticamente y sustituiría este paso.)
 
-**3.3 Aplicar el esquema del RAG (haciendo clic):**
-1. Panel del proyecto → **"SQL Editor"** → **"New query"**.
-2. Pega el SQL de abajo → **"Run"**. Deberías ver `Success. No rows returned`.
-3. Verifica en **"Table Editor"**: aparecen `glossary_term`, `glossary_synonym`, `glossary_relation`, `athos_messages`, `rag_retrieval_log`, `rag_answer_log`.
-4. Guarda ese SQL como archivo en `supabase/migrations/` del repo (Claude Code puede generarlo y mantenerlo).
+**3.3 Aplicar el esquema del RAG (CLI recomendado):** el SQL de abajo ya vive versionado en `supabase/migrations/0001_rag_corpus_glossary_trace.sql`.
+- **Vía recomendada (CLI, contra dev):** `supabase link --project-ref <DEV_REF>` y luego `supabase db push`.
+- **Alternativa manual (clic):**
+  1. Panel del proyecto **dev** → **"SQL Editor"** → **"New query"**.
+  2. Pega el SQL de abajo → **"Run"**. Deberías ver `Success. No rows returned`.
+  3. Verifica en **"Table Editor"**: aparecen `glossary_term`, `glossary_synonym`, `glossary_relation`, `athos_messages`, `rag_retrieval_log`, `rag_answer_log`.
+- El archivo `0001_...sql` es la **fuente de verdad**; toda nueva migración se crea con `supabase migration new` y se aplica con `supabase db push` (ver `docs/MIGRACIONES.md`).
 
 ```sql
 create extension if not exists vector;
@@ -313,7 +323,7 @@ Commit y push. En GitHub, pestaña **Actions**, verás las pruebas correr en cad
 
 ## 11 · Conectar con las demás partes
 
-**11.1 Supabase compartida.** Cuando el RAG esté probado en dev, coordina con Santiago/Pipe para aplicar tus migraciones (`supabase/migrations/`) a la base compartida vía PR. En Railway, apunta las variables `SUPABASE_*`/`DATABASE_URL` a esa base (o a un proyecto de staging).
+**11.1 Supabase compartida (dev → PR → principal).** Cuando el RAG esté probado en dev, abre un **PR** con los archivos de `supabase/migrations/` y, tras la revisión de Santiago/Pipe, aplica **las mismas** migraciones al principal con el CLI (`supabase link --project-ref <MAIN_REF> && supabase db push`, con las credenciales del principal como **secretos**) — **nunca** copiando bases a mano ni recreando tablas generales. Detalle en `docs/MIGRACIONES.md`. En Railway, apunta `SUPABASE_*`/`DATABASE_URL` a la base compartida/staging.
 
 **11.2 Phantom (Pipe).** Ya está el contrato: cuando el vet cierra la consulta, el código de Pipe hace `POST https://TU-URL/athos/phantom/suggest` con `{ consultation_id, clinic_id }` y el JWT del usuario. Athos genera, escribe la nota `draft` en `clinical_notes`, y devuelve `{ note_id, soap, allergy_gate_triggered, allergy_transcript_flag, insufficient_evidence, citations, ai_model }`. Pásale a Pipe tu URL y este contrato.
 

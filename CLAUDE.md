@@ -1,6 +1,6 @@
 # CLAUDE.md — Athos (RAG veterinario de Tuvetia)
 
-Contexto y reglas del servicio. Léelo completo antes de escribir código. Diseño detallado en `tuvetia_rag_documento_final.md`; esquema en `Tablas_de_Supabase.md`. **Todas las decisiones están cerradas.**
+Contexto y reglas del servicio. Léelo completo antes de escribir código. Diseño detallado en `docs/tuvetia_rag_documento_final.md`; esquema en `docs/Tablas_de_Supabase.md`. **Todas las decisiones están cerradas.**
 
 ## Qué es este servicio
 Microservicio Python + FastAPI que (1) responde consultas clínicas del veterinario (chat de Athos) y (2) genera sugerencias al cerrar una consulta (Modo Fantasma), **citando literatura veterinaria verificable**. Filosofía: **gastar la menor IA posible**. Un buscador determinístico con un glosario médico hace el retrieval (sin tokens); la IA solo **entiende la consulta (A→B)** y **redacta la respuesta citada (B→A)**.
@@ -53,12 +53,20 @@ Entrega: 61.544 markdown + frontmatter YAML + `manifest.csv` (validados, en ingl
 - `GET /health`.
 - **Frontend:** verifica el JWT de Supabase que llega en `Authorization: Bearer`, resuelve `clinic_id` desde `memberships`, habilita CORS al origen del front, y sirve `/athos/chat` por SSE. `clinic_id` siempre explícito hacia la DB (service_role se salta RLS).
 
+## Entornos y migraciones (metodología cerrada)
+- **Desarrollo en un proyecto de dev separado** (`tuvetia-athos-dev`), **nunca** contra el proyecto principal/compartido (ref `auxlnexhkmtoedrzfsnz`). No escribir al principal desde dev (MCP incluido).
+- **`supabase/migrations/*.sql` es la única fuente de verdad** de nuestros cambios de esquema (tablas del RAG + índices/ALTERs sobre las tablas base). Flujo **dev → PR → principal** aplicando **los mismos archivos** con el CLI de Supabase (`supabase db push`). Nunca copiar bases ni recrear tablas generales.
+- **`supabase/bootstrap/`** = esquema base (de Santiago/Pipe) para arrancar **solo** dev; **no** se PR-ea al principal (ya lo tiene).
+- **`.env` local = dev.** Credenciales del principal solo en CI/secretos. MCP y herramientas con escritura → **solo dev**.
+- Runbook completo: `docs/MIGRACIONES.md`.
+
 ## Qué NO hacer
 - No dejar que el LLM decida qué documentos traer, ni inventar fuentes, ni dar diagnóstico cerrado.
 - No mezclar corpus (global) con datos de paciente (por clínica) en la DB.
 - No hardcodear modelos de IA (siempre env var).
 - No schema-por-tenant. No `clinic_id` en corpus/glosario. No omitir RLS ni el test cross-tenant en tablas por clínica.
 - No `service_role` sin `clinic_id` explícito. No secretos en Git.
+- No desarrollar ni escribir contra el proyecto principal/compartido desde dev (MCP incluido). No meter el esquema base en `supabase/migrations/` ni PR-earlo; no recrear tablas generales en el principal.
 
 ## Testing
 El retrieval (pasos 0–6, 8) es **determinístico y testeable sin LLM** — fixtures + CI. Tests cross-tenant obligatorios en tablas por clínica.
