@@ -1,0 +1,68 @@
+"""FastAPI: rutas de Athos. /health está implementado; el resto llama a los módulos."""
+from fastapi import FastAPI, Header, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import StreamingResponse
+
+from app.config import get_settings
+from app.auth import verify_jwt, resolve_clinic_id
+from app.models import ChatRequest, PhantomSuggestRequest, PhantomSuggestResponse
+
+settings = get_settings()
+app = FastAPI(title="Athos RAG service")
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=settings.cors_origins_list,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+
+def _auth(authorization: str | None, clinic_id: str) -> tuple[str, str]:
+    """Extrae el bearer, verifica el JWT y confirma la membresía. Devuelve (user_id, clinic_id)."""
+    if not authorization or not authorization.lower().startswith("bearer "):
+        raise HTTPException(status_code=401, detail="falta Authorization: Bearer")
+    user_id = verify_jwt(authorization.split(" ", 1)[1])
+    return user_id, resolve_clinic_id(user_id, clinic_id)
+
+
+@app.get("/health")
+def health():
+    return {"status": "ok", "service": "athos"}
+
+
+@app.post("/athos/chat")
+def athos_chat(body: ChatRequest, authorization: str | None = Header(default=None)):
+    """Chat del vet. Responde en streaming (SSE) la respuesta citada.
+
+    Flujo (sección 11 del documento final): A->B (query_builder) -> cascada (retrieval)
+    -> umbral -> fusión + gate de alergia -> B->A (generation) -> verificación de citas
+    -> trazar (trace). El clinic_id va explícito hacia la DB.
+    """
+    user_id, clinic_id = _auth(authorization, body.clinic_id)
+
+    def event_stream():
+        # TODO (Claude Code): implementar la cascada y transmitir tokens por SSE.
+        raise NotImplementedError("implementar /athos/chat (sección 11)")
+        yield  # pragma: no cover
+
+    return StreamingResponse(event_stream(), media_type="text/event-stream")
+
+
+@app.post("/athos/phantom/suggest", response_model=PhantomSuggestResponse)
+def phantom_suggest(body: PhantomSuggestRequest, authorization: str | None = Header(default=None)):
+    """Lo llama el Phantom al cerrar la consulta. Athos genera, crea la nota draft y devuelve el payload.
+
+    Contrato cerrado (ver CLAUDE.md). allergy_gate_triggered lo calcula Athos desde `allergies`
+    (no el modelo). Escribe rag_answer_log con note_id.
+    """
+    user_id, clinic_id = _auth(authorization, body.clinic_id)
+    # TODO (Claude Code): correr la cascada sobre el transcript de la consulta, generar la nota,
+    # insertar clinical_notes (status=draft), loguear, y devolver PhantomSuggestResponse.
+    raise NotImplementedError("implementar /athos/phantom/suggest (sección de integración)")
+
+
+@app.post("/ingest")
+def ingest(authorization: str | None = Header(default=None)):
+    """Admin: dispara la ingesta del corpus. TODO: proteger con una llave de admin."""
+    raise NotImplementedError("implementar disparo de ingesta (sección 9)")

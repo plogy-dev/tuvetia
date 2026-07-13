@@ -1,0 +1,29 @@
+[project]
+name = "athos-service"
+version = "0.1.0"
+description = "Athos — RAG veterinario de Tuvetia (microservicio FastAPI)"
+requires-python = ">=3.12"
+dependencies = [
+    "fastapi",
+    "uvicorn[standard]",
+    "pydantic",
+    "pydantic-settings",
+    "python-dotenv",
+    "psycopg[binary]",
+    "pgvector",
+    "llama-index",
+    "httpx",
+    "pyjwt",
+    "anthropic",
+    "cohere",
+]
+
+[dependency-groups]
+dev = ["pytest", "ruff"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"
+
+[tool.ruff]
+line-length = 100
