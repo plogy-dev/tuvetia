@@ -101,3 +101,12 @@ Filosofía: **gastar la mínima IA**. Un buscador determinístico con un diccion
 - El esquema **base** del principal se replica en dev **solo** vía `../supabase/bootstrap/` (lo aporta el equipo).
 - El MCP de Supabase se **repuntará a dev**; el principal nunca queda escribible por MCP.
 - Runbook: `MIGRACIONES.md`. Reglas duras: `../CLAUDE.md` → *Entornos y migraciones*.
+
+**2026-07-13 — Entorno dev conectado y migración `0001` aplicada**
+- Proyecto `tuvetia-athos-dev` (ref `ghmpjyuchwkrvnjvdeum`) conectado por el **session pooler** (puerto 5432). MCP repuntado a dev (read-only).
+- El esquema **base ya estaba aplicado** en dev (19 tablas + `private.my_clinic_id()`).
+- Migración **`0001` aplicada** con `supabase db push` (registrada en `schema_migrations`). Se crearon `glossary_*`, `athos_messages`, `rag_*`; `corpus_chunks.embedding` → `vector(1024)`.
+- **Pendientes a coordinar con el equipo (para el PR a main):**
+  - **Dimensión de embeddings:** el base crea `corpus_chunks`/`patient_embeddings` a **1536**; la decisión cerrada es **1024** (Cohere embed-v4). En main hay que alinear a 1024 (re-embeddear si ya hay datos).
+  - **Índice vectorial:** el base usa **ivfflat**; `0001` intentaba HNSW (se saltó en `corpus_chunks` por colisión de nombre; en `patient_embeddings` quedó ivfflat + hnsw redundantes). Decidir estrategia común.
+  - **Auth/JWT:** el proyecto expone **JWKS** (firma asimétrica); `app/auth.py` hoy verifica HS256 con el JWT secret. Reconciliar al implementar la auth real.
