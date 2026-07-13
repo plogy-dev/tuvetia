@@ -108,5 +108,5 @@ Filosofía: **gastar la mínima IA**. Un buscador determinístico con un diccion
 - Migración **`0001` aplicada** con `supabase db push` (registrada en `schema_migrations`). Se crearon `glossary_*`, `athos_messages`, `rag_*`; `corpus_chunks.embedding` → `vector(1024)`.
 - **Pendientes a coordinar con el equipo (para el PR a main):**
   - **Dimensión de embeddings:** el base crea `corpus_chunks`/`patient_embeddings` a **1536**; la decisión cerrada es **1024** (Cohere embed-v4). En main hay que alinear a 1024 (re-embeddear si ya hay datos).
-  - **Índice vectorial:** el base usa **ivfflat**; `0001` intentaba HNSW (se saltó en `corpus_chunks` por colisión de nombre; en `patient_embeddings` quedó ivfflat + hnsw redundantes). Decidir estrategia común.
+  - **Índice vectorial:** DECIDIDO **HNSW** (mayor calidad/robustez a largo plazo) en migración **`0002`**, reemplazando el ivfflat del base en `corpus_chunks` y `patient_embeddings`. Afecta tablas generales → **coordinar con el equipo** antes de aplicar a main (rebuild si ya hay datos).
   - **Auth/JWT:** el proyecto expone **JWKS** (firma asimétrica); `app/auth.py` hoy verifica HS256 con el JWT secret. Reconciliar al implementar la auth real.

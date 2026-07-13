@@ -4,7 +4,7 @@ create extension if not exists vector;
 
 alter table public.corpus_chunks alter column embedding type vector(1024);
 alter table public.corpus_chunks add column if not exists tsv tsvector;
-create index if not exists corpus_chunks_embedding_idx on public.corpus_chunks using hnsw (embedding vector_cosine_ops);
+-- indice vectorial de corpus_chunks -> ver migracion 0002 (estrategia HNSW; tabla del base).
 create index if not exists corpus_chunks_tsv_idx on public.corpus_chunks using gin (tsv);
 create index if not exists corpus_chunks_metadata_idx on public.corpus_chunks using gin (metadata);
 -- corpus_chunks es una tabla GLOBAL del esquema base (sin clinic_id): su postura de RLS la
@@ -12,7 +12,7 @@ create index if not exists corpus_chunks_metadata_idx on public.corpus_chunks us
 -- Athos lee el corpus con service_role (salta RLS de todos modos).
 
 alter table public.patient_embeddings alter column embedding type vector(1024);
-create index if not exists patient_embeddings_idx on public.patient_embeddings using hnsw (embedding vector_cosine_ops);
+-- indice vectorial de patient_embeddings -> ver migracion 0002 (estrategia HNSW; tabla del base).
 create index if not exists patient_embeddings_clinic_idx on public.patient_embeddings (clinic_id, patient_id);
 
 create table if not exists public.glossary_term (
