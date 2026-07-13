@@ -129,8 +129,8 @@ alter table public.corpus_chunks add column if not exists tsv tsvector;
 create index if not exists corpus_chunks_embedding_idx on public.corpus_chunks using hnsw (embedding vector_cosine_ops);
 create index if not exists corpus_chunks_tsv_idx on public.corpus_chunks using gin (tsv);
 create index if not exists corpus_chunks_metadata_idx on public.corpus_chunks using gin (metadata);
-alter table public.corpus_chunks enable row level security;
-create policy corpus_chunks_read on public.corpus_chunks for select to authenticated using (true);
+-- corpus_chunks es GLOBAL del esquema base (sin clinic_id): su RLS la decide el equipo en el
+-- base ("global: sin RLS"). No la alteramos aqui. Athos lee el corpus con service_role.
 
 alter table public.patient_embeddings alter column embedding type vector(1024);
 create index if not exists patient_embeddings_idx on public.patient_embeddings using hnsw (embedding vector_cosine_ops);
@@ -173,15 +173,17 @@ create table if not exists public.rag_answer_log (
 alter table public.athos_messages enable row level security;
 alter table public.rag_retrieval_log enable row level security;
 alter table public.rag_answer_log enable row level security;
+-- Aislamiento por clinica: reusa el helper del esquema base private.my_clinic_id()
+-- (hoy resuelve profiles.clinic_id). Si el modelo de pertenencia cambia, se actualiza ese helper.
 create policy athos_messages_rw on public.athos_messages for all to authenticated
-  using (exists (select 1 from public.memberships m where m.clinic_id = athos_messages.clinic_id and m.user_id = auth.uid()))
-  with check (exists (select 1 from public.memberships m where m.clinic_id = athos_messages.clinic_id and m.user_id = auth.uid()));
+  using (clinic_id = private.my_clinic_id())
+  with check (clinic_id = private.my_clinic_id());
 create policy rag_retrieval_rw on public.rag_retrieval_log for all to authenticated
-  using (exists (select 1 from public.memberships m where m.clinic_id = rag_retrieval_log.clinic_id and m.user_id = auth.uid()))
-  with check (exists (select 1 from public.memberships m where m.clinic_id = rag_retrieval_log.clinic_id and m.user_id = auth.uid()));
+  using (clinic_id = private.my_clinic_id())
+  with check (clinic_id = private.my_clinic_id());
 create policy rag_answer_rw on public.rag_answer_log for all to authenticated
-  using (exists (select 1 from public.memberships m where m.clinic_id = rag_answer_log.clinic_id and m.user_id = auth.uid()))
-  with check (exists (select 1 from public.memberships m where m.clinic_id = rag_answer_log.clinic_id and m.user_id = auth.uid()));
+  using (clinic_id = private.my_clinic_id())
+  with check (clinic_id = private.my_clinic_id());
 alter table public.clinical_notes add column if not exists citations jsonb;
 ```
 
@@ -243,7 +245,7 @@ Dale a Claude Code **una tarea a la vez**, apuntando a la sección del documento
 3. **Glosario:** "Implementa la siembra del glosario desde los términos MeSH del corpus + DeCS, con estado `candidate→approved` (sección 8), y la resolución de una consulta ES → conceptos canónicos."
 4. **Cascada (sin IA):** "Implementa Tier 0/1/2, umbral y fusión de contexto (secciones 11.1–11.5) como funciones puras determinísticas. Tests **sin LLM** con fixtures, corribles en CI."
 5. **Gate + generación:** "Implementa el gate de alergia (11.6, determinístico desde `allergies`), la generación B→A (11.7, una sola llamada para Fantasma, modelo por `LLM_MODEL`) y la verificación de citas (11.8)."
-6. **Endpoints:** "Implementa `POST /athos/chat` (SSE), `POST /athos/phantom/suggest` (contrato de la sección de integración: crea `clinical_notes` draft y devuelve el payload), `POST /ingest`, `GET /health`. Verifica el JWT de Supabase (`SUPABASE_JWT_SECRET`), resuelve `clinic_id` desde `memberships`, habilita CORS con `CORS_ORIGINS`."
+6. **Endpoints:** "Implementa `POST /athos/chat` (SSE), `POST /athos/phantom/suggest` (contrato de la sección de integración: crea `clinical_notes` draft y devuelve el payload), `POST /ingest`, `GET /health`. Verifica el JWT de Supabase (`SUPABASE_JWT_SECRET`), resuelve `clinic_id` desde `profiles` (`profiles.clinic_id`), habilita CORS con `CORS_ORIGINS`."
 7. **Tests cross-tenant:** "Seed 2 clínicas; verifica que un usuario de B no puede leer/escribir filas de A en `athos_messages`, `rag_retrieval_log`, `rag_answer_log`, `patient_embeddings`."
 
 Regla de oro: una tarea, revisa, prueba, commitea, `/clear`.
@@ -328,7 +330,7 @@ Commit y push. En GitHub, pestaña **Actions**, verás las pruebas correr en cad
 **11.2 Phantom (Pipe).** Ya está el contrato: cuando el vet cierra la consulta, el código de Pipe hace `POST https://TU-URL/athos/phantom/suggest` con `{ consultation_id, clinic_id }` y el JWT del usuario. Athos genera, escribe la nota `draft` en `clinical_notes`, y devuelve `{ note_id, soap, allergy_gate_triggered, allergy_transcript_flag, insufficient_evidence, citations, ai_model }`. Pásale a Pipe tu URL y este contrato.
 
 **11.3 Frontend (Santiago).** El front llama a Athos con el **JWT de Supabase del usuario** en `Authorization: Bearer <token>`:
-- Athos **verifica** ese JWT con `SUPABASE_JWT_SECRET`, saca el `user_id` y resuelve `clinic_id` desde `memberships`.
+- Athos **verifica** ese JWT con `SUPABASE_JWT_SECRET`, saca el `user_id` y resuelve `clinic_id` desde `profiles` (`profiles.clinic_id`).
 - Habilita **CORS** para el dominio del front (agrega el dominio de Vercel a `CORS_ORIGINS`).
 - El chat usa **SSE**: el front abre la conexión a `POST /athos/chat` y va mostrando la respuesta en streaming, con sus citas.
 - Pásale a Santiago tu URL, los endpoints y el formato de respuesta.

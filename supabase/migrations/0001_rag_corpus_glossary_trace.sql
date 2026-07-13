@@ -7,8 +7,9 @@ alter table public.corpus_chunks add column if not exists tsv tsvector;
 create index if not exists corpus_chunks_embedding_idx on public.corpus_chunks using hnsw (embedding vector_cosine_ops);
 create index if not exists corpus_chunks_tsv_idx on public.corpus_chunks using gin (tsv);
 create index if not exists corpus_chunks_metadata_idx on public.corpus_chunks using gin (metadata);
-alter table public.corpus_chunks enable row level security;
-create policy corpus_chunks_read on public.corpus_chunks for select to authenticated using (true);
+-- corpus_chunks es una tabla GLOBAL del esquema base (sin clinic_id): su postura de RLS la
+-- decide el equipo en el base (alli esta declarada "global: sin RLS"). No la alteramos aqui.
+-- Athos lee el corpus con service_role (salta RLS de todos modos).
 
 alter table public.patient_embeddings alter column embedding type vector(1024);
 create index if not exists patient_embeddings_idx on public.patient_embeddings using hnsw (embedding vector_cosine_ops);
@@ -51,13 +52,16 @@ create table if not exists public.rag_answer_log (
 alter table public.athos_messages enable row level security;
 alter table public.rag_retrieval_log enable row level security;
 alter table public.rag_answer_log enable row level security;
+-- Aislamiento por clinica: reusa el helper del esquema base private.my_clinic_id(),
+-- que hoy resuelve profiles.clinic_id. Si el modelo de pertenencia cambia (p.ej. memberships
+-- multi-clinica), se actualiza ese helper en el base y estas politicas siguen validas.
 create policy athos_messages_rw on public.athos_messages for all to authenticated
-  using (exists (select 1 from public.memberships m where m.clinic_id = athos_messages.clinic_id and m.user_id = auth.uid()))
-  with check (exists (select 1 from public.memberships m where m.clinic_id = athos_messages.clinic_id and m.user_id = auth.uid()));
+  using (clinic_id = private.my_clinic_id())
+  with check (clinic_id = private.my_clinic_id());
 create policy rag_retrieval_rw on public.rag_retrieval_log for all to authenticated
-  using (exists (select 1 from public.memberships m where m.clinic_id = rag_retrieval_log.clinic_id and m.user_id = auth.uid()))
-  with check (exists (select 1 from public.memberships m where m.clinic_id = rag_retrieval_log.clinic_id and m.user_id = auth.uid()));
+  using (clinic_id = private.my_clinic_id())
+  with check (clinic_id = private.my_clinic_id());
 create policy rag_answer_rw on public.rag_answer_log for all to authenticated
-  using (exists (select 1 from public.memberships m where m.clinic_id = rag_answer_log.clinic_id and m.user_id = auth.uid()))
-  with check (exists (select 1 from public.memberships m where m.clinic_id = rag_answer_log.clinic_id and m.user_id = auth.uid()));
+  using (clinic_id = private.my_clinic_id())
+  with check (clinic_id = private.my_clinic_id());
 alter table public.clinical_notes add column if not exists citations jsonb;

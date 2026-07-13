@@ -5,9 +5,11 @@
 
 ## Qué va aquí
 El **script original** que crea las tablas **generales** del equipo (las que ya existen en el
-proyecto compartido): `clinics`, `memberships`, `patients`, `allergies`, `medications`,
+proyecto compartido): `clinics`, `profiles` (usuario↔clínica vía `profiles.clinic_id`),
+`invitations`, `owners`, `patients`, `allergies`, `vaccines`, `medications`,
 `transcripts`, `consultations`, `consents`, `clinical_notes`, `corpus_chunks`,
-`patient_embeddings`, etc. Lo entrega Santiago/Pipe.
+`patient_embeddings`, `audit_logs`, etc. Lo entrega Santiago/Pipe. Incluye el helper
+`private.my_clinic_id()` que usan las RLS (incluidas las del RAG en `0001`).
 
 - **Formato:** SQL DDL plano (`.sql`).
 - **Nombre sugerido:** `000_base_schema.sql`.

@@ -23,9 +23,9 @@ def verify_jwt(token: str) -> str:
 
 
 def resolve_clinic_id(user_id: str, clinic_id: str) -> str:
-    """Confirma que el usuario pertenece a clinic_id (tabla memberships). Devuelve clinic_id."""
+    """Confirma que el usuario pertenece a clinic_id (via profiles.clinic_id). Devuelve clinic_id."""
     rows = fetch_all(
-        "select 1 from public.memberships where user_id = %s and clinic_id = %s",
+        "select 1 from public.profiles where id = %s and clinic_id = %s and is_active",
         (user_id, clinic_id),
     )
     if not rows:

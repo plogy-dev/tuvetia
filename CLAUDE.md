@@ -51,7 +51,7 @@ Entrega: 61.544 markdown + frontmatter YAML + `manifest.csv` (validados, en ingl
   Mapeo del `summarize.ts`: soap.subjetivo/objetivo/analisis/plan → subjective/objective/assessment/plan; `allergy_flag` → `allergy_transcript_flag`. `allergy_gate_triggered` lo calcula **Athos desde `allergies`** (no el modelo).
 - `POST /ingest` (admin) — dispara la ingesta.
 - `GET /health`.
-- **Frontend:** verifica el JWT de Supabase que llega en `Authorization: Bearer`, resuelve `clinic_id` desde `memberships`, habilita CORS al origen del front, y sirve `/athos/chat` por SSE. `clinic_id` siempre explícito hacia la DB (service_role se salta RLS).
+- **Frontend:** verifica el JWT de Supabase que llega en `Authorization: Bearer`, resuelve `clinic_id` desde `profiles` (`profiles.clinic_id`), habilita CORS al origen del front, y sirve `/athos/chat` por SSE. `clinic_id` siempre explícito hacia la DB (service_role se salta RLS).
 
 ## Entornos y migraciones (metodología cerrada)
 - **Desarrollo en un proyecto de dev separado** (`tuvetia-athos-dev`), **nunca** contra el proyecto principal/compartido (ref `auxlnexhkmtoedrzfsnz`). No escribir al principal desde dev (MCP incluido).

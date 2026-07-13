@@ -42,7 +42,7 @@ Filosofía: **gastar la mínima IA**. Un buscador determinístico con un diccion
 - `POST /ingest` (admin) — indexar el corpus.
 - `GET /health`.
 
-**Auth:** quien llama manda el **JWT de Supabase del usuario** en `Authorization: Bearer <token>`. Athos lo verifica, saca el `user_id` y resuelve `clinic_id` desde `memberships`. (Athos usa `service_role` hacia la DB, por eso el `clinic_id` va explícito.)
+**Auth:** quien llama manda el **JWT de Supabase del usuario** en `Authorization: Bearer <token>`. Athos lo verifica, saca el `user_id` y resuelve `clinic_id` desde `profiles` (`profiles.clinic_id`). (Athos usa `service_role` hacia la DB, por eso el `clinic_id` va explícito.)
 
 ## 5. Para Santiago (Frontend)
 - **Chat:** `POST /athos/chat` con body `{ question, patient_id, clinic_id }` + el JWT del usuario. La respuesta llega por **SSE (streaming)**: muéstrala en vivo, con sus **citas** (fuentes verificables) visibles.
