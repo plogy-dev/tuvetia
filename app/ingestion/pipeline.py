@@ -5,9 +5,14 @@ idempotente por content_hash -> frontmatter a metadata -> normalizar -> chunking
 (no partir tablas/dosis) -> embedding (una vez) -> tsvector por idioma -> etiquetar con glosario.
 El corpus es GLOBAL: la tabla corpus_chunks no lleva clinic_id.
 """
+import hashlib
 import re
 
 import yaml
+from psycopg.types.json import Json
+
+from app.config import get_settings
+from app.db import fetch_all, get_conn
 
 # Chunking determinístico. Aproximamos "tokens" por palabras (barato y estable para tests).
 # Objetivo ~500-800 tokens con ~10-15% de solape; se calibra con el golden set.
@@ -15,6 +20,9 @@ MAX_TOKENS = 800
 OVERLAP_TOKENS = 100
 
 _FRONTMATTER_RE = re.compile(r"^---\s*\n(.*?)\n---\s*\n?(.*)$", re.DOTALL)
+
+# idioma del documento -> configuración de tsvector de Postgres.
+_PG_TS_CONFIG = {"EN": "english", "ES": "spanish", "PT": "portuguese"}
 
 
 def parse_document(md_text: str) -> tuple[dict, str]:
@@ -134,11 +142,77 @@ def tag_with_glossary(chunk: dict) -> list[str]:
     raise NotImplementedError("etiquetado con glosario")
 
 
+def _doc_hash(metadata: dict, body: str) -> str:
+    """content_hash del frontmatter si existe; si no, hash estable del cuerpo."""
+    h = metadata.get("content_hash")
+    if h:
+        return str(h)
+    return hashlib.sha256(body.encode("utf-8")).hexdigest()[:16]
+
+
+def _already_ingested(content_hash: str) -> bool:
+    rows = fetch_all(
+        "select 1 from public.corpus_chunks where metadata->>'content_hash' = %s limit 1",
+        (content_hash,),
+    )
+    return bool(rows)
+
+
+def _ts_config(idioma) -> str:
+    return _PG_TS_CONFIG.get(str(idioma or "").upper(), "simple")
+
+
 def upsert_chunks(chunks: list[dict]) -> None:
-    """Inserta/actualiza en corpus_chunks (content, embedding, tsv, metadata). Sin clinic_id."""
-    raise NotImplementedError("upsert en corpus_chunks + tsvector por idioma")
+    """Inserta en corpus_chunks (content, embedding, tsv, metadata). GLOBAL, sin clinic_id.
+
+    Cada chunk debe traer ya su `embedding` (lista de floats). El tsvector se calcula con la
+    config del idioma del documento. locator/ordinal/embedding_model se guardan en metadata.
+    """
+    if not chunks:
+        return
+    model = get_settings().embedding_model
+    with get_conn() as conn, conn.cursor() as cur:
+        for ch in chunks:
+            md = dict(ch["metadata"])
+            md["locator"] = ch.get("locator")
+            md["ordinal"] = ch.get("ordinal")
+            md["embedding_model"] = model
+            md.setdefault("is_current", True)
+            emb_str = "[" + ",".join(f"{x:.7f}" for x in ch["embedding"]) + "]"
+            cur.execute(
+                "insert into public.corpus_chunks (source, title, content, embedding, metadata, tsv) "
+                "values (%s, %s, %s, %s::vector, %s, to_tsvector(%s::regconfig, %s))",
+                (
+                    str(md.get("source") or md.get("fuente") or "corpus"),
+                    md.get("titulo") or md.get("title"),
+                    ch["content"],
+                    emb_str,
+                    Json(md),
+                    _ts_config(md.get("idioma")),
+                    ch["content"],
+                ),
+            )
+        conn.commit()
 
 
 def ingest_document(md_text: str) -> int:
-    """Ingesta un documento completo. Idempotente por content_hash. Devuelve nº de chunks."""
-    raise NotImplementedError("orquestar: hash -> parse -> chunk -> embed -> tag -> upsert")
+    """Ingesta un documento completo. Idempotente por content_hash. Devuelve nº de chunks nuevos.
+
+    Orquesta: parse -> hash -> (skip si ya está) -> chunk -> embed -> upsert. Un documento es
+    todo-o-nada (una transacción de upsert), así que su content_hash presente = ya ingerido.
+    """
+    metadata, body = parse_document(md_text)
+    if not body.strip():
+        return 0
+    content_hash = _doc_hash(metadata, body)
+    metadata.setdefault("content_hash", content_hash)
+    if _already_ingested(content_hash):
+        return 0
+    chunks = chunk_document(body, metadata)
+    if not chunks:
+        return 0
+    vectors = embed_texts([c["content"] for c in chunks])
+    for c, v in zip(chunks, vectors):
+        c["embedding"] = v
+    upsert_chunks(chunks)
+    return len(chunks)

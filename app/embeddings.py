@@ -2,8 +2,44 @@
 
 Decisión: Cohere embed-v4 (multilingüe, recuperación cross-lingual ES->EN). Corpus y
 patient_embeddings usan el MISMO modelo y dimensión. Cambiar de modelo obliga a re-embeddizar todo.
+
+Nota TLS: la red de dev intercepta TLS (proxy/AV re-firma certificados). Usamos el trust store del
+SO (ssl.create_default_context) para que httpx confíe en la CA corporativa, igual que uv --system-certs.
 """
+import ssl
+import time
+from functools import lru_cache
+
+import httpx
+
 from app.config import get_settings
+
+_MAX_429_RETRIES = 3
+_RETRY_SLEEP_S = 20
+
+
+class EmbeddingError(Exception):
+    """Base de errores de embeddings que deben DETENER una corrida de ingesta."""
+
+
+class EmbeddingQuotaExceeded(EmbeddingError):
+    """Cohere devolvió 429 de forma persistente: se alcanzó el límite (p.ej. cuota trial)."""
+
+
+class EmbeddingAuthError(EmbeddingError):
+    """Credencial inválida/insuficiente (401/403)."""
+
+
+@lru_cache
+def _tls_context() -> ssl.SSLContext:
+    # La red de dev usa un proxy MITM cuya CA tiene Basic Constraints no-crítico; OpenSSL 3 la
+    # rechaza. `truststore` delega la verificación al SO (tolerante, como el navegador/pip). En
+    # entornos sin truststore o sin CA corporativa, cae al contexto estándar.
+    try:
+        import truststore
+        return truststore.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
+    except Exception:
+        return ssl.create_default_context()
 
 
 class EmbeddingClient:
@@ -13,12 +49,50 @@ class EmbeddingClient:
         self.model = s.embedding_model
         self.dim = s.embedding_dim
         self.api_key = s.embedding_api_key
+        self._client = None
+
+    def _cohere(self):
+        if self._client is None:
+            import cohere
+            self._client = cohere.ClientV2(
+                api_key=self.api_key,
+                httpx_client=httpx.Client(verify=_tls_context(), timeout=60.0),
+            )
+        return self._client
 
     def embed(self, texts: list[str], input_type: str = "search_document") -> list[list[float]]:
         """Devuelve un vector por texto (dimensión = self.dim).
 
-        TODO (Claude Code): wire Cohere embed-v4. Usa input_type 'search_document' al indexar el
-        corpus y 'search_query' al embeddizar la consulta del Tier 2. Mantén el cuerpo detrás de
-        esta interfaz para poder cambiar de proveedor sin tocar el flujo.
+        input_type: 'search_document' al indexar el corpus; 'search_query' al embeddizar la
+        consulta del Tier 2. Reintenta ante 429 (rate limit) y traduce errores a EmbeddingError.
         """
-        raise NotImplementedError("wire del proveedor de embeddings (Cohere embed-v4)")
+        if not texts:
+            return []
+        client = self._cohere()
+        last: Exception | None = None
+        for attempt in range(_MAX_429_RETRIES):
+            try:
+                resp = client.embed(
+                    texts=texts,
+                    model=self.model,
+                    input_type=input_type,
+                    embedding_types=["float"],
+                    output_dimension=self.dim,
+                )
+                floats = getattr(resp.embeddings, "float", None)
+                if floats is None:
+                    floats = getattr(resp.embeddings, "float_")
+                return [list(v) for v in floats]
+            except Exception as e:  # noqa: BLE001
+                last = e
+                status = getattr(e, "status_code", None)
+                msg = str(e).lower()
+                if status in (401, 403):
+                    raise EmbeddingAuthError(f"Cohere rechazó la credencial: {e}") from e
+                if status == 429 or "429" in msg or "rate limit" in msg or "quota" in msg:
+                    if attempt < _MAX_429_RETRIES - 1:
+                        time.sleep(_RETRY_SLEEP_S)
+                        continue
+                    raise EmbeddingQuotaExceeded(f"Cohere 429 tras reintentos: {e}") from e
+                raise
+        raise EmbeddingQuotaExceeded(f"Cohere 429 tras reintentos: {last}")

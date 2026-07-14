@@ -16,6 +16,7 @@ dependencies = [
     "pyjwt",
     "anthropic",
     "cohere",
+    "truststore>=0.10.4",
 ]
 
 [dependency-groups]
