@@ -88,7 +88,7 @@ Filosofía: **gastar la mínima IA**. Un buscador determinístico con un diccion
 - Entornos y migraciones (dev → PR → principal): `MIGRACIONES.md`
 
 ## 10. Bitácora de montaje y decisiones (se actualiza)
-> Registro vivo del progreso del microservicio, para que Santiago y Pipe sigan el avance y las decisiones. Última actualización: **2026-07-13**.
+> Registro vivo del progreso del microservicio, para que Santiago y Pipe sigan el avance y las decisiones. Última actualización: **2026-07-14**.
 
 **2026-07-13 — Entorno local montado y verificado**
 - Herramientas: `uv`, Node 22, Git, Claude Code, **Supabase CLI 2.109.1**.
@@ -110,3 +110,33 @@ Filosofía: **gastar la mínima IA**. Un buscador determinístico con un diccion
   - **Dimensión de embeddings:** el base crea `corpus_chunks`/`patient_embeddings` a **1536**; la decisión cerrada es **1024** (Cohere embed-v4). En main hay que alinear a 1024 (re-embeddear si ya hay datos).
   - **Índice vectorial:** DECIDIDO **HNSW** (mayor calidad/robustez a largo plazo) en migración **`0002`**, reemplazando el ivfflat del base en `corpus_chunks` y `patient_embeddings`. Afecta tablas generales → **coordinar con el equipo** antes de aplicar a main (rebuild si ya hay datos).
   - **Auth/JWT:** el proyecto expone **JWKS** (firma asimétrica); `app/auth.py` hoy verifica HS256 con el JWT secret. Reconciliar al implementar la auth real.
+
+**2026-07-14 — Migración `0002` (HNSW) verificada en dev + coordinación abierta para el PR a main**
+- Migración **`0002` aplicada y verificada en dev**: índice vectorial **HNSW** en `corpus_chunks` y `patient_embeddings` (reemplaza el ivfflat del base, mismos nombres de índice).
+- Consolidados los **3 puntos que necesitan decisión del equipo** antes de abrir el PR a main (tocan tablas generales y auth compartida) → ver **§11**. Nada tocado en el principal; todo probado en `tuvetia-athos-dev`.
+
+## 11. Coordinación abierta — 3 decisiones que necesitamos del equipo (antes del PR a main)
+> Todo lo de abajo está **probado en el proyecto dev** (`tuvetia-athos-dev`, ref `ghmpjyuchwkrvnjvdeum`). **Nada se ha tocado en el principal** (ref `auxlnexhkmtoedrzfsnz`). Para llevar las migraciones `0001`/`0002` al principal necesitamos confirmar 3 cosas, porque tocan **tablas generales** y **auth compartida**. El PR incluirá **solo** `supabase/migrations/0001*.sql` y `0002*.sql` (el bootstrap **no** se PR-ea).
+
+### A) Dimensión de embeddings: `1536` → `1024`  ·  ✅ DECIDIDO (2026-07-14)
+> **Decisión (nuestra recomendación):** el principal se estandariza en **1024**. La migración `0001` ya lo implementa. Único paso operativo al aplicar el PR: confirmar si `corpus_chunks`/`patient_embeddings` del principal ya tienen datos (para planear re-embed si los hubiera).
+- **Qué pasa:** el esquema base declara `corpus_chunks.embedding` y `patient_embeddings.embedding` como `vector(1536)`. La decisión cerrada de Athos es **1024** (Cohere embed-v4, cross-lingual ES→EN). La `0001` ya hace `alter … type vector(1024)` (aplicado en dev).
+- **Por qué importa:** si en el principal esas columnas **ya tienen vectores** (1536), no se pueden castear a 1024 → hay que **re-embeddear**. Además corpus y `patient_embeddings` deben usar el **mismo** modelo/dimensión.
+- **Nuestra recomendación:** estandarizar el principal en **1024**. El corpus (61.544 docs) aún no está ingerido; si esas dos tablas están **vacías** en el principal, el cambio es gratis (solo el `ALTER`).
+- **Necesitamos de ustedes:** (1) confirmar que en el principal `corpus_chunks` y `patient_embeddings` **están vacías** (sin vectores de producción); (2) OK a fijar la dimensión en **1024**; (3) si ya hubiera datos, acordar el re-embed.
+
+### B) Índice vectorial: ivfflat (base) → **HNSW** (`0002`)  ·  ✅ DECIDIDO (2026-07-14)
+> **Decisión (nuestra recomendación):** se adopta **HNSW** (`m=16`, `ef_construction=64`). Ya en la migración `0002`, verificada en dev. Único paso operativo: si las tablas del principal tienen datos, agendar el rebuild del índice en ventana de bajo tráfico.
+- **Qué pasa:** el base crea índices **ivfflat** (`corpus_chunks_embedding_idx`, `patient_embeddings_embedding_idx`). La `0002` los reemplaza por **HNSW** (mejor recall/latencia, robusto al crecer, sin tunear `lists`). Ya **aplicada y verificada en dev**.
+- **Por qué importa:** son **tablas generales**; si tienen datos en el principal, crear el índice HNSW es un **rebuild** (construcción más costosa, una sola vez → conviene ventana de bajo tráfico). Requiere **pgvector ≥ 0.5.0** (Supabase lo trae; confirmado funcionando en dev).
+- **Nuestra recomendación:** adoptar **HNSW** (parámetros por defecto `m=16`, `ef_construction=64`).
+- **Necesitamos de ustedes:** (1) OK a reemplazar ivfflat por HNSW en las dos tablas generales; (2) si hay datos, agendar el rebuild en ventana de bajo tráfico.
+
+### C) Auth/JWT: ¿HS256 (secreto compartido) o firma asimétrica (JWKS)?  ·  ⏳ ABIERTO
+> **Estado:** en espera de respuesta del equipo (cómo firma los JWT el principal). **No bloquea** el PR de migraciones (es código de `app/auth.py`, no esquema).
+- **Qué pasa:** `app/auth.py` hoy verifica el JWT con **HS256** usando `SUPABASE_JWT_SECRET`. Los proyectos Supabase modernos firman con **claves asimétricas** (JWKS, RS256/ES256) — el proyecto dev expone JWKS.
+- **Por qué importa:** para verificar bien el JWT del usuario, Athos debe usar el **mismo esquema de firma que el principal**. Esto **no cambia nada para Santiago**: el front sigue mandando `Authorization: Bearer <jwt>` del usuario, igual que hoy.
+- **Nuestra recomendación:** implementar verificación por **JWKS** (descargar + cachear las signing keys de `<project>/auth/v1/.well-known/jwks.json`, validar RS256/ES256). Si el principal aún usa el secreto legacy HS256, lo soportamos también.
+- **Necesitamos de ustedes:** confirmar **cómo firma los JWT el proyecto principal** hoy — ¿secreto **HS256 legacy** o **signing keys asimétricas (JWKS)**? Con eso ajustamos `app/auth.py`.
+
+> **Estado del PR a main (2026-07-14):** **A y B decididos** (van con `0001`/`0002`); falta sólo el chequeo operativo de datos en el principal antes de aplicar. **C (auth) abierto** y **no bloquea** este PR de migraciones. Regla de merge vigente: ninguna tabla por-clínica sin **RLS** + **test cross-tenant** se mergea.
