@@ -14,3 +14,16 @@ def severe_allergies(clinic_id: str, patient_id: str) -> list[str]:
         (clinic_id, patient_id),
     )
     return [r["allergen"] for r in rows]
+
+
+def gate_triggered(severe_allergens: list[str]) -> bool:
+    """Decisión DURA del gate: si hay alergia severa conocida, se dispara (antes de cualquier
+    plan). Determinística; nunca depende del LLM."""
+    return bool(severe_allergens)
+
+
+def evaluate_gate(clinic_id: str, patient_id: str) -> tuple[bool, list[str]]:
+    """Lee `allergies` (con clinic_id explícito) y decide el gate.
+    Devuelve (disparado, alérgenos_severos). Escríbelo en clinical_notes.allergy_gate_triggered."""
+    severe = severe_allergies(clinic_id, patient_id)
+    return gate_triggered(severe), severe
