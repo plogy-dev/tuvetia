@@ -54,7 +54,6 @@ export default async function PatientsPage({
         <Table>
           <TableHeader className="bg-muted">
             <TableRow>
-              <TableHead className="w-14"></TableHead>
               <TableHead>Mascota</TableHead>
               <TableHead>Especie</TableHead>
               <TableHead>Sexo</TableHead>
@@ -66,19 +65,19 @@ export default async function PatientsPage({
             {patients?.length ? (
               patients.map((patient) => (
                 <TableRow key={patient.id}>
-                  <TableCell>
-                    <Avatar className="size-9">
-                      <AvatarImage
-                        src={patient.photo_url ?? undefined}
-                        alt={patient.name}
-                      />
-                      <AvatarFallback>
-                        <PawPrintIcon className="size-4" />
-                      </AvatarFallback>
-                    </Avatar>
-                  </TableCell>
                   <TableCell className="font-medium">
-                    {patient.name}
+                    <div className="flex items-center gap-3">
+                      <Avatar className="size-9">
+                        <AvatarImage
+                          src={patient.photo_url ?? undefined}
+                          alt={patient.name}
+                        />
+                        <AvatarFallback>
+                          <PawPrintIcon className="size-4" />
+                        </AvatarFallback>
+                      </Avatar>
+                      {patient.name}
+                    </div>
                   </TableCell>
                   <TableCell>{patient.species}</TableCell>
                   <TableCell>
@@ -91,7 +90,7 @@ export default async function PatientsPage({
             ) : (
               <TableRow>
                 <TableCell
-                  colSpan={6}
+                  colSpan={5}
                   className="h-24 text-center text-muted-foreground"
                 >
                   {q

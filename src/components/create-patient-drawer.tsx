@@ -182,23 +182,44 @@ export function CreatePatientDrawer() {
       return
     }
 
-    if (photoFile && clinicId) {
-      const ext = photoFile.name.split(".").pop() ?? "jpg"
-      const path = `${clinicId}/${newPatientId}.${ext}`
-      const { error: uploadError } = await supabase.storage
-        .from("patient-photos")
-        .upload(path, photoFile, { upsert: true })
+    if (photoFile) {
+      let uploadClinicId = clinicId
+      if (!uploadClinicId) {
+        // Fallback in case the drawer's initial fetch (owners + clinic_id)
+        // hadn't finished when the form was submitted.
+        const { data: userData } = await supabase.auth.getUser()
+        if (userData.user) {
+          const { data: profile } = await supabase
+            .from("profiles")
+            .select("clinic_id")
+            .eq("id", userData.user.id)
+            .single()
+          uploadClinicId = profile?.clinic_id ?? null
+        }
+      }
 
-      if (uploadError) {
-        toast.error("El paciente se creó, pero la foto no se pudo subir.")
+      if (!uploadClinicId) {
+        toast.error(
+          "El paciente se creó, pero no se pudo subir la foto (no se encontró tu clínica)."
+        )
       } else {
-        const {
-          data: { publicUrl },
-        } = supabase.storage.from("patient-photos").getPublicUrl(path)
-        await supabase
-          .from("patients")
-          .update({ photo_url: publicUrl })
-          .eq("id", newPatientId)
+        const ext = photoFile.name.split(".").pop() ?? "jpg"
+        const path = `${uploadClinicId}/${newPatientId}.${ext}`
+        const { error: uploadError } = await supabase.storage
+          .from("patient-photos")
+          .upload(path, photoFile, { upsert: true })
+
+        if (uploadError) {
+          toast.error("El paciente se creó, pero la foto no se pudo subir.")
+        } else {
+          const {
+            data: { publicUrl },
+          } = supabase.storage.from("patient-photos").getPublicUrl(path)
+          await supabase
+            .from("patients")
+            .update({ photo_url: publicUrl })
+            .eq("id", newPatientId)
+        }
       }
     }
 
@@ -418,7 +439,11 @@ export function CreatePatientDrawer() {
           </FieldGroup>
         </form>
         <DrawerFooter>
-          <Button type="submit" form="create-patient-form" disabled={loading}>
+          <Button
+            type="submit"
+            form="create-patient-form"
+            disabled={loading || ownersLoading}
+          >
             {loading && <Loader2Icon className="animate-spin" />}
             Crear paciente
           </Button>
