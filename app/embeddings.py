@@ -50,6 +50,7 @@ class EmbeddingClient:
         self.dim = s.embedding_dim
         self.api_key = s.embedding_api_key
         self._client = None
+        self.total_billed_tokens = 0  # acumulado real (para el guard de presupuesto)
 
     def _cohere(self):
         if self._client is None:
@@ -79,6 +80,7 @@ class EmbeddingClient:
                     embedding_types=["float"],
                     output_dimension=self.dim,
                 )
+                self.total_billed_tokens += _billed_tokens(resp, texts)
                 floats = getattr(resp.embeddings, "float", None)
                 if floats is None:
                     floats = getattr(resp.embeddings, "float_")
@@ -96,3 +98,22 @@ class EmbeddingClient:
                     raise EmbeddingQuotaExceeded(f"Cohere 429 tras reintentos: {e}") from e
                 raise
         raise EmbeddingQuotaExceeded(f"Cohere 429 tras reintentos: {last}")
+
+
+def _billed_tokens(resp, texts: list[str]) -> int:
+    """Tokens facturados por Cohere en la llamada (para el guard de presupuesto)."""
+    try:
+        return int(resp.meta.billed_units.input_tokens)
+    except Exception:  # noqa: BLE001
+        return sum(max(1, len(t) // 4) for t in texts)  # estimación de respaldo
+
+
+_SHARED_CLIENT = None
+
+
+def get_client() -> EmbeddingClient:
+    """Cliente compartido: acumula `total_billed_tokens` entre llamadas (guard de presupuesto)."""
+    global _SHARED_CLIENT
+    if _SHARED_CLIENT is None:
+        _SHARED_CLIENT = EmbeddingClient()
+    return _SHARED_CLIENT

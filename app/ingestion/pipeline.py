@@ -132,9 +132,10 @@ def chunk_document(body: str, metadata: dict) -> list[dict]:
 
 
 def embed_texts(texts: list[str]) -> list[list[float]]:
-    """Embeddiza textos con Cohere embed-v4 (dim = EMBEDDING_DIM) vía EmbeddingClient."""
-    from app.embeddings import EmbeddingClient
-    return EmbeddingClient().embed(texts, input_type="search_document")
+    """Embeddiza textos con Cohere embed-v4 (dim = EMBEDDING_DIM) vía el cliente compartido
+    (acumula los tokens facturados para el guard de presupuesto de la ingesta)."""
+    from app.embeddings import get_client
+    return get_client().embed(texts, input_type="search_document")
 
 
 def tag_with_glossary(chunk: dict) -> list[str]:
@@ -162,6 +163,30 @@ def _ts_config(idioma) -> str:
     return _PG_TS_CONFIG.get(str(idioma or "").upper(), "simple")
 
 
+def _insert_chunk_rows(cur, chunks: list[dict], model: str) -> None:
+    """Inserta filas de chunk en un cursor abierto (el llamador maneja conexión/commit)."""
+    for ch in chunks:
+        md = dict(ch["metadata"])
+        md["locator"] = ch.get("locator")
+        md["ordinal"] = ch.get("ordinal")
+        md["embedding_model"] = model
+        md.setdefault("is_current", True)
+        emb_str = "[" + ",".join(f"{x:.7f}" for x in ch["embedding"]) + "]"
+        cur.execute(
+            "insert into public.corpus_chunks (source, title, content, embedding, metadata, tsv) "
+            "values (%s, %s, %s, %s::vector, %s, to_tsvector(%s::regconfig, %s))",
+            (
+                str(md.get("source") or md.get("fuente") or "corpus"),
+                md.get("titulo") or md.get("title"),
+                ch["content"],
+                emb_str,
+                Json(md),
+                _ts_config(md.get("idioma")),
+                ch["content"],
+            ),
+        )
+
+
 def upsert_chunks(chunks: list[dict]) -> None:
     """Inserta en corpus_chunks (content, embedding, tsv, metadata). GLOBAL, sin clinic_id.
 
@@ -170,29 +195,21 @@ def upsert_chunks(chunks: list[dict]) -> None:
     """
     if not chunks:
         return
-    model = get_settings().embedding_model
     with get_conn() as conn, conn.cursor() as cur:
-        for ch in chunks:
-            md = dict(ch["metadata"])
-            md["locator"] = ch.get("locator")
-            md["ordinal"] = ch.get("ordinal")
-            md["embedding_model"] = model
-            md.setdefault("is_current", True)
-            emb_str = "[" + ",".join(f"{x:.7f}" for x in ch["embedding"]) + "]"
-            cur.execute(
-                "insert into public.corpus_chunks (source, title, content, embedding, metadata, tsv) "
-                "values (%s, %s, %s, %s::vector, %s, to_tsvector(%s::regconfig, %s))",
-                (
-                    str(md.get("source") or md.get("fuente") or "corpus"),
-                    md.get("titulo") or md.get("title"),
-                    ch["content"],
-                    emb_str,
-                    Json(md),
-                    _ts_config(md.get("idioma")),
-                    ch["content"],
-                ),
-            )
+        _insert_chunk_rows(cur, chunks, get_settings().embedding_model)
         conn.commit()
+
+
+def prepare_document(md_text: str) -> tuple[str | None, list[dict]]:
+    """Parsea + chunkea SIN embeddizar (para ingesta por lotes). Devuelve (content_hash, chunks);
+    content_hash None si el cuerpo está vacío. La idempotencia (skip si ya está) la decide el
+    llamador comparando content_hash contra los ya ingeridos."""
+    metadata, body = parse_document(md_text)
+    if not body.strip():
+        return None, []
+    content_hash = _doc_hash(metadata, body)
+    metadata.setdefault("content_hash", content_hash)
+    return content_hash, chunk_document(body, metadata)
 
 
 def ingest_document(md_text: str) -> int:
