@@ -65,6 +65,19 @@ Login sin contraseña (magic link) + Google OAuth, usando `@supabase/ssr` (helpe
 
 **Rutas:** `/` (login), `/signup` (registro), `/auth/confirm` (verifica el magic link), `/auth/callback` (intercambia el `code` de OAuth).
 
+## Pacientes y Titulares
+
+- `public.create_owner(p_full_name, p_phone, p_email, p_document_id, p_address, p_notes)` — RPC `SECURITY DEFINER`, crea un `owner` en la clínica del usuario autenticado (resuelve `clinic_id` vía `private.my_clinic_id()`, el cliente nunca lo manda). Ojo: si se vuelve a cambiar la firma de esta función, `create or replace` **no reemplaza** la versión anterior si cambian los parámetros — Postgres la trata como una sobrecarga nueva. Hay que `drop function` la firma vieja explícitamente (nos pasó una vez, ver migración `drop_old_create_owner_overload`).
+- `public.create_patient(p_owner_id, p_name, p_species, p_sex, p_breed, p_birth_date, p_weight_kg)` — RPC `SECURITY DEFINER`, valida que `p_owner_id` pertenezca a la misma clínica antes de insertar.
+- UI: `src/components/create-owner-drawer.tsx` (usado en `/dashboard/owners`) y `src/components/create-patient-drawer.tsx` (global, botón "Crear paciente" en el sidebar) — este último permite seleccionar un titular existente o crear uno nuevo inline.
+- **Gotcha de tipos:** `patients.select("owner:owners(full_name, phone)")` es un embed *to-one* (FK `patients.owner_id -> owners.id`), PostgREST lo devuelve como objeto plano en runtime, pero el query builder sin `Database` generado lo infiere como array. Hay que castear el resultado (ver `PatientRow` en `src/app/dashboard/patients/page.tsx`) y acceder con `.owner?.full_name`, **no** `.owner?.[0]?.full_name`.
+
+## Storage — fotos de pacientes
+
+- Bucket `patient-photos` (público, para poder usar `getPublicUrl` directo sin firmar URLs — las fotos de mascotas no son datos sensibles).
+- Path: `{clinic_id}/{patient_id}.{ext}`. Policies en `storage.objects` (insert/update/delete) exigen que el primer segmento del path (`(storage.foldername(name))[1]`) sea igual a `private.my_clinic_id()`.
+- Flujo de subida (`create-patient-drawer.tsx`): se crea el paciente primero vía RPC, y solo si hay foto se sube a Storage y se hace un `update` de `patients.photo_url` con la URL pública. Si la subida falla, el paciente igual queda creado (se avisa con un toast, no se revierte nada).
+
 ## Skills instaladas
 
 Se instalaron las Agent Skills de Supabase (`npx skills add supabase/agent-skills`) en `.agents/skills/`:

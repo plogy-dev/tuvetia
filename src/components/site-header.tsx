@@ -7,6 +7,7 @@ import { SidebarTrigger } from "@/components/ui/sidebar"
 const TITLES: Record<string, string> = {
   "/dashboard": "Dashboard",
   "/dashboard/patients": "Pacientes",
+  "/dashboard/owners": "Titulares",
 }
 
 export function SiteHeader() {

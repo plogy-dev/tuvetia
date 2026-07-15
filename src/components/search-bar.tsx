@@ -5,7 +5,13 @@ import { useEffect, useState } from "react"
 import { Input } from "@/components/ui/input"
 import { SearchIcon } from "lucide-react"
 
-export function PatientsSearch({ defaultValue }: { defaultValue: string }) {
+export function SearchBar({
+  defaultValue,
+  placeholder,
+}: {
+  defaultValue: string
+  placeholder: string
+}) {
   const router = useRouter()
   const pathname = usePathname()
   const searchParams = useSearchParams()
@@ -30,7 +36,7 @@ export function PatientsSearch({ defaultValue }: { defaultValue: string }) {
     <div className="relative w-full max-w-sm">
       <SearchIcon className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground" />
       <Input
-        placeholder="Buscar paciente..."
+        placeholder={placeholder}
         className="pl-8"
         value={value}
         onChange={(e) => setValue(e.target.value)}

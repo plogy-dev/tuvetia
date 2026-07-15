@@ -15,7 +15,7 @@ import {
   SidebarMenuButton,
   SidebarMenuItem,
 } from "@/components/ui/sidebar"
-import { LayoutDashboardIcon, UsersIcon, CalendarIcon, MessageCircleIcon, CameraIcon, FileTextIcon, Settings2Icon, CircleHelpIcon, SearchIcon, BotIcon, GhostIcon, CommandIcon } from "lucide-react"
+import { LayoutDashboardIcon, UsersIcon, ContactIcon, CalendarIcon, MessageCircleIcon, CameraIcon, FileTextIcon, Settings2Icon, CircleHelpIcon, SearchIcon, BotIcon, GhostIcon, CommandIcon } from "lucide-react"
 
 const data = {
   navMain: [
@@ -32,6 +32,14 @@ const data = {
       url: "/dashboard/patients",
       icon: (
         <UsersIcon
+        />
+      ),
+    },
+    {
+      title: "Titulares",
+      url: "/dashboard/owners",
+      icon: (
+        <ContactIcon
         />
       ),
     },

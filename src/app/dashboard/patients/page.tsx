@@ -1,5 +1,5 @@
 import { PawPrintIcon } from "lucide-react"
-import { PatientsSearch } from "@/components/patients-search"
+import { SearchBar } from "@/components/search-bar"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import {
   Table,
@@ -15,6 +15,17 @@ const SEX_LABELS: Record<string, string> = {
   male: "Macho",
   female: "Hembra",
   unknown: "Desconocido",
+}
+
+type PatientRow = {
+  id: string
+  name: string
+  species: string
+  sex: string
+  photo_url: string | null
+  // PostgREST returns a to-one embed (owner_id -> owners.id) as a single
+  // object, but the untyped query builder infers it as an array.
+  owner: { full_name: string; phone: string | null } | null
 }
 
 export default async function PatientsPage({
@@ -33,13 +44,12 @@ export default async function PatientsPage({
     query = query.ilike("name", `%${q}%`)
   }
 
-  const { data: patients } = await query.order("created_at", {
-    ascending: false,
-  })
+  const { data } = await query.order("created_at", { ascending: false })
+  const patients = data as unknown as PatientRow[] | null
 
   return (
     <div className="flex flex-col gap-4 px-4 py-4 md:gap-6 md:py-6 lg:px-6">
-      <PatientsSearch defaultValue={q ?? ""} />
+      <SearchBar defaultValue={q ?? ""} placeholder="Buscar paciente..." />
       <div className="overflow-hidden rounded-lg border">
         <Table>
           <TableHeader className="bg-muted">
@@ -74,8 +84,8 @@ export default async function PatientsPage({
                   <TableCell>
                     {SEX_LABELS[patient.sex] ?? patient.sex}
                   </TableCell>
-                  <TableCell>{patient.owner?.[0]?.full_name ?? "—"}</TableCell>
-                  <TableCell>{patient.owner?.[0]?.phone ?? "—"}</TableCell>
+                  <TableCell>{patient.owner?.full_name ?? "—"}</TableCell>
+                  <TableCell>{patient.owner?.phone ?? "—"}</TableCell>
                 </TableRow>
               ))
             ) : (

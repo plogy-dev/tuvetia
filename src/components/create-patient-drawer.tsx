@@ -1,9 +1,10 @@
 "use client"
 
 import { useRouter } from "next/navigation"
-import { useState } from "react"
+import { useRef, useState } from "react"
 import { toast } from "sonner"
 import { createClient } from "@/lib/supabase/client"
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Button } from "@/components/ui/button"
 import {
   Drawer,
@@ -32,7 +33,7 @@ import {
 } from "@/components/ui/select"
 import { SidebarMenuButton } from "@/components/ui/sidebar"
 import { useIsMobile } from "@/hooks/use-mobile"
-import { CirclePlusIcon, Loader2Icon } from "lucide-react"
+import { CirclePlusIcon, Loader2Icon, PawPrintIcon } from "lucide-react"
 
 type Owner = {
   id: string
@@ -53,6 +54,7 @@ export function CreatePatientDrawer() {
   const [owners, setOwners] = useState<Owner[] | null>(null)
   const [ownersLoading, setOwnersLoading] = useState(false)
   const [ownerId, setOwnerId] = useState<string>(NEW_OWNER)
+  const [clinicId, setClinicId] = useState<string | null>(null)
 
   const [name, setName] = useState("")
   const [species, setSpecies] = useState("")
@@ -64,6 +66,10 @@ export function CreatePatientDrawer() {
   const [ownerName, setOwnerName] = useState("")
   const [ownerPhone, setOwnerPhone] = useState("")
   const [ownerEmail, setOwnerEmail] = useState("")
+
+  const [photoFile, setPhotoFile] = useState<File | null>(null)
+  const [photoPreview, setPhotoPreview] = useState<string | null>(null)
+  const fileInputRef = useRef<HTMLInputElement>(null)
 
   function resetForm() {
     setName("")
@@ -77,6 +83,19 @@ export function CreatePatientDrawer() {
     setOwnerPhone("")
     setOwnerEmail("")
     setError(null)
+    setPhotoFile(null)
+    if (photoPreview) URL.revokeObjectURL(photoPreview)
+    setPhotoPreview(null)
+    if (fileInputRef.current) fileInputRef.current.value = ""
+  }
+
+  function handlePhotoChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0] ?? null
+    setPhotoFile(file)
+    setPhotoPreview((prev) => {
+      if (prev) URL.revokeObjectURL(prev)
+      return file ? URL.createObjectURL(file) : null
+    })
   }
 
   async function handleOpenChange(nextOpen: boolean) {
@@ -88,11 +107,20 @@ export function CreatePatientDrawer() {
     if (owners !== null) return
     setOwnersLoading(true)
     const supabase = createClient()
-    const { data } = await supabase
-      .from("owners")
-      .select("id, full_name, phone")
-      .order("full_name")
-    setOwners(data ?? [])
+    const [ownersResult, userResult] = await Promise.all([
+      supabase.from("owners").select("id, full_name, phone").order("full_name"),
+      supabase.auth.getUser(),
+    ])
+    setOwners(ownersResult.data ?? [])
+    const userId = userResult.data.user?.id
+    if (userId) {
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("clinic_id")
+        .eq("id", userId)
+        .single()
+      setClinicId(profile?.clinic_id ?? null)
+    }
     setOwnersLoading(false)
   }
 
@@ -125,25 +153,56 @@ export function CreatePatientDrawer() {
         return
       }
       finalOwnerId = newOwnerId
+      setOwners((prev) => [
+        ...(prev ?? []),
+        {
+          id: newOwnerId,
+          full_name: ownerName.trim(),
+          phone: ownerPhone.trim() || null,
+        },
+      ])
     }
 
-    const { error: patientError } = await supabase.rpc("create_patient", {
-      p_owner_id: finalOwnerId,
-      p_name: name.trim(),
-      p_species: species.trim(),
-      p_sex: sex,
-      p_breed: breed.trim() || null,
-      p_birth_date: birthDate || null,
-      p_weight_kg: weight ? Number(weight) : null,
-    })
+    const { data: newPatientId, error: patientError } = await supabase.rpc(
+      "create_patient",
+      {
+        p_owner_id: finalOwnerId,
+        p_name: name.trim(),
+        p_species: species.trim(),
+        p_sex: sex,
+        p_breed: breed.trim() || null,
+        p_birth_date: birthDate || null,
+        p_weight_kg: weight ? Number(weight) : null,
+      }
+    )
 
-    setLoading(false)
-
-    if (patientError) {
-      setError(patientError.message)
+    if (patientError || !newPatientId) {
+      setLoading(false)
+      setError(patientError?.message ?? "No se pudo crear el paciente.")
       return
     }
 
+    if (photoFile && clinicId) {
+      const ext = photoFile.name.split(".").pop() ?? "jpg"
+      const path = `${clinicId}/${newPatientId}.${ext}`
+      const { error: uploadError } = await supabase.storage
+        .from("patient-photos")
+        .upload(path, photoFile, { upsert: true })
+
+      if (uploadError) {
+        toast.error("El paciente se creó, pero la foto no se pudo subir.")
+      } else {
+        const {
+          data: { publicUrl },
+        } = supabase.storage.from("patient-photos").getPublicUrl(path)
+        await supabase
+          .from("patients")
+          .update({ photo_url: publicUrl })
+          .eq("id", newPatientId)
+      }
+    }
+
+    setLoading(false)
     toast.success(`${name} se registró correctamente`)
     setOpen(false)
     resetForm()
@@ -181,6 +240,25 @@ export function CreatePatientDrawer() {
           className="flex flex-col gap-4 overflow-y-auto px-4 text-sm"
         >
           <FieldGroup>
+            <Field>
+              <FieldLabel htmlFor="patient-photo">Foto</FieldLabel>
+              <div className="flex items-center gap-3">
+                <Avatar className="size-14">
+                  <AvatarImage src={photoPreview ?? undefined} alt="" />
+                  <AvatarFallback>
+                    <PawPrintIcon className="size-5" />
+                  </AvatarFallback>
+                </Avatar>
+                <Input
+                  id="patient-photo"
+                  ref={fileInputRef}
+                  type="file"
+                  accept="image/*"
+                  onChange={handlePhotoChange}
+                  className="max-w-56"
+                />
+              </div>
+            </Field>
             <Field>
               <FieldLabel htmlFor="patient-name">Nombre de la mascota</FieldLabel>
               <Input
