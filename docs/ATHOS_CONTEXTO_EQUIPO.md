@@ -88,7 +88,7 @@ Filosofía: **gastar la mínima IA**. Un buscador determinístico con un diccion
 - Entornos y migraciones (dev → PR → principal): `MIGRACIONES.md`
 
 ## 10. Bitácora de montaje y decisiones (se actualiza)
-> Registro vivo del progreso del microservicio, para que Santiago y Pipe sigan el avance y las decisiones. Última actualización: **2026-07-14**.
+> Registro vivo del progreso del microservicio, para que Santiago y Pipe sigan el avance y las decisiones. Última actualización: **2026-07-15**.
 
 **2026-07-13 — Entorno local montado y verificado**
 - Herramientas: `uv`, Node 22, Git, Claude Code, **Supabase CLI 2.109.1**.
@@ -120,6 +120,14 @@ Filosofía: **gastar la mínima IA**. Un buscador determinístico con un diccion
 - **Embeddings Cohere embed-v4 (dim 1024)** cableados. **Ingesta de prueba** (trial key) cargó **843 docs / 6.704 chunks** a `corpus_chunks` en dev (embedding + `tsvector` + metadata), **idempotente por `content_hash`**; paró exactamente en el límite mensual de la trial (validando el corte). La ingesta **completa** se corre al pagar Cohere.
 - **Generación B→A (Anthropic):** armado de prompt + parseo/verificación de citas listos y testeados con el **LLM mockeado**.
 - **Estado:** **28 tests** en verde, `ruff` limpio. **Pendiente (necesita API keys):** ingesta completa (Cohere pagada), **llamada real al LLM** de redacción, y **wiring de endpoints** `/athos/chat` y `/athos/phantom/suggest`.
+
+**2026-07-15 — Producción: keys activas, corpus balanceado (14,6%) e ingesta afinada**
+- **APIs de producción activas y validadas EN VIVO:** Anthropic (redacción B→A — generó una nota real y **se abstuvo correctamente** cuando la evidencia no calzaba) y Cohere embed-v4 (dim 1024). Keys solo en `.env` (a **rotar**: se pegaron en el chat).
+- **Corpus en dev: 8.960 documentos / ~67.000 chunks**, **balanceado en las 8 especies** (perro, gato, mixto, ave, conejo, reptil, roedor, hurón) = **14,6% del corpus**. Ingesta con **orden proporcional por especie** (desde `manifest.csv`) + **guard de presupuesto por tokens facturados** + idempotencia por `content_hash` (reanudable).
+- **Incidente resuelto:** al crecer `corpus_chunks`, los INSERT sobre el índice **HNSW** se vuelven lentos y superaron el `statement_timeout` de Supabase (crash de la corrida completa a ~62M tokens). Fix: `statement_timeout=0` por conexión + reconexión + skip barato al reanudar. **Datos intactos** (commit por lote).
+- **Hallazgo (rendimiento):** para la ingesta del **corpus completo**, usar **drop-index HNSW → carga masiva → reconstruir índice** (evita el costo por-fila, mucho más rápido). Además, la **query del Tier 1 a escala** necesita `statement_timeout` alto / tuning de índices → **pendiente de optimizar**.
+- **Presupuesto (rate de Cohere confirmado ≈ US$0,12/1M tokens):** corpus completo ~US$73 (~297.000 COP); **gastado US$8,02** (14,6%); **para completarlo hay que recargar ≈ US$57 ≈ ~230.000 COP** además del saldo actual. Palanca de ahorro: el 63% del corpus es especie **"mixto"** (38.539 docs) → priorizar categorías clínicas reduce bastante el costo.
+- **Pendiente:** endpoints `/athos/chat` (SSE) y `/athos/phantom/suggest`; tuning de rendimiento del Tier 1; ingesta del corpus completo al aprobar presupuesto.
 
 ## 11. Coordinación abierta — 3 decisiones que necesitamos del equipo (antes del PR a main)
 > Todo lo de abajo está **probado en el proyecto dev** (`tuvetia-athos-dev`, ref `ghmpjyuchwkrvnjvdeum`). **Nada se ha tocado en el principal** (ref `auxlnexhkmtoedrzfsnz`). Para llevar las migraciones `0001`/`0002` al principal necesitamos confirmar 3 cosas, porque tocan **tablas generales** y **auth compartida**. El PR incluirá **solo** `supabase/migrations/0001*.sql` y `0002*.sql` (el bootstrap **no** se PR-ea).
