@@ -115,6 +115,12 @@ Filosofía: **gastar la mínima IA**. Un buscador determinístico con un diccion
 - Migración **`0002` aplicada y verificada en dev**: índice vectorial **HNSW** en `corpus_chunks` y `patient_embeddings` (reemplaza el ivfflat del base, mismos nombres de índice).
 - Consolidados los **3 puntos que necesitan decisión del equipo** antes de abrir el PR a main (tocan tablas generales y auth compartida) → ver **§11**. Nada tocado en el principal; todo probado en `tuvetia-athos-dev`.
 
+**2026-07-14 — Motor RAG implementado (pasos 0–8) y validado en dev; ingesta de prueba OK**
+- **Núcleo determinístico (sin IA), en verde en CI:** verificación de citas (descarta fuentes no recuperadas); cascada (Tier 0 especie como **preferencia por MeSH**, umbral/abstención, fusión en memoria por zonas); ingesta **parse + chunk** (locator, sin partir tablas/dosis); **gate de alergia severa**; **glosario ES→EN** (`resolve_concepts` + siembra desde MeSH del corpus + curación coloquial); **Tier 1 léxico** (full-text + MeSH) y **Tier 2 vector** (pgvector); **contexto de paciente** por clínica; **tests cross-tenant** (aislamiento por `clinic_id`, service_role).
+- **Embeddings Cohere embed-v4 (dim 1024)** cableados. **Ingesta de prueba** (trial key) cargó **843 docs / 6.704 chunks** a `corpus_chunks` en dev (embedding + `tsvector` + metadata), **idempotente por `content_hash`**; paró exactamente en el límite mensual de la trial (validando el corte). La ingesta **completa** se corre al pagar Cohere.
+- **Generación B→A (Anthropic):** armado de prompt + parseo/verificación de citas listos y testeados con el **LLM mockeado**.
+- **Estado:** **28 tests** en verde, `ruff` limpio. **Pendiente (necesita API keys):** ingesta completa (Cohere pagada), **llamada real al LLM** de redacción, y **wiring de endpoints** `/athos/chat` y `/athos/phantom/suggest`.
+
 ## 11. Coordinación abierta — 3 decisiones que necesitamos del equipo (antes del PR a main)
 > Todo lo de abajo está **probado en el proyecto dev** (`tuvetia-athos-dev`, ref `ghmpjyuchwkrvnjvdeum`). **Nada se ha tocado en el principal** (ref `auxlnexhkmtoedrzfsnz`). Para llevar las migraciones `0001`/`0002` al principal necesitamos confirmar 3 cosas, porque tocan **tablas generales** y **auth compartida**. El PR incluirá **solo** `supabase/migrations/0001*.sql` y `0002*.sql` (el bootstrap **no** se PR-ea).
 
