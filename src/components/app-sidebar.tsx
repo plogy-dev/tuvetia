@@ -29,7 +29,7 @@ const data = {
     },
     {
       title: "Pacientes",
-      url: "#",
+      url: "/dashboard/patients",
       icon: (
         <UsersIcon
         />
@@ -170,7 +170,7 @@ export function AppSidebar({
               render={<a href="#" />}
             >
               <CommandIcon className="size-5!" />
-              <span className="text-base font-semibold">TuvetAI</span>
+              <span className="text-base font-semibold">TuvetIA</span>
             </SidebarMenuButton>
           </SidebarMenuItem>
         </SidebarMenu>

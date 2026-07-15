@@ -103,9 +103,9 @@ export function SignupForm({
               <div className="flex size-8 items-center justify-center rounded-md">
                 <GalleryVerticalEndIcon className="size-6" />
               </div>
-              <span className="sr-only">TuvetAI</span>
+              <span className="sr-only">TuvetIA</span>
             </a>
-            <h1 className="text-xl font-bold">Crea tu cuenta en TuvetAI</h1>
+            <h1 className="text-xl font-bold">Crea tu cuenta en TuvetIA</h1>
             <FieldDescription>
               ¿Ya tienes cuenta? <a href="/">Inicia sesión</a>
             </FieldDescription>
