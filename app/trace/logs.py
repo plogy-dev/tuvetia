@@ -10,19 +10,21 @@ def log_message(clinic_id: str, user_id: str | None, patient_id: str | None,
         "values (%s,%s,%s,%s,%s) returning id",
         (clinic_id, user_id, patient_id, role, content),
     )
-    return rows[0]["id"]
+    return str(rows[0]["id"])
 
 
 def log_retrieval(clinic_id: str, source: str, query_used: str, concepts: list[str],
                   chunk_ids: list[str], top_score: float, passed: bool,
                   user_id: str | None = None, patient_id: str | None = None) -> str:
+    # chunk_ids -> literal de array casteado a uuid[] (evita el mismatch text[] vs uuid[]).
+    chunk_arr = "{" + ",".join(str(c) for c in chunk_ids) + "}"
     rows = fetch_all(
         "insert into public.rag_retrieval_log "
         "(clinic_id, user_id, patient_id, source, query_used, concepts, chunk_ids, top_score, passed_threshold) "
-        "values (%s,%s,%s,%s,%s,%s,%s,%s,%s) returning id",
-        (clinic_id, user_id, patient_id, source, query_used, concepts, chunk_ids, top_score, passed),
+        "values (%s,%s,%s,%s,%s,%s,%s::uuid[],%s,%s) returning id",
+        (clinic_id, user_id, patient_id, source, query_used, concepts, chunk_arr, top_score, passed),
     )
-    return rows[0]["id"]
+    return str(rows[0]["id"])
 
 
 def log_answer(clinic_id: str, retrieval_id: str | None, note_id: str | None, answer: str,
@@ -33,4 +35,4 @@ def log_answer(clinic_id: str, retrieval_id: str | None, note_id: str | None, an
         "values (%s,%s,%s,%s,%s,%s,%s,%s) returning id",
         (clinic_id, retrieval_id, note_id, answer, json.dumps(citations), insufficient, severe_allergy, model),
     )
-    return rows[0]["id"]
+    return str(rows[0]["id"])

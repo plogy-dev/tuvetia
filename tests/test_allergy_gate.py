@@ -1,7 +1,5 @@
 """Gate de alergia severa: determinístico, caso Luna."""
-import pytest
-
-from app.generation.allergy_gate import gate_triggered
+from app.generation.allergy_gate import gate_triggered, evaluate_gate
 
 
 def test_luna_alergia_severa_dispara_gate(luna_patient):
@@ -14,7 +12,12 @@ def test_sin_alergias_no_dispara():
     assert gate_triggered([]) is False
 
 
-@pytest.mark.skip(reason="implementar con DB de test sembrada (allergies)")
-def test_luna_alergia_pollo_dispara_gate(two_clinics):
-    """severe_allergies(clinic, 'luna') debe devolver ['pollo'] y marcar el gate antes del plan."""
-    ...
+def test_gate_desde_db_aislado(seeded_tenants):
+    """evaluate_gate lee `allergies` por clinic_id explícito; la clínica ajena no dispara."""
+    a, b, luna = seeded_tenants["clinic_a"], seeded_tenants["clinic_b"], seeded_tenants["luna"]
+    triggered, severe = evaluate_gate(a, luna)
+    assert triggered is True
+    assert severe == ["pollo"]
+    triggered_b, severe_b = evaluate_gate(b, luna)   # cross-tenant: no ve la alergia
+    assert triggered_b is False
+    assert severe_b == []
