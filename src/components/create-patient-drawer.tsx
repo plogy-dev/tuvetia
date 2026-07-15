@@ -54,7 +54,7 @@ export function CreatePatientDrawer() {
   const [owners, setOwners] = useState<Owner[] | null>(null)
   const [ownersLoading, setOwnersLoading] = useState(false)
   const [ownerId, setOwnerId] = useState<string>(NEW_OWNER)
-  const [clinicId, setClinicId] = useState<string | null>(null)
+  const [userId, setUserId] = useState<string | null>(null)
 
   const [name, setName] = useState("")
   const [species, setSpecies] = useState("")
@@ -112,15 +112,7 @@ export function CreatePatientDrawer() {
       supabase.auth.getUser(),
     ])
     setOwners(ownersResult.data ?? [])
-    const userId = userResult.data.user?.id
-    if (userId) {
-      const { data: profile } = await supabase
-        .from("profiles")
-        .select("clinic_id")
-        .eq("id", userId)
-        .single()
-      setClinicId(profile?.clinic_id ?? null)
-    }
+    setUserId(userResult.data.user?.id ?? null)
     setOwnersLoading(false)
   }
 
@@ -183,42 +175,40 @@ export function CreatePatientDrawer() {
     }
 
     if (photoFile) {
-      let uploadClinicId = clinicId
-      if (!uploadClinicId) {
-        // Fallback in case the drawer's initial fetch (owners + clinic_id)
+      let uploaderId = userId
+      if (!uploaderId) {
+        // Fallback in case the drawer's initial fetch (owners + user)
         // hadn't finished when the form was submitted.
         const { data: userData } = await supabase.auth.getUser()
-        if (userData.user) {
-          const { data: profile } = await supabase
-            .from("profiles")
-            .select("clinic_id")
-            .eq("id", userData.user.id)
-            .single()
-          uploadClinicId = profile?.clinic_id ?? null
-        }
+        uploaderId = userData.user?.id ?? null
       }
 
-      if (!uploadClinicId) {
+      if (!uploaderId) {
         toast.error(
-          "El paciente se creó, pero no se pudo subir la foto (no se encontró tu clínica)."
+          "El paciente se creó, pero no se pudo subir la foto (no se encontró tu sesión)."
         )
       } else {
         const ext = photoFile.name.split(".").pop() ?? "jpg"
-        const path = `${uploadClinicId}/${newPatientId}.${ext}`
+        const path = `${uploaderId}/${newPatientId}.${ext}`
         const { error: uploadError } = await supabase.storage
           .from("patient-photos")
           .upload(path, photoFile, { upsert: true })
 
         if (uploadError) {
-          toast.error("El paciente se creó, pero la foto no se pudo subir.")
+          console.error("Photo upload failed:", uploadError)
+          toast.error(`El paciente se creó, pero la foto no se pudo subir: ${uploadError.message}`)
         } else {
           const {
             data: { publicUrl },
           } = supabase.storage.from("patient-photos").getPublicUrl(path)
-          await supabase
+          const { error: updateError } = await supabase
             .from("patients")
             .update({ photo_url: publicUrl })
             .eq("id", newPatientId)
+          if (updateError) {
+            console.error("Failed to save photo_url:", updateError)
+            toast.error("La foto se subió, pero no se pudo asociar al paciente.")
+          }
         }
       }
     }
