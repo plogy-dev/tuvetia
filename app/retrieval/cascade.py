@@ -4,7 +4,7 @@ Tier 0 filtros/boosts -> Tier 1 léxico+glosario -> (Tier 2 vector solo si Tier 
 umbral -> fusión de contexto. El corpus es global; el contexto del paciente va por su propio
 camino (RLS por clinic_id) y se fusiona EN MEMORIA. Nunca JOIN entre zonas.
 """
-from app.db import fetch_all
+from app.db import fetch_all_corpus
 from app.embeddings import EmbeddingError
 from app.models import PatientContext, RetrievedChunk, StructuredQuery
 
@@ -113,7 +113,7 @@ def tier1_lexical_glossary(query: StructuredQuery, filters: dict) -> list[Retrie
     mesh = filters.get("mesh") or list(query.mesh)
     cfg = _ts_config(filters.get("language"))
     terms = " or ".join(concepts)  # websearch_to_tsquery entiende OR
-    rows = fetch_all(
+    rows = fetch_all_corpus(
         "select id, source, title, content, metadata, "
         "  ts_rank_cd(tsv, websearch_to_tsquery(%s, %s)) as lex, "
         "  (metadata->'mesh' ?| %s) as mesh_hit "
@@ -136,7 +136,7 @@ def _vector_search(vector: list[float], limit: int) -> list[RetrievedChunk]:
     """Búsqueda vectorial (pgvector, coseno) sobre el corpus. Recibe el vector ya calculado, así
     el camino SQL es testeable reutilizando un embedding ya guardado (sin llamar a Cohere)."""
     emb = "[" + ",".join(f"{x:.7f}" for x in vector) + "]"
-    rows = fetch_all(
+    rows = fetch_all_corpus(
         "select id, source, title, content, metadata, 1 - (embedding <=> %s::vector) as sim "
         "from public.corpus_chunks where embedding is not null "
         "order by embedding <=> %s::vector limit %s",

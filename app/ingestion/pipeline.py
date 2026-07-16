@@ -12,7 +12,7 @@ import yaml
 from psycopg.types.json import Json
 
 from app.config import get_settings
-from app.db import fetch_all, get_conn
+from app.db import fetch_all_corpus, get_corpus_conn
 
 # Chunking determinístico. Aproximamos "tokens" por palabras (barato y estable para tests).
 # Objetivo ~500-800 tokens con ~10-15% de solape; se calibra con el golden set.
@@ -152,7 +152,7 @@ def _doc_hash(metadata: dict, body: str) -> str:
 
 
 def _already_ingested(content_hash: str) -> bool:
-    rows = fetch_all(
+    rows = fetch_all_corpus(
         "select 1 from public.corpus_chunks where metadata->>'content_hash' = %s limit 1",
         (content_hash,),
     )
@@ -195,7 +195,7 @@ def upsert_chunks(chunks: list[dict]) -> None:
     """
     if not chunks:
         return
-    with get_conn() as conn, conn.cursor() as cur:
+    with get_corpus_conn() as conn, conn.cursor() as cur:
         _insert_chunk_rows(cur, chunks, get_settings().embedding_model)
         conn.commit()
 

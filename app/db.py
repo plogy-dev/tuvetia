@@ -18,13 +18,34 @@ def get_conn() -> psycopg.Connection:
                            options="-c statement_timeout=15000")
 
 
+def get_corpus_conn() -> psycopg.Connection:
+    """Conexión a la DB del CORPUS/glosario (global, sin datos de paciente). Puede ser un proyecto
+    distinto al principal: el corpus es grande y va aparte; el principal solo lleva paciente+trazas."""
+    return psycopg.connect(get_settings().corpus_db_url, row_factory=dict_row,
+                           options="-c statement_timeout=15000")
+
+
 def fetch_all(sql: str, params: tuple = ()) -> list[dict]:
     with get_conn() as conn, conn.cursor() as cur:
         cur.execute(sql, params)
         return cur.fetchall()
 
 
+def fetch_all_corpus(sql: str, params: tuple = ()) -> list[dict]:
+    """Como fetch_all pero contra la DB del corpus/glosario."""
+    with get_corpus_conn() as conn, conn.cursor() as cur:
+        cur.execute(sql, params)
+        return cur.fetchall()
+
+
 def execute(sql: str, params: tuple = ()) -> None:
     with get_conn() as conn, conn.cursor() as cur:
+        cur.execute(sql, params)
+        conn.commit()
+
+
+def execute_corpus(sql: str, params: tuple = ()) -> None:
+    """Como execute pero contra la DB del corpus/glosario."""
+    with get_corpus_conn() as conn, conn.cursor() as cur:
         cur.execute(sql, params)
         conn.commit()

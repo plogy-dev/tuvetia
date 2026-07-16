@@ -12,7 +12,8 @@ class Settings(BaseSettings):
     supabase_service_role_key: str = ""
     supabase_jwt_secret: str = ""          # HS256 legacy (fallback)
     supabase_jwks_url: str = ""            # si vacío se deriva de supabase_url
-    database_url: str = ""
+    database_url: str = ""                  # DB de PACIENTE + trazas (por clínica) — el principal
+    corpus_database_url: str = ""          # DB del CORPUS/glosario (global); si vacío usa database_url
 
     # Motores de IA (parametrizables)
     llm_model: str = "claude-sonnet-5"
@@ -30,6 +31,11 @@ class Settings(BaseSettings):
     @property
     def cors_origins_list(self) -> list[str]:
         return [o.strip() for o in self.cors_origins.split(",") if o.strip()]
+
+    @property
+    def corpus_db_url(self) -> str:
+        """DB del corpus/glosario. Si no se define aparte, usa la misma que la de paciente (dev)."""
+        return self.corpus_database_url or self.database_url
 
 
 @lru_cache

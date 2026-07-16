@@ -2,7 +2,7 @@
 import re
 import unicodedata
 
-from app.db import fetch_all
+from app.db import fetch_all_corpus
 from app.models import StructuredQuery
 
 
@@ -38,7 +38,7 @@ def match_concepts(text: str, species: str | None, synonyms: list[dict]) -> Stru
 
 def _load_approved_synonyms() -> list[dict]:
     """Carga los sinónimos `approved` del glosario (join con su término)."""
-    rows = fetch_all(
+    rows = fetch_all_corpus(
         "select s.text syn, t.canonical_en, coalesce(t.mesh_id, t.canonical_en) mesh "
         "from public.glossary_synonym s join public.glossary_term t on t.id = s.term_id "
         "where s.review_status = 'approved'"

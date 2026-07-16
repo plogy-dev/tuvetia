@@ -7,7 +7,7 @@ El retrieval usa por defecto solo sinónimos `approved`.
 
 CLI:  uv run python -m app.glossary.seed
 """
-from app.db import execute, fetch_all, get_conn
+from app.db import execute_corpus, fetch_all_corpus, get_corpus_conn
 
 # Curación inicial: motivos de consulta frecuentes en clínica + coloquial del dueño (ES) -> MeSH (EN).
 # Se siembran como `approved`. Ampliable con curación veterinaria.
@@ -42,14 +42,15 @@ CURATED = [
 def seed_from_corpus_mesh() -> int:
     """Crea glossary_term/synonym (candidate, EN) desde los descriptores MeSH del corpus.
     Idempotente: salta descriptores que ya existan como canonical_en. Devuelve nº de términos nuevos."""
-    rows = fetch_all(
+    rows = fetch_all_corpus(
         "select distinct jsonb_array_elements_text(metadata->'mesh') m "
         "from public.corpus_chunks where metadata ? 'mesh'"
     )
     descriptors = sorted({r["m"] for r in rows if r["m"]})
-    existing = {r["canonical_en"] for r in fetch_all("select canonical_en from public.glossary_term")}
+    existing = {r["canonical_en"] for r in
+                fetch_all_corpus("select canonical_en from public.glossary_term")}
     created = 0
-    with get_conn() as conn, conn.cursor() as cur:
+    with get_corpus_conn() as conn, conn.cursor() as cur:
         for d in descriptors:
             if d in existing:
                 continue
@@ -73,7 +74,7 @@ def seed_curated_glossary() -> int:
     """Siembra el set CURADO ES->EN como `approved` (crea término si falta, lo marca approved, y
     agrega sinónimos EN+ES). Idempotente. Devuelve nº de sinónimos nuevos."""
     created = 0
-    with get_conn() as conn, conn.cursor() as cur:
+    with get_corpus_conn() as conn, conn.cursor() as cur:
         for item in CURATED:
             cur.execute(
                 "select id from public.glossary_term where canonical_en = %s", (item["canonical_en"],)
@@ -128,12 +129,12 @@ def seed_from_decs() -> int:
 
 def approve_synonym(synonym_id: str, reviewer_id: str) -> None:
     """Marca un sinónimo como approved (curación veterinaria) y registra al revisor en el término."""
-    execute(
+    execute_corpus(
         "update public.glossary_term t set reviewed_by = %s, reviewed_at = now() "
         "from public.glossary_synonym s where s.id = %s and s.term_id = t.id",
         (reviewer_id, synonym_id),
     )
-    execute(
+    execute_corpus(
         "update public.glossary_synonym set review_status = 'approved' where id = %s", (synonym_id,)
     )
 

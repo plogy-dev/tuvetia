@@ -20,7 +20,7 @@ import psycopg
 from psycopg.rows import dict_row
 
 from app.config import get_settings
-from app.db import fetch_all
+from app.db import fetch_all_corpus
 from app.embeddings import EmbeddingError, get_client
 from app.ingestion.pipeline import (
     _doc_hash, _insert_chunk_rows, chunk_document, embed_texts, parse_document,
@@ -32,7 +32,7 @@ THROTTLE_S = 0.05     # pausa entre lotes
 
 def _connect():
     """Conexión con statement_timeout desactivado (INSERT en HNSW puede tardar al crecer)."""
-    conn = psycopg.connect(get_settings().database_url, row_factory=dict_row)
+    conn = psycopg.connect(get_settings().corpus_db_url, row_factory=dict_row)
     with conn.cursor() as cur:
         cur.execute("set statement_timeout = 0")
     conn.commit()
@@ -80,7 +80,7 @@ def main() -> None:
     total = len(files)
 
     model = get_settings().embedding_model
-    done = {r["ch"] for r in fetch_all(
+    done = {r["ch"] for r in fetch_all_corpus(
         "select distinct metadata->>'content_hash' ch from public.corpus_chunks") if r["ch"]}
     print(f"ya ingeridos: {len(done):,} documentos (se saltan)", flush=True)
     client = get_client()
