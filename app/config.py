@@ -10,7 +10,8 @@ class Settings(BaseSettings):
     supabase_url: str = ""
     supabase_anon_key: str = ""
     supabase_service_role_key: str = ""
-    supabase_jwt_secret: str = ""
+    supabase_jwt_secret: str = ""          # HS256 legacy (fallback)
+    supabase_jwks_url: str = ""            # si vacío se deriva de supabase_url
     database_url: str = ""
 
     # Motores de IA (parametrizables)

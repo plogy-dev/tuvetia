@@ -17,6 +17,7 @@ dependencies = [
     "anthropic",
     "cohere",
     "truststore>=0.10.4",
+    "cryptography>=49.0.0",
 ]
 
 [dependency-groups]
