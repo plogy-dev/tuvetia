@@ -42,3 +42,15 @@ class LLMClient:
             messages=[{"role": "user", "content": user}],
         )
         return "".join(b.text for b in resp.content if getattr(b, "type", None) == "text")
+
+    def stream(self, system: str, user: str, max_tokens: int = 1500):
+        """Genera en streaming (para SSE): produce fragmentos de texto a medida que llegan.
+        Sin thinking (respuesta natural citada, predecible)."""
+        with self._anthropic().messages.stream(
+            model=self.model,
+            max_tokens=max_tokens,
+            thinking={"type": "disabled"},
+            system=[{"type": "text", "text": system, "cache_control": {"type": "ephemeral"}}],
+            messages=[{"role": "user", "content": user}],
+        ) as s:
+            yield from s.text_stream

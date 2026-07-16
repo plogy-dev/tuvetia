@@ -7,6 +7,7 @@ from app.config import get_settings
 from app.auth import verify_jwt, resolve_clinic_id
 from app.models import ChatRequest, PhantomSuggestRequest, PhantomSuggestResponse
 from app.phantom import suggest as phantom_suggest_service
+from app.chat import stream_answer
 
 settings = get_settings()
 app = FastAPI(title="Athos RAG service")
@@ -41,13 +42,10 @@ def athos_chat(body: ChatRequest, authorization: str | None = Header(default=Non
     -> trazar (trace). El clinic_id va explícito hacia la DB.
     """
     user_id, clinic_id = _auth(authorization, body.clinic_id)
-
-    def event_stream():
-        # TODO (Claude Code): implementar la cascada y transmitir tokens por SSE.
-        raise NotImplementedError("implementar /athos/chat (sección 11)")
-        yield  # pragma: no cover
-
-    return StreamingResponse(event_stream(), media_type="text/event-stream")
+    return StreamingResponse(
+        stream_answer(body.question, body.patient_id, clinic_id, user_id),
+        media_type="text/event-stream",
+    )
 
 
 @app.post("/athos/phantom/suggest", response_model=PhantomSuggestResponse)
