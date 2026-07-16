@@ -8,6 +8,7 @@ trazabilidad, y devuelve el payload. `clinic_id` siempre explícito (service_rol
 from datetime import datetime, timezone
 
 from fastapi import HTTPException
+from psycopg.types.json import Json
 
 from app.config import get_settings
 from app.db import fetch_all, get_conn
@@ -38,15 +39,17 @@ def _load_transcript(clinic_id: str, consultation_id: str) -> dict | None:
     return rows[0] if rows else None
 
 
-def _insert_note(clinic_id, consultation_id, transcript_id, soap, gate_triggered, model, ai_at) -> str:
+def _insert_note(clinic_id, consultation_id, transcript_id, soap, citations,
+                 gate_triggered, model, ai_at) -> str:
     with get_conn() as conn, conn.cursor() as cur:
         cur.execute(
             "insert into public.clinical_notes "
             "(clinic_id, consultation_id, transcript_id, status, subjective, objective, assessment, "
-            " plan, ai_generated_at, ai_model, allergy_gate_triggered) "
-            "values (%s,%s,%s,'draft',%s,%s,%s,%s,%s,%s,%s) returning id",
+            " plan, citations, ai_generated_at, ai_model, allergy_gate_triggered) "
+            "values (%s,%s,%s,'draft',%s,%s,%s,%s,%s,%s,%s,%s) returning id",
             (clinic_id, consultation_id, transcript_id, soap.subjective, soap.objective,
-             soap.assessment, soap.plan, ai_at, model, gate_triggered),
+             soap.assessment, soap.plan, Json([c.model_dump() for c in citations]),
+             ai_at, model, gate_triggered),
         )
         note_id = cur.fetchone()["id"]
         conn.commit()
@@ -85,7 +88,8 @@ def suggest(consultation_id: str, clinic_id: str, user_id: str | None = None) ->
         [c.chunk_id for c in chunks], max((c.score for c in chunks), default=0.0), passed,
         user_id=user_id, patient_id=patient_id,
     )
-    note_id = _insert_note(clinic_id, consultation_id, transcript_id, soap, gate_triggered, model, ai_at)
+    note_id = _insert_note(clinic_id, consultation_id, transcript_id, soap, citations,
+                           gate_triggered, model, ai_at)
     soap_text = f"S: {soap.subjective}\nO: {soap.objective}\nA: {soap.assessment}\nP: {soap.plan}"
     log_answer(clinic_id, retrieval_id, note_id, soap_text,
                [c.model_dump() for c in citations], insufficient, gate_triggered, model)
