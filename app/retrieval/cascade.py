@@ -119,7 +119,7 @@ def tier1_lexical_glossary(query: StructuredQuery, filters: dict) -> list[Retrie
         "  (metadata->'mesh' ?| %s) as mesh_hit "
         "from public.corpus_chunks "
         "where tsv @@ websearch_to_tsquery(%s, %s) or metadata->'mesh' ?| %s "
-        "order by lex desc nulls last limit %s",
+        "order by mesh_hit desc nulls last, lex desc nulls last limit %s",
         (cfg, terms, mesh, cfg, terms, mesh, TIER1_LIMIT),
     )
     out = []

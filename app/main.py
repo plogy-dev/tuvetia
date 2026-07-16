@@ -6,6 +6,7 @@ from fastapi.responses import StreamingResponse
 from app.config import get_settings
 from app.auth import verify_jwt, resolve_clinic_id
 from app.models import ChatRequest, PhantomSuggestRequest, PhantomSuggestResponse
+from app.phantom import suggest as phantom_suggest_service
 
 settings = get_settings()
 app = FastAPI(title="Athos RAG service")
@@ -57,9 +58,7 @@ def phantom_suggest(body: PhantomSuggestRequest, authorization: str | None = Hea
     (no el modelo). Escribe rag_answer_log con note_id.
     """
     user_id, clinic_id = _auth(authorization, body.clinic_id)
-    # TODO (Claude Code): correr la cascada sobre el transcript de la consulta, generar la nota,
-    # insertar clinical_notes (status=draft), loguear, y devolver PhantomSuggestResponse.
-    raise NotImplementedError("implementar /athos/phantom/suggest (sección de integración)")
+    return phantom_suggest_service(body.consultation_id, clinic_id, user_id)
 
 
 @app.post("/ingest")

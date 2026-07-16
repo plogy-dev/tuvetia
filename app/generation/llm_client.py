@@ -35,6 +35,9 @@ class LLMClient:
         resp = self._anthropic().messages.create(
             model=self.model,
             max_tokens=max_tokens,
+            # Tarea de salida estructurada (JSON): sin thinking -> predecible, barato, y todo el
+            # presupuesto de tokens va a la respuesta (evita que el thinking la trunque).
+            thinking={"type": "disabled"},
             system=[{"type": "text", "text": system, "cache_control": {"type": "ephemeral"}}],
             messages=[{"role": "user", "content": user}],
         )

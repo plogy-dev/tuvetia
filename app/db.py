@@ -9,8 +9,13 @@ from app.config import get_settings
 
 
 def get_conn() -> psycopg.Connection:
-    """Abre una conexión. (Para producción, considerar un pool: psycopg_pool.)"""
-    return psycopg.connect(get_settings().database_url, row_factory=dict_row)
+    """Abre una conexión. (Para producción, considerar un pool: psycopg_pool.)
+
+    statement_timeout acotado (15s) para queries de app: evita colgarse pero da margen al Tier 1
+    a escala (que se optimiza aparte). La ingesta masiva usa su propia conexión con timeout=0.
+    """
+    return psycopg.connect(get_settings().database_url, row_factory=dict_row,
+                           options="-c statement_timeout=15000")
 
 
 def fetch_all(sql: str, params: tuple = ()) -> list[dict]:
