@@ -129,6 +129,15 @@ Filosofía: **gastar la mínima IA**. Un buscador determinístico con un diccion
 - **Presupuesto (rate de Cohere confirmado ≈ US$0,12/1M tokens):** corpus completo ~US$73 (~297.000 COP); **gastado US$8,02** (14,6%); **para completarlo hay que recargar ≈ US$57 ≈ ~230.000 COP** además del saldo actual. Palanca de ahorro: el 63% del corpus es especie **"mixto"** (38.539 docs) → priorizar categorías clínicas reduce bastante el costo.
 - **Pendiente:** endpoints `/athos/chat` (SSE) y `/athos/phantom/suggest`; tuning de rendimiento del Tier 1; ingesta del corpus completo al aprobar presupuesto.
 
+**2026-07-15 (tarde) — Fase 1 completa + convergencia al principal (incidente resuelto) + arquitectura de dos DBs**
+- **Endpoints listos y validados EN VIVO:** `/athos/phantom/suggest` (nota SOAP + gate de alergia + citas) y `/athos/chat` (SSE, streaming, gate, citas). **Auth por JWKS ES256** del principal + fallback HS256 → cierra el punto C. (El principal firma los JWT con **ES256**.)
+- **Front iniciado** en el repo del esqueleto (`plogy-dev/tuvetia`): `src/lib/athos.ts` (cliente SSE + phantom) + `src/app/dashboard/asistente/page.tsx` (chat). Aún sin pushear (para revisión de Santi).
+- **Migración `0001` aplicada al principal** (glosario, `rag_*`, `corpus_chunks → vector(1024)`, tsv, RLS, `clinical_notes.citations`). **Puntos A/B resueltos:** las tablas vector estaban vacías → aplicó limpio.
+- **⚠️ Incidente resuelto:** al copiar el corpus al principal se llenó el disco (free tier 500 MB → 868 MB) y Supabase lo puso **read-only**, afectando la app de Santi. **Recuperado:** `SET default_transaction_read_only=off` (por sesión) + `TRUNCATE corpus_chunks` → **13 MB, escritura restaurada.** La DB del principal volvió a la normalidad.
+- **Arquitectura de dos DBs (config-driven, default = UNA sola):** el corpus completo (~7 GB) no cabe en el free tier del principal. `corpus_database_url` permite ubicar el corpus aparte (hoy: dev) SIN forzarlo. **Meta acordada: al pasar el principal a plan de pago → todo en una sola DB** (dejar `corpus_database_url` vacía + ingerir el corpus completo ahí). El corpus es global/aditivo, no cruza (JOIN) con datos de paciente → **sin conflicto** con el multi-tenant/RLS.
+- **Estado:** corpus (67k chunks) en dev; principal con esquema RAG + datos reales de Santi; **28 tests verdes**. **Pendiente:** upgrade del principal a pago + ingesta completa ahí; deploy en Vercel (funciones Python en el repo del front); página de nota en el front; tuning Tier 1.
+- **🔐 Seguridad:** rotar la **password de DB del principal** y la **`sb_secret`** (se pegaron por chat).
+
 ## 11. Coordinación abierta — 3 decisiones que necesitamos del equipo (antes del PR a main)
 > Todo lo de abajo está **probado en el proyecto dev** (`tuvetia-athos-dev`, ref `ghmpjyuchwkrvnjvdeum`). **Nada se ha tocado en el principal** (ref `auxlnexhkmtoedrzfsnz`). Para llevar las migraciones `0001`/`0002` al principal necesitamos confirmar 3 cosas, porque tocan **tablas generales** y **auth compartida**. El PR incluirá **solo** `supabase/migrations/0001*.sql` y `0002*.sql` (el bootstrap **no** se PR-ea).
 
