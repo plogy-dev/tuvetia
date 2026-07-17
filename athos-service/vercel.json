@@ -1,0 +1,10 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "_comment": "PREDISPOSICION para migrar Athos a Vercel (hoy corre en Railway). Al usarlo: crear un proyecto Vercel con Root Directory = athos-service/, mismas env vars que Railway. maxDuration=300 requiere plan Pro (el Modo Fantasma tarda ~60-90s; en free timeoutea).",
+  "functions": {
+    "api/index.py": { "maxDuration": 300 }
+  },
+  "rewrites": [
+    { "source": "/(.*)", "destination": "/api/index" }
+  ]
+}
