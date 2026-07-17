@@ -79,7 +79,7 @@ Filosofía: **gastar la mínima IA**. Un buscador determinístico con un diccion
 - **LLM redacción:** Claude Sonnet 5 (validar Opus 4.8 en el golden set). **Liviano:** Haiku 4.5.
 - **Embeddings:** **Cohere embed-v4** (multilingüe, cross-lingual ES→EN, dim 1024). Rerank: Cohere Rerank.
 - **Corpus:** 61.544 documentos (validados, en inglés). El **glosario** es el puente ES→EN.
-- **Ubicación:** Athos en **Railway**; DB en **Supabase**; front en **Vercel**; Phantom lo hace Pipe.
+- **Ubicación (monorepo):** repo **`plogy-dev/tuvetia`** — front Next en la **raíz** + este backend en **`athos-service/`**. Athos despliega en **Railway** (*Root Directory* = `athos-service/`); DB en **Supabase**; front en **Vercel**; Phantom lo hace Pipe.
 
 ## 9. Dónde está el detalle
 - Diseño completo del RAG: `tuvetia_rag_documento_final.md` (misma carpeta)
@@ -88,7 +88,7 @@ Filosofía: **gastar la mínima IA**. Un buscador determinístico con un diccion
 - Entornos y migraciones (dev → PR → principal): `MIGRACIONES.md`
 
 ## 10. Bitácora de montaje y decisiones (se actualiza)
-> Registro vivo del progreso del microservicio, para que Santiago y Pipe sigan el avance y las decisiones. Última actualización: **2026-07-15**.
+> Registro vivo del progreso del microservicio, para que Santiago y Pipe sigan el avance y las decisiones. Última actualización: **2026-07-16**.
 
 **2026-07-13 — Entorno local montado y verificado**
 - Herramientas: `uv`, Node 22, Git, Claude Code, **Supabase CLI 2.109.1**.
@@ -137,6 +137,15 @@ Filosofía: **gastar la mínima IA**. Un buscador determinístico con un diccion
 - **Arquitectura de dos DBs (config-driven, default = UNA sola):** el corpus completo (~7 GB) no cabe en el free tier del principal. `corpus_database_url` permite ubicar el corpus aparte (hoy: dev) SIN forzarlo. **Meta acordada: al pasar el principal a plan de pago → todo en una sola DB** (dejar `corpus_database_url` vacía + ingerir el corpus completo ahí). El corpus es global/aditivo, no cruza (JOIN) con datos de paciente → **sin conflicto** con el multi-tenant/RLS.
 - **Estado:** corpus (67k chunks) en dev; principal con esquema RAG + datos reales de Santi; **28 tests verdes**. **Pendiente:** upgrade del principal a pago + ingesta completa ahí; deploy en Vercel (funciones Python en el repo del front); página de nota en el front; tuning Tier 1.
 - **🔐 Seguridad:** rotar la **password de DB del principal** y la **`sb_secret`** (se pegaron por chat).
+
+**2026-07-16 — Demo end-to-end en local, fixes de calidad/rendimiento, rediseño del front y monorepo**
+- **Corrida end-to-end EN LOCAL (prod-like) validada:** front (Next en `localhost:3000`) + Athos (`localhost:8000`) contra el **principal** (paciente + trazas) y el **corpus en dev** (67k chunks), con auth por **JWKS ES256** del principal. (En local, `localhost:3000` **no** está en la allowlist de *Redirect URLs* del principal → el magic-link normal no vuelve a localhost; se entró generando un magic-link con la `service_role` del principal. Para el login normal en local habría que agregar `http://localhost:3000/**` a esa allowlist.)
+- **Fix de calidad (nota SOAP vacía):** la generación se truncaba a `max_tokens=2000` (`stop_reason=max_tokens`) → JSON incompleto → nota con los 4 campos vacíos. Subido a **4000** → cierra el JSON, nota completa y citada. (`fix(generation)`.)
+- **Fix de rendimiento (Tier 1):** hacía **Seq Scan** de los 67k chunks (el `OR metadata->'mesh' ?| …` no era indexable) → ~**44 s**. **Índice GIN de expresión** sobre `metadata->'mesh'` (**migración `0003`**) → *BitmapOr* → ~**2 s** (~20×). Verificado con `EXPLAIN ANALYZE`. El índice ya está en dev; la `0003` es la fuente de verdad para aplicarlo al principal en la convergencia.
+- **Rediseño del front (Copiloto + Modo Fantasma):** se tomó el **layout/UX de la propuesta original** (`docs/tuvetia_presentacion.html`) — chat por bloques con “fuente verificable”; Fantasma con **transcripción + nota SOAP en borrador lado a lado**, gate de alergia y citas — con el **tema neutro del proyecto** (sin marca ni paleta ajena). **Demo grabada.**
+- **Monorepo (DECIDIDO):** el backend Athos entra al repo **`plogy-dev/tuvetia`** bajo **`athos-service/`** (vía `git subtree`, **historial preservado**); el front sigue en la raíz. **Vercel** sin cambios; **Railway** apunta su *Root Directory* a `athos-service/`. Dos PRs abiertos: **#1** (UI del front) y **#2** (backend en el monorepo). Verificado que **ningún `.env`/`.env.principal`** entró a git (solo `.env.example`).
+- **Datos de demo en el principal** (reversibles con `cleanup_phantom.sql`): 5 consultas + transcripts + 1 alergia severa + `devsplogy` agregado a la clínica de prueba de Santi.
+- **Pendiente:** mergear PR #1/#2; **rotar credenciales** (password DB principal, `sb_secret`, keys Anthropic/Cohere); post-merge trabajar el backend **desde el monorepo**; iterar estética y formatos de respuesta del chat.
 
 ## 11. Coordinación abierta — 3 decisiones que necesitamos del equipo (antes del PR a main)
 > Todo lo de abajo está **probado en el proyecto dev** (`tuvetia-athos-dev`, ref `ghmpjyuchwkrvnjvdeum`). **Nada se ha tocado en el principal** (ref `auxlnexhkmtoedrzfsnz`). Para llevar las migraciones `0001`/`0002` al principal necesitamos confirmar 3 cosas, porque tocan **tablas generales** y **auth compartida**. El PR incluirá **solo** `supabase/migrations/0001*.sql` y `0002*.sql` (el bootstrap **no** se PR-ea).

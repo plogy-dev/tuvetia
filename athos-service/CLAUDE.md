@@ -7,6 +7,8 @@ Microservicio Python + FastAPI que (1) responde consultas clínicas del veterina
 
 Despliegue: **Railway**. Base de datos: **Supabase** (Postgres + pgvector). Frontend: Next.js en Vercel (lo hace Santiago) que consume estos endpoints. El Phantom lo hace Pipe.
 
+**Repositorio (monorepo, 2026-07-16):** este servicio vive en `plogy-dev/tuvetia` bajo `athos-service/` (el front Next está en la raíz). Railway despliega apuntando su *Root Directory* a `athos-service/`. Nota: puede existir un checkout standalone de `athos-service` en la máquina de dev; **la fuente de verdad es el monorepo** — evita editar en dos sitios.
+
 ## Reglas no negociables (el código las impone, NO los prompts)
 1. **Cita o se calla.** Sin evidencia suficiente → "no hay evidencia suficiente". Nunca inventes fuentes.
 2. **Lenguaje de posibilidad** ("compatible con", "sugestivo de"). **Nunca diagnóstico definitivo.**
