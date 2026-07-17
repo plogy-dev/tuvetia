@@ -1,0 +1,17 @@
+# Dependencias de RUNTIME del servicio Athos (chat + phantom + health + auth).
+# Sirve tanto para Railway (ahora) como para un futuro Vercel (bundle chico).
+# NOTA: `llama-index` (en pyproject.toml) NO se usa en el código -> se omite aquí a propósito
+# para mantener el bundle liviano. Si la ingesta llegara a necesitarla, agrégala.
+fastapi
+uvicorn[standard]
+pydantic
+pydantic-settings
+python-dotenv
+psycopg[binary]
+pgvector
+httpx
+pyjwt
+anthropic
+cohere
+truststore>=0.10.4
+cryptography>=49.0.0
