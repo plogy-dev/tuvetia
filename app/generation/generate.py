@@ -101,7 +101,9 @@ def generate_note(transcript: str, literature: list[RetrievedChunk], patient: Pa
     insufficient_evidence los calcula Athos aparte (determinístico), no el modelo.
     """
     system, user = build_note_prompt(transcript, literature, patient, severe_allergens)
-    text = LLMClient().complete(system, user)
+    # La nota SOAP + citas puede ser larga; 2000 truncaba el JSON (stop_reason=max_tokens) y el
+    # parseo caía a una nota vacía. 4000 da margen para que el JSON cierre completo.
+    text = LLMClient().complete(system, user, max_tokens=4000)
     return parse_note_response(text, literature)
 
 
