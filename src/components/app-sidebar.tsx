@@ -146,7 +146,7 @@ const data = {
   documents: [
     {
       name: "Copiloto",
-      url: "#",
+      url: "/dashboard/asistente",
       icon: (
         <BotIcon
         />
@@ -154,7 +154,7 @@ const data = {
     },
     {
       name: "Modo fantasma",
-      url: "#",
+      url: "/dashboard/consultas",
       icon: (
         <GhostIcon
         />
