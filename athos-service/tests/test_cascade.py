@@ -76,6 +76,41 @@ def test_tier2_vector_recupera_el_mismo_chunk(require_db):
     assert res[0].score > 0.99
 
 
+def test_tier2_dispara_si_distilled(monkeypatch):
+    """Aunque el Tier 1 pase el umbral, si el A->B distiló (hueco de glosario) se corre el Tier 2 y
+    se conservan resultados semánticos junto a los léxicos (que no los sepulten los incidentales)."""
+    import app.retrieval.cascade as csc
+    tier1 = [_chunk(f"t1_{i}", "gato", ["Cats", "Vomiting"], 0.9) for i in range(5)]
+    tier2 = [_chunk(f"v_{i}", "gato", ["Renal Insufficiency, Chronic", "Cats"], 0.5) for i in range(5)]
+    monkeypatch.setattr(csc, "tier1_lexical_glossary", lambda q, f: tier1)
+    monkeypatch.setattr(csc, "tier2_vector_fallback", lambda q, f: tier2)
+    q = StructuredQuery(concepts=["Vomiting"], mesh=["Vomiting"], species="gato", raw="x",
+                        distilled=True)
+    chunks, passed = csc.retrieve(q)
+    ids = {c.chunk_id for c in chunks}
+    assert any(i.startswith("v_") for i in ids)    # semánticos presentes pese a Tier 1 "fuerte"
+    assert any(i.startswith("t1_") for i in ids)
+    assert passed is True
+
+
+def test_tier2_no_dispara_si_tier1_fuerte_sin_distill(monkeypatch):
+    """Tier 1 fuerte y sin distill -> NO se gasta el vector (respeta 'condicional / mínima IA')."""
+    import app.retrieval.cascade as csc
+    tier1 = [_chunk(f"t1_{i}", "gato", ["Cats"], 0.9) for i in range(5)]
+    monkeypatch.setattr(csc, "tier1_lexical_glossary", lambda q, f: tier1)
+    llamado = {"n": 0}
+
+    def _t2(q, f):
+        llamado["n"] += 1
+        return []
+
+    monkeypatch.setattr(csc, "tier2_vector_fallback", _t2)
+    q = StructuredQuery(concepts=["Cats"], mesh=["Cats"], raw="x", distilled=False)
+    _, passed = csc.retrieve(q)
+    assert llamado["n"] == 0
+    assert passed is True
+
+
 def test_retrieve_degrada_si_tier2_falla(monkeypatch):
     """Si el Tier 1 es débil y el Tier 2 no puede embeddizar (sin Cohere), retrieve NO rompe:
     se queda con el Tier 1 y se abstiene. Determinístico (sin DB ni red)."""

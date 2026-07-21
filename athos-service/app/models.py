@@ -36,6 +36,7 @@ class StructuredQuery(BaseModel):
     category: str | None = None
     language: str = "en"
     raw: str = ""
+    distilled: bool = False                                 # hubo hueco de glosario -> se usó el LLM liviano
 
 
 class PatientContext(BaseModel):

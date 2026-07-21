@@ -10,10 +10,10 @@ from app.config import get_settings
 from app.generation.allergy_gate import severe_allergies
 from app.generation.generate import _format_literature
 from app.generation.llm_client import LLMClient
-from app.glossary.resolve import resolve_concepts
 from app.models import Citation
 from app.patient_context import load_patient_context
 from app.retrieval.cascade import retrieve
+from app.retrieval.query_builder import build_query
 from app.trace.logs import log_message, log_retrieval
 
 CHAT_SYSTEM = (
@@ -47,7 +47,7 @@ def _chat_prompt(question: str, literature, patient, severe_allergens) -> str:
 def stream_answer(question: str, patient_id: str, clinic_id: str, user_id: str | None = None):
     """Generador de eventos SSE para /athos/chat."""
     patient = load_patient_context(clinic_id, patient_id)
-    query = resolve_concepts(question, patient.species)
+    query = build_query(question, patient.species)
     chunks, passed = retrieve(query)
     severe = severe_allergies(clinic_id, patient_id)
     gate = bool(severe)

@@ -14,10 +14,10 @@ from app.config import get_settings
 from app.db import fetch_all, get_conn
 from app.generation.allergy_gate import evaluate_gate
 from app.generation.generate import generate_note
-from app.glossary.resolve import resolve_concepts
 from app.models import PhantomSuggestResponse
 from app.patient_context import load_patient_context
 from app.retrieval.cascade import retrieve
+from app.retrieval.query_builder import build_query
 from app.trace.logs import log_answer, log_retrieval
 
 
@@ -68,8 +68,8 @@ def suggest(consultation_id: str, clinic_id: str, user_id: str | None = None) ->
 
     patient = load_patient_context(clinic_id, patient_id)
 
-    # A->B + cascada
-    query = resolve_concepts(transcript_text, patient.species)
+    # A->B (glosario + LLM liviano de respaldo) + cascada
+    query = build_query(transcript_text, patient.species)
     chunks, passed = retrieve(query)
 
     # Gate DURO desde `allergies` (no el modelo)
@@ -78,7 +78,10 @@ def suggest(consultation_id: str, clinic_id: str, user_id: str | None = None) ->
     # B->A: sin evidencia suficiente -> nota del transcript SIN literatura (insufficient_evidence)
     literature = chunks if passed else []
     soap, citations, allergy_flag = generate_note(transcript_text, literature, patient, severe)
-    insufficient = not passed
+    # Honestidad del payload: aunque el retrieval pase el umbral, si la generación no ancló NINGUNA
+    # cita (la literatura recuperada no sustentaba el caso), no afirmamos evidencia suficiente. Así
+    # el flag es consistente con la nota (citations=[] <-> insufficient_evidence=True).
+    insufficient = not passed or not citations
     model = get_settings().llm_model
     ai_at = datetime.now(timezone.utc)
 

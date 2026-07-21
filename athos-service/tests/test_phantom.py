@@ -20,7 +20,7 @@ def _patch_common(monkeypatch, *, passed: bool, captured: dict) -> None:
     monkeypatch.setattr(phantom, "load_patient_context",
                         lambda c, p: PatientContext(patient_id="luna", species="perro",
                                                     severe_allergies=["pollo"]))
-    monkeypatch.setattr(phantom, "resolve_concepts",
+    monkeypatch.setattr(phantom, "build_query",
                         lambda text, sp: StructuredQuery(raw=text, concepts=["Vomiting"], species=sp))
     chunk = RetrievedChunk(chunk_id="c1", doc_id="PM1", content="feline gastritis ...", score=0.9)
     monkeypatch.setattr(phantom, "retrieve",
@@ -62,6 +62,24 @@ def test_suggest_gate_and_citations_flow(monkeypatch):
     assert [c.chunk_id for c in captured["note_citations"]] == ["c1"]  # citas -> clinical_notes
     assert resp.note_id == "note-xyz"
     assert resp.status == "draft"
+
+
+def test_suggest_passed_pero_sin_citas_es_insuficiente(monkeypatch):
+    """passed=True pero el modelo no ancló NINGUNA cita (literatura irrelevante) -> el payload es
+    honesto: insufficient_evidence=True y citations=[]. Evita 'evidencia suficiente' con 0 citas."""
+    captured: dict = {}
+    _patch_common(monkeypatch, passed=True, captured=captured)
+
+    def _gen_sin_citas(transcript, literature, patient, severe):
+        return (SOAP(assessment="no hay evidencia específica en la literatura"), [], False)
+
+    monkeypatch.setattr(phantom, "generate_note", _gen_sin_citas)
+
+    resp = phantom.suggest("cons-1", "clinic-a")
+
+    assert resp.insufficient_evidence is True   # passed pero sin citas -> insuficiente
+    assert resp.citations == []
+    assert resp.allergy_gate_triggered is True  # el gate sigue siendo independiente
 
 
 def test_suggest_insufficient_evidence_sends_no_literature(monkeypatch):

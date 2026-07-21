@@ -41,6 +41,7 @@ Filosofía: **gastar la mínima IA**. Un buscador determinístico con un diccion
 - `POST /athos/phantom/suggest` — lo llama el Phantom al cerrar la consulta.
 - `POST /ingest` (admin) — indexar el corpus.
 - `GET /health`.
+- **Base URL (EN VIVO):** `https://athos-service-production.up.railway.app` — el front (Vercel) ya apunta ahí vía `NEXT_PUBLIC_ATHOS_URL`; el Phantom de Pipe hace `POST` a esa misma URL.
 
 **Auth:** quien llama manda el **JWT de Supabase del usuario** en `Authorization: Bearer <token>`. Athos lo verifica, saca el `user_id` y resuelve `clinic_id` desde `profiles` (`profiles.clinic_id`). (Athos usa `service_role` hacia la DB, por eso el `clinic_id` va explícito.)
 
@@ -80,6 +81,7 @@ Filosofía: **gastar la mínima IA**. Un buscador determinístico con un diccion
 - **Embeddings:** **Cohere embed-v4** (multilingüe, cross-lingual ES→EN, dim 1024). Rerank: Cohere Rerank.
 - **Corpus:** 61.544 documentos (validados, en inglés). El **glosario** es el puente ES→EN.
 - **Ubicación (monorepo):** repo **`plogy-dev/tuvetia`** — front Next en la **raíz** + este backend en **`athos-service/`**. Athos despliega en **Railway** (*Root Directory* = `athos-service/`); DB en **Supabase**; front en **Vercel**; Phantom lo hace Pipe.
+- **Deploy (EN VIVO, 2026-07-18):** front **https://tuvetia.vercel.app** + backend **https://athos-service-production.up.railway.app**. Ambos **git-connected** a `master` (auto-deploy): Railway construye desde `athos-service/` (watch `athos-service/**`); Vercel el front. Verificado end-to-end (chat con citas + phantom con gate de alergia).
 
 ## 9. Dónde está el detalle
 - Diseño completo del RAG: `tuvetia_rag_documento_final.md` (misma carpeta)
@@ -88,7 +90,7 @@ Filosofía: **gastar la mínima IA**. Un buscador determinístico con un diccion
 - Entornos y migraciones (dev → PR → principal): `MIGRACIONES.md`
 
 ## 10. Bitácora de montaje y decisiones (se actualiza)
-> Registro vivo del progreso del microservicio, para que Santiago y Pipe sigan el avance y las decisiones. Última actualización: **2026-07-16**.
+> Registro vivo del progreso del microservicio, para que Santiago y Pipe sigan el avance y las decisiones. Última actualización: **2026-07-21**.
 
 **2026-07-13 — Entorno local montado y verificado**
 - Herramientas: `uv`, Node 22, Git, Claude Code, **Supabase CLI 2.109.1**.
@@ -146,6 +148,33 @@ Filosofía: **gastar la mínima IA**. Un buscador determinístico con un diccion
 - **Monorepo (DECIDIDO):** el backend Athos entra al repo **`plogy-dev/tuvetia`** bajo **`athos-service/`** (vía `git subtree`, **historial preservado**); el front sigue en la raíz. **Vercel** sin cambios; **Railway** apunta su *Root Directory* a `athos-service/`. Dos PRs abiertos: **#1** (UI del front) y **#2** (backend en el monorepo). Verificado que **ningún `.env`/`.env.principal`** entró a git (solo `.env.example`).
 - **Datos de demo en el principal** (reversibles con `cleanup_phantom.sql`): 5 consultas + transcripts + 1 alergia severa + `devsplogy` agregado a la clínica de prueba de Santi.
 - **Pendiente:** mergear PR #1/#2; **rotar credenciales** (password DB principal, `sb_secret`, keys Anthropic/Cohere); post-merge trabajar el backend **desde el monorepo**; iterar estética y formatos de respuesta del chat.
+
+**2026-07-18 — 🚀 DESPLIEGUE EN VIVO: backend en Railway + front en Vercel, git-connected y verificado end-to-end**
+- **La plataforma está pública y conectada.** Backend Athos → **Railway**: `https://athos-service-production.up.railway.app` (Online, `/health` 200). Front → **Vercel**: `https://tuvetia.vercel.app`. El front apunta al backend por `NEXT_PUBLIC_ATHOS_URL`; el **CORS** del backend habilita el dominio de Vercel; el **login del equipo funciona** (se agregó `https://tuvetia.vercel.app/**` a *Redirect URLs* del principal).
+- **Build del backend:** NIXPACKS + `requirements.txt` (Python 3.12, imagen liviana; `llama-index` NO se instala = dep muerta). `uvicorn app.main:app` en `$PORT`, healthcheck `/health` (config en `athos-service/railway.json`). **Env vars (16)**: paciente+trazas → **principal**, corpus → **dev** (67k chunks), auth **JWKS ES256** del principal, Anthropic + Cohere.
+- **Git-connected (auto-deploy, igual que Vercel):** el servicio de Railway quedó conectado a `plogy-dev/tuvetia`, branch `master`, **Root Directory `athos-service/`**, con `watchPatterns=athos-service/**` (solo reconstruye el backend cuando cambia esa carpeta). **Cada push a `master` redespliega solo**: Vercel el front, Railway el backend.
+- **Verificación end-to-end EN VIVO (contra la URL pública):**
+  - **Phantom** (`/phantom/suggest`) → 200: nota **SOAP** en `draft`; **gate de alergia severa disparó** (desde `allergies`, no el modelo) y el `plan` abre con la advertencia **antes del plan**; luego "no hay evidencia suficiente… para un plan con citas" (**cita o se calla**). `ai_model=claude-sonnet-5`.
+  - **Chat** (`/athos/chat`, SSE) → streaming de tokens + **8 citas**, gate correcto.
+  - **Verificación manual en el front confirmada por el equipo.**
+- **⚠️ Observación (tuning, no bloquea):** el **Phantom devuelve `citations=0`** (muy conservador) mientras el **Chat cita 8** para la misma clínica. El retrieval funciona; es comportamiento de **generación** a afinar (prompt del Phantom / uso de la literatura) — candidato para la fase de estética/formatos + golden set.
+- **Data de demo ampliada** (para que el equipo pruebe variedad): **6 consultas nuevas** (2 gatos, 1 conejo, 3 perros — ERC felina, hipertiroidismo, estasis GI, valvular mitral, diabetes, periodontal) + **3 pacientes nuevos** + **1 alergia severa** (Pelusa/Sulfonamidas → 2º caso de gate). Total: **11 consultas** en la clínica de test de Santi (`6c7504ae…`). Reversible (script de limpieza generado).
+- **Para la integración del equipo:** **Santiago** — el front ya está cableado, nada que hacer salvo iterar UI. **Pipe (Phantom)** — `POST https://athos-service-production.up.railway.app/athos/phantom/suggest` con `{consultation_id, clinic_id}` + `Authorization: Bearer <jwt del usuario>` (mismo contrato de §6). Para que un compañero pruebe con su login, agregar su `profiles.clinic_id` a la clínica de test (o sembrar en su clínica).
+- **Credenciales:** rotación **diferida** por decisión (hoy solo prueba el equipo + dueños → sin riesgo).
+- **Pendiente:** iterar **estética / formatos de respuesta** del chat + **tuning de citas del Phantom**.
+
+**2026-07-21 — 🔧 Tuning del Phantom: era RETRIEVAL, no generación. Citas verificadas 4/11 → 9/11 (en vivo)**
+- **Reencuadre del `citations=0` (obs. del 07-18):** el Phantom **no** estaba roto — estaba siendo **honesto** ("cita o se calla") y rechazando literatura irrelevante. El problema estaba **río arriba, en el retrieval**, en dos eslabones (diagnóstico con corridas read-only sobre las 11 consultas demo):
+  - **A→B (glosario) pobre:** de un cuadro renal cardinal (gato geriátrico, poliuria/polidipsia/riñones pequeños) el glosario solo extraía `['Vomiting']` (signo incidental) → el Tier 1 anclaba en literatura equivocada. El **fallback de LLM liviano (Haiku)** que manda el diseño (§A→B) **no estaba implementado** (`llm_light_model` definido pero sin usar).
+  - **Tier 2 (vector) nunca disparaba:** solo lo hacía si el Tier 1 traía <3 resultados o no pasaba umbral; con 40 chunks off-topic que pasaban por MeSH incidental (score ~1.3 >> umbral 0.35), la búsqueda semántica —que **sí** halla el contenido correcto (el corpus tiene 90 chunks renal+`Cats`; sim 0.45–0.50)— quedaba apagada justo cuando más se necesita.
+- **Fix (rework de la cascada, config-driven, con tests):**
+  1. **A→B con respaldo Haiku** (`query_builder.build_query`): si el glosario resuelve <4 conceptos, `LLM_LIGHT_MODEL` distila la consulta → conceptos EN + descriptores MeSH; **fusión aditiva** (nunca reemplaza) y marca `distilled=True`. Degrada a vacío ante cualquier fallo (no rompe A→B).
+  2. **Tier 2 más inteligente** (`cascade.retrieve`): dispara también cuando `distilled` (hueco de glosario); al fusionar conserva un tope de **ambas** modalidades (léxico + vector) para que los matches semánticos buenos no queden sepultados por los léxicos incidentales. Tope acotado (40 chunks → costo de generación bajo control).
+  3. **Payload honesto** (`phantom`): `insufficient_evidence = not passed OR sin citas` — 0 citas ⟺ insuficiente (antes decía `passed=True` con `citations=0` y assessment "no hay evidencia": contradictorio).
+- **Impacto medido (11 consultas demo, LLM real):** citas verificadas **4/11 → 9/11**. Arreglados con literatura **relevante** (no forzada): ERC felina, hipertiroidismo, diabetes, leishmaniasis, otitis, valvular mitral, parvo, dermatitis atópica. Los **2** que siguen absteniéndose lo hacen **con razón** (hueco de corpus: medicina de conejo escasa — corpus al 14,6%). `verify_citations` sigue descartando ids mal-mapeados.
+- **Nota "mínima IA":** con el umbral en 4 conceptos, en la práctica casi toda consulta dispara Haiku + una embedding de Cohere (~US$0,0006 c/u) — trivial frente a la ganancia de calidad; `MIN_CONFIDENT_CONCEPTS` es calibrable.
+- **Estado:** **36 tests verdes** + `ruff` limpio; **desplegado a producción** (push a `master` → auto-deploy de Railway). El **Chat** también mejora (mismo retrieval).
+- **Pendiente:** golden set formal para calibrar umbrales; revisar `citations` del Chat (hoy adjunta top-8 determinístico, sin filtrar por lo que el modelo realmente usó); ampliar corpus (conejo/exóticos).
 
 ## 11. Coordinación abierta — 3 decisiones que necesitamos del equipo (antes del PR a main)
 > Todo lo de abajo está **probado en el proyecto dev** (`tuvetia-athos-dev`, ref `ghmpjyuchwkrvnjvdeum`). **Nada se ha tocado en el principal** (ref `auxlnexhkmtoedrzfsnz`). Para llevar las migraciones `0001`/`0002` al principal necesitamos confirmar 3 cosas, porque tocan **tablas generales** y **auth compartida**. El PR incluirá **solo** `supabase/migrations/0001*.sql` y `0002*.sql` (el bootstrap **no** se PR-ea).

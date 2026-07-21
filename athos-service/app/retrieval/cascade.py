@@ -22,6 +22,13 @@ TIER1_LIMIT = 40        # candidatos que trae el Tier 1
 TIER2_LIMIT = 40        # candidatos que trae el Tier 2 (vector)
 WEAK_MIN_RESULTS = 3    # menos candidatos que esto (o no pasar umbral) dispara el Tier 2
 
+# Composición del set final (acota el costo de la generación y GARANTIZA representación de ambas
+# modalidades: los matches léxicos/MeSH incidentales no deben sepultar los semánticos, que suelen
+# ser los relevantes cuando el glosario ancló en una señal secundaria).
+TIER1_KEEP = 24         # léxicos/MeSH que se conservan
+TIER2_KEEP = 16         # semánticos (vector) que se conservan siempre que el Tier 2 corra
+MAX_LITERATURE_CHUNKS = TIER1_KEEP + TIER2_KEEP  # tope de chunks que van a la generación
+
 # Especie (ES, de la ficha) -> descriptores MeSH del corpus. 'mixto' no mapea: no se excluye.
 SPECIES_MESH = {
     "gato": ["Cats", "Cat Diseases"],
@@ -157,6 +164,13 @@ def _is_weak(chunks: list[RetrievedChunk]) -> bool:
     return len(chunks) < WEAK_MIN_RESULTS or not passes_threshold(chunks)
 
 
+def _should_run_tier2(query: StructuredQuery, tier1: list[RetrievedChunk]) -> bool:
+    """El Tier 2 (vector) se dispara cuando el ancla léxico/glosario NO es de fiar:
+    Tier 1 débil (pocos resultados o bajo umbral) O el A->B tuvo que distilar (hueco de glosario ->
+    los conceptos pueden ser incidentales; la semántica sobre el texto crudo halla lo relevante)."""
+    return _is_weak(tier1) or query.distilled
+
+
 def _merge_unique(primary: list[RetrievedChunk], extra: list[RetrievedChunk]) -> list[RetrievedChunk]:
     seen = {c.chunk_id for c in primary}
     return primary + [c for c in extra if c.chunk_id not in seen]
@@ -165,17 +179,20 @@ def _merge_unique(primary: list[RetrievedChunk], extra: list[RetrievedChunk]) ->
 def retrieve(query: StructuredQuery) -> tuple[list[RetrievedChunk], bool]:
     """Orquesta Tier 0/1/(2), rankea y evalúa el umbral. Devuelve (chunks, passed_threshold).
 
-    El Tier 2 (vector) solo se dispara si el Tier 1 es débil; si Cohere no está disponible, se
-    degrada con gracia al resultado del Tier 1 (no rompe el camino determinístico)."""
+    El Tier 2 (vector) se dispara si el Tier 1 es débil O si el A->B distiló (hueco de glosario). Al
+    fusionar, se conserva un tope de CADA modalidad (léxico + semántico) para que los buenos matches
+    semánticos no queden sepultados por matches léxicos/MeSH incidentales. Si Cohere no está
+    disponible, degrada con gracia al Tier 1 (no rompe el camino determinístico)."""
     filters = tier0_filters(query)
-    chunks = rank_chunks(tier1_lexical_glossary(query, filters), filters)
-    if _is_weak(chunks):
+    tier1 = rank_chunks(tier1_lexical_glossary(query, filters), filters)
+    if _should_run_tier2(query, tier1):
         try:
-            extra = tier2_vector_fallback(query, filters)
-            chunks = rank_chunks(_merge_unique(chunks, extra), filters)
+            tier2 = rank_chunks(tier2_vector_fallback(query, filters), filters)
+            chunks = rank_chunks(_merge_unique(tier1[:TIER1_KEEP], tier2[:TIER2_KEEP]), filters)
+            return chunks, passes_threshold(chunks)
         except EmbeddingError:
             pass  # sin Cohere: nos quedamos con el Tier 1
-    return chunks, passes_threshold(chunks)
+    return tier1[:MAX_LITERATURE_CHUNKS], passes_threshold(tier1)
 
 
 def fuse_context(literature: list[RetrievedChunk], patient: PatientContext) -> dict:
