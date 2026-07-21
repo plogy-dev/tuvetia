@@ -1,0 +1,161 @@
+{
+  "meta": {
+    "purpose": "Golden set de calibracion del RAG (retrieval + generacion citada). Autocontenido: cada caso lleva el transcript y las etiquetas esperadas. El gate de alergia (DB) se prueba aparte (test_allergy_gate); aqui se verifica allergy_transcript_flag desde el texto.",
+    "seed": "11 consultas demo de la clinica de test 6c7504ae; corpus dev (67k chunks, ~14.6% del total). Los floors de citas dependen del corpus vigente.",
+    "fields": {
+      "relevant_terms": "substrings (EN) que deben aparecer en content/mesh de >=min_relevant_chunks chunks recuperados (mide si el retrieval hizo aflorar la literatura correcta)",
+      "assessment_mentions": "substrings (raiz ES/EN) que el assessment debe mencionar cuando NO se abstiene",
+      "min_citations": "piso de citas verificadas (0 = abstencion honesta aceptable)",
+      "corpus_gap": "true = se espera abstencion por cobertura escasa del corpus; candidato a ampliar corpus"
+    }
+  },
+  "cases": [
+    {
+      "id": "periodontal-canine",
+      "species": "perro",
+      "condition": "enfermedad periodontal",
+      "query": "Veterinario: ¿Qué le notas?\nDueño: Doctor, le huele muy feo la boca, tiene los dientes con mucho sarro y últimamente come de un solo lado y suelta la comida.\nVeterinario: ¿Le sangra la encía? ¿Se deja tocar la boca?\nDueño: Sí, a veces sangra un poquito y no le gusta que le toquen el hocico.\nVeterinario: Al examen hay cálculo dental abundante, gingivitis marcada con recesión, algunos dientes con movilidad y dolor a la manipulación. El cuadro es compatible con enfermedad periodontal avanzada. Vamos a plantear profilaxis dental bajo anestesia con radiografías dentales y evaluar extracciones.\nDueño: Está bien doctor.",
+      "expect": {
+        "relevant_terms": ["periodont", "dental", "gingiv", "tooth", "teeth"],
+        "min_relevant_chunks": 1,
+        "min_citations": 1,
+        "assessment_mentions": ["periodont", "dental", "dent"],
+        "allergy_transcript_flag": false
+      }
+    },
+    {
+      "id": "ckd-feline",
+      "species": "gato",
+      "condition": "enfermedad renal cronica felina",
+      "query": "Veterinario: Cuéntame qué le pasa a Michi.\nDueño: Doctor, Michi tiene como 13 años. Toma muchísima agua y orina mucho más de lo normal, llena la caja de arena. Ha bajado de peso y come menos.\nVeterinario: ¿Vomita? ¿Le notas mal aliento o las encías pálidas?\nDueño: Vomita de vez en cuando, y sí, tiene un aliento raro.\nVeterinario: Al examen está delgado, algo deshidratado, con mucosas pálidas y los riñones se palpan pequeños e irregulares. El cuadro en un gato geriátrico con poliuria, polidipsia, pérdida de peso y vómito es compatible con enfermedad renal crónica. Vamos a confirmar con química sanguínea (urea, creatinina, SDMA), uroanálisis y presión arterial.\nDueño: Está bien doctor.",
+      "expect": {
+        "relevant_terms": ["kidney", "renal", "ckd", "azotemia", "creatinine"],
+        "min_relevant_chunks": 1,
+        "min_citations": 1,
+        "assessment_mentions": ["renal", "riñon", "rinon", "kidney"],
+        "allergy_transcript_flag": false
+      }
+    },
+    {
+      "id": "hyperthyroidism-feline",
+      "species": "gato",
+      "condition": "hipertiroidismo felino",
+      "query": "Veterinario: ¿Qué le notas a Pelusa?\nDueño: Doctor, come muchísimo, con mucha hambre, pero está cada vez más flaca. Anda inquieta, maúlla mucho en las noches y a veces le late el corazón muy rápido.\nVeterinario: ¿Ha vomitado o tiene diarrea? ¿Toma más agua?\nDueño: Sí, vomita a veces y toma bastante agua.\nVeterinario: Al examen está delgada a pesar del buen apetito, taquicárdica, con un nódulo palpable en la región cervical (tiroides) y pelaje descuidado. El cuadro es compatible con hipertiroidismo felino. Importante: Pelusa tiene alergia severa a las sulfonamidas, tenerlo presente para cualquier fármaco. Vamos a medir T4 total y valorar función renal antes de tratar.\nDueño: Perfecto doctor.",
+      "expect": {
+        "relevant_terms": ["hyperthyroid", "thyroid", "thyroxine", "t4"],
+        "min_relevant_chunks": 1,
+        "min_citations": 1,
+        "assessment_mentions": ["tiroid", "hipertiroid", "thyroid"],
+        "allergy_transcript_flag": true
+      }
+    },
+    {
+      "id": "gi-stasis-rabbit",
+      "species": "conejo",
+      "condition": "estasis gastrointestinal (conejo)",
+      "query": "Veterinario: Cuéntame qué le pasa a Copito.\nDueño: Doctor, desde ayer no quiere comer nada, ni su heno ni sus verduras, y no ha hecho caquitas. Está quietecito, encogido en un rincón.\nVeterinario: ¿Ha comido algo distinto o ha estado estresado? ¿Le has visto rechinar los dientes?\nDueño: Cambiamos de casa hace dos días y sí, hace un ruidito con los dientes como de dolor.\nVeterinario: Al examen el abdomen está distendido y timpánico, con poco sonido intestinal, y se palpa el estómago con contenido firme. En un conejo con anorexia, ausencia de heces y dolor abdominal el cuadro es compatible con estasis gastrointestinal. Vamos con radiografía abdominal, fluidos, analgesia y estímulo de la motilidad; es una urgencia.\nDueño: Hagamos lo necesario doctor.",
+      "expect": {
+        "relevant_terms": ["rabbit", "gastrointestinal", "ileus", "stasis", "lagomorph"],
+        "min_relevant_chunks": 0,
+        "min_citations": 0,
+        "corpus_gap": true,
+        "assessment_mentions": ["estasis", "gastrointestinal", "conejo"],
+        "allergy_transcript_flag": false,
+        "note": "medicina de conejo escasa en el corpus actual; abstencion honesta aceptable"
+      }
+    },
+    {
+      "id": "mitral-valve-disease-canine",
+      "species": "perro",
+      "condition": "enfermedad degenerativa de la valvula mitral",
+      "query": "Veterinario: ¿Qué le pasa al paciente?\nDueño: Doctor, es un perrito mayor. Tose sobre todo en las noches y cuando se emociona, como si quisiera sacar algo. Se cansa rápido al pasear.\nVeterinario: ¿La tos es seca? ¿Se agita o se pone morado?\nDueño: Es seca, y a veces respira agitado después de correr.\nVeterinario: A la auscultación hay un soplo sistólico en el ápex izquierdo grado III/VI y la tráquea es sensible. En un perro pequeño geriátrico con tos y soplo el cuadro es compatible con enfermedad degenerativa de la válvula mitral. Vamos a confirmar con radiografía de tórax y ecocardiografía antes de iniciar manejo.\nDueño: Está bien doctor.",
+      "expect": {
+        "relevant_terms": ["mitral", "valve", "valvular", "myxomatous", "heart failure", "murmur"],
+        "min_relevant_chunks": 1,
+        "min_citations": 1,
+        "assessment_mentions": ["mitral", "valvul", "valve"],
+        "allergy_transcript_flag": false
+      }
+    },
+    {
+      "id": "diabetes-mellitus-canine",
+      "species": "perro",
+      "condition": "diabetes mellitus",
+      "query": "Veterinario: Cuéntame qué le pasa.\nDueño: Doctor, toma agua sin parar y orina muchísimo. Come con mucha hambre pero está bajando de peso, y últimamente se ve la vista nublada.\nVeterinario: ¿Desde cuándo? ¿Ha tenido infecciones de orina?\nDueño: Como un mes, y sí, hace poco tuvo una infección urinaria.\nVeterinario: Al examen tiene condición corporal baja a pesar del buen apetito, y se aprecia opacidad en ambos cristalinos (cataratas). En un perro con poliuria, polidipsia, polifagia, pérdida de peso y cataratas el cuadro es compatible con diabetes mellitus. Vamos a confirmar con glucemia, fructosamina y uroanálisis.\nDueño: Perfecto doctor.",
+      "expect": {
+        "relevant_terms": ["diabet", "insulin", "glycemi", "glucose", "fructosamine"],
+        "min_relevant_chunks": 1,
+        "min_citations": 1,
+        "assessment_mentions": ["diabet"],
+        "allergy_transcript_flag": false
+      }
+    },
+    {
+      "id": "leishmaniasis-canine",
+      "species": "perro",
+      "condition": "leishmaniasis canina",
+      "query": "Veterinario: Cuentame que le pasa a Prueba 5.\nDueno: Doctor, ha bajado mucho de peso en las ultimas semanas aunque come parecido. Le salieron peladuras alrededor de los ojos y en el hocico, y anda muy decaido.\nVeterinario: Ha viajado o vive en zona calurosa con mosquitos de arena? Le crecen mucho las unas?\nDueno: Vivimos en una zona calida con muchos mosquitos, y si, las unas larguisimas.\nVeterinario: Al examen esta delgado, con dermatitis exfoliativa y alopecia periocular, ganglios aumentados de tamano y unas muy crecidas (onicogrifosis). El cuadro es compatible con leishmaniasis canina. Vamos a confirmar con serologia y PCR antes de plantear tratamiento.\nDueno: Esta bien doctor.",
+      "expect": {
+        "relevant_terms": ["leishman", "sandfly", "phlebotom", "onychogry"],
+        "min_relevant_chunks": 1,
+        "min_citations": 1,
+        "assessment_mentions": ["leishman"],
+        "allergy_transcript_flag": false
+      }
+    },
+    {
+      "id": "parvovirus-puppy",
+      "species": "perro",
+      "condition": "enteritis por parvovirus canino",
+      "query": "Veterinario: Que le pasa a Prueba 6?\nDueno: Es un cachorro de cuatro meses, todavia no tiene todas las vacunas. Desde ayer vomita, tiene diarrea con sangre y un olor muy feo, no quiere comer y esta muy caido.\nVeterinario: Ha estado con otros perros? Cuando fue la ultima vacuna?\nDueno: Estuvo en un parque con otros perros y solo tiene una vacuna puesta.\nVeterinario: Al examen esta deshidratado, muy deprimido, con dolor abdominal y las asas intestinales con liquido. El cuadro en un cachorro no vacunado con diarrea hemorragica es compatible con enteritis por parvovirus canino. Vamos a hacer la prueba de antigeno, aislarlo y empezar fluidoterapia intravenosa.\nDueno: Hagamos lo necesario doctor.",
+      "expect": {
+        "relevant_terms": ["parvovir", "parvo", "enteritis", "canine parvo"],
+        "min_relevant_chunks": 1,
+        "min_citations": 1,
+        "assessment_mentions": ["parvo"],
+        "allergy_transcript_flag": false
+      }
+    },
+    {
+      "id": "atopic-dermatitis-canine",
+      "species": "perro",
+      "condition": "dermatitis atopica canina",
+      "query": "Veterinario: Cuentame que le pasa a Prueba 3.\nDueno: Doctor, lleva meses rascandose sin parar. Se muerde las patas, se rasca la barriga y se le cae el pelo en varias partes. Ya van tres veces que se le infecta la piel este ano.\nVeterinario: Empeora en alguna epoca del ano? Notas que se lame mucho las patas?\nDueno: Si, en temporada de lluvias se pone peor, y se lame las patas casi todo el dia.\nVeterinario: Al examen veo eritema en abdomen y axilas, alopecia parcial, excoriaciones por rascado y las orejas algo inflamadas. No veo pulgas. El cuadro es compatible con dermatitis atopica canina, probablemente con infeccion secundaria. Vamos a plantear manejo del prurito, control de la infeccion y una estrategia a largo plazo.\nDueno: Perfecto doctor.",
+      "expect": {
+        "relevant_terms": ["atopic", "dermatitis", "pruritus", "allerg"],
+        "min_relevant_chunks": 1,
+        "min_citations": 1,
+        "assessment_mentions": ["atopic", "atopica", "dermatitis"],
+        "allergy_transcript_flag": false
+      }
+    },
+    {
+      "id": "otitis-externa-canine",
+      "species": "perro",
+      "condition": "otitis externa",
+      "query": "Veterinario: Que le notas a Prueba 4?\nDueno: Sacude mucho la cabeza y se rasca la oreja derecha. Le huele feo el oido y le sale una cera oscura.\nVeterinario: Hace cuanto? Se queja si le tocas la oreja?\nDueno: Como una semana, y si, se queja cuando le toco esa oreja.\nVeterinario: Al examen el conducto auditivo derecho esta enrojecido, con secrecion ceruminosa oscura y dolor a la palpacion. Compatible con otitis externa, probablemente por sobrecrecimiento bacteriano o de levaduras. Vamos a limpiar, tomar citologia y plantear tratamiento topico.\nDueno: Gracias doctor.",
+      "expect": {
+        "relevant_terms": ["otitis", "ear", "malassezia", "ceruminous", "aural"],
+        "min_relevant_chunks": 1,
+        "min_citations": 1,
+        "assessment_mentions": ["otitis", "oido", "oreja"],
+        "allergy_transcript_flag": false
+      }
+    },
+    {
+      "id": "acute-gastroenteritis-canine",
+      "species": "perro",
+      "condition": "gastroenteritis aguda (indiscrecion alimentaria)",
+      "query": "Veterinario: Buenos dias, cuentame que le pasa a Prueba 2.\nDueno: Doctor, desde hace dos dias esta vomitando y tiene diarrea. Vomito unas cuatro veces ayer y hoy en la manana otra vez. La diarrea es liquida, sin sangre.\nVeterinario: Come normal? Ha comido algo raro, basura, o le cambiaste la comida?\nDueno: Casi no quiere comer. Ayer se metio a la basura, no se si comio algo.\nVeterinario: Esta tomando agua? Lo notas decaido?\nDueno: Toma poca agua y esta mas quieto de lo normal.\nVeterinario: Al examen se ve algo deshidratado, mucosas pegajosas, abdomen sensible a la palpacion craneal, sin masas. Temperatura 39.2. Vamos a manejarlo como una gastroenteritis aguda, probablemente por indiscrecion alimentaria. Ojo importante: este paciente tiene alergia severa a la penicilina, asi que cualquier antibiotico que consideremos debe evitar betalactamicos.\nDueno: Perfecto doctor.\nVeterinario: Lo dejamos con dieta blanda, liquidos y un antiemetico. Si sigue vomitando o aparece sangre en la diarrea, lo traes de inmediato.",
+      "expect": {
+        "relevant_terms": ["gastroenter", "dietary indiscretion", "acute diarrhea", "enteritis", "vomit"],
+        "min_relevant_chunks": 0,
+        "min_citations": 0,
+        "corpus_gap": true,
+        "assessment_mentions": ["gastroenter", "diarrea"],
+        "allergy_transcript_flag": true,
+        "note": "cuadro comun pero cobertura del corpus incierta al 14.6%; abstencion aceptable. Buen caso de allergy_transcript_flag (penicilina mencionada, sin fila en allergies)."
+      }
+    }
+  ]
+}
