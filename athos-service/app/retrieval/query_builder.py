@@ -13,9 +13,11 @@ from app.config import get_settings
 from app.glossary.resolve import resolve_concepts
 from app.models import StructuredQuery
 
-# Si el glosario resuelve MENOS conceptos que esto, se distila con el LLM liviano. Calibrable:
-# las consultas veterinarias suelen tener varias señales; resolver <4 sugiere hueco de glosario.
-MIN_CONFIDENT_CONCEPTS = 4
+# Si el glosario resuelve MENOS conceptos que esto, se distila con el LLM liviano. Calibrado
+# (2026-07-22) tras ampliar el glosario curado: con el glosario rico, resolver >=3 conceptos
+# coherentes (a menudo signos + un síndrome) es señal suficiente; <3 sugiere hueco real. Aun sin
+# distilar, el Tier 2 vectorial cubre las queries genuinamente pobres.
+MIN_CONFIDENT_CONCEPTS = 3
 
 _DISTILL_SYSTEM = (
     "Eres un traductor clínico veterinario ES->EN para RECUPERAR literatura. Dada la consulta "
