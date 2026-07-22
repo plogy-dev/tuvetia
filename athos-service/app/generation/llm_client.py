@@ -43,14 +43,20 @@ class LLMClient:
         )
         return "".join(b.text for b in resp.content if getattr(b, "type", None) == "text")
 
-    def stream(self, system: str, user: str, max_tokens: int = 1500):
+    def stream(self, system: str, user: str, max_tokens: int = 1500,
+               history: list[dict] | None = None):
         """Genera en streaming (para SSE): produce fragmentos de texto a medida que llegan.
-        Sin thinking (respuesta natural citada, predecible)."""
+        Sin thinking (respuesta natural citada, predecible).
+
+        `history` (opcional) son los turnos previos [{role, content}, ...] del hilo conversacional;
+        van ANTES del turno actual para dar memoria. El prompt de sistema (prefijo estable) sigue
+        cacheado; el historial cambia por turno y va después."""
+        messages = list(history or []) + [{"role": "user", "content": user}]
         with self._anthropic().messages.stream(
             model=self.model,
             max_tokens=max_tokens,
             thinking={"type": "disabled"},
             system=[{"type": "text", "text": system, "cache_control": {"type": "ephemeral"}}],
-            messages=[{"role": "user", "content": user}],
+            messages=messages,
         ) as s:
             yield from s.text_stream

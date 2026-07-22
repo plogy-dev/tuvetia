@@ -15,9 +15,10 @@ from app.models import Citation
 from app.patient_context import load_patient_context
 from app.retrieval.cascade import retrieve
 from app.retrieval.query_builder import build_query
-from app.trace.logs import log_message, log_retrieval
+from app.trace.logs import load_thread, log_message, log_retrieval
 
 CHAT_LIT_LIMIT = 12   # fuentes numeradas que se ofrecen al modelo (y de las que salen las citas)
+CHAT_HISTORY_MSGS = 8  # turnos previos (user/assistant) que se cargan como memoria del hilo
 
 CHAT_SYSTEM = (
     "Eres un asistente clínico veterinario. Responde SOLO con base en la LITERATURA entregada. "
@@ -57,6 +58,19 @@ def _cited_from_answer(answer: str, literature) -> list[Citation]:
     return used
 
 
+def _thread_history(rows) -> list[dict]:
+    """Filas de athos_messages (más antiguo->más reciente) -> mensajes {role, content} para el LLM.
+    Limpia los extremos: el historial debe EMPEZAR con 'user' y TERMINAR con 'assistant' (turnos
+    completos), para no romper la alternancia que espera la API al anexar la pregunta actual."""
+    hist = [{"role": r["role"], "content": r["content"]}
+            for r in rows if r.get("role") in ("user", "assistant") and (r.get("content") or "").strip()]
+    while hist and hist[0]["role"] != "user":
+        hist.pop(0)
+    while hist and hist[-1]["role"] != "assistant":
+        hist.pop()
+    return hist
+
+
 def _chat_prompt(question: str, literature, patient, severe_allergens) -> str:
     ficha = (f"- especie: {patient.species or '?'}; peso: {patient.weight_kg or '?'} kg; "
              f"edad: {patient.age_years or '?'} años")
@@ -79,6 +93,9 @@ def stream_answer(question: str, patient_id: str, clinic_id: str, user_id: str |
     severe = severe_allergies(clinic_id, patient_id)
     gate = bool(severe)
 
+    # Memoria del hilo: cargar los turnos previos ANTES de loguear la pregunta actual (si no, la
+    # pregunta de este turno entraría duplicada en el historial y en el prompt del turno).
+    history = _thread_history(load_thread(clinic_id, patient_id, CHAT_HISTORY_MSGS))
     log_message(clinic_id, user_id, patient_id, "user", question)
     log_retrieval(clinic_id, "chat", (query.raw or "")[:1000], list(query.concepts),
                   [c.chunk_id for c in chunks], max((c.score for c in chunks), default=0.0), passed,
@@ -104,7 +121,7 @@ def stream_answer(question: str, patient_id: str, clinic_id: str, user_id: str |
     system = CHAT_SYSTEM
     user = _chat_prompt(question, literature, patient, severe)
     parts: list[str] = []
-    for tok in LLMClient().stream(system, user):
+    for tok in LLMClient().stream(system, user, history=history):
         parts.append(tok)
         yield _sse({"type": "token", "text": tok})
     answer = "".join(parts)
