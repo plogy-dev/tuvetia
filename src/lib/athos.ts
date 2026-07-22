@@ -20,6 +20,9 @@ export type Citation = {
   doc_id: string
   locator?: string | null
   source?: string | null
+  url?: string | null // link directo al artículo (PubMed/DOI), del corpus
+  title?: string | null // título del documento
+  year?: number | null // año de publicación
 }
 
 export type ChatDone = {
