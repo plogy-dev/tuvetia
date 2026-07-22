@@ -5,10 +5,11 @@ pasa el umbral, responde una plantilla SIN LLM ("cita o se calla"). Emite evento
   {"type":"warning"|"token"|"done", ...}. `clinic_id` siempre explícito.
 """
 import json
+import re
 
 from app.config import get_settings
 from app.generation.allergy_gate import severe_allergies
-from app.generation.generate import _format_literature
+from app.generation.generate import _MAX_CHUNK_CHARS
 from app.generation.llm_client import LLMClient
 from app.models import Citation
 from app.patient_context import load_patient_context
@@ -16,18 +17,46 @@ from app.retrieval.cascade import retrieve
 from app.retrieval.query_builder import build_query
 from app.trace.logs import log_message, log_retrieval
 
+CHAT_LIT_LIMIT = 12   # fuentes numeradas que se ofrecen al modelo (y de las que salen las citas)
+
 CHAT_SYSTEM = (
     "Eres un asistente clínico veterinario. Responde SOLO con base en la LITERATURA entregada. "
     "Usa lenguaje de posibilidad ('compatible con', 'sugestivo de'); NUNCA des un diagnóstico "
-    "definitivo. Cita la fuente de cada afirmación clínica indicando su `source` y `locator`. "
-    "Si no hay evidencia suficiente en la literatura, dilo con franqueza. No propongas dosis si "
-    "faltan especie, peso o edad. Si el paciente tiene alergias severas, adviértelo antes de un plan. "
-    "Sé conciso y claro."
+    "definitivo. Cita cada afirmación clínica con el número de su fuente entre corchetes "
+    "(p.ej. [1], [3]); usa SOLO los números de la LITERATURA entregada y cita ÚNICAMENTE las "
+    "fuentes que realmente uses. Si no hay evidencia suficiente en la literatura, dilo con "
+    "franqueza (sin citar). No propongas dosis si faltan especie, peso o edad. Si el paciente tiene "
+    "alergias severas, adviértelo antes de un plan. Sé conciso y claro."
 )
 
 
 def _sse(obj: dict) -> str:
     return f"data: {json.dumps(obj, ensure_ascii=False)}\n\n"
+
+
+def _format_numbered(literature) -> str:
+    """Presenta la literatura con referencias numeradas [1], [2]... (el modelo cita por número,
+    más fiable que copiar chunk_id crudos). El índice mapea de vuelta al chunk en _cited_from_answer."""
+    lines = []
+    for i, c in enumerate(literature, 1):
+        content = (c.content or "")[:_MAX_CHUNK_CHARS]
+        lines.append(f"[{i}] fuente={c.source or '?'} loc={c.locator or '?'}\n{content}")
+    return "\n\n".join(lines) if lines else "(sin literatura suficiente)"
+
+
+def _cited_from_answer(answer: str, literature) -> list[Citation]:
+    """Devuelve SOLO las citas que el modelo referenció por número [n] en la respuesta, en orden de
+    aparición y sin duplicados. Si no referenció ninguna, la lista queda vacía (honesto)."""
+    used: list[Citation] = []
+    seen: set[int] = set()
+    for m in re.findall(r"\[(\d+)\]", answer):
+        i = int(m) - 1
+        if 0 <= i < len(literature) and i not in seen:
+            seen.add(i)
+            c = literature[i]
+            used.append(Citation(chunk_id=c.chunk_id, doc_id=c.doc_id, locator=c.locator,
+                                 source=c.source))
+    return used
 
 
 def _chat_prompt(question: str, literature, patient, severe_allergens) -> str:
@@ -39,8 +68,8 @@ def _chat_prompt(question: str, literature, patient, severe_allergens) -> str:
         f"{ficha}\n"
         f"- alergias severas conocidas: {alergias}\n\n"
         f"PREGUNTA DEL VETERINARIO:\n{question.strip()}\n\n"
-        "LITERATURA RECUPERADA (responde citando SOLO estas fuentes):\n"
-        f"{_format_literature(literature)}"
+        "LITERATURA RECUPERADA (cita SOLO estas fuentes, por su número [n]):\n"
+        f"{_format_numbered(literature)}"
     )
 
 
@@ -71,15 +100,18 @@ def stream_answer(question: str, patient_id: str, clinic_id: str, user_id: str |
                     "insufficient_evidence": True, "ai_model": get_settings().llm_model})
         return
 
-    citations = [Citation(chunk_id=c.chunk_id, doc_id=c.doc_id, locator=c.locator, source=c.source)
-                 for c in chunks[:8]]
+    # Se ofrecen las mejores fuentes numeradas; las CITAS finales son solo las que el modelo
+    # referencia por [n] en su respuesta (honesto: no adjuntamos fuentes que no usó).
+    literature = chunks[:CHAT_LIT_LIMIT]
     system = CHAT_SYSTEM
-    user = _chat_prompt(question, chunks, patient, severe)
+    user = _chat_prompt(question, literature, patient, severe)
     parts: list[str] = []
     for tok in LLMClient().stream(system, user):
         parts.append(tok)
         yield _sse({"type": "token", "text": tok})
-    log_message(clinic_id, None, patient_id, "assistant", "".join(parts))
+    answer = "".join(parts)
+    citations = _cited_from_answer(answer, literature)
+    log_message(clinic_id, None, patient_id, "assistant", answer)
     yield _sse({"type": "done", "citations": [c.model_dump() for c in citations],
                 "allergy_gate_triggered": gate, "insufficient_evidence": False,
                 "ai_model": get_settings().llm_model})

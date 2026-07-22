@@ -28,7 +28,10 @@ CLINICAL_SYSTEM_PROMPT = (
     "Cada afirmación del assessment/plan debe apoyarse en un chunk de la LITERATURA y citarse por "
     "su chunk_id. Cita SOLO chunk_id presentes en la literatura entregada; nunca inventes fuentes. "
     "Si no hay evidencia suficiente, dilo en assessment y deja citations en []. "
-    "allergy_transcript_flag=true solo si la TRANSCRIPCIÓN menciona una alergia."
+    "IMPORTANTE: `allergy_transcript_flag` es INDEPENDIENTE de la literatura y debes evaluarlo "
+    "SIEMPRE, incluso cuando te abstengas por falta de evidencia. Ponlo en true si la TRANSCRIPCIÓN "
+    "menciona CUALQUIER alergia del paciente (aunque dejes citations en []); en false solo si no se "
+    "menciona ninguna."
 )
 
 
