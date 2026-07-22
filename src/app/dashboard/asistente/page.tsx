@@ -1,11 +1,12 @@
 "use client"
 
 import { useEffect, useRef, useState } from "react"
-import { AlertTriangle, BookText, Bot, ExternalLink, Loader2, Send } from "lucide-react"
+import { AlertTriangle, BookText, Bot, Loader2, Send } from "lucide-react"
 import { toast } from "sonner"
 
 import { athosChat, type Citation } from "@/lib/athos"
 import { createClient } from "@/lib/supabase/client"
+import { SourceCard } from "@/components/athos/source-card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 
@@ -65,36 +66,6 @@ function renderRich(text: string, citations: Citation[]) {
       ),
     )
   })
-}
-
-// Tarjeta de fuente verificable, enlazada al artículo (url/title/year vienen del corpus).
-function SourceCard({ c }: { c: Citation }) {
-  const meta = (
-    <>
-      <div className="mb-1 flex items-center justify-between gap-2 font-mono text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
-        Fuente verificable
-        {c.url && <ExternalLink className="size-3" />}
-      </div>
-      {c.title && <div className="text-sm font-medium leading-snug">{c.title}</div>}
-      <div className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs text-muted-foreground">
-        {c.source && <span className="font-medium text-foreground/80">{c.source}</span>}
-        {c.year && <span className="font-mono">{c.year}</span>}
-        {c.locator && <span>· {c.locator}</span>}
-      </div>
-    </>
-  )
-  return c.url ? (
-    <a
-      href={c.url}
-      target="_blank"
-      rel="noopener noreferrer"
-      className="block rounded-lg border bg-muted/40 p-3 transition-colors hover:border-foreground/20 hover:bg-muted/70 focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
-    >
-      {meta}
-    </a>
-  ) : (
-    <div className="rounded-lg border bg-muted/40 p-3">{meta}</div>
-  )
 }
 
 export default function AsistentePage() {

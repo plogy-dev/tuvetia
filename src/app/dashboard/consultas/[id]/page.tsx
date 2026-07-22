@@ -17,6 +17,7 @@ import { toast } from "sonner"
 
 import { athosPhantomSuggest, type Citation } from "@/lib/athos"
 import { createClient } from "@/lib/supabase/client"
+import { SourceCard } from "@/components/athos/source-card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
@@ -358,16 +359,7 @@ export default function NotaConsultaPage({ params }: { params: Promise<{ id: str
           ) : (
             <div className="grid gap-2 sm:grid-cols-2">
               {citations.map((c, i) => (
-                <div key={`${c.chunk_id}-${i}`} className="rounded-lg border bg-muted/40 p-3">
-                  <div className="mb-1 font-mono text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
-                    Fuente verificable
-                  </div>
-                  <div className="text-sm leading-relaxed">
-                    <span className="font-medium">{c.source ?? "Fuente"}</span>
-                    {c.locator && <span className="text-muted-foreground"> · {c.locator}</span>}
-                    <span className="text-muted-foreground"> · {c.doc_id}</span>
-                  </div>
-                </div>
+                <SourceCard key={`${c.chunk_id}-${i}`} c={c} />
               ))}
             </div>
           )}
