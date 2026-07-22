@@ -19,6 +19,7 @@ import sys
 # Permite ejecutar el script directamente (python scripts/eval_golden.py) resolviendo el paquete app.
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
+from app.generation.allergy_gate import transcript_mentions_allergy  # noqa: E402
 from app.generation.generate import build_note_prompt, parse_note_response  # noqa: E402
 from app.generation.llm_client import LLMClient  # noqa: E402
 from app.glossary.resolve import _normalize  # noqa: E402
@@ -42,11 +43,14 @@ def _has_terms(chunks, terms) -> int:
 
 
 def _gen_note(transcript, literature, species, model):
-    """Replica generate_note pero permite fijar el modelo (para comparar redactores)."""
+    """Replica generate_note pero permite fijar el modelo (para comparar redactores). Incluye el
+    backstop determinístico de alergia (OR con el flag del modelo), igual que producción."""
     patient = PatientContext(patient_id="golden", species=species)
     system, user = build_note_prompt(transcript, literature, patient, [])
     raw = LLMClient(model=model).complete(system, user, max_tokens=4000)
-    return parse_note_response(raw, literature)
+    soap, citations, model_flag = parse_note_response(raw, literature)
+    flag = model_flag or transcript_mentions_allergy(transcript)
+    return soap, citations, flag
 
 
 def eval_case(case, model, retrieval_only):
