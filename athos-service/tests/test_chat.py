@@ -29,6 +29,16 @@ def test_cited_sin_marcadores_es_vacio():
     assert _cited_from_answer("respuesta general sin citas", _lit()) == []
 
 
+def test_cited_enriquece_url_title_year_desde_el_chunk():
+    """La cita del chat lleva url/title/year del corpus para que el front enlace el artículo."""
+    lit = [RetrievedChunk(chunk_id="c1", doc_id="D1", content="ckd ...", locator="A", source="PubMed",
+                          metadata={"url": "https://pubmed.ncbi.nlm.nih.gov/24884635/",
+                                    "titulo": "CKD in cats", "year": 2020})]
+    c = _cited_from_answer("compatible con enfermedad renal [1]", lit)[0]
+    assert c.url == "https://pubmed.ncbi.nlm.nih.gov/24884635/"
+    assert c.title == "CKD in cats" and c.year == 2020
+
+
 def test_format_numbered_enumera_desde_1():
     txt = _format_numbered(_lit())
     assert "[1] fuente=PubMed" in txt

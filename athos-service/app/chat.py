@@ -53,9 +53,7 @@ def _cited_from_answer(answer: str, literature) -> list[Citation]:
         i = int(m) - 1
         if 0 <= i < len(literature) and i not in seen:
             seen.add(i)
-            c = literature[i]
-            used.append(Citation(chunk_id=c.chunk_id, doc_id=c.doc_id, locator=c.locator,
-                                 source=c.source))
+            used.append(Citation.from_chunk(literature[i]))
     return used
 
 
