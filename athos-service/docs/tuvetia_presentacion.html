@@ -1,0 +1,1865 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Tuvetia — Visión de producto · Plogy × TuVet-IA</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@400;500;600;700;800&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+/* ============================================================
+   TUVETIA — Presentación de visión
+   Sistema de diseño basado en los tokens del brief de TuVet-IA
+   (warm minimal clinical). Esta presentación usa la misma
+   paleta para servir como demostración de la dirección visual.
+   ============================================================ */
+
+:root{
+  /* Superficies cálidas (tokens del brief) */
+  --bg-app:#F3F0E8;
+  --bg-surface:#FAF8F1;
+  --bg-muted:#ECE7DD;
+  --border:#DDD6C8;
+  --border-soft:#E9E3D8;
+
+  /* Texto */
+  --ink:#171713;
+  --ink-2:#5c5950;
+  --text-2:#77736A;
+  --text-3:#A29B90;
+
+  /* Acento coral + semánticos */
+  --primary:#EA5E3A;
+  --primary-hover:#D94F2F;
+  --primary-soft:#F7CDBE;
+  --primary-wash:#FBEAE1;
+  --success:#4F8F73;
+  --success-soft:#E2EFE8;
+  --warning:#C98733;
+  --warning-soft:#F6EBD8;
+  --danger:#D95445;
+  --danger-soft:#F8E2DD;
+
+  /* "Focus dark" — la única nota oscura: Athos escuchando */
+  --focus-bg:#17150F;
+  --focus-bg-2:#211E16;
+  --focus-line:#36322a;
+  --focus-text:#EDE8DC;
+  --focus-text-2:#A6A091;
+
+  /* Radios y sombras */
+  --r-card:18px;
+  --r-btn:12px;
+  --r-pill:999px;
+  --r-sm:10px;
+  --shadow-soft:0 1px 2px rgba(23,23,19,.04), 0 4px 14px rgba(23,23,19,.05);
+  --shadow-float:0 8px 30px rgba(23,23,19,.10), 0 2px 8px rgba(23,23,19,.06);
+  --shadow-modal:0 24px 60px rgba(23,23,19,.22);
+
+  --maxw:1180px;
+  --font-display:"Hanken Grotesk", system-ui, -apple-system, sans-serif;
+  --font-body:"Inter", system-ui, -apple-system, sans-serif;
+  --font-mono:"JetBrains Mono", ui-monospace, "SFMono-Regular", monospace;
+}
+
+*{box-sizing:border-box;margin:0;padding:0}
+html{scroll-behavior:smooth;-webkit-text-size-adjust:100%}
+body{
+  font-family:var(--font-body);
+  background:var(--bg-app);
+  color:var(--ink);
+  line-height:1.6;
+  -webkit-font-smoothing:antialiased;
+  text-rendering:optimizeLegibility;
+  overflow-x:hidden;
+}
+img,svg{display:block;max-width:100%}
+a{color:inherit;text-decoration:none}
+
+/* warm paper grain on the very background */
+body::before{
+  content:"";position:fixed;inset:0;z-index:-2;pointer-events:none;
+  background:
+    radial-gradient(1200px 600px at 80% -10%, rgba(234,94,58,.06), transparent 60%),
+    radial-gradient(900px 500px at -10% 30%, rgba(79,143,115,.05), transparent 60%);
+}
+
+/* ---------- Tipografía ---------- */
+.display{font-family:var(--font-display);font-weight:800;letter-spacing:-.02em;line-height:1.02;color:var(--ink)}
+h1,h2,h3,h4{font-family:var(--font-display);font-weight:700;letter-spacing:-.015em;line-height:1.1;color:var(--ink)}
+.mono{font-family:var(--font-mono)}
+.eyebrow{
+  font-family:var(--font-mono);font-size:12px;font-weight:500;letter-spacing:.14em;
+  text-transform:uppercase;color:var(--primary);display:inline-flex;align-items:center;gap:9px;
+}
+.eyebrow .dot{width:6px;height:6px;border-radius:50%;background:var(--primary)}
+.lede{font-size:clamp(17px,2vw,20px);color:var(--ink-2);max-width:62ch}
+.muted{color:var(--text-2)}
+.tiny{font-size:13px;color:var(--text-3)}
+
+/* ---------- Layout ---------- */
+.container{width:100%;max-width:var(--maxw);margin:0 auto;padding:0 28px}
+.section{padding:96px 0;position:relative}
+.section + .section{border-top:1px solid var(--border-soft)}
+.section-head{max-width:760px;margin-bottom:48px}
+.section-head h2{font-size:clamp(28px,4vw,44px);margin:16px 0 14px}
+.kicker-num{font-family:var(--font-mono);font-size:12px;color:var(--text-3);letter-spacing:.1em}
+
+/* ---------- Topbar ---------- */
+.topbar{
+  position:sticky;top:0;z-index:60;
+  backdrop-filter:saturate(140%) blur(10px);
+  background:rgba(243,240,232,.82);
+  border-bottom:1px solid var(--border-soft);
+}
+.topbar-inner{max-width:1280px;margin:0 auto;padding:0 24px;height:60px;display:flex;align-items:center;gap:24px}
+.brand{display:flex;align-items:center;gap:10px;font-family:var(--font-display);font-weight:800;font-size:18px;letter-spacing:-.02em}
+.brand .beta{font-family:var(--font-mono);font-size:9px;font-weight:600;letter-spacing:.12em;color:var(--primary);background:var(--primary-wash);border:1px solid var(--primary-soft);padding:2px 6px;border-radius:var(--r-pill);text-transform:uppercase}
+.navlinks{display:flex;gap:4px;margin-left:auto;overflow-x:auto;scrollbar-width:none}
+.navlinks::-webkit-scrollbar{display:none}
+.navlinks a{
+  font-size:13.5px;font-weight:500;color:var(--text-2);padding:7px 11px;border-radius:9px;white-space:nowrap;transition:.15s;
+}
+.navlinks a:hover{color:var(--ink);background:var(--bg-muted)}
+.navlinks a.active{color:var(--primary);background:var(--primary-wash)}
+.progress{position:fixed;top:0;left:0;height:2px;background:var(--primary);width:0;z-index:70;box-shadow:0 0 8px rgba(234,94,58,.6)}
+
+/* ---------- Logo mark (pulse = latido + onda) ---------- */
+.logo-mark{width:30px;height:30px;border-radius:9px;background:var(--ink);display:grid;place-items:center;flex:none}
+.logo-mark svg{width:20px;height:20px}
+.pulse-path{fill:none;stroke:var(--primary);stroke-width:2.4;stroke-linecap:round;stroke-linejoin:round}
+
+/* ---------- Buttons / pills ---------- */
+.btn{
+  display:inline-flex;align-items:center;gap:9px;font-family:var(--font-body);font-weight:600;font-size:15px;
+  padding:13px 22px;border-radius:var(--r-btn);border:1px solid transparent;cursor:pointer;transition:.16s;
+}
+.btn-primary{background:var(--primary);color:#fff;box-shadow:0 6px 18px rgba(234,94,58,.28)}
+.btn-primary:hover{background:var(--primary-hover);transform:translateY(-1px)}
+.btn-ghost{background:var(--bg-surface);color:var(--ink);border-color:var(--border)}
+.btn-ghost:hover{border-color:var(--text-3);background:#fff}
+.chip{display:inline-flex;align-items:center;gap:7px;font-size:13px;font-weight:600;color:var(--ink-2);background:var(--bg-surface);border:1px solid var(--border);padding:8px 13px;border-radius:var(--r-pill)}
+.chip .ic{color:var(--primary);display:flex}
+
+/* ---------- Generic presentation cards ---------- */
+.pcard{background:var(--bg-surface);border:1px solid var(--border);border-radius:var(--r-card);padding:26px;box-shadow:var(--shadow-soft)}
+.grid{display:grid;gap:20px}
+.g2{grid-template-columns:repeat(2,1fr)}
+.g3{grid-template-columns:repeat(3,1fr)}
+.g4{grid-template-columns:repeat(4,1fr)}
+
+/* Badges (presentation) */
+.b{display:inline-flex;align-items:center;gap:6px;font-size:11.5px;font-weight:600;letter-spacing:.02em;padding:4px 10px;border-radius:var(--r-pill);border:1px solid}
+.b-neutral{background:var(--bg-muted);border-color:var(--border);color:var(--text-2)}
+.b-primary{background:var(--primary-wash);border-color:var(--primary-soft);color:var(--primary-hover)}
+.b-success{background:var(--success-soft);border-color:#cfe3d8;color:#37705a}
+.b-warning{background:var(--warning-soft);border-color:#ecdcc0;color:#9a6620}
+.b-danger{background:var(--danger-soft);border-color:#f1cfc8;color:#b23f33}
+.b-live{background:#fff;border-color:var(--primary-soft);color:var(--primary-hover)}
+.b-live .led{width:7px;height:7px;border-radius:50%;background:var(--primary);box-shadow:0 0 0 0 rgba(234,94,58,.5);animation:ping 1.6s infinite}
+@keyframes ping{0%{box-shadow:0 0 0 0 rgba(234,94,58,.5)}70%{box-shadow:0 0 0 6px rgba(234,94,58,0)}100%{box-shadow:0 0 0 0 rgba(234,94,58,0)}}
+
+/* ============================================================
+   HERO
+   ============================================================ */
+.hero{position:relative;padding:108px 0 70px;overflow:hidden}
+.hero .container{position:relative;z-index:2}
+.hero-meta{display:flex;flex-wrap:wrap;gap:10px;margin-bottom:26px}
+.hero h1{font-size:clamp(40px,7vw,82px);font-weight:800;margin:18px 0 6px}
+.hero .tagline{font-size:clamp(18px,2.6vw,26px);font-family:var(--font-display);font-weight:600;color:var(--primary-hover);letter-spacing:-.01em}
+.hero .lede{margin-top:22px;font-size:clamp(16px,1.7vw,19px)}
+.hero-cta{display:flex;flex-wrap:wrap;gap:12px;margin-top:34px}
+.hero-stats{display:flex;flex-wrap:wrap;gap:30px;margin-top:46px;padding-top:30px;border-top:1px solid var(--border)}
+.hstat .n{font-family:var(--font-display);font-weight:800;font-size:30px;letter-spacing:-.02em}
+.hstat .l{font-size:13px;color:var(--text-2);margin-top:2px}
+
+/* hero ambient pulse */
+.hero-pulse{position:absolute;inset:0;z-index:1;pointer-events:none;opacity:.5}
+.hero-pulse svg{position:absolute;left:0;right:0;top:42%;width:100%;height:160px}
+.hero-pulse .pp{fill:none;stroke:var(--primary);stroke-width:1.6;opacity:.35;
+  stroke-dasharray:2400;stroke-dashoffset:2400;animation:draw 6s ease-in-out infinite alternate}
+@keyframes draw{to{stroke-dashoffset:0}}
+
+/* ============================================================
+   MOCKUP SYSTEM  (.mk-*)  — vistas previas del producto
+   ============================================================ */
+.mk-wrap{margin-top:34px}
+.mk-cap{display:flex;align-items:center;gap:10px;font-size:13px;color:var(--text-2);margin-bottom:12px}
+.mk-cap .tag{font-family:var(--font-mono);font-size:10.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--text-3);background:var(--bg-muted);border:1px solid var(--border);padding:3px 8px;border-radius:6px}
+
+.mk-frame{border-radius:16px;overflow:hidden;border:1px solid var(--border);box-shadow:var(--shadow-float);background:var(--bg-surface)}
+.mk-chrome{height:38px;background:linear-gradient(var(--bg-muted),#e6e0d4);display:flex;align-items:center;gap:8px;padding:0 14px;border-bottom:1px solid var(--border)}
+.mk-dots{display:flex;gap:6px}
+.mk-dots i{width:10px;height:10px;border-radius:50%}
+.mk-dots i:nth-child(1){background:#e0846f}
+.mk-dots i:nth-child(2){background:#e8c06b}
+.mk-dots i:nth-child(3){background:#9fc7a8}
+.mk-url{margin-left:10px;font-family:var(--font-mono);font-size:11px;color:var(--text-2);background:var(--bg-surface);border:1px solid var(--border);border-radius:7px;padding:4px 12px;flex:1;max-width:340px}
+.mk-body{display:flex;min-height:420px;background:var(--bg-app)}
+
+/* App sidebar */
+.mk-side{width:230px;flex:none;background:var(--bg-surface);border-right:1px solid var(--border);padding:16px 14px;display:flex;flex-direction:column;gap:14px}
+.mk-logo{display:flex;align-items:center;gap:8px;font-family:var(--font-display);font-weight:800;font-size:16px;padding:4px 6px}
+.mk-logo .lm{width:24px;height:24px;border-radius:7px;background:var(--ink);display:grid;place-items:center}
+.mk-logo .lm svg{width:16px;height:16px}
+.mk-logo .beta{font-family:var(--font-mono);font-size:8px;font-weight:600;letter-spacing:.1em;color:var(--primary);background:var(--primary-wash);padding:2px 5px;border-radius:99px}
+.mk-cta{display:flex;align-items:center;justify-content:center;gap:8px;background:var(--primary);color:#fff;font-weight:600;font-size:13px;padding:10px;border-radius:10px;box-shadow:0 5px 14px rgba(234,94,58,.25)}
+.mk-search{display:flex;align-items:center;gap:8px;background:var(--bg-app);border:1px solid var(--border);border-radius:10px;padding:8px 10px;color:var(--text-3);font-size:12px}
+.mk-nav{display:flex;flex-direction:column;gap:2px}
+.mk-nav .it{display:flex;align-items:center;gap:10px;padding:8px 10px;border-radius:9px;font-size:13.5px;font-weight:500;color:var(--text-2)}
+.mk-nav .it svg{width:17px;height:17px;opacity:.8}
+.mk-nav .it.on{background:var(--primary-wash);color:var(--primary-hover);font-weight:600}
+.mk-nav .it.on svg{opacity:1}
+.mk-recent{margin-top:auto;border-top:1px solid var(--border-soft);padding-top:12px}
+.mk-recent .h{font-family:var(--font-mono);font-size:9.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--text-3);margin-bottom:8px;padding:0 6px}
+.mk-recent .r{display:flex;align-items:center;gap:8px;padding:6px;border-radius:8px;font-size:12.5px;color:var(--ink-2)}
+.mk-ava{width:22px;height:22px;border-radius:7px;background:var(--bg-muted);display:grid;place-items:center;font-size:10px;font-weight:700;color:var(--text-2);flex:none}
+.mk-user{display:flex;align-items:center;gap:9px;padding-top:12px;border-top:1px solid var(--border-soft)}
+.mk-user .av{width:30px;height:30px;border-radius:9px;background:linear-gradient(135deg,var(--primary),var(--primary-hover));color:#fff;display:grid;place-items:center;font-size:11px;font-weight:700;flex:none}
+.mk-user .nm{font-size:12.5px;font-weight:600;line-height:1.2}
+.mk-user .em{font-size:11px;color:var(--text-3)}
+
+/* App main */
+.mk-main{flex:1;padding:22px;overflow:hidden}
+.mk-h{display:flex;align-items:flex-end;justify-content:space-between;gap:12px;margin-bottom:18px;flex-wrap:wrap}
+.mk-h .t{font-family:var(--font-display);font-weight:800;font-size:22px;letter-spacing:-.01em}
+.mk-h .s{font-size:12.5px;color:var(--text-2)}
+.mk-acts{display:flex;gap:8px}
+.mk-bt{font-size:12px;font-weight:600;padding:8px 12px;border-radius:9px;border:1px solid var(--border);background:var(--bg-surface);color:var(--ink-2);display:inline-flex;gap:6px;align-items:center}
+.mk-bt.pri{background:var(--primary);color:#fff;border-color:transparent}
+
+.mk-metrics{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:16px}
+.mk-metric{background:var(--bg-surface);border:1px solid var(--border);border-radius:14px;padding:14px}
+.mk-metric .n{font-family:var(--font-display);font-weight:800;font-size:26px;letter-spacing:-.02em}
+.mk-metric .l{font-family:var(--font-mono);font-size:9.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--text-3);margin-top:4px}
+.mk-metric.accent .n{color:var(--primary)}
+
+.mk-filters{display:flex;align-items:center;gap:8px;margin-bottom:12px;flex-wrap:wrap}
+.mk-fbar{flex:1;min-width:160px;display:flex;align-items:center;gap:8px;background:var(--bg-surface);border:1px solid var(--border);border-radius:10px;padding:8px 11px;color:var(--text-3);font-size:12px}
+.mk-fchip{font-size:12px;font-weight:600;padding:7px 13px;border-radius:99px;border:1px solid var(--border);background:var(--bg-surface);color:var(--text-2)}
+.mk-fchip.on{background:var(--ink);color:#fff;border-color:var(--ink)}
+
+.mk-table{width:100%;border-collapse:collapse;background:var(--bg-surface);border:1px solid var(--border);border-radius:14px;overflow:hidden;font-size:12.5px}
+.mk-table th{font-family:var(--font-mono);font-size:9.5px;letter-spacing:.06em;text-transform:uppercase;color:var(--text-3);text-align:left;padding:11px 14px;border-bottom:1px solid var(--border);font-weight:600;background:var(--bg-app)}
+.mk-table td{padding:11px 14px;border-bottom:1px solid var(--border-soft);color:var(--ink-2)}
+.mk-table tr:last-child td{border-bottom:none}
+.mk-table .pet{display:flex;align-items:center;gap:9px;font-weight:600;color:var(--ink)}
+.mk-sp{font-size:11px;padding:2px 8px;border-radius:99px;background:var(--bg-muted);color:var(--text-2);font-weight:600}
+
+/* generic card inside mockups */
+.mc{background:var(--bg-surface);border:1px solid var(--border);border-radius:14px;padding:15px}
+.mc .ch{font-family:var(--font-mono);font-size:9.5px;letter-spacing:.07em;text-transform:uppercase;color:var(--text-3);margin-bottom:10px;display:flex;align-items:center;gap:7px}
+
+/* Ficha — allergy alert */
+.mk-pat-head{display:flex;align-items:center;gap:14px;margin-bottom:14px}
+.mk-pat-av{width:54px;height:54px;border-radius:14px;background:linear-gradient(135deg,#f0d9cf,#e7c3b4);display:grid;place-items:center;font-size:22px;flex:none}
+.mk-pat-name{font-family:var(--font-display);font-weight:800;font-size:22px;letter-spacing:-.01em;display:flex;align-items:center;gap:10px}
+.mk-pat-meta{font-size:12px;color:var(--text-2);margin-top:3px;display:flex;gap:14px;flex-wrap:wrap}
+.mk-pat-meta b{color:var(--ink-2);font-weight:600}
+.mk-tabs{display:flex;gap:18px;border-bottom:1px solid var(--border);margin-bottom:14px;overflow-x:auto;scrollbar-width:none}
+.mk-tabs::-webkit-scrollbar{display:none}
+.mk-tab{font-size:13px;font-weight:600;color:var(--text-2);padding:9px 1px;border-bottom:2px solid transparent;white-space:nowrap;cursor:pointer}
+.mk-tab.on{color:var(--primary-hover);border-bottom-color:var(--primary)}
+.allergy{background:var(--danger-soft);border:1px solid #f0c6bd;border-left:4px solid var(--danger);border-radius:12px;padding:13px 15px;display:flex;gap:12px;align-items:flex-start;margin-bottom:14px}
+.allergy .ico{width:30px;height:30px;border-radius:8px;background:var(--danger);color:#fff;display:grid;place-items:center;flex:none}
+.allergy .ti{font-weight:700;color:#a8392d;font-size:13.5px;display:flex;align-items:center;gap:8px}
+.allergy .dx{font-size:12.5px;color:#8f3326;margin-top:2px}
+
+/* Ghost mode session bar (dark) */
+.ghost-bar{background:var(--focus-bg);color:var(--focus-text);border-radius:14px;padding:13px 16px;display:flex;align-items:center;gap:16px;margin-bottom:14px;border:1px solid var(--focus-line)}
+.ghost-bar .who{display:flex;align-items:center;gap:11px}
+.ghost-bar .pic{width:36px;height:36px;border-radius:10px;background:#2c2820;display:grid;place-items:center;font-size:16px}
+.ghost-bar .nm{font-weight:700;font-size:14px}
+.ghost-bar .meta{font-size:11px;color:var(--focus-text-2)}
+.wave{display:flex;align-items:center;gap:3px;height:24px}
+.wave i{width:3px;border-radius:2px;background:var(--primary);height:30%;animation:wv 1s ease-in-out infinite}
+.wave i:nth-child(2){animation-delay:.15s}.wave i:nth-child(3){animation-delay:.3s}.wave i:nth-child(4){animation-delay:.45s}
+.wave i:nth-child(5){animation-delay:.6s}.wave i:nth-child(6){animation-delay:.2s}.wave i:nth-child(7){animation-delay:.5s}
+@keyframes wv{0%,100%{height:25%}50%{height:95%}}
+.ghost-timer{font-family:var(--font-mono);font-size:15px;font-weight:600;color:var(--focus-text);margin-left:auto}
+.ghost-badge{font-family:var(--font-mono);font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--primary);border:1px solid #4a3a2e;background:rgba(234,94,58,.12);padding:5px 9px;border-radius:99px}
+
+.transcript{background:var(--bg-surface);border:1px solid var(--border);border-radius:14px;padding:15px;display:flex;flex-direction:column;gap:10px}
+.tr-h{display:flex;align-items:center;justify-content:space-between;margin-bottom:2px}
+.bubble{max-width:88%;padding:9px 12px;border-radius:13px;font-size:12.5px;line-height:1.45}
+.bubble .who{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;margin-bottom:3px;opacity:.7}
+.b-owner{align-self:flex-start;background:var(--bg-muted);color:var(--ink-2);border-bottom-left-radius:4px}
+.b-vet{align-self:flex-end;background:var(--primary);color:#fff;border-bottom-right-radius:4px}
+.b-vet .who{opacity:.85}
+.typing{align-self:flex-start;display:flex;gap:4px;padding:9px 12px}
+.typing i{width:6px;height:6px;border-radius:50%;background:var(--text-3);animation:tp 1.2s infinite}
+.typing i:nth-child(2){animation-delay:.2s}.typing i:nth-child(3){animation-delay:.4s}
+@keyframes tp{0%,60%,100%{opacity:.3;transform:translateY(0)}30%{opacity:1;transform:translateY(-3px)}}
+
+.note .sec{padding:10px 0;border-bottom:1px dashed var(--border)}
+.note .sec:last-child{border-bottom:none}
+.note .lbl{font-family:var(--font-mono);font-size:9.5px;letter-spacing:.07em;text-transform:uppercase;color:var(--primary);margin-bottom:4px}
+.note .tx{font-size:12.5px;color:var(--ink-2)}
+.diff{display:flex;gap:11px;padding:11px;border:1px solid var(--border);border-radius:11px;background:var(--bg-app);margin-top:8px}
+.diff .pr{font-size:9.5px;font-weight:700;padding:3px 8px;border-radius:99px;height:fit-content;white-space:nowrap}
+.pr-alta{background:var(--danger-soft);color:#b23f33}
+.pr-media{background:var(--warning-soft);color:#9a6620}
+.diff .nm{font-weight:700;font-size:12.5px}
+.diff .rz{font-size:11.5px;color:var(--text-2);margin-top:2px}
+.src{font-size:11px;color:var(--text-2);margin-top:6px;display:flex;gap:7px;align-items:flex-start}
+.src .si{color:var(--success);flex:none;margin-top:1px}
+.src b{color:var(--ink-2);font-weight:600}
+
+/* chat */
+.chat .msg-u{align-self:flex-end;background:var(--bg-surface);border:1px solid var(--border);max-width:80%;padding:10px 13px;border-radius:13px;border-bottom-right-radius:4px;font-size:13px;margin-left:auto}
+.chat .msg-a{background:var(--focus-bg);color:var(--focus-text);border-radius:13px;border-bottom-left-radius:4px;padding:13px 15px;max-width:92%;font-size:12.5px;line-height:1.55}
+.chat .msg-a .hl{color:var(--primary);font-weight:600}
+.chat .msg-a .step{padding:7px 0;border-bottom:1px solid var(--focus-line)}
+.chat .msg-a .step:last-of-type{border-bottom:none}
+.composer{display:flex;align-items:center;gap:9px;background:var(--bg-surface);border:1px solid var(--border);border-radius:13px;padding:8px 8px 8px 14px;color:var(--text-3);font-size:12.5px}
+.composer .send{width:32px;height:32px;border-radius:9px;background:var(--primary);color:#fff;display:grid;place-items:center;flex:none}
+.composer .mic{width:32px;height:32px;border-radius:9px;background:var(--bg-muted);color:var(--text-2);display:grid;place-items:center;flex:none}
+
+/* comms */
+.mk-conv{width:240px;flex:none;border-right:1px solid var(--border);padding:12px;display:flex;flex-direction:column;gap:6px;background:var(--bg-surface)}
+.conv{display:flex;gap:10px;padding:10px;border-radius:11px}
+.conv.on{background:var(--bg-app);border:1px solid var(--border)}
+.conv .av{width:34px;height:34px;border-radius:10px;background:var(--bg-muted);display:grid;place-items:center;font-weight:700;font-size:12px;color:var(--text-2);flex:none}
+.conv .nm{font-weight:600;font-size:12.5px;display:flex;align-items:center;gap:6px;justify-content:space-between}
+.conv .pv{font-size:11px;color:var(--text-3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:150px}
+.agentbar{display:flex;gap:7px;align-items:center;padding:11px 14px;border-bottom:1px solid var(--border);background:var(--bg-surface);flex-wrap:wrap}
+.amode{font-size:11.5px;font-weight:600;padding:6px 11px;border-radius:99px;border:1px solid var(--border);color:var(--text-2);background:var(--bg-app)}
+.amode.on{background:var(--success);color:#fff;border-color:transparent}
+.amode.warn{color:var(--warning);border-color:#ecdcc0}
+.wa-thread{flex:1;padding:14px;display:flex;flex-direction:column;gap:9px;background:var(--bg-app)}
+.wa-in{align-self:flex-start;background:var(--bg-surface);border:1px solid var(--border);max-width:78%;padding:8px 12px;border-radius:12px;border-bottom-left-radius:4px;font-size:12px}
+.wa-out{align-self:flex-end;background:var(--primary);color:#fff;max-width:78%;padding:8px 12px;border-radius:12px;border-bottom-right-radius:4px;font-size:12px}
+.wa-out .tag{font-size:9.5px;opacity:.85;font-weight:700;text-transform:uppercase;letter-spacing:.04em;margin-bottom:3px}
+
+/* connections */
+.intc{display:flex;align-items:center;gap:14px;background:var(--bg-surface);border:1px solid var(--border);border-radius:14px;padding:16px}
+.intc .ico{width:42px;height:42px;border-radius:11px;display:grid;place-items:center;flex:none;font-weight:800;color:#fff}
+.intc .nm{font-weight:700;font-size:14px}
+.intc .ds{font-size:12px;color:var(--text-2)}
+
+/* ============================================================
+   SECCIÓN: principios / visión
+   ============================================================ */
+.principle{position:relative;padding-left:0}
+.principle .ic{width:46px;height:46px;border-radius:13px;background:var(--primary-wash);border:1px solid var(--primary-soft);display:grid;place-items:center;color:var(--primary-hover);margin-bottom:16px}
+.principle h3{font-size:19px;margin-bottom:8px}
+.principle p{font-size:14.5px;color:var(--text-2)}
+
+.callout{background:var(--focus-bg);color:var(--focus-text);border-radius:var(--r-card);padding:30px 32px;position:relative;overflow:hidden}
+.callout h3{color:#fff;font-size:22px;margin-bottom:12px}
+.callout p{color:var(--focus-text-2);font-size:15px;max-width:64ch}
+.callout .mini-wave{position:absolute;right:26px;top:26px;display:flex;gap:3px;height:26px}
+.callout .mini-wave i{width:3px;border-radius:2px;background:var(--primary);height:30%;animation:wv 1s ease-in-out infinite}
+.callout .mini-wave i:nth-child(2){animation-delay:.2s}.callout .mini-wave i:nth-child(3){animation-delay:.4s}.callout .mini-wave i:nth-child(4){animation-delay:.1s}
+
+/* ============================================================
+   SECCIÓN: design tokens
+   ============================================================ */
+.swatches{display:grid;grid-template-columns:repeat(6,1fr);gap:12px}
+.sw{border-radius:13px;overflow:hidden;border:1px solid var(--border);background:var(--bg-surface)}
+.sw .col{height:70px}
+.sw .meta{padding:9px 11px}
+.sw .nm{font-size:12px;font-weight:600}
+.sw .hx{font-family:var(--font-mono);font-size:10.5px;color:var(--text-3)}
+.token-row{display:flex;justify-content:space-between;align-items:center;padding:11px 0;border-bottom:1px solid var(--border-soft);font-size:13.5px}
+.token-row:last-child{border-bottom:none}
+.token-row .k{font-weight:600}
+.token-row .v{font-family:var(--font-mono);font-size:12px;color:var(--text-2)}
+.type-spec{padding:14px 0;border-bottom:1px solid var(--border-soft)}
+.type-spec:last-child{border-bottom:none}
+.type-spec .sub{font-family:var(--font-mono);font-size:11px;color:var(--text-3);margin-top:3px}
+
+/* ============================================================
+   SECCIÓN: stack
+   ============================================================ */
+.layer{background:var(--bg-surface);border:1px solid var(--border);border-radius:var(--r-card);padding:24px;box-shadow:var(--shadow-soft)}
+.layer .lh{display:flex;align-items:center;gap:12px;margin-bottom:6px}
+.layer .lh .bdg{font-family:var(--font-mono);font-size:10px;letter-spacing:.08em;text-transform:uppercase;padding:4px 9px;border-radius:7px;font-weight:600}
+.layer .lh h3{font-size:18px}
+.layer .ld{font-size:13.5px;color:var(--text-2);margin-bottom:16px}
+.tlist{display:flex;flex-direction:column;gap:1px}
+.titem{display:grid;grid-template-columns:148px 1fr;gap:14px;padding:9px 0;border-top:1px solid var(--border-soft);font-size:13px;align-items:baseline}
+.titem .tool{font-weight:700;color:var(--ink)}
+.titem .tool .ver{font-family:var(--font-mono);font-size:10.5px;color:var(--text-3);font-weight:500;display:block;margin-top:1px}
+.titem .why{color:var(--text-2)}
+
+.modeltable{width:100%;border-collapse:collapse;font-size:13.5px}
+.modeltable th{text-align:left;font-family:var(--font-mono);font-size:10.5px;letter-spacing:.06em;text-transform:uppercase;color:var(--text-3);padding:10px 12px;border-bottom:1px solid var(--border)}
+.modeltable td{padding:11px 12px;border-bottom:1px solid var(--border-soft)}
+.modeltable td .m{font-family:var(--font-mono);font-size:12px;font-weight:600;color:var(--primary-hover)}
+
+/* ============================================================
+   SECCIÓN: arquitectura
+   ============================================================ */
+.arch{background:var(--bg-surface);border:1px solid var(--border);border-radius:var(--r-card);padding:26px;box-shadow:var(--shadow-soft)}
+.arch-row{display:flex;gap:16px;justify-content:center;flex-wrap:wrap;align-items:stretch}
+.node{flex:1;min-width:200px;background:var(--bg-app);border:1px solid var(--border);border-radius:14px;padding:16px}
+.node.dark{background:var(--focus-bg);border-color:var(--focus-line);color:var(--focus-text)}
+.node.dark .nh,.node.dark .ni{color:var(--focus-text)}
+.node .nh{font-weight:700;font-size:14px;display:flex;align-items:center;gap:9px;margin-bottom:4px}
+.node .ntag{font-family:var(--font-mono);font-size:10px;color:var(--text-3)}
+.node.dark .ntag{color:var(--focus-text-2)}
+.node .ni{font-size:12px;color:var(--text-2);margin-top:8px;line-height:1.6}
+.node.dark .ni{color:var(--focus-text-2)}
+.arch-conn{display:flex;justify-content:center;align-items:center;color:var(--text-3);padding:6px 0;gap:8px}
+.arch-conn .line{flex:1;height:1px;background:var(--border);max-width:60px}
+.svc-pill{display:inline-flex;align-items:center;gap:7px;font-size:11.5px;font-weight:600;background:var(--bg-surface);border:1px solid var(--border);padding:6px 11px;border-radius:99px;margin:3px}
+.svc-pill.dark{background:#2a261d;border-color:var(--focus-line);color:var(--focus-text)}
+
+.flow{counter-reset:step;display:flex;flex-direction:column;gap:0}
+.flow .st{display:flex;gap:14px;padding:12px 0;border-bottom:1px solid var(--border-soft);align-items:flex-start}
+.flow .st:last-child{border-bottom:none}
+.flow .st .num{counter-increment:step;width:26px;height:26px;border-radius:8px;background:var(--ink);color:#fff;font-family:var(--font-mono);font-size:12px;font-weight:600;display:grid;place-items:center;flex:none}
+.flow .st .num::before{content:counter(step)}
+.flow .st .tx{font-size:13.5px}
+.flow .st .tx b{font-weight:700}
+.flow .st .tx code{font-family:var(--font-mono);font-size:11.5px;background:var(--bg-muted);padding:1px 6px;border-radius:5px;color:var(--primary-hover)}
+
+/* ============================================================
+   SECCIÓN: seguridad
+   ============================================================ */
+.sec-item{display:flex;gap:14px;padding:16px 0;border-bottom:1px solid var(--border-soft);align-items:flex-start}
+.sec-item:last-child{border-bottom:none}
+.sec-item .si{width:38px;height:38px;border-radius:10px;background:var(--success-soft);color:#37705a;display:grid;place-items:center;flex:none}
+.sec-item h4{font-size:15px;margin-bottom:3px}
+.sec-item p{font-size:13.5px;color:var(--text-2)}
+
+/* ============================================================
+   SECCIÓN: costos / calculadora
+   ============================================================ */
+.costtable{width:100%;border-collapse:collapse;font-size:13.5px;background:var(--bg-surface);border:1px solid var(--border);border-radius:var(--r-card);overflow:hidden}
+.costtable th{text-align:left;font-family:var(--font-mono);font-size:10.5px;letter-spacing:.05em;text-transform:uppercase;color:var(--text-3);padding:12px 14px;border-bottom:1px solid var(--border);background:var(--bg-app)}
+.costtable td{padding:12px 14px;border-bottom:1px solid var(--border-soft);color:var(--ink-2)}
+.costtable tr:last-child td{border-bottom:none}
+.costtable td:first-child{font-weight:700;color:var(--ink)}
+.costtable .price{font-family:var(--font-mono);font-size:12.5px;white-space:nowrap}
+.costtable .free{color:var(--success);font-weight:600}
+
+.calc{background:var(--focus-bg);border-radius:var(--r-card);padding:30px;color:var(--focus-text);box-shadow:var(--shadow-float)}
+.calc h3{color:#fff;font-size:22px}
+.calc .sub{color:var(--focus-text-2);font-size:14px;margin:8px 0 26px}
+.calc-grid{display:grid;grid-template-columns:1fr 1fr;gap:30px}
+.calc-controls{display:flex;flex-direction:column;gap:22px}
+.ctrl label{display:flex;justify-content:space-between;align-items:baseline;font-size:13.5px;margin-bottom:9px}
+.ctrl label .lab{color:var(--focus-text)}
+.ctrl label .val{font-family:var(--font-mono);font-weight:600;color:var(--primary);font-size:15px}
+.ctrl input[type=range]{-webkit-appearance:none;appearance:none;width:100%;height:5px;border-radius:99px;background:var(--focus-line);outline:none}
+.ctrl input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;appearance:none;width:19px;height:19px;border-radius:50%;background:var(--primary);cursor:pointer;border:3px solid var(--focus-bg);box-shadow:0 0 0 1px var(--primary)}
+.ctrl input[type=range]::-moz-range-thumb{width:19px;height:19px;border-radius:50%;background:var(--primary);cursor:pointer;border:3px solid var(--focus-bg)}
+.calc-out{background:var(--focus-bg-2);border:1px solid var(--focus-line);border-radius:14px;padding:22px;display:flex;flex-direction:column}
+.calc-total{font-family:var(--font-display);font-weight:800;font-size:44px;letter-spacing:-.02em;color:#fff;line-height:1}
+.calc-total span{font-size:18px;color:var(--focus-text-2);font-weight:600}
+.calc-sub2{font-size:12.5px;color:var(--focus-text-2);margin:6px 0 18px}
+.cbar{height:12px;border-radius:99px;overflow:hidden;display:flex;background:var(--focus-line);margin-bottom:16px}
+.cbar i{height:100%}
+.cline{display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--focus-line);font-size:13px}
+.cline:last-child{border-bottom:none}
+.cline .lf{display:flex;align-items:center;gap:9px;color:var(--focus-text-2)}
+.cline .lf .sw{width:10px;height:10px;border-radius:3px;flex:none}
+.cline .amt{font-family:var(--font-mono);font-weight:600;color:var(--focus-text)}
+.calc-note{font-size:11.5px;color:var(--focus-text-2);margin-top:18px;line-height:1.6;border-top:1px solid var(--focus-line);padding-top:14px}
+
+/* ============================================================
+   SECCIÓN: roadmap
+   ============================================================ */
+.road{position:relative;margin-top:20px;padding-left:30px}
+.road::before{content:"";position:absolute;left:9px;top:8px;bottom:8px;width:2px;background:linear-gradient(var(--primary),var(--border))}
+.phase{position:relative;padding:0 0 26px}
+.phase::before{content:"";position:absolute;left:-26px;top:5px;width:14px;height:14px;border-radius:50%;background:var(--bg-app);border:3px solid var(--primary)}
+.phase.gate::before{background:var(--primary)}
+.phase .ph-top{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:6px}
+.phase .ph-num{font-family:var(--font-mono);font-size:11px;color:var(--primary-hover);font-weight:600;background:var(--primary-wash);border:1px solid var(--primary-soft);padding:3px 9px;border-radius:7px}
+.phase h4{font-size:16.5px}
+.phase .ph-wk{font-family:var(--font-mono);font-size:11.5px;color:var(--text-3);margin-left:auto}
+.phase p{font-size:13.5px;color:var(--text-2);max-width:70ch}
+.phase .deliver{font-size:12.5px;color:var(--ink-2);margin-top:8px;display:flex;gap:8px;align-items:flex-start}
+.phase .deliver .ic{color:var(--success);flex:none;margin-top:1px}
+
+/* ============================================================
+   SECCIÓN: decisiones (accordion)
+   ============================================================ */
+.dec{background:var(--bg-surface);border:1px solid var(--border);border-radius:14px;margin-bottom:12px;overflow:hidden;transition:.2s}
+.dec.done{border-color:#cfe3d8;background:linear-gradient(var(--success-soft),var(--bg-surface))}
+.dec-head{display:flex;align-items:center;gap:14px;padding:16px 18px;cursor:pointer;user-select:none}
+.dec-check{width:24px;height:24px;border-radius:7px;border:2px solid var(--border);flex:none;display:grid;place-items:center;color:#fff;transition:.15s}
+.dec.done .dec-check{background:var(--success);border-color:var(--success)}
+.dec-check svg{width:14px;height:14px;opacity:0;transition:.15s}
+.dec.done .dec-check svg{opacity:1}
+.dec-q{flex:1;font-weight:600;font-size:14.5px}
+.dec-q .qn{font-family:var(--font-mono);font-size:11px;color:var(--text-3);margin-right:8px}
+.dec-tag{font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;padding:3px 9px;border-radius:99px;white-space:nowrap}
+.dec-tag.arq{background:var(--bg-muted);color:var(--text-2)}
+.dec-tag.dis{background:var(--primary-wash);color:var(--primary-hover)}
+.dec-toggle{color:var(--text-3);transition:.2s;flex:none}
+.dec.open .dec-toggle{transform:rotate(180deg)}
+.dec-body{max-height:0;overflow:hidden;transition:max-height .3s ease}
+.dec.open .dec-body{max-height:360px}
+.dec-inner{padding:0 18px 18px 56px}
+.dec-inner .row{display:flex;gap:10px;font-size:13px;padding:7px 0;align-items:flex-start}
+.dec-inner .row .k{font-family:var(--font-mono);font-size:10px;letter-spacing:.05em;text-transform:uppercase;color:var(--text-3);width:96px;flex:none;padding-top:2px}
+.dec-inner .row .t{color:var(--ink-2)}
+.dec-inner .row.rec .t{color:#37705a;font-weight:600}
+
+.dec-progress{display:flex;align-items:center;gap:14px;background:var(--bg-surface);border:1px solid var(--border);border-radius:14px;padding:16px 20px;margin-bottom:24px}
+.dec-progress .pb{flex:1;height:9px;border-radius:99px;background:var(--bg-muted);overflow:hidden}
+.dec-progress .pb i{height:100%;background:var(--success);width:0;transition:.3s;border-radius:99px}
+.dec-progress .pn{font-family:var(--font-mono);font-weight:600;font-size:14px;color:var(--ink);white-space:nowrap}
+
+/* ============================================================
+   CIERRE / footer
+   ============================================================ */
+.close-cta{background:var(--focus-bg);color:var(--focus-text);border-radius:24px;padding:54px;text-align:center;position:relative;overflow:hidden}
+.close-cta h2{color:#fff;font-size:clamp(26px,4vw,40px);margin-bottom:14px}
+.close-cta p{color:var(--focus-text-2);font-size:16px;max-width:60ch;margin:0 auto 28px}
+.close-cta .btn-primary{box-shadow:0 8px 28px rgba(234,94,58,.4)}
+.close-pulse{position:absolute;left:0;right:0;bottom:0;height:90px;opacity:.5;pointer-events:none}
+.close-pulse svg{width:100%;height:100%}
+
+footer{padding:46px 0 60px;border-top:1px solid var(--border-soft);text-align:center}
+footer .brand{justify-content:center;margin-bottom:14px}
+footer .meta{font-size:12.5px;color:var(--text-3);line-height:1.8}
+
+.btn-ghost-dark{background:transparent;color:#fff;border-color:rgba(255,255,255,.28)}
+.btn-ghost-dark:hover{border-color:rgba(255,255,255,.6);background:rgba(255,255,255,.06)}
+
+/* site footer */
+.site-footer{padding:48px 0 64px;border-top:1px solid var(--border);background:var(--bg-surface)}
+.foot-grid{display:flex;justify-content:space-between;gap:32px;flex-wrap:wrap;align-items:flex-start}
+.foot-brand{display:flex;align-items:center;gap:10px;margin-bottom:10px}
+.foot-brand .logo-word{font-family:var(--font-display);font-weight:800;font-size:19px;letter-spacing:-.01em;color:var(--ink)}
+.foot-tag{font-size:13.5px;color:var(--text-2);max-width:34ch}
+.foot-meta{font-size:12.5px;color:var(--text-2);line-height:1.85;text-align:right;max-width:46ch}
+.foot-meta b{color:var(--ink)}
+.foot-fine{font-size:11px;color:var(--text-3);line-height:1.7;margin-top:10px}
+@media(max-width:680px){.foot-grid{flex-direction:column}.foot-meta{text-align:left}}
+
+/* reveal */
+.reveal{opacity:0;transform:translateY(22px);transition:opacity .6s ease,transform .6s ease}
+.reveal.in{opacity:1;transform:none}
+
+/* ============================================================
+   RESPONSIVE
+   ============================================================ */
+@media(max-width:980px){
+  .g4{grid-template-columns:repeat(2,1fr)}
+  .g3{grid-template-columns:repeat(2,1fr)}
+  .swatches{grid-template-columns:repeat(3,1fr)}
+  .calc-grid{grid-template-columns:1fr}
+  .mk-side{display:none}
+  .mk-conv{width:180px}
+}
+@media(max-width:680px){
+  .section{padding:64px 0}
+  .container{padding:0 18px}
+  .g2,.g3,.g4{grid-template-columns:1fr}
+  .swatches{grid-template-columns:repeat(2,1fr)}
+  .hero-stats{gap:20px}
+  .titem{grid-template-columns:1fr;gap:2px}
+  .titem .tool{margin-bottom:2px}
+  .mk-metrics{grid-template-columns:repeat(2,1fr)}
+  .mk-conv{display:none}
+  .navlinks{gap:0}
+  .topbar-inner{gap:12px}
+  .close-cta{padding:34px 22px}
+  .dec-inner{padding-left:18px}
+}
+@media(prefers-reduced-motion:reduce){
+  *{animation:none!important;transition:none!important;scroll-behavior:auto!important}
+  .reveal{opacity:1;transform:none}
+}
+</style>
+</head>
+<body>
+<div class="progress" id="progress"></div>
+
+<!-- ============ TOPBAR ============ -->
+<header class="topbar">
+  <div class="topbar-inner">
+    <a href="#top" class="brand">
+      <span class="logo-mark">
+        <svg viewBox="0 0 24 24"><path class="pulse-path" d="M2 12h3.5l2-5 3 10 2.5-7 1.8 3.2H22"/></svg>
+      </span>
+      tuvetia <span class="beta">Beta</span>
+    </a>
+    <nav class="navlinks" id="nav">
+      <a href="#demo">Demo en vivo</a>
+      <a href="#vision">Visión</a>
+      <a href="#producto">Producto</a>
+      <a href="#diseno">Diseño</a>
+      <a href="#stack">Stack</a>
+      <a href="#arquitectura">Arquitectura</a>
+      <a href="#seguridad">Seguridad</a>
+      <a href="#costos">Costos</a>
+      <a href="#roadmap">Roadmap</a>
+      <a href="#decisiones">Decisiones</a>
+    </nav>
+  </div>
+</header>
+<a id="top"></a>
+
+<!-- ============ HERO ============ -->
+<section class="hero">
+  <div class="hero-pulse" aria-hidden="true">
+    <svg viewBox="0 0 1400 160" preserveAspectRatio="none">
+      <path class="pp" d="M0 80 L260 80 L300 30 L340 130 L380 80 L520 80 L560 50 L600 110 L640 80 L900 80 L940 18 L980 142 L1020 80 L1400 80"/>
+    </svg>
+  </div>
+  <div class="container">
+    <div class="hero-meta">
+      <span class="b b-live"><span class="led"></span>EN VIVO · producción</span>
+      <span class="eyebrow"><span class="dot"></span>Plogy × TuVet-IA · Producto entregado</span>
+    </div>
+    <h1 class="display">Tuvetia</h1>
+    <div class="tagline">La plataforma inteligente para tu práctica veterinaria — ya funcionando.</div>
+    <p class="lede">La plataforma está <b>construida y desplegada en producción</b>: CRM de pacientes, agenda, comunicaciones y la capa de IA clínica <b>Athos</b> (copiloto + Modo Fantasma), que responde con <b>literatura veterinaria citada y verificable</b>. Este documento explica qué es y cómo funciona, y trae una <b>guía para probarlo en vivo</b> con el cliente.</p>
+    <div class="hero-cta">
+      <a href="#demo" class="btn btn-primary">Guía de demo en vivo
+        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
+      </a>
+      <a href="#producto" class="btn btn-ghost">Ver el producto</a>
+    </div>
+    <div class="hero-stats">
+      <div class="hstat"><div class="n">2</div><div class="l">superficies de IA — copiloto + Fantasma</div></div>
+      <div class="hstat"><div class="n">~67k</div><div class="l">fragmentos de literatura indexados</div></div>
+      <div class="hstat"><div class="n">EN&nbsp;VIVO</div><div class="l">front + backend desplegados</div></div>
+      <div class="hstat"><div class="n">100%</div><div class="l">decisión final del veterinario</div></div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ DEMO EN VIVO ============ -->
+<section class="section" id="demo">
+  <div class="container">
+    <div class="section-head reveal">
+      <div class="kicker-num">00 — Demo en vivo</div>
+      <h2>Cómo probarlo con el cliente</h2>
+      <p class="lede">Guion para la reunión: dónde entrar, qué pacientes usar y qué destacar en cada momento. Todo corre en <b>producción</b> — no es un mockup.</p>
+    </div>
+
+    <!-- Acceso + antes de empezar -->
+    <div class="grid g2 reveal" style="margin-bottom:22px">
+      <div class="pcard">
+        <div class="eyebrow" style="margin-bottom:14px"><span class="dot"></span>Acceso</div>
+        <div class="titem"><span class="tool">Aplicación<span class="ver">front · Vercel</span></span><span class="why"><a href="https://tuvetia.vercel.app" target="_blank" rel="noopener" style="color:var(--primary-hover);font-weight:600">tuvetia.vercel.app</a> — inicia sesión con tu cuenta del equipo antes de la reunión.</span></div>
+        <div class="titem"><span class="tool">Motor Athos<span class="ver">backend · Railway</span></span><span class="why"><span class="mono" style="font-size:12px">athos-service-production.up.railway.app</span> — la IA clínica; la consume el front, no se abre directo.</span></div>
+        <div class="titem"><span class="tool">Datos de demo<span class="ver">clínica de prueba</span></span><span class="why"><b>11 pacientes</b> y <b>11 consultas</b> ya sembrados (perros, gatos, conejo) para mostrar variedad de casos reales.</span></div>
+      </div>
+      <div class="callout">
+        <div class="mini-wave" aria-hidden="true"><i></i><i></i><i></i><i></i></div>
+        <h3>Antes de empezar</h3>
+        <p>Ten la app abierta y con sesión iniciada. La demo tiene dos momentos: el <b>Copiloto</b> (chat clínico) y el <b>Modo Fantasma</b> (nota al cerrar la consulta). Ambos responden con <b>fuentes citadas y enlazadas a PubMed</b>, y el veterinario <b>siempre revisa y aprueba</b>. Un consejo: prepara 2–3 preguntas de antemano.</p>
+      </div>
+    </div>
+
+    <!-- Momento 1: Copiloto -->
+    <div class="pcard reveal" style="margin-bottom:20px">
+      <div class="b b-primary" style="margin-bottom:14px">Momento 1 · Copiloto clínico (chat)</div>
+      <div class="flow">
+        <div class="st"><div class="num"></div><div class="tx">En el menú entra a <b>Asistente</b> y elige un paciente — p.ej. <b>Michi</b> (gato).</div></div>
+        <div class="st"><div class="num"></div><div class="tx">Escribe una consulta clínica, p.ej.<br><code>Gato geriátrico con poliuria, polidipsia y pérdida de peso: ¿qué conviene valorar?</code></div></div>
+        <div class="st"><div class="num"></div><div class="tx"><b>Destaca:</b> la respuesta llega en <b>streaming</b>, con <b>lenguaje de posibilidad</b> ("compatible con…", nunca un diagnóstico cerrado) y <b>marcadores de cita [n]</b> que enlazan al artículo real. Abajo aparecen las <b>fuentes verificables</b> (título · año · fuente → <em>Abrir artículo</em>).</div></div>
+        <div class="st"><div class="num"></div><div class="tx">Haz una <b>pregunta de seguimiento</b> — el copiloto <b>recuerda el hilo</b> de ese paciente y responde en contexto.</div></div>
+      </div>
+    </div>
+
+    <!-- Momento 2: Fantasma -->
+    <div class="pcard reveal" style="margin-bottom:20px">
+      <div class="b b-primary" style="margin-bottom:14px">Momento 2 · Modo Fantasma (la nota al cerrar la consulta)</div>
+      <div class="flow">
+        <div class="st"><div class="num"></div><div class="tx">Entra a <b>Consultas</b> → abre una consulta y pulsa <b>Generar sugerencia</b>. Athos redacta la <b>nota SOAP</b> en <b>borrador</b> a partir de la transcripción, con sus citas.</div></div>
+        <div class="st"><div class="num"></div><div class="tx"><b>Caso de seguridad — Pelusa (gato, hipertiroidismo):</b> salta el <b>gate de alergia severa</b> (rojo, bloqueante, desde la ficha) <em>antes</em> del plan, junto a la <b>alerta de condición</b> con su panel "afectaciones en este paciente".</div></div>
+        <div class="st"><div class="num"></div><div class="tx"><b>Caso de condición — "prueba demo 1" (diabetes):</b> muestra la <b>alerta de Diabetes mellitus</b> (ámbar) y despliega <b>"Ver afectaciones"</b> → panel explicativo citado, específico del paciente.</div></div>
+        <div class="st"><div class="num"></div><div class="tx"><b>Caso de honestidad — Copito (conejo):</b> como el corpus aún tiene poca medicina de conejo, Athos <b>se abstiene</b> ("no hay evidencia suficiente") en vez de inventar. Es la regla <b>"cita o se calla"</b> en acción — un punto de confianza clave para el cliente.</div></div>
+        <div class="st"><div class="num"></div><div class="tx"><b>Cierra el círculo:</b> el vet <b>edita</b> las secciones SOAP y pulsa <b>Aprobar</b> — solo entonces la nota entra a la historia clínica. Ninguna nota se guarda sin aprobación humana.</div></div>
+      </div>
+    </div>
+
+    <!-- Qué destacar (3 mensajes) -->
+    <div class="grid g3 reveal">
+      <div class="pcard"><div class="principle" style="padding:0">
+        <div class="ic"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 5a2 2 0 0 1 2-2h12v18H6a2 2 0 0 1-2-2z"/><path d="M8 7h8M8 11h8"/></svg></div>
+        <h3>Cita o se calla</h3><p>Cada afirmación clínica se apoya en literatura recuperada y <b>verificada</b>; si no hay evidencia, lo dice. Nunca inventa fuentes.</p></div>
+      </div>
+      <div class="pcard"><div class="principle" style="padding:0">
+        <div class="ic"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.3 3.2 2.4 17a2 2 0 0 0 1.7 3h15.8a2 2 0 0 0 1.7-3L13.7 3.2a2 2 0 0 0-3.4 0Z"/><path d="M12 9v4M12 17h.01"/></svg></div>
+        <h3>Seguridad primero</h3><p>Alergias severas advertidas <b>antes</b> de cualquier plan (determinístico, desde la ficha); sin dosis si faltan especie, peso o edad.</p></div>
+      </div>
+      <div class="pcard"><div class="principle" style="padding:0">
+        <div class="ic"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></div>
+        <h3>El vet decide</h3><p>Todo llega como <b>borrador citado</b>; el profesional edita y aprueba. La IA <b>asiste, no reemplaza</b>.</p></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ VISIÓN ============ -->
+<section class="section" id="vision">
+  <div class="container">
+    <div class="section-head reveal">
+      <div class="kicker-num">01 — Visión</div>
+      <h2>Qué estamos construyendo</h2>
+      <p class="lede">Una aplicación completa para veterinarios: CRM de pacientes, agenda, comunicaciones por WhatsApp y un asistente clínico de IA que escucha la consulta, transcribe en vivo y redacta la nota — siempre bajo el control del profesional.</p>
+    </div>
+
+    <div class="grid g3 reveal">
+      <div class="pcard principle">
+        <div class="ic">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+        </div>
+        <h3>Control clínico</h3>
+        <p>Athos apoya la decisión, pero nunca diagnostica solo. El veterinario revisa, edita y aprueba todo antes de que se guarde en la historia clínica.</p>
+      </div>
+      <div class="pcard principle">
+        <div class="ic">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M13 2L3 14h7l-1 8 10-12h-7l1-8z"/></svg>
+        </div>
+        <h3>Velocidad operativa</h3>
+        <p>El profesional llega en un clic a paciente, consulta, agenda y WhatsApp. Menos tiempo en documentación, más tiempo en el animal.</p>
+      </div>
+      <div class="pcard principle">
+        <div class="ic">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 12l2 2 4-4M12 3l7 4v5c0 4.5-3 8-7 9-4-1-7-4.5-7-9V7l7-4z"/></svg>
+        </div>
+        <h3>Confianza profesional</h3>
+        <p>Interfaz limpia, calmada y clínica. Cada recomendación de Athos viene con fuente verificable — y si no la hay, lo dice de forma explícita.</p>
+      </div>
+    </div>
+
+    <div class="callout reveal" style="margin-top:30px">
+      <div class="mini-wave" aria-hidden="true"><i></i><i></i><i></i><i></i></div>
+      <h3>El diferenciador: Athos no inventa, cita</h3>
+      <p>Athos cruza la ficha del paciente, los mensajes de WhatsApp del cliente y literatura veterinaria (WSAVA, ICADA, PubMed) para razonar con fuentes citables y verificables. Verifica <b>siempre</b> las alergias severas antes de proponer cualquier plan, y usa lenguaje de posibilidad clínica — “compatible con”, “sugestivo de” — nunca diagnóstico definitivo. Es soporte a la decisión, con trazabilidad completa entre lo que genera la IA y lo que aprueba el profesional.</p>
+    </div>
+
+    <div class="grid g3 reveal" style="margin-top:30px">
+      <div class="pcard">
+        <span class="b b-primary" style="margin-bottom:12px">Restricción no negociable</span>
+        <h3 style="font-size:16px;margin-bottom:6px">Transcripción en vivo en español</h3>
+        <p class="muted" style="font-size:13.5px">Tiempo real, con diarización de hablantes (vet / dueño), usando el mejor motor del mercado para español.</p>
+      </div>
+      <div class="pcard">
+        <span class="b b-success" style="margin-bottom:12px">Cumplimiento</span>
+        <h3 style="font-size:16px;margin-bottom:6px">Ley 1581 / Habeas Data</h3>
+        <p class="muted" style="font-size:13.5px">Consentimiento explícito antes de grabar audio, datos cifrados, derechos de acceso y supresión, y aislamiento por clínica.</p>
+      </div>
+      <div class="pcard">
+        <span class="b b-warning" style="margin-bottom:12px">Principio de stack</span>
+        <h3 style="font-size:16px;margin-bottom:6px">Mínima complejidad operativa</h3>
+        <p class="muted" style="font-size:13.5px">Pocos servicios, fáciles de operar para un equipo pequeño, sin sacrificar calidad en IA, tiempo real y seguridad.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ PRODUCTO ============ -->
+<section class="section" id="producto">
+  <div class="container">
+    <div class="section-head reveal">
+      <div class="kicker-num">02 — Producto</div>
+      <h2>Cómo se ve y cómo se usa</h2>
+      <p class="lede">Seis módulos coherentes dentro de un mismo entorno. Las vistas a continuación están renderizadas con la dirección visual propuesta — fondos crema, superficies marfil, acento coral — para que vean el producto, no solo lo lean. Datos de ejemplo según el brief.</p>
+    </div>
+
+    <!-- module grid -->
+    <div class="grid g3 reveal" style="margin-bottom:46px">
+      <div class="pcard" style="padding:20px"><div style="display:flex;align-items:center;gap:10px;margin-bottom:8px"><span class="b b-neutral mono">01</span><b>Pacientes</b></div><p class="muted" style="font-size:13px">CRM con métricas, búsqueda, filtros, importación/exportación y tabla de pacientes.</p></div>
+      <div class="pcard" style="padding:20px"><div style="display:flex;align-items:center;gap:10px;margin-bottom:8px"><span class="b b-neutral mono">02</span><b>Ficha clínica</b></div><p class="muted" style="font-size:13px">Historia con pestañas, alergias severas, medicación, vacunas y últimas visitas.</p></div>
+      <div class="pcard" style="padding:20px"><div style="display:flex;align-items:center;gap:10px;margin-bottom:8px"><span class="b b-neutral mono">03</span><b>Calendario</b></div><p class="muted" style="font-size:13px">Agenda día/mes, sincronización con Google y bloqueos personales.</p></div>
+      <div class="pcard" style="padding:20px"><div style="display:flex;align-items:center;gap:10px;margin-bottom:8px"><span class="b b-primary mono">04</span><b>Athos · Modo Fantasma</b></div><p class="muted" style="font-size:13px">Escucha la consulta, transcribe en vivo y redacta la nota clínica.</p></div>
+      <div class="pcard" style="padding:20px"><div style="display:flex;align-items:center;gap:10px;margin-bottom:8px"><span class="b b-primary mono">05</span><b>Athos · Copiloto</b></div><p class="muted" style="font-size:13px">Chat clínico que razona con ficha, WhatsApp y literatura, citando fuente.</p></div>
+      <div class="pcard" style="padding:20px"><div style="display:flex;align-items:center;gap:10px;margin-bottom:8px"><span class="b b-neutral mono">06</span><b>Comunicaciones</b></div><p class="muted" style="font-size:13px">Inbox de WhatsApp con agente supervisado: Auto, Revisar, Pausar, Intervenir.</p></div>
+    </div>
+
+    <!-- ===== Mockup 1: CRM ===== -->
+    <div class="mk-wrap reveal">
+      <div class="mk-cap"><span class="tag">Vista previa</span> Pacientes — CRM con el AppShell completo (sidebar persistente + área principal).</div>
+      <div class="mk-frame">
+        <div class="mk-chrome"><div class="mk-dots"><i></i><i></i><i></i></div><div class="mk-url">tuvetia.com/patients</div></div>
+        <div class="mk-body">
+          <!-- sidebar -->
+          <aside class="mk-side">
+            <div class="mk-logo"><span class="lm"><svg viewBox="0 0 24 24"><path class="pulse-path" d="M2 12h3.5l2-5 3 10 2.5-7 1.8 3.2H22"/></svg></span> tuvetia <span class="beta">Beta</span></div>
+            <div class="mk-cta"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/></svg> Iniciar consulta</div>
+            <div class="mk-search"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4-4"/></svg> Buscar consultas y chats…</div>
+            <nav class="mk-nav">
+              <div class="it"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2a3 3 0 00-3 3v1a3 3 0 006 0V5a3 3 0 00-3-3zM5 21v-2a7 7 0 0114 0v2"/></svg> Athos</div>
+              <div class="it on"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18M3 12h18M3 18h12"/></svg> Pacientes</div>
+              <div class="it"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="17" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg> Calendario</div>
+              <div class="it"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg> Comunicaciones</div>
+              <div class="it"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 13a5 5 0 007 0l3-3a5 5 0 00-7-7l-1 1M14 11a5 5 0 00-7 0l-3 3a5 5 0 007 7l1-1"/></svg> Conexiones</div>
+            </nav>
+            <div class="mk-recent">
+              <div class="h">Consultas recientes</div>
+              <div class="r"><span class="mk-ava">LU</span> Luna · French Bulldog</div>
+              <div class="r"><span class="mk-ava">MX</span> Max · Labrador</div>
+              <div class="r"><span class="mk-ava">NA</span> Nala · Siamés</div>
+            </div>
+            <div class="mk-user"><span class="av">CG</span><div><div class="nm">Dra. García</div><div class="em">camila@tuvet.co</div></div></div>
+          </aside>
+          <!-- main -->
+          <main class="mk-main">
+            <div class="mk-h">
+              <div><div class="t">Pacientes</div><div class="s">248 pacientes activos</div></div>
+              <div class="mk-acts">
+                <span class="mk-bt"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3v12M7 10l5 5 5-5M5 21h14"/></svg> Importar</span>
+                <span class="mk-bt"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 21V9M7 14l5-5 5 5M5 3h14"/></svg> Exportar</span>
+                <span class="mk-bt pri"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M12 5v14M5 12h14"/></svg> Nuevo paciente</span>
+              </div>
+            </div>
+            <div class="mk-metrics">
+              <div class="mk-metric accent"><div class="n">248</div><div class="l">Pacientes activos</div></div>
+              <div class="mk-metric"><div class="n">12</div><div class="l">Citas hoy</div></div>
+              <div class="mk-metric"><div class="n">7</div><div class="l">Seguimientos</div></div>
+              <div class="mk-metric"><div class="n">31</div><div class="l">Nuevos del mes</div></div>
+            </div>
+            <div class="mk-filters">
+              <div class="mk-fbar"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4-4"/></svg> Buscar por mascota, titular o teléfono…</div>
+              <span class="mk-fchip on">Todos</span><span class="mk-fchip">Perros</span><span class="mk-fchip">Gatos</span><span class="mk-fchip">Otros</span>
+            </div>
+            <table class="mk-table">
+              <thead><tr><th>Mascota</th><th>Especie</th><th>Raza</th><th>Sexo</th><th>Edad</th><th>Titular</th><th>Teléfono</th></tr></thead>
+              <tbody>
+                <tr><td><span class="pet"><span class="mk-ava">LU</span>Luna</span></td><td><span class="mk-sp">Perro</span></td><td>French Bulldog</td><td>Hembra</td><td>3 a</td><td>Ana Restrepo</td><td>+57 310 555 8842</td></tr>
+                <tr><td><span class="pet"><span class="mk-ava">MX</span>Max</span></td><td><span class="mk-sp">Perro</span></td><td>Labrador</td><td>Macho</td><td>5 a</td><td>Carlos Méndez</td><td>+57 301 555 1190</td></tr>
+                <tr><td><span class="pet"><span class="mk-ava">NA</span>Nala</span></td><td><span class="mk-sp">Gato</span></td><td>Siamés</td><td>Hembra</td><td>2 a</td><td>Laura Gómez</td><td>+57 314 555 7723</td></tr>
+                <tr><td><span class="pet"><span class="mk-ava">SI</span>Simón</span></td><td><span class="mk-sp">Perro</span></td><td>Criollo</td><td>Macho</td><td>7 a</td><td>Diego Torres</td><td>+57 320 555 3361</td></tr>
+              </tbody>
+            </table>
+          </main>
+        </div>
+      </div>
+    </div>
+
+    <!-- ===== Mockup 2: Ficha clínica (interactive tabs) ===== -->
+    <div class="mk-wrap reveal" style="margin-top:48px">
+      <div class="mk-cap"><span class="tag">Vista previa</span> Ficha clínica — la <b>alerta de alergia severa</b> es prioritaria y no colapsable.</div>
+      <div class="mk-frame">
+        <div class="mk-chrome"><div class="mk-dots"><i></i><i></i><i></i></div><div class="mk-url">tuvetia.com/patients/luna</div></div>
+        <div class="mk-body" style="background:var(--bg-app)">
+          <main class="mk-main" style="width:100%">
+            <div class="mk-pat-head">
+              <div class="mk-pat-av">🐶</div>
+              <div>
+                <div class="mk-pat-name">Luna <span class="b b-neutral">French Bulldog</span></div>
+                <div class="mk-pat-meta"><span><b>Perro</b> · Hembra</span><span><b>3 años</b></span><span>Titular: <b>Ana Restrepo</b></span><span>+57 310 555 8842</span></div>
+              </div>
+            </div>
+            <div class="mk-tabs" data-fichatabs>
+              <div class="mk-tab on" data-tab="resumen">Resumen</div>
+              <div class="mk-tab" data-tab="historial">Historial</div>
+              <div class="mk-tab" data-tab="vacunas">Vacunas</div>
+              <div class="mk-tab" data-tab="medicacion">Medicación</div>
+              <div class="mk-tab" data-tab="alergias">Alergias</div>
+              <div class="mk-tab" data-tab="archivos">Archivos</div>
+            </div>
+
+            <div class="allergy">
+              <div class="ico"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3"><path d="M12 9v4M12 17h.01M10.3 3.9L1.8 18a2 2 0 001.7 3h17a2 2 0 001.7-3L13.7 3.9a2 2 0 00-3.4 0z"/></svg></div>
+              <div>
+                <div class="ti">Alergia severa registrada <span class="b b-danger">Severa</span></div>
+                <div class="dx"><b>Pollo</b> — reacción dermatológica. Athos verifica esta alergia antes de proponer cualquier plan terapéutico o alimentario.</div>
+              </div>
+            </div>
+
+            <div class="grid g3" style="gap:12px">
+              <div class="mc">
+                <div class="ch"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 7l-1 12a2 2 0 01-2 2H8a2 2 0 01-2-2L5 7M3 7h18M10 11v6M14 11v6"/></svg> Medicaciones activas</div>
+                <div style="font-size:12.5px;color:var(--ink-2);border-bottom:1px dashed var(--border);padding-bottom:8px;margin-bottom:8px"><b>Apoquel</b> 16 mg<br><span class="tiny">1 vez/día · oral</span></div>
+                <div style="font-size:12.5px;color:var(--ink-2)"><b>Omega 3</b> cápsula<br><span class="tiny">1 vez/día · oral</span></div>
+              </div>
+              <div class="mc">
+                <div class="ch"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 14a7 7 0 10-14 0M12 2v3M4.2 6.2l1.5 1.5M19.8 6.2l-1.5 1.5"/></svg> Próxima vacuna</div>
+                <div style="font-size:13px;color:var(--ink-2)"><b>Rabia (refuerzo)</b></div>
+                <div class="tiny" style="margin-top:4px">Vence el 14 jul 2026</div>
+                <span class="b b-warning" style="margin-top:10px">En 35 días</span>
+              </div>
+              <div class="mc">
+                <div class="ch"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="17" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg> Últimas visitas</div>
+                <div style="font-size:12.5px;border-bottom:1px dashed var(--border);padding-bottom:7px;margin-bottom:7px"><b>Control dermatológico</b><br><span class="tiny">12 may 2026</span></div>
+                <div style="font-size:12.5px"><b>Vacunación anual</b><br><span class="tiny">3 mar 2026</span></div>
+              </div>
+              <div class="mc">
+                <div class="ch">Datos generales</div>
+                <div class="tiny" style="line-height:2;color:var(--ink-2)">Especie · Perro &nbsp;|&nbsp; Raza · French Bulldog<br>Sexo · Hembra &nbsp;|&nbsp; Nacimiento · 2023<br>Peso · 11.4 kg &nbsp;|&nbsp; Microchip · 982·000·412</div>
+              </div>
+              <div class="mc" style="grid-column:span 2">
+                <div class="ch">Notas</div>
+                <div style="font-size:12.5px;color:var(--ink-2)">Paciente nervioso en consulta; mejora con manejo calmado. Dueña muy atenta al seguimiento dermatológico. Dieta hipoalergénica en curso desde marzo.</div>
+              </div>
+            </div>
+          </main>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ ATHOS (spotlight) ============ -->
+<section class="section" id="athos">
+  <div class="container">
+    <div class="section-head reveal">
+      <div class="kicker-num">02 — Producto · Athos</div>
+      <h2>Athos, el asistente clínico</h2>
+      <p class="lede">La pieza central del producto. En consulta escucha y documenta; como copiloto razona y responde. Siempre con fuente, siempre supeditado a la aprobación del veterinario. Es la única parte del producto que adopta un tono oscuro y enfocado: el modo “Athos está escuchando”.</p>
+    </div>
+
+    <!-- Ghost mode showpiece -->
+    <div class="mk-wrap reveal">
+      <div class="mk-cap"><span class="tag">Modo Fantasma</span> Sesión activa: barra de estado permanente, transcripción en vivo y nota clínica en borrador, lado a lado.</div>
+      <div class="mk-frame">
+        <div class="mk-chrome"><div class="mk-dots"><i></i><i></i><i></i></div><div class="mk-url">tuvetia.com/patients/luna/consult</div></div>
+        <div class="mk-body" style="display:block;padding:16px;background:var(--bg-app)">
+          <!-- session bar -->
+          <div class="ghost-bar">
+            <div class="who"><span class="pic">🐶</span><div><div class="nm">Luna · French Bulldog · 3 años</div><div class="meta">Consulta en curso</div></div></div>
+            <div class="wave" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
+            <div class="ghost-timer">04:32</div>
+            <span class="ghost-badge">● Modo Fantasma</span>
+          </div>
+          <!-- internal tabs -->
+          <div class="mk-tabs" style="border-color:var(--border)">
+            <div class="mk-tab on">Nota clínica</div>
+            <div class="mk-tab">Transcripción</div>
+            <div class="mk-tab">Mis notas</div>
+            <div class="mk-tab">Casos parecidos</div>
+            <div class="mk-tab">Sugerencias</div>
+            <div class="mk-tab">Chat</div>
+          </div>
+          <!-- two columns -->
+          <div class="grid g2" style="gap:14px;align-items:start">
+            <!-- transcript -->
+            <div class="transcript">
+              <div class="tr-h"><div style="font-weight:700;font-size:13px;display:flex;align-items:center;gap:8px"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="var(--primary)" stroke-width="2"><path d="M12 1a3 3 0 00-3 3v8a3 3 0 006 0V4a3 3 0 00-3-3zM19 10a7 7 0 01-14 0M12 19v4"/></svg> Transcripción</div><span class="b b-live"><span class="led"></span>En vivo</span></div>
+              <div class="bubble b-owner"><div class="who">Dueña</div>Doctora, Luna se ha estado rascando mucho la barriga esta semana, sobre todo de noche.</div>
+              <div class="bubble b-vet"><div class="who">Vet</div>¿Le cambiaron algo en la comida o le dieron algún premio nuevo?</div>
+              <div class="bubble b-owner"><div class="who">Dueña</div>Le di unas galletas que tenían pollo… no me acordé de la alergia.</div>
+              <div class="bubble b-vet"><div class="who">Vet</div>Vamos a revisar la piel. Veo eritema en el abdomen y zona inguinal.</div>
+              <div class="typing" aria-hidden="true"><i></i><i></i><i></i></div>
+            </div>
+            <!-- note -->
+            <div class="transcript note">
+              <div class="tr-h"><div style="font-weight:700;font-size:13px;display:flex;align-items:center;gap:8px"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="var(--primary)" stroke-width="2"><path d="M12 2a3 3 0 00-3 3v1a3 3 0 006 0V5a3 3 0 00-3-3zM5 21v-2a7 7 0 0114 0v2"/></svg> Nota clínica</div><span class="b b-primary">Athos redacta · borrador</span></div>
+              <div class="sec"><div class="lbl">Motivo de consulta</div><div class="tx">Prurito abdominal de una semana de evolución, de predominio nocturno.</div></div>
+              <div class="sec"><div class="lbl">Hallazgos</div><div class="tx">Eritema en abdomen y región inguinal. Antecedente de ingesta reciente de premio con pollo (alérgeno conocido).</div></div>
+              <div class="sec"><div class="lbl">Plan</div><div class="tx">Suspender exposición a pollo. Continuar dieta hipoalergénica. Valorar manejo del prurito según evolución.</div></div>
+              <div style="font-size:11px;color:var(--text-3);margin-top:8px">Se guardará en la ficha de <b style="color:var(--text-2)">Luna</b> cuando el veterinario apruebe.</div>
+              <div style="display:flex;gap:8px;margin-top:12px"><span class="mk-bt" style="font-size:11.5px">Editar</span><span class="mk-bt pri" style="font-size:11.5px">Revisar y aprobar</span></div>
+            </div>
+          </div>
+          <!-- diagnostic support -->
+          <div class="mc" style="margin-top:14px;background:var(--bg-surface)">
+            <div class="ch"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9.5 2a7.5 7.5 0 015 13.1V18a1 1 0 01-1 1h-3a1 1 0 01-1-1v-2.9A7.5 7.5 0 019.5 2zM9 22h6"/></svg> Apoyo diagnóstico <span style="color:var(--text-3);font-weight:400;text-transform:none;letter-spacing:0">— no reemplaza la nota; el veterinario decide</span></div>
+            <div class="diff">
+              <span class="pr pr-alta">Alta</span>
+              <div>
+                <div class="nm">Dermatitis por alergia alimentaria <span class="b b-danger" style="margin-left:6px">⚠ Alergia a pollo registrada</span></div>
+                <div class="rz">Compatible con el cuadro: prurito y eritema tras reexposición a pollo, alérgeno confirmado en la ficha.</div>
+                <div class="src"><span class="si"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 19.5A2.5 2.5 0 016.5 17H20M6.5 2H20v20H6.5A2.5 2.5 0 014 19.5v-15A2.5 2.5 0 016.5 2z"/></svg></span><span>Fuente: <b>Olivry T. et al.</b> — “Food allergy in dogs and cats”. <i>BMC Vet Res</i>, 2017. ICADA guidelines.</span></div>
+              </div>
+            </div>
+            <div class="diff">
+              <span class="pr pr-media">Media</span>
+              <div>
+                <div class="nm">Dermatitis atópica concurrente</div>
+                <div class="rz">A considerar dado el patrón nocturno; sugestivo, requiere descartar tras controlar el componente alimentario.</div>
+                <div class="src"><span class="si"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 19.5A2.5 2.5 0 016.5 17H20M6.5 2H20v20H6.5A2.5 2.5 0 014 19.5v-15A2.5 2.5 0 016.5 2z"/></svg></span><span>Fuente: <b>WSAVA</b> — Dermatology guidelines, 2023.</span></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- consent note -->
+    <div class="callout reveal" style="margin-top:30px">
+      <h3>Antes de grabar: consentimiento explícito</h3>
+      <p>El video del prototipo muestra la sesión ya activa, pero el flujo real exige un modal bloqueante: Athos no activa el micrófono hasta que el veterinario acepta. El modal explica que se grabará y transcribirá el audio para generar la documentación clínica, sugiere informar al propietario, y guarda el timestamp del consentimiento en la sesión. Sin consentimiento, no hay grabación.</p>
+    </div>
+
+    <!-- Copiloto chat -->
+    <div class="mk-wrap reveal" style="margin-top:36px">
+      <div class="mk-cap"><span class="tag">Copiloto</span> Chat clínico: razonamiento por bloques, términos clave resaltados, y una tarjeta de fuente verificable.</div>
+      <div class="mk-frame">
+        <div class="mk-chrome"><div class="mk-dots"><i></i><i></i><i></i></div><div class="mk-url">tuvetia.com/athos</div></div>
+        <div class="mk-body" style="display:block;padding:18px;background:var(--bg-app)">
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;font-size:12px;color:var(--text-2)"><span class="b b-primary">Contexto · Luna</span><span class="b b-neutral">Usando WhatsApp de la dueña</span></div>
+          <div class="chat" style="display:flex;flex-direction:column;gap:11px">
+            <div class="msg-u">Luna llegó con prurito y la dueña le dio premios con pollo. ¿Cómo enfoco el manejo del prurito sin reactivar la alergia?</div>
+            <div class="msg-a">
+              <div class="step">El cuadro es <span class="hl">compatible con una dermatitis por alergia alimentaria</span>, dada la reexposición a <span class="hl">pollo</span> — alérgeno severo confirmado en la ficha.</div>
+              <div class="step">⚠️ Antes de cualquier plan: <span class="hl">la alergia a pollo es severa</span>. Evitar cualquier formulación o premio que lo contenga, incluidos saborizantes.</div>
+              <div class="step">Para el prurito, suele priorizarse el control del desencadenante alimentario y reevaluar la respuesta antes de escalar. La decisión terapéutica es suya.</div>
+              <div style="background:rgba(234,94,58,.1);border:1px solid #4a3a2e;border-radius:9px;padding:9px 11px;margin-top:8px;font-size:11.5px">
+                <div style="font-family:var(--font-mono);font-size:9px;letter-spacing:.08em;text-transform:uppercase;color:var(--primary);margin-bottom:4px">Fuente verificable</div>
+                <b>Olivry T. et al.</b> — “Critically appraised topic on adverse food reactions”. <i>BMC Vet Res</i>, 2017. DOI: 10.1186/s12917-017-1142-0
+              </div>
+              <div style="background:var(--focus-bg-2);border:1px solid var(--focus-line);border-radius:9px;padding:9px 11px;margin-top:8px;font-size:11.5px">
+                <div style="font-family:var(--font-mono);font-size:9px;letter-spacing:.08em;text-transform:uppercase;color:var(--focus-text-2);margin-bottom:4px">Frase sugerida para la dueña</div>
+                “Lo de Luna parece una reacción al pollo. Lo importante es retirarlo por completo de su dieta, incluidas las galletas, y vemos cómo evoluciona.”
+              </div>
+            </div>
+          </div>
+          <div class="composer" style="margin-top:14px"><span style="flex:1">Escribe tu consulta clínica…</span><span class="mic"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 1a3 3 0 00-3 3v8a3 3 0 006 0V4a3 3 0 00-3-3zM19 10a7 7 0 01-14 0M12 19v4"/></svg></span><span class="send"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M5 12h14M13 6l6 6-6 6"/></svg></span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ COMUNICACIONES + CONEXIONES ============ -->
+<section class="section" id="canales">
+  <div class="container">
+    <div class="section-head reveal">
+      <div class="kicker-num">02 — Producto · Canales</div>
+      <h2>WhatsApp supervisado y conexiones</h2>
+      <p class="lede">El inbox de WhatsApp vive dentro de Tuvetia, con un agente que el equipo controla en todo momento. Cada mensaje deja claro si lo escribió un humano o el agente, y el modo de operación es siempre visible.</p>
+    </div>
+
+    <!-- Comms mockup -->
+    <div class="mk-wrap reveal">
+      <div class="mk-cap"><span class="tag">Vista previa</span> Comunicaciones — control del agente: Auto · Revisar · Pausar · Intervenir.</div>
+      <div class="mk-frame">
+        <div class="mk-chrome"><div class="mk-dots"><i></i><i></i><i></i></div><div class="mk-url">tuvetia.com/communications</div></div>
+        <div class="mk-body">
+          <div class="mk-conv">
+            <div style="font-family:var(--font-mono);font-size:9.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--text-3);padding:4px 6px 8px">Conversaciones</div>
+            <div class="conv on"><span class="av">AR</span><div style="flex:1;min-width:0"><div class="nm">Ana Restrepo <span class="b b-success" style="padding:2px 7px">Auto</span></div><div class="pv">Gracias doctora, ¿el jueves a las 3?</div></div></div>
+            <div class="conv"><span class="av">CM</span><div style="flex:1;min-width:0"><div class="nm">Carlos Méndez <span class="b b-danger" style="padding:2px 7px">Escalado</span></div><div class="pv">Max está vomitando desde anoche…</div></div></div>
+            <div class="conv"><span class="av">LG</span><div style="flex:1;min-width:0"><div class="nm">Laura Gómez</div><div class="pv">¿Qué vacunas le faltan a Nala?</div></div></div>
+            <div class="conv"><span class="av">DT</span><div style="flex:1;min-width:0"><div class="nm">Diego Torres <span class="b b-success" style="padding:2px 7px">Auto</span></div><div class="pv">Perfecto, ahí estaré. ¡Gracias!</div></div></div>
+          </div>
+          <div style="flex:1;display:flex;flex-direction:column">
+            <div class="agentbar">
+              <div style="font-weight:700;font-size:13px;margin-right:6px">Ana Restrepo <span class="tiny" style="font-weight:400">· Luna · +57 310 555 8842</span></div>
+              <span class="amode on">Auto</span>
+              <span class="amode warn">Revisar antes de enviar</span>
+              <span class="amode">Pausar</span>
+              <span class="amode">Intervenir</span>
+            </div>
+            <div class="wa-thread">
+              <div class="wa-in">Hola, Luna sigue rascándose. ¿Puedo llevarla esta semana?</div>
+              <div class="wa-out"><div class="tag">Agente · Tuvetia</div>¡Hola Ana! Claro. Tenemos disponibilidad el jueves 14 a las 3:00 p.m. con la Dra. García. ¿Te sirve?</div>
+              <div class="wa-in">Sí, perfecto.</div>
+              <div class="wa-out"><div class="tag">Agente · Tuvetia</div>Listo, cita confirmada para Luna el jueves 14 jul, 3:00 p.m. Te enviaré un recordatorio el día anterior. 🐾</div>
+              <div style="align-self:center;font-size:11px;color:var(--text-3);background:var(--bg-surface);border:1px solid var(--border);border-radius:99px;padding:4px 12px;margin-top:4px">Athos lee este chat para tu contexto — no responde al cliente</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- agent modes explainer -->
+    <div class="grid g4 reveal" style="margin-top:24px">
+      <div class="pcard" style="padding:18px"><span class="b b-success" style="margin-bottom:10px">Auto</span><p class="muted" style="font-size:13px">El agente responde dentro de reglas definidas. Cada respuesta queda etiquetada como agente.</p></div>
+      <div class="pcard" style="padding:18px"><span class="b b-warning" style="margin-bottom:10px">Revisar</span><p class="muted" style="font-size:13px">Genera un borrador; nada sale al cliente sin aprobación del vet o asistente.</p></div>
+      <div class="pcard" style="padding:18px"><span class="b b-neutral" style="margin-bottom:10px">Pausar</span><p class="muted" style="font-size:13px">Detiene las respuestas automáticas. El cliente no recibe mensajes del agente.</p></div>
+      <div class="pcard" style="padding:18px"><span class="b b-neutral" style="margin-bottom:10px">Intervenir</span><p class="muted" style="font-size:13px">Transfiere el control al humano para responder manualmente.</p></div>
+    </div>
+
+    <!-- Connections -->
+    <div class="mk-wrap reveal" style="margin-top:40px">
+      <div class="mk-cap"><span class="tag">Vista previa</span> Conexiones — estados reales: conectado, desconectado, error.</div>
+      <div class="pcard" style="padding:22px">
+        <div style="margin-bottom:18px"><div style="font-family:var(--font-display);font-weight:800;font-size:20px">Conexiones</div><div class="muted" style="font-size:13px">Conecta tu WhatsApp Business, tu calendario y tu correo para que Tuvetia trabaje con tus herramientas.</div></div>
+        <div class="grid g2">
+          <div class="intc">
+            <div class="ico" style="background:#25D366">
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2a10 10 0 00-8.5 15.3L2 22l4.8-1.4A10 10 0 1012 2zm0 18a8 8 0 01-4.1-1.1l-.3-.2-2.8.8.8-2.8-.2-.3A8 8 0 1112 20zm4.4-6c-.2-.1-1.4-.7-1.6-.8-.2-.1-.4-.1-.5.1l-.7.9c-.1.2-.3.2-.5.1a6.5 6.5 0 01-3.2-2.8c-.1-.2 0-.4.1-.5l.4-.5c.1-.2.1-.3 0-.5l-.7-1.7c-.2-.4-.4-.4-.5-.4h-.5c-.2 0-.4.1-.6.3-.6.6-.8 1.4-.8 2.2 0 1.5 1 2.9 1.2 3.1.2.2 2 3.1 4.9 4.2 1.7.6 2.4.7 3.2.5.5-.1 1.4-.6 1.6-1.1.2-.6.2-1 .1-1.1l-.4-.5z"/></svg>
+            </div>
+            <div style="flex:1"><div class="nm">WhatsApp Business</div><div class="ds">Inbox y agente supervisado dentro de Tuvetia.</div></div>
+            <span class="b b-success"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M5 13l4 4L19 7"/></svg> Conectado</span>
+          </div>
+          <div class="intc">
+            <div class="ico" style="background:#4285F4">
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor"><rect x="4" y="5" width="16" height="15" rx="2" fill="#fff" opacity=".25"/><path d="M16 3v4M8 3v4M4 9h16" stroke="#fff" stroke-width="2" fill="none"/></svg>
+            </div>
+            <div style="flex:1"><div class="nm">Google Calendar / Gmail</div><div class="ds">Agenda sincronizada (solo lectura en beta).</div></div>
+            <span class="mk-bt pri" style="font-size:12px">Conectar</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ DISEÑO ============ -->
+<section class="section" id="diseno">
+  <div class="container">
+    <div class="section-head reveal">
+      <div class="kicker-num">03 — Sistema de diseño</div>
+      <h2>Warm minimal clinical</h2>
+      <p class="lede">Una estética cálida, limpia y clínica: fondos crema, superficies marfil, bordes suaves, esquinas redondeadas y un acento coral. Todo se controla desde una capa central de tokens — ningún componente usa colores arbitrarios — para que cambiar de tema no requiera reescribir la interfaz.</p>
+    </div>
+
+    <div class="reveal">
+      <div class="mk-cap"><span class="tag">Paleta</span> Valores aproximados a partir del prototipo. A validar contra Figma o guía de marca oficial.</div>
+      <div class="swatches">
+        <div class="sw"><div class="col" style="background:#F3F0E8"></div><div class="meta"><div class="nm">Fondo app</div><div class="hx">#F3F0E8</div></div></div>
+        <div class="sw"><div class="col" style="background:#FAF8F1"></div><div class="meta"><div class="nm">Superficie</div><div class="hx">#FAF8F1</div></div></div>
+        <div class="sw"><div class="col" style="background:#DDD6C8"></div><div class="meta"><div class="nm">Borde</div><div class="hx">#DDD6C8</div></div></div>
+        <div class="sw"><div class="col" style="background:#171713"></div><div class="meta"><div class="nm">Texto</div><div class="hx">#171713</div></div></div>
+        <div class="sw"><div class="col" style="background:#EA5E3A"></div><div class="meta"><div class="nm">Primario</div><div class="hx">#EA5E3A</div></div></div>
+        <div class="sw"><div class="col" style="background:#F7CDBE"></div><div class="meta"><div class="nm">Primario suave</div><div class="hx">#F7CDBE</div></div></div>
+        <div class="sw"><div class="col" style="background:#4F8F73"></div><div class="meta"><div class="nm">Éxito</div><div class="hx">#4F8F73</div></div></div>
+        <div class="sw"><div class="col" style="background:#C98733"></div><div class="meta"><div class="nm">Alerta</div><div class="hx">#C98733</div></div></div>
+        <div class="sw"><div class="col" style="background:#D95445"></div><div class="meta"><div class="nm">Peligro</div><div class="hx">#D95445</div></div></div>
+        <div class="sw"><div class="col" style="background:#ECE7DD"></div><div class="meta"><div class="nm">Muted</div><div class="hx">#ECE7DD</div></div></div>
+        <div class="sw"><div class="col" style="background:#77736A"></div><div class="meta"><div class="nm">Texto 2°</div><div class="hx">#77736A</div></div></div>
+        <div class="sw"><div class="col" style="background:#17150F"></div><div class="meta"><div class="nm">Foco oscuro</div><div class="hx">#17150F</div></div></div>
+      </div>
+    </div>
+
+    <div class="grid g2 reveal" style="margin-top:30px;align-items:start">
+      <div class="pcard">
+        <div class="ch" style="font-family:var(--font-mono);font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--text-3);margin-bottom:14px">Tipografía</div>
+        <div class="type-spec"><div class="display" style="font-size:30px">Hanken Grotesk</div><div class="sub">Display · títulos y números — cálida, geométrica y sobria</div></div>
+        <div class="type-spec"><div style="font-family:var(--font-body);font-size:20px;font-weight:500">Inter — cuerpo e interfaz</div><div class="sub">Body · alineada con shadcn/ui, el sistema real del producto</div></div>
+        <div class="type-spec"><div class="mono" style="font-size:18px">JetBrains Mono</div><div class="sub">Datos · etiquetas, métricas, IDs y código</div></div>
+      </div>
+      <div class="pcard">
+        <div class="ch" style="font-family:var(--font-mono);font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--text-3);margin-bottom:6px">Tokens estructurales</div>
+        <div class="token-row"><span class="k">Radio · tarjeta</span><span class="v">18px</span></div>
+        <div class="token-row"><span class="k">Radio · botón</span><span class="v">12px</span></div>
+        <div class="token-row"><span class="k">Radio · pill</span><span class="v">999px</span></div>
+        <div class="token-row"><span class="k">Spacing</span><span class="v">4·8·12·16·24·32·40·48</span></div>
+        <div class="token-row"><span class="k">Sombras</span><span class="v">soft · floating · modal</span></div>
+        <div class="token-row"><span class="k">Tema base MVP</span><span class="v">Claro cálido</span></div>
+        <div class="token-row"><span class="k">Tema oscuro</span><span class="v">Vía tokens, sin duplicar</span></div>
+      </div>
+    </div>
+
+    <div class="callout reveal" style="margin-top:30px">
+      <div class="mini-wave" aria-hidden="true"><i></i><i></i><i></i><i></i></div>
+      <h3>Decisión por cerrar: ¿claro, oscuro o ambos?</h3>
+      <p>La arquitectura mencionaba un “diseño oscuro del brief”, pero el video de referencia muestra una interfaz mayormente clara y cálida. Nuestra recomendación es <b>tema claro como base del MVP</b> (es lo que muestra el prototipo) con la capacidad técnica de tema oscuro reservada vía tokens. Necesitamos confirmar la dirección antes de implementar pantallas completas — está en la lista de decisiones.</p>
+    </div>
+  </div>
+</section>
+
+<!-- ============ STACK ============ -->
+<section class="section" id="stack">
+  <div class="container">
+    <div class="section-head reveal">
+      <div class="kicker-num">04 — Stack técnico</div>
+      <h2>Un monolito ligero + un servicio de IA</h2>
+      <p class="lede">La estrategia es minimizar servicios: las API Routes de Next.js manejan el CRUD y los webhooks, y Supabase resuelve base de datos, autenticación, storage y tiempo real. El único servicio separado es el microservicio de Python para IA — la única razón justificada para salir del monolito.</p>
+    </div>
+
+    <div style="display:flex;flex-direction:column;gap:18px">
+
+      <!-- Frontend -->
+      <div class="layer reveal">
+        <div class="lh"><span class="bdg" style="background:var(--primary-wash);color:var(--primary-hover)">Frontend</span><h3>Next.js + TypeScript</h3></div>
+        <div class="ld">SSR, rutas por archivo, Server Components y despliegue nativo en Vercel. Tipado fuerte para datos clínicos — crítico para no equivocar el mapeo entre paciente, visita y medicación.</div>
+        <div class="tlist">
+          <div class="titem"><div class="tool">Next.js <span class="ver">App Router · 15.x+</span></div><div class="why">Framework base; API Routes nativas para CRUD y webhooks.</div></div>
+          <div class="titem"><div class="tool">TypeScript <span class="ver">5.x</span></div><div class="why">Tipado fuerte; esquemas compartidos con el backend vía Zod.</div></div>
+          <div class="titem"><div class="tool">Tailwind CSS <span class="ver">v4</span></div><div class="why">Utility-first; control fino del sistema de diseño cálido.</div></div>
+          <div class="titem"><div class="tool">shadcn/ui <span class="ver">Radix UI</span></div><div class="why">Componentes accesibles, instalados en el proyecto, personalizables.</div></div>
+          <div class="titem"><div class="tool">TanStack Query <span class="ver">v5</span></div><div class="why">Caché, paginación y estados de carga/error del servidor.</div></div>
+          <div class="titem"><div class="tool">Tiptap <span class="ver">v2</span></div><div class="why">Editor de la nota clínica generada por Athos (debe ser editable).</div></div>
+          <div class="titem"><div class="tool">Web Audio + MediaRecorder <span class="ver">nativo</span></div><div class="why">Captura de audio del micrófono para el Modo Fantasma.</div></div>
+          <div class="titem"><div class="tool">Recharts · react-big-calendar <span class="ver">+ Zustand · RHF</span></div><div class="why">Indicadores, agenda, estado UI ligero y formularios validados.</div></div>
+        </div>
+      </div>
+
+      <!-- Backend -->
+      <div class="layer reveal">
+        <div class="lh"><span class="bdg" style="background:var(--success-soft);color:#37705a">Backend</span><h3>Supabase + Next.js API Routes</h3></div>
+        <div class="ld">PostgreSQL relacional con Row Level Security para aislar cada clínica sin lógica de aplicación. Vector store en la misma base de datos. Sin servicios extra.</div>
+        <div class="tlist">
+          <div class="titem"><div class="tool">PostgreSQL <span class="ver">vía Supabase</span></div><div class="why">Modelo relacional del dominio; RLS para multi-tenant.</div></div>
+          <div class="titem"><div class="tool">Supabase Auth <span class="ver">JWT · OAuth</span></div><div class="why">Email/password y Google; se integra nativo con RLS.</div></div>
+          <div class="titem"><div class="tool">pgvector <span class="ver">extensión</span></div><div class="why">Embeddings del RAG en la misma base — sin servicio adicional.</div></div>
+          <div class="titem"><div class="tool">Supabase Realtime <span class="ver">SDK</span></div><div class="why">Transcripción en vivo: escucha cambios y notifica al frontend.</div></div>
+          <div class="titem"><div class="tool">Supabase Storage <span class="ver">bucket privado</span></div><div class="why">Grabaciones de audio y adjuntos; URLs firmadas.</div></div>
+          <div class="titem"><div class="tool">Edge Functions <span class="ver">jobs async</span></div><div class="why">Tareas post-consulta: finalizar nota, resumen por WhatsApp.</div></div>
+        </div>
+      </div>
+
+      <!-- AI -->
+      <div class="layer reveal" style="background:var(--focus-bg);border-color:var(--focus-line)">
+        <div class="lh"><span class="bdg" style="background:rgba(234,94,58,.15);color:var(--primary)">Microservicio IA · Athos</span><h3 style="color:#fff">Python + FastAPI</h3></div>
+        <div class="ld" style="color:var(--focus-text-2)">Python tiene el mejor ecosistema para IA: SDKs de Deepgram y Anthropic, LlamaIndex, procesamiento de audio. Async y WebSocket nativo para la transcripción en streaming.</div>
+        <div class="tlist">
+          <div class="titem" style="border-color:var(--focus-line)"><div class="tool" style="color:#fff">FastAPI <span class="ver" style="color:var(--focus-text-2)">async · WebSocket</span></div><div class="why" style="color:var(--focus-text-2)">STT en streaming, SSE para chat, OpenAPI auto-generado.</div></div>
+          <div class="titem" style="border-color:var(--focus-line)"><div class="tool" style="color:#fff">Anthropic Claude <span class="ver" style="color:var(--focus-text-2)">claude-sonnet-4-6</span></div><div class="why" style="color:var(--focus-text-2)">Razonamiento clínico con fuentes y streaming nativo.</div></div>
+          <div class="titem" style="border-color:var(--focus-line)"><div class="tool" style="color:#fff">Deepgram <span class="ver" style="color:var(--focus-text-2)">Nova-2</span></div><div class="why" style="color:var(--focus-text-2)">Mejor transcripción en tiempo real en español con diarización.</div></div>
+          <div class="titem" style="border-color:var(--focus-line)"><div class="tool" style="color:#fff">OpenAI embeddings <span class="ver" style="color:var(--focus-text-2)">text-embedding-3-small</span></div><div class="why" style="color:var(--focus-text-2)">Económico y de alta calidad para el RAG (1536 dims).</div></div>
+          <div class="titem" style="border-color:var(--focus-line)"><div class="tool" style="color:#fff">LlamaIndex <span class="ver" style="color:var(--focus-text-2)">RAG</span></div><div class="why" style="color:var(--focus-text-2)">Pipelines documentales limpios; soporte nativo pgvector.</div></div>
+          <div class="titem" style="border-color:var(--focus-line)"><div class="tool" style="color:#fff">ffmpeg · pydub · httpx <span class="ver" style="color:var(--focus-text-2)">Pydantic v2</span></div><div class="why" style="color:var(--focus-text-2)">Audio, llamadas async y validación de datos.</div></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Model decision -->
+    <div class="pcard reveal" style="margin-top:24px">
+      <div class="ch" style="font-family:var(--font-mono);font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--text-3);margin-bottom:8px">Decisión de modelos en Athos</div>
+      <table class="modeltable">
+        <thead><tr><th>Tarea</th><th>Modelo</th><th>Razón</th></tr></thead>
+        <tbody>
+          <tr><td>Chat conversacional (Copiloto)</td><td><span class="m">claude-sonnet-4-6</span></td><td class="muted">Razonamiento clínico con fuentes; requiere capacidad alta.</td></tr>
+          <tr><td>Generación de nota clínica</td><td><span class="m">claude-sonnet-4-6</span></td><td class="muted">Salida estructurada + precisión médica.</td></tr>
+          <tr><td>Diagnósticos diferenciales</td><td><span class="m">claude-sonnet-4-6</span></td><td class="muted">Razonamiento multi-step con literatura.</td></tr>
+          <tr><td>Clasificación / tareas simples</td><td><span class="m">claude-haiku-4-5</span></td><td class="muted">Velocidad y costo, si se agregan.</td></tr>
+        </tbody>
+      </table>
+      <p class="tiny" style="margin-top:12px">Control de costo: límites de tokens razonables (1500 para notas, 2000 para diagnósticos) y monitoreo del gasto desde el primer usuario beta. Para producción se usa una <b>API key de Anthropic separada</b> de la cuenta Claude Pro de desarrollo.</p>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================ ARQUITECTURA ============================================================ -->
+<section class="section" id="arquitectura">
+  <div class="container">
+    <div class="section-head reveal">
+      <div class="kicker-num">05 — Arquitectura</div>
+      <h2>Cómo se conectan las piezas</h2>
+      <p class="lede">Un monorepo con dos aplicaciones desplegables. El frontend y sus API Routes viven en Vercel; el microservicio de IA vive aparte porque corre en Python. Todo lo demás —datos, auth, storage, tiempo real— lo concentra Supabase, y los servicios externos se tocan solo desde donde corresponde.</p>
+    </div>
+
+    <!-- system diagram -->
+    <div class="arch reveal">
+      <div class="ch" style="font-family:var(--font-mono);font-size:10.5px;letter-spacing:.06em;text-transform:uppercase;color:var(--text-3);margin-bottom:18px;text-align:center">Diagrama de sistema</div>
+
+      <!-- App layer -->
+      <div class="arch-row">
+        <div class="node">
+          <div class="nh"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--primary)" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 21V9"/></svg> apps/web</div>
+          <div class="ntag">Next.js · Vercel</div>
+          <div class="ni">UI completa (App Shell, CRM, ficha, calendario, chat). API Routes para CRUD, webhooks de WhatsApp y orquestación. Habla con Supabase y llama al microservicio de IA.</div>
+        </div>
+        <div class="node dark">
+          <div class="nh"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--primary)" stroke-width="2"><path d="M12 2a4 4 0 0 1 4 4c0 1.5-.8 2.8-2 3.4V11h2a3 3 0 0 1 3 3v1M12 2a4 4 0 0 0-4 4c0 1.5.8 2.8 2 3.4V11H8a3 3 0 0 0-3 3v1"/><circle cx="5" cy="18" r="2"/><circle cx="19" cy="18" r="2"/><circle cx="12" cy="20" r="2"/></svg> apps/ai-service</div>
+          <div class="ntag">Python · FastAPI · Railway</div>
+          <div class="ni">El cerebro de Athos: transcripción en streaming, generación de notas, diferenciales y RAG. Expone endpoints y WebSocket; nunca lo toca el navegador directo, solo el backend.</div>
+        </div>
+      </div>
+
+      <div class="arch-conn"><span class="line"></span>se apoyan en<span class="line"></span></div>
+
+      <!-- Supabase layer -->
+      <div class="arch-row">
+        <div class="node" style="max-width:none">
+          <div class="nh"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--success)" stroke-width="2"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M3 5v14c0 1.7 4 3 9 3s9-1.3 9-3V5"/><path d="M3 12c0 1.7 4 3 9 3s9-1.3 9-3"/></svg> Supabase</div>
+          <div class="ntag">PostgreSQL · Auth · Storage · Realtime · Edge Functions · pgvector</div>
+          <div class="ni" style="display:flex;flex-wrap:wrap;gap:7px;margin-top:12px">
+            <span class="svc-pill">Base de datos relacional + RLS</span>
+            <span class="svc-pill">Auth (email + Google)</span>
+            <span class="svc-pill">Storage de audio (privado)</span>
+            <span class="svc-pill">Realtime (transcripción en vivo)</span>
+            <span class="svc-pill">pgvector (RAG)</span>
+            <span class="svc-pill">Edge Functions (jobs async)</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="arch-conn"><span class="line"></span>integran servicios externos<span class="line"></span></div>
+
+      <!-- External layer -->
+      <div class="arch-row">
+        <span class="svc-pill dark"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#25D366" stroke-width="2.4"><path d="M3 21l1.65-3.8a9 9 0 1 1 3.4 2.9z"/></svg> WhatsApp Business Cloud</span>
+        <span class="svc-pill dark"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#5B8DEF" stroke-width="2.2"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg> Google Calendar / Gmail</span>
+        <span class="svc-pill dark"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--primary)" stroke-width="2.2"><path d="M12 3l8 4.5v9L12 21l-8-4.5v-9z"/></svg> Anthropic Claude</span>
+        <span class="svc-pill dark"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#13EF93" stroke-width="2.2"><path d="M12 2v20M6 7v10M18 7v10M2 11v2M22 11v2"/></svg> Deepgram Nova-2</span>
+        <span class="svc-pill dark"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#9CA3AF" stroke-width="2.2"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg> OpenAI embeddings</span>
+      </div>
+
+      <p class="tiny" style="margin-top:20px;text-align:center;max-width:64ch;margin-left:auto;margin-right:auto">Regla de oro: el navegador solo habla con <code style="font-family:var(--font-mono);background:var(--bg-muted);padding:1px 6px;border-radius:5px;color:var(--primary-hover)">apps/web</code>. Las llaves de Anthropic, Deepgram y WhatsApp viven en el servidor, nunca en el cliente.</p>
+    </div>
+
+    <!-- Ghost Mode data flow -->
+    <div class="pcard reveal" style="margin-top:24px">
+      <div class="ch" style="font-family:var(--font-mono);font-size:10.5px;letter-spacing:.06em;text-transform:uppercase;color:var(--text-3);margin-bottom:6px">Flujo de datos · Modo Fantasma</div>
+      <p style="font-size:13.5px;color:var(--text-2);margin-bottom:14px;max-width:70ch">El camino completo desde que el veterinario da consentimiento y empieza a grabar, hasta que aprueba la nota clínica. El veterinario decide en el último paso — nada se guarda en la historia sin su aprobación.</p>
+      <div class="flow">
+        <div class="st"><span class="num"></span><span class="tx"><b>Consentimiento + inicio.</b> El vet confirma el consentimiento del dueño y presiona “Iniciar consulta”. El navegador captura audio con <code>MediaRecorder</code>.</span></div>
+        <div class="st"><span class="num"></span><span class="tx"><b>Audio al microservicio.</b> El stream de audio llega vía WebSocket a <code>apps/ai-service</code>, que lo reenvía a <b>Deepgram Nova-2</b> (español, con diarización).</span></div>
+        <div class="st"><span class="num"></span><span class="tx"><b>Transcripción en vivo.</b> Deepgram devuelve texto en tiempo real; el servicio lo persiste y lo publica por <b>Supabase Realtime</b>, que lo pinta en pantalla al instante.</span></div>
+        <div class="st"><span class="num"></span><span class="tx"><b>Cierre de consulta.</b> Al finalizar, el transcript completo + el contexto del paciente (incl. <b>alergias severas</b>) se mandan a <b>Claude</b> para redactar la nota SOAP y proponer diferenciales con fuentes.</span></div>
+        <div class="st"><span class="num"></span><span class="tx"><b>Borrador para revisión.</b> La nota llega como <b>borrador editable</b>. Athos no escribe en la historia: solo propone.</span></div>
+        <div class="st"><span class="num"></span><span class="tx"><b>Aprobación del veterinario.</b> El vet edita y aprueba. Solo entonces se hace el <code>INSERT</code> de la visita. El audio se retiene 7 días y se elimina.</span></div>
+      </div>
+    </div>
+
+    <!-- Monorepo structure -->
+    <div class="grid cols-2 reveal" style="margin-top:24px">
+      <div class="pcard">
+        <h3 style="font-size:16px;margin-bottom:10px">Estructura del monorepo</h3>
+        <pre style="font-family:var(--font-mono);font-size:12px;line-height:1.85;color:var(--ink-2);background:var(--bg-app);border:1px solid var(--border-soft);border-radius:10px;padding:16px;overflow:auto;margin:0"><span style="color:var(--text-3)">tuvetia/</span>
+├── apps/
+│   ├── <b style="color:var(--primary-hover)">web/</b>        <span style="color:var(--text-3)"># Next.js + API Routes</span>
+│   └── <b style="color:var(--primary-hover)">ai-service/</b> <span style="color:var(--text-3)"># FastAPI · Python</span>
+├── packages/
+│   ├── ui/         <span style="color:var(--text-3)"># shadcn compartido</span>
+│   ├── types/      <span style="color:var(--text-3)"># tipos + Zod</span>
+│   └── config/     <span style="color:var(--text-3)"># tsconfig, eslint</span>
+└── supabase/
+    ├── migrations/ <span style="color:var(--text-3)"># SQL + RLS</span>
+    └── functions/  <span style="color:var(--text-3)"># Edge Functions</span></pre>
+      </div>
+      <div class="pcard">
+        <h3 style="font-size:16px;margin-bottom:10px">Por qué dos despliegues y no uno</h3>
+        <p style="font-size:13.5px;color:var(--text-2);line-height:1.7">Next.js corre en Node sobre Vercel; el ecosistema de IA (Deepgram SDK, audio, LlamaIndex, async/WebSocket de larga duración) vive mucho mejor en Python. Forzar todo a un runtime nos costaría más de lo que ahorra.</p>
+        <p style="font-size:13.5px;color:var(--text-2);line-height:1.7;margin-top:10px">La frontera es limpia: <b>una sola</b> razón para salir del monolito, y está justificada. Si mañana el servicio de IA necesita escalar distinto al CRUD, ya está aislado.</p>
+        <div class="callout-mini" style="margin-top:14px;display:flex;gap:10px;align-items:flex-start;background:var(--primary-wash);border:1px solid var(--primary-soft);border-radius:10px;padding:12px 14px">
+          <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="var(--primary)" stroke-width="2" style="flex:none;margin-top:1px"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg>
+          <span style="font-size:12.5px;color:var(--primary-hover);font-weight:600">Decisión abierta: confirmar si el monorepo es Turborepo o repos separados (ver §Decisiones).</span>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</section>
+
+<!-- ============================================================ SEGURIDAD ============================================================ -->
+<section class="section" id="seguridad">
+  <div class="container">
+    <div class="section-head reveal">
+      <div class="kicker-num">06 — Seguridad y cumplimiento</div>
+      <h2>Datos clínicos y voz de pacientes: máxima seriedad</h2>
+      <p class="lede">La plataforma maneja información médica y graba consultas. Eso obliga a tratar privacidad, consentimiento y aislamiento de datos como requisitos de diseño, no como un agregado al final. Todo se construye sobre el marco colombiano de protección de datos.</p>
+    </div>
+
+    <div class="grid cols-2 reveal">
+      <div class="pcard">
+        <div class="sec-item">
+          <span class="si"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg></span>
+          <div><h4>Ley 1581 / Habeas Data</h4><p>Cumplimiento del régimen colombiano de protección de datos personales. El tratamiento de datos sensibles (salud, voz) parte del consentimiento informado y la finalidad explícita.</p></div>
+        </div>
+        <div class="sec-item">
+          <span class="si"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 12l2 2 4-4"/><circle cx="12" cy="12" r="9"/></svg></span>
+          <div><h4>Consentimiento antes de grabar</h4><p>El Modo Fantasma no inicia sin confirmación explícita de consentimiento del dueño. Es un paso obligatorio del flujo, registrado y no salteable.</p></div>
+        </div>
+        <div class="sec-item">
+          <span class="si"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="4" width="16" height="16" rx="2"/><path d="M4 12h16M12 4v16"/></svg></span>
+          <div><h4>Aislamiento por clínica (RLS)</h4><p>Row-Level Security en PostgreSQL: cada clínica solo ve sus propios datos a nivel de base de datos. El aislamiento no depende del código de aplicación, sino de la base misma.</p></div>
+        </div>
+        <div class="sec-item">
+          <span class="si"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="10" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg></span>
+          <div><h4>Credenciales cifradas</h4><p>Tokens de WhatsApp, claves de API y secretos se guardan cifrados (Supabase Vault), nunca en el código ni en el cliente. Las llaves de IA viven solo en el servidor.</p></div>
+        </div>
+      </div>
+
+      <div class="pcard">
+        <div class="sec-item">
+          <span class="si"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 8v4l3 2"/><circle cx="12" cy="12" r="9"/></svg></span>
+          <div><h4>Retención de audio: 7 días</h4><p>Las grabaciones se conservan un máximo de 7 días para permitir reprocesar la nota si hace falta, y luego se eliminan. La nota clínica aprobada queda; el audio crudo no.</p></div>
+        </div>
+        <div class="sec-item">
+          <span class="si"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2l8 4.5v9L12 21l-8-4.5v-9z"/><path d="M9 12l2 2 4-4"/></svg></span>
+          <div><h4>Verificación de webhooks</h4><p>Cada webhook entrante de WhatsApp se valida con su firma (<code style="font-family:var(--font-mono);font-size:11px;background:var(--bg-muted);padding:1px 5px;border-radius:4px;color:var(--primary-hover)">X-Hub-Signature</code>) antes de procesarse. Nadie puede inyectar mensajes falsos.</p></div>
+        </div>
+        <div class="sec-item">
+          <span class="si"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6M8 13h8M8 17h5"/></svg></span>
+          <div><h4>Registro de auditoría</h4><p>Acciones sensibles —quién aprobó qué nota, cuándo intervino un humano en una conversación— quedan registradas para trazabilidad clínica y legal.</p></div>
+        </div>
+        <div class="sec-item">
+          <span class="si"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="4"/><path d="M4 21v-1a6 6 0 0 1 12 0v1"/><path d="M19 8v6M16 11h6"/></svg></span>
+          <div><h4>Supervisión del agente</h4><p>En Comunicaciones, los modos Auto / Revisar / Pausar / Intervenir dan control humano sobre lo que el agente responde. La conversación siempre se puede escalar a una persona.</p></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Human vs Athos distinction callout -->
+    <div class="callout reveal" style="margin-top:24px">
+      <div class="mini-wave" aria-hidden="true"><i></i><i></i><i></i><i></i></div>
+      <div style="font-family:var(--font-mono);font-size:10.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--primary);margin-bottom:10px">Principio transversal</div>
+      <h3>Siempre se sabe qué dijo un humano y qué dijo Athos</h3>
+      <p>Tanto en la nota clínica como en las conversaciones de WhatsApp, el contenido generado por IA está marcado y es distinguible del contenido humano. El veterinario nunca firma algo sin saber que lo redactó Athos, y el dueño de la mascota nunca recibe una respuesta automática creyendo que habló con una persona si así se configura. Transparencia por defecto.</p>
+    </div>
+
+  </div>
+</section>
+
+<!-- ============================================================ COSTOS ============================================================ -->
+<section class="section" id="costos">
+  <div class="container">
+    <div class="section-head reveal">
+      <div class="kicker-num">07 — Costos de herramientas</div>
+      <h2>Qué se contrata y cuánto cuesta operar</h2>
+      <p class="lede">El stack está pensado para arrancar barato y escalar con el uso. La mayoría de servicios tienen plan gratuito suficiente para beta; los costos reales aparecen con volumen en tres frentes: IA (Claude), transcripción (Deepgram) y mensajería (WhatsApp). Abajo, la lista completa y una calculadora para estimar el gasto mensual.</p>
+    </div>
+
+    <div class="reveal" style="overflow-x:auto">
+      <table class="costtable">
+        <thead><tr><th>Herramienta</th><th>Para qué</th><th>Costo estimado (producción)</th></tr></thead>
+        <tbody>
+          <tr><td>Supabase</td><td>Base de datos, Auth, Storage, Realtime</td><td class="price">Free → <b>Pro $25</b>/mes</td></tr>
+          <tr><td>Vercel</td><td>Hosting del frontend Next.js</td><td class="price">Free → <b>Pro $20</b>/mes</td></tr>
+          <tr><td>Railway</td><td>Microservicio de IA (Python)</td><td class="price">~$5–15/mes (por uso)</td></tr>
+          <tr><td>Anthropic Claude</td><td>Razonamiento clínico de Athos</td><td class="price">~$3 / 1M in · $15 / 1M out</td></tr>
+          <tr><td>Deepgram</td><td>Transcripción en vivo (Nova-2)</td><td class="price">$0.0043/min ≈ $4.30 / 1.000 min</td></tr>
+          <tr><td>OpenAI embeddings</td><td>Vectorización del corpus (RAG)</td><td class="price">$0.02 / 1M tokens</td></tr>
+          <tr><td>WhatsApp (Meta)</td><td>Mensajería con clientes</td><td class="price">API gratis · $0.01–0.08 / conversación</td></tr>
+          <tr><td>Google Cloud (Calendar)</td><td>OAuth + lectura de calendario</td><td class="free">Gratis (dentro de cuotas)</td></tr>
+          <tr><td>Resend</td><td>Email transaccional</td><td class="price">Free 3k/mes → $20/mes</td></tr>
+          <tr><td>GitHub</td><td>Repositorio + CI/CD</td><td class="free">Gratis (Team $4/usuario)</td></tr>
+          <tr><td>Sentry</td><td>Monitoreo de errores</td><td class="free">Free tier (suficiente beta)</td></tr>
+          <tr><td>PostHog</td><td>Analítica de producto</td><td class="free">Free tier (1M eventos/mes)</td></tr>
+          <tr><td>ngrok</td><td>Túnel para webhooks en desarrollo</td><td class="free">Free</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <!-- Interactive cost calculator -->
+    <div class="calc reveal" style="margin-top:28px">
+      <div class="mini-wave" aria-hidden="true" style="position:absolute;right:30px;top:30px;display:flex;gap:3px;height:26px"><i style="width:3px;border-radius:2px;background:var(--primary);height:40%;animation:wv 1s ease-in-out infinite"></i><i style="width:3px;border-radius:2px;background:var(--primary);height:80%;animation:wv 1s ease-in-out infinite .2s"></i><i style="width:3px;border-radius:2px;background:var(--primary);height:55%;animation:wv 1s ease-in-out infinite .4s"></i><i style="width:3px;border-radius:2px;background:var(--primary);height:95%;animation:wv 1s ease-in-out infinite .1s"></i></div>
+      <h3>Calculadora de costo mensual</h3>
+      <p class="sub">Mové los controles según el volumen esperado de la clínica. La estimación combina la infraestructura fija con el costo variable por consulta, consulta a Athos y conversación de WhatsApp.</p>
+
+      <div class="calc-grid">
+        <div class="calc-controls">
+          <div class="ctrl">
+            <label><span class="lab">Duración promedio de consulta</span><span class="val"><span id="v-min">18</span> min</span></label>
+            <input type="range" id="r-min" min="5" max="40" value="18" step="1">
+          </div>
+          <div class="ctrl">
+            <label><span class="lab">Consultas con Modo Fantasma / mes</span><span class="val" id="v-cons">200</span></label>
+            <input type="range" id="r-cons" min="0" max="1000" value="200" step="10">
+          </div>
+          <div class="ctrl">
+            <label><span class="lab">Consultas al chat de Athos / mes</span><span class="val" id="v-chat">300</span></label>
+            <input type="range" id="r-chat" min="0" max="2000" value="300" step="20">
+          </div>
+          <div class="ctrl">
+            <label><span class="lab">Conversaciones de WhatsApp / mes</span><span class="val" id="v-wa">500</span></label>
+            <input type="range" id="r-wa" min="0" max="3000" value="500" step="25">
+          </div>
+        </div>
+
+        <div class="calc-out">
+          <div class="calc-total">$<span id="o-total">—</span> <span>USD / mes</span></div>
+          <div class="calc-sub2">≈ $<span id="o-percons">—</span> por consulta documentada con Athos</div>
+          <div class="cbar" id="o-bar">
+            <i id="bar-fixed" style="background:var(--focus-text-2);width:30%"></i>
+            <i id="bar-ghost" style="background:var(--primary);width:30%"></i>
+            <i id="bar-chat" style="background:#E8A23D;width:20%"></i>
+            <i id="bar-wa" style="background:var(--success);width:20%"></i>
+          </div>
+          <div class="cline"><span class="lf"><span class="sw" style="background:var(--focus-text-2)"></span>Infraestructura fija</span><span class="amt">$<span id="o-fixed">55</span></span></div>
+          <div class="cline"><span class="lf"><span class="sw" style="background:var(--primary)"></span>Modo Fantasma (Deepgram + Claude)</span><span class="amt">$<span id="o-ghost">—</span></span></div>
+          <div class="cline"><span class="lf"><span class="sw" style="background:#E8A23D"></span>Chat de Athos (Claude)</span><span class="amt">$<span id="o-chat">—</span></span></div>
+          <div class="cline"><span class="lf"><span class="sw" style="background:var(--success)"></span>WhatsApp (Meta)</span><span class="amt">$<span id="o-wa">—</span></span></div>
+          <div class="calc-note">Estimación de Plogy con precios de lista de junio de 2026. Base fija: Supabase Pro $25 + Vercel Pro $20 + Railway ~$10 (Resend, GitHub, Sentry, PostHog y ngrok en plan gratuito). Variable: consulta ≈ (min × $0.0043 Deepgram) + ~$0.08 Claude por nota y diagnóstico; chat ~$0.03; WhatsApp ~$0.05 promedio (Meta cobra $0.01–0.08). Cifras a verificar contra tarifas vigentes al momento de contratar; es costo operativo de herramientas, no asesoría financiera.</div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</section>
+
+<!-- ============================================================ ROADMAP ============================================================ -->
+<section class="section" id="roadmap">
+  <div class="container">
+    <div class="section-head reveal">
+      <div class="kicker-num">08 — Ruta de desarrollo</div>
+      <h2>De cero a beta en ~17 semanas</h2>
+      <p class="lede">Seis fases ordenadas por valor al usuario, dependencias técnicas y riesgo. El Modo Fantasma —la pieza más compleja— se aborda cuando el resto del sistema ya es estable. Estimado para un desarrollador principal; las fases 1 a 3 se paralelizan si el equipo crece.</p>
+    </div>
+
+    <div class="road reveal">
+      <div class="phase gate">
+        <div class="ph-top"><span class="ph-num">Fase 0</span><h4>Discovery &amp; Foundation</h4><span class="ph-wk">Semana 1</span></div>
+        <p>Cerrar las preguntas abiertas con el cliente, montar la infraestructura base (repo, Supabase, Vercel, Railway, CI/CD) y dejar el primer despliegue vacío pero funcional en producción. Iniciar el sourcing del corpus veterinario.</p>
+        <div class="deliver"><span class="ic">⚑</span><span><b>Gate:</b> no se inicia la Fase 1 sin la decisión de multi-tenancy tomada y el corpus veterinario identificado.</span></div>
+      </div>
+
+      <div class="phase">
+        <div class="ph-top"><span class="ph-num">Fase 1</span><h4>Core: Auth + CRM + Ficha clínica</h4><span class="ph-wk">Semanas 2–4</span></div>
+        <p>Primer vertical slice usable: un veterinario crea su clínica, agrega pacientes y gestiona la historia clínica completa, con alerta de alergia severa, subida de archivos e importación/exportación CSV.</p>
+        <div class="deliver"><span class="ic">✓</span><span>Demo funcional: paciente Luna (French Bulldog), alergia a pollo severa, medicación activa y última vacuna.</span></div>
+      </div>
+
+      <div class="phase">
+        <div class="ph-top"><span class="ph-num">Fase 2</span><h4>Calendario</h4><span class="ph-wk">Semana 5</span></div>
+        <p>Gestión de agenda con vistas día/mes, CRUD de citas e integración con Google Calendar en modo solo lectura (OAuth + merge con citas internas).</p>
+        <div class="deliver"><span class="ic">✓</span><span>El veterinario ve su agenda personal y de la clínica unificadas.</span></div>
+      </div>
+
+      <div class="phase">
+        <div class="ph-top"><span class="ph-num">Fase 3</span><h4>Comunicaciones: WhatsApp</h4><span class="ph-wk">Semanas 6–7</span></div>
+        <p>WhatsApp Business integrado: webhook con verificación de firma, bandeja de conversaciones vinculadas a pacientes, envío de mensajes y página de Conexiones. La aprobación de Meta se inicia desde la Fase 0 por ser dependencia externa.</p>
+        <div class="deliver"><span class="ic">✓</span><span>Un mensaje de cliente aparece en la bandeja de Tuvetia y el vet responde desde la plataforma.</span></div>
+      </div>
+
+      <div class="phase">
+        <div class="ph-top"><span class="ph-num">Fase 4</span><h4>Athos Chat Copiloto</h4><span class="ph-wk">Semanas 8–10</span></div>
+        <p>Microservicio FastAPI en Railway, ingesta del corpus a pgvector, pipeline RAG, context fusion (paciente + WhatsApp + literatura) y chat con streaming, fuentes citadas y advertencias de alergia. Depende del corpus ya ingestado.</p>
+        <div class="deliver"><span class="ic">✓</span><span>Athos responde consultas con diferenciales citados; el caso demo funciona end-to-end.</span></div>
+      </div>
+
+      <div class="phase">
+        <div class="ph-top"><span class="ph-num">Fase 5</span><h4>Modo Fantasma</h4><span class="ph-wk">Semanas 11–14</span></div>
+        <p>La pieza de mayor riesgo técnico: consentimiento bloqueante, captura de audio, WebSocket a Deepgram streaming, transcripción en vivo vía Realtime, generación de nota SOAP con Claude, editor Tiptap y flujo de aprobación. Se reserva buffer de tiempo.</p>
+        <div class="deliver"><span class="ic">✓</span><span>Grabar consulta → transcripción en vivo → nota draft → el vet aprueba → guardado en la historia.</span></div>
+      </div>
+
+      <div class="phase">
+        <div class="ph-top"><span class="ph-num">Fase 6</span><h4>Hardening</h4><span class="ph-wk">Semanas 15–17</span></div>
+        <p>Producción-ready: política de privacidad y términos, DPA TuVet-IA↔Plogy, audit log, retención de audio automatizada, auditoría Lighthouse, Sentry, load testing del WebSocket, tests E2E y onboarding de usuarios beta.</p>
+        <div class="deliver"><span class="ic">✓</span><span>Plataforma segura, cumpliente y monitoreada, lista para la beta con la Dra. García y otros.</span></div>
+      </div>
+    </div>
+
+    <div class="callout reveal" style="margin-top:8px">
+      <div class="mini-wave" aria-hidden="true"><i></i><i></i><i></i><i></i></div>
+      <h3>~17 semanas · ~4 meses · 1 desarrollador principal</h3>
+      <p>El corpus veterinario es la dependencia crítica de la Fase 4: debe empezar a conseguirse en la Fase 0 para no convertirse en bloqueador. Y la aprobación de WhatsApp en Meta puede tomar días o semanas, así que también arranca temprano.</p>
+    </div>
+
+  </div>
+</section>
+
+<!-- ============================================================ DECISIONES ============================================================ -->
+<section class="section" id="decisiones">
+  <div class="container">
+    <div class="section-head reveal">
+      <div class="kicker-num">09 — Decisiones abiertas</div>
+      <h2>Lo que hay que cerrar antes de arrancar</h2>
+      <p class="lede">Cada punto tiene impacto directo en la arquitectura, el alcance o el cronograma, y por eso se resuelve en la Fase 0. Para cada uno dejamos nuestra recomendación. Marcá los que ya estén decididos para ver el avance hacia el inicio de desarrollo.</p>
+    </div>
+
+    <div class="dec-progress reveal">
+      <span class="pn"><span id="dec-count">0</span> / <span id="dec-total">14</span> decididas</span>
+      <div class="pb"><i id="dec-bar"></i></div>
+    </div>
+
+    <div class="dec-list reveal" id="dec-list">
+
+      <div class="dec">
+        <div class="dec-head"><span class="dec-check"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M5 13l4 4L19 7"/></svg></span><span class="dec-q"><span class="qn">01</span>Multi-tenancy: ¿un veterinario o varios por clínica? ¿Qué roles?</span><span class="dec-tag arq">Arquitectura</span><span class="dec-toggle"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg></span></div>
+        <div class="dec-body"><div class="dec-inner">
+          <div class="row"><span class="k">Impacto</span><span class="t">Define toda la arquitectura de RLS y permisos. Retrofitar después es caro.</span></div>
+          <div class="row rec"><span class="k">Recomendación</span><span class="t">Construir multi-tenant desde la Fase 1. Empezar con roles owner y vet.</span></div>
+        </div></div>
+      </div>
+
+      <div class="dec">
+        <div class="dec-head"><span class="dec-check"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M5 13l4 4L19 7"/></svg></span><span class="dec-q"><span class="qn">02</span>Tema visual: ¿claro, oscuro o ambos?</span><span class="dec-tag dis">Diseño</span><span class="dec-toggle"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg></span></div>
+        <div class="dec-body"><div class="dec-inner">
+          <div class="row"><span class="k">Impacto</span><span class="t">La arquitectura mencionaba un “diseño oscuro”, pero el prototipo de referencia es claro y cálido. Define cómo se ven todas las pantallas.</span></div>
+          <div class="row rec"><span class="k">Recomendación</span><span class="t">Tema claro cálido como base del MVP (es lo que muestra el prototipo), con capacidad de tema oscuro reservada vía tokens.</span></div>
+        </div></div>
+      </div>
+
+      <div class="dec">
+        <div class="dec-head"><span class="dec-check"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M5 13l4 4L19 7"/></svg></span><span class="dec-q"><span class="qn">03</span>Proveedores de IA: ¿hay restricciones de privacidad que impidan usar Anthropic, Deepgram u OpenAI?</span><span class="dec-tag arq">Arquitectura</span><span class="dec-toggle"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg></span></div>
+        <div class="dec-body"><div class="dec-inner">
+          <div class="row"><span class="k">Impacto</span><span class="t">Si hubiera restricciones, habría que migrar a modelos self-hosted (Whisper local, Ollama): impacto enorme en tiempo.</span></div>
+          <div class="row rec"><span class="k">Recomendación</span><span class="t">Validar con el cliente. Deepgram y Anthropic tienen políticas de no-entrenamiento sobre datos de API.</span></div>
+        </div></div>
+      </div>
+
+      <div class="dec">
+        <div class="dec-head"><span class="dec-check"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M5 13l4 4L19 7"/></svg></span><span class="dec-q"><span class="qn">04</span>Corpus veterinario: ¿quién lo consigue y licencia?</span><span class="dec-tag arq">Arquitectura</span><span class="dec-toggle"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg></span></div>
+        <div class="dec-body"><div class="dec-inner">
+          <div class="row"><span class="k">Impacto</span><span class="t">Sin corpus, el RAG no tiene calidad. Es el bloqueador de la Fase 4.</span></div>
+          <div class="row rec"><span class="k">Recomendación</span><span class="t">Iniciar en la Fase 0. Mínimo viable: guías WSAVA (libres) + papers ICADA.</span></div>
+        </div></div>
+      </div>
+
+      <div class="dec">
+        <div class="dec-head"><span class="dec-check"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M5 13l4 4L19 7"/></svg></span><span class="dec-q"><span class="qn">05</span>Frontend actual: ¿hay código reutilizable o solo el prototipo/Figma?</span><span class="dec-tag arq">Arquitectura</span><span class="dec-toggle"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg></span></div>
+        <div class="dec-body"><div class="dec-inner">
+          <div class="row"><span class="k">Impacto</span><span class="t">Si hay código, se reutilizan componentes; si no, se construye desde cero.</span></div>
+          <div class="row rec"><span class="k">Recomendación</span><span class="t">Asumir construcción desde cero hasta confirmar lo contrario.</span></div>
+        </div></div>
+      </div>
+
+      <div class="dec">
+        <div class="dec-head"><span class="dec-check"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M5 13l4 4L19 7"/></svg></span><span class="dec-q"><span class="qn">06</span>Google Calendar: ¿solo lectura o bidireccional?</span><span class="dec-tag arq">Arquitectura</span><span class="dec-toggle"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg></span></div>
+        <div class="dec-body"><div class="dec-inner">
+          <div class="row"><span class="k">Impacto</span><span class="t">La sincronización bidireccional agrega 2+ semanas por conflictos y push notifications.</span></div>
+          <div class="row rec"><span class="k">Recomendación</span><span class="t">Solo lectura en beta.</span></div>
+        </div></div>
+      </div>
+
+      <div class="dec">
+        <div class="dec-head"><span class="dec-check"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M5 13l4 4L19 7"/></svg></span><span class="dec-q"><span class="qn">07</span>Comunicaciones y email: ¿solo WhatsApp, o también bandeja de correo?</span><span class="dec-tag arq">Arquitectura</span><span class="dec-toggle"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg></span></div>
+        <div class="dec-body"><div class="dec-inner">
+          <div class="row"><span class="k">Impacto</span><span class="t">Una bandeja de email completa suma 3+ semanas. Define el alcance de la Fase 3.</span></div>
+          <div class="row rec"><span class="k">Recomendación</span><span class="t">Solo WhatsApp para beta; email solo de envío (Resend) para confirmaciones y seguimientos.</span></div>
+        </div></div>
+      </div>
+
+      <div class="dec">
+        <div class="dec-head"><span class="dec-check"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M5 13l4 4L19 7"/></svg></span><span class="dec-q"><span class="qn">08</span>Flujo de nota: ¿quién aprueba y cuándo se puede editar?</span><span class="dec-tag arq">Arquitectura</span><span class="dec-toggle"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg></span></div>
+        <div class="dec-body"><div class="dec-inner">
+          <div class="row"><span class="k">Impacto</span><span class="t">Define el editor y la lógica de estados (draft → aprobado → bloqueado) y qué roles pueden aprobar.</span></div>
+          <div class="row rec"><span class="k">Recomendación</span><span class="t">Editable en draft, bloqueada tras aprobación con opción de “desbloquear”. Confirmar si aprueban owner, vet y/o asistente.</span></div>
+        </div></div>
+      </div>
+
+      <div class="dec">
+        <div class="dec-head"><span class="dec-check"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M5 13l4 4L19 7"/></svg></span><span class="dec-q"><span class="qn">09</span>Agente de WhatsApp: ¿puede enviar automáticamente en beta o arranca en “Revisar antes de enviar”?</span><span class="dec-tag dis">Diseño</span><span class="dec-toggle"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg></span></div>
+        <div class="dec-body"><div class="dec-inner">
+          <div class="row"><span class="k">Impacto</span><span class="t">Define el modo por defecto del agente y el riesgo operativo/reputacional de mensajes no deseados.</span></div>
+          <div class="row rec"><span class="k">Recomendación</span><span class="t">Arrancar en modo “Revisar antes de enviar” en beta; habilitar Auto cuando haya confianza en las reglas.</span></div>
+        </div></div>
+      </div>
+
+      <div class="dec">
+        <div class="dec-head"><span class="dec-check"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M5 13l4 4L19 7"/></svg></span><span class="dec-q"><span class="qn">10</span>Migración de datos: ¿hay pacientes existentes a importar? ¿En qué formato?</span><span class="dec-tag arq">Arquitectura</span><span class="dec-toggle"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg></span></div>
+        <div class="dec-body"><div class="dec-inner">
+          <div class="row"><span class="k">Impacto</span><span class="t">Si hay miles de registros, hay que planificar un script de migración y validación.</span></div>
+          <div class="row rec"><span class="k">Recomendación</span><span class="t">Confirmar volumen y formato (Excel, CSV o exportación de otro sistema).</span></div>
+        </div></div>
+      </div>
+
+      <div class="dec">
+        <div class="dec-head"><span class="dec-check"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M5 13l4 4L19 7"/></svg></span><span class="dec-q"><span class="qn">11</span>Pagos: ¿quedan fuera del alcance de la beta?</span><span class="dec-tag arq">Arquitectura</span><span class="dec-toggle"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg></span></div>
+        <div class="dec-body"><div class="dec-inner">
+          <div class="row"><span class="k">Impacto</span><span class="t">Integrar pagos (Stripe) suma ~3 semanas.</span></div>
+          <div class="row rec"><span class="k">Recomendación</span><span class="t">Confirmar que quedan fuera del MVP.</span></div>
+        </div></div>
+      </div>
+
+      <div class="dec">
+        <div class="dec-head"><span class="dec-check"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M5 13l4 4L19 7"/></svg></span><span class="dec-q"><span class="qn">12</span>Diseño móvil: ¿se requiere para beta o solo desktop/tablet?</span><span class="dec-tag dis">Diseño</span><span class="dec-toggle"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg></span></div>
+        <div class="dec-body"><div class="dec-inner">
+          <div class="row"><span class="k">Impacto</span><span class="t">El prototipo es desktop-first (1366–1920 px). Soporte móvil completo agrega trabajo de diseño y QA.</span></div>
+          <div class="row rec"><span class="k">Recomendación</span><span class="t">Desktop/tablet para beta; móvil como fase posterior.</span></div>
+        </div></div>
+      </div>
+
+      <div class="dec">
+        <div class="dec-head"><span class="dec-check"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M5 13l4 4L19 7"/></svg></span><span class="dec-q"><span class="qn">13</span>Idiomas: ¿solo español para el MVP?</span><span class="dec-tag arq">Arquitectura</span><span class="dec-toggle"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg></span></div>
+        <div class="dec-body"><div class="dec-inner">
+          <div class="row"><span class="k">Impacto</span><span class="t">Multi-idioma agrega complejidad de i18n en toda la interfaz.</span></div>
+          <div class="row rec"><span class="k">Recomendación</span><span class="t">Solo español (Colombia) para el MVP.</span></div>
+        </div></div>
+      </div>
+
+      <div class="dec">
+        <div class="dec-head"><span class="dec-check"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M5 13l4 4L19 7"/></svg></span><span class="dec-q"><span class="qn">14</span>Naming: alinear Tuvetia / Athos / TuVet-IA</span><span class="dec-tag arq">Arquitectura</span><span class="dec-toggle"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg></span></div>
+        <div class="dec-body"><div class="dec-inner">
+          <div class="row"><span class="k">Impacto</span><span class="t">Afecta consistencia en código, dominios y contratos. Tuvetia es el producto, Athos la IA, TuVet-IA la empresa/cliente.</span></div>
+          <div class="row rec"><span class="k">Recomendación</span><span class="t">Confirmar el naming oficial antes de registrar dominios y crear apps en Meta y Google.</span></div>
+        </div></div>
+      </div>
+
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================ CIERRE ============================================================ -->
+<section class="section" id="cierre" style="padding-bottom:40px">
+  <div class="container">
+    <div class="close-cta reveal">
+      <div class="close-pulse" aria-hidden="true">
+        <svg viewBox="0 0 1200 90" preserveAspectRatio="none"><path d="M0,45 L420,45 L445,45 L465,12 L490,80 L515,28 L540,58 L565,45 L590,45 L612,22 L636,68 L660,45 L760,45 L1200,45" fill="none" stroke="var(--primary)" stroke-width="2.5"/></svg>
+      </div>
+      <div style="position:relative;z-index:1">
+        <div style="font-family:var(--font-mono);font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--primary);margin-bottom:16px">El siguiente paso es la Fase 0</div>
+        <h2>Tenemos el plano. Falta cerrar las decisiones y arrancar.</h2>
+        <p>El stack está definido, la arquitectura es clara, el diseño tiene una dirección y los costos son predecibles. Lo único entre este documento y la primera línea de código es una reunión de Fase 0 para resolver las decisiones abiertas — sobre todo multi-tenancy, el tema visual y el corpus veterinario. Con eso cerrado, son ~17 semanas hasta una beta funcional.</p>
+        <div style="display:flex;gap:12px;justify-content:center;flex-wrap:wrap;position:relative;z-index:2">
+          <a href="#decisiones" class="btn btn-primary">Revisar las decisiones abiertas</a>
+          <a href="#roadmap" class="btn btn-ghost-dark">Ver la ruta completa</a>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================ FOOTER ============================================================ -->
+<footer class="site-footer">
+  <div class="container">
+    <div class="foot-grid">
+      <div>
+        <div class="foot-brand">
+          <span class="logo-mark">
+            <svg viewBox="0 0 24 24"><path class="pulse-path" d="M2 12h3.5l2-5 3 10 2.5-7 1.8 3.2H22"/></svg>
+          </span>
+          <span class="logo-word">Tuvetia</span>
+        </div>
+        <p class="foot-tag">La plataforma inteligente para tu práctica veterinaria.</p>
+      </div>
+      <div class="foot-meta">
+        <div>Documento de visión de producto</div>
+        <div>Preparado por <b>Plogy</b> para <b>TuVet-IA</b></div>
+        <div>Versión 1.0 · junio de 2026</div>
+        <div class="foot-fine">Construido sobre el documento de arquitectura técnica y el de requerimientos de diseño. Las pantallas son previsualizaciones de diseño con datos de ejemplo. Los costos son estimaciones a verificar al contratar.</div>
+      </div>
+    </div>
+  </div>
+</footer>
+
+<script>
+(function () {
+  "use strict";
+
+  /* ---------- Scroll progress bar ---------- */
+  var progress = document.getElementById("progress");
+  function updateProgress() {
+    if (!progress) return;
+    var h = document.documentElement;
+    var max = h.scrollHeight - h.clientHeight;
+    var pct = max > 0 ? (h.scrollTop || document.body.scrollTop) / max * 100 : 0;
+    progress.style.width = pct + "%";
+  }
+
+  /* ---------- Scrollspy: active nav link ---------- */
+  var navWrap = document.getElementById("nav");
+  var navLinks = navWrap ? Array.prototype.slice.call(navWrap.querySelectorAll("a")) : [];
+  var sections = navLinks
+    .map(function (a) {
+      var id = a.getAttribute("href");
+      if (!id || id.charAt(0) !== "#") return null;
+      var el = document.querySelector(id);
+      return el ? { link: a, el: el } : null;
+    })
+    .filter(Boolean);
+
+  function updateSpy() {
+    if (!sections.length) return;
+    var pos = (window.scrollY || window.pageYOffset) + 140;
+    var current = sections[0];
+    for (var i = 0; i < sections.length; i++) {
+      if (sections[i].el.offsetTop <= pos) current = sections[i];
+    }
+    navLinks.forEach(function (a) { a.classList.remove("active"); });
+    if (current && current.link) current.link.classList.add("active");
+  }
+
+  var ticking = false;
+  function onScroll() {
+    if (ticking) return;
+    ticking = true;
+    window.requestAnimationFrame(function () {
+      updateProgress();
+      updateSpy();
+      ticking = false;
+    });
+  }
+  window.addEventListener("scroll", onScroll, { passive: true });
+  window.addEventListener("resize", onScroll);
+  updateProgress();
+  updateSpy();
+
+  /* ---------- Reveal on scroll ---------- */
+  var reveals = Array.prototype.slice.call(document.querySelectorAll(".reveal"));
+  if ("IntersectionObserver" in window && reveals.length) {
+    var io = new IntersectionObserver(function (entries) {
+      entries.forEach(function (entry) {
+        if (entry.isIntersecting) {
+          entry.target.classList.add("in");
+          io.unobserve(entry.target);
+        }
+      });
+    }, { threshold: 0.12, rootMargin: "0px 0px -40px 0px" });
+    reveals.forEach(function (el) { io.observe(el); });
+  } else {
+    reveals.forEach(function (el) { el.classList.add("in"); });
+  }
+
+  /* ---------- Mockup tabs (visual active state) ---------- */
+  Array.prototype.slice.call(document.querySelectorAll(".mk-tabs")).forEach(function (group) {
+    var tabs = Array.prototype.slice.call(group.querySelectorAll(".mk-tab"));
+    group.addEventListener("click", function (e) {
+      var tab = e.target.closest(".mk-tab");
+      if (!tab || tabs.indexOf(tab) === -1) return;
+      tabs.forEach(function (t) { t.classList.remove("on"); });
+      tab.classList.add("on");
+    });
+  });
+
+  /* ---------- Decisions accordion + progress ---------- */
+  var decList = document.getElementById("dec-list");
+  if (decList) {
+    var decs = Array.prototype.slice.call(decList.querySelectorAll(".dec"));
+    var decCount = document.getElementById("dec-count");
+    var decTotal = document.getElementById("dec-total");
+    var decBar = document.getElementById("dec-bar");
+    if (decTotal) decTotal.textContent = String(decs.length);
+
+    function refreshDec() {
+      var done = decList.querySelectorAll(".dec.done").length;
+      if (decCount) decCount.textContent = String(done);
+      if (decBar) decBar.style.width = (decs.length ? done / decs.length * 100 : 0) + "%";
+    }
+
+    decs.forEach(function (dec) {
+      var head = dec.querySelector(".dec-head");
+      var check = dec.querySelector(".dec-check");
+      if (head) {
+        head.addEventListener("click", function () { dec.classList.toggle("open"); });
+      }
+      if (check) {
+        check.addEventListener("click", function (e) {
+          e.stopPropagation();
+          dec.classList.toggle("done");
+          refreshDec();
+        });
+      }
+    });
+    refreshDec();
+  }
+
+  /* ---------- Cost calculator ---------- */
+  var rMin = document.getElementById("r-min");
+  var rCons = document.getElementById("r-cons");
+  var rChat = document.getElementById("r-chat");
+  var rWa = document.getElementById("r-wa");
+
+  if (rMin && rCons && rChat && rWa) {
+    var FIXED = 55;            // Supabase 25 + Vercel 20 + Railway ~10
+    var DEEPGRAM_PER_MIN = 0.0043;
+    var CLAUDE_PER_NOTE = 0.08; // nota + diagnóstico por consulta
+    var CHAT_PER_QUERY = 0.03;
+    var WA_PER_CONVO = 0.05;
+
+    function fmt(n) {
+      return Math.round(n).toLocaleString("es-CO");
+    }
+
+    function recompute() {
+      var mins = parseFloat(rMin.value) || 0;
+      var cons = parseFloat(rCons.value) || 0;
+      var chat = parseFloat(rChat.value) || 0;
+      var wa = parseFloat(rWa.value) || 0;
+
+      var perConsult = mins * DEEPGRAM_PER_MIN + CLAUDE_PER_NOTE;
+      var ghost = cons * perConsult;
+      var chatCost = chat * CHAT_PER_QUERY;
+      var waCost = wa * WA_PER_CONVO;
+      var total = FIXED + ghost + chatCost + waCost;
+
+      var set = function (id, val) {
+        var el = document.getElementById(id);
+        if (el) el.textContent = val;
+      };
+      set("v-min", String(Math.round(mins)));
+      set("v-cons", cons.toLocaleString("es-CO"));
+      set("v-chat", chat.toLocaleString("es-CO"));
+      set("v-wa", wa.toLocaleString("es-CO"));
+
+      set("o-total", fmt(total));
+      set("o-percons", perConsult.toFixed(2));
+      set("o-fixed", fmt(FIXED));
+      set("o-ghost", fmt(ghost));
+      set("o-chat", fmt(chatCost));
+      set("o-wa", fmt(waCost));
+
+      var pct = function (v) { return total > 0 ? (v / total * 100) : 0; };
+      var bf = document.getElementById("bar-fixed");
+      var bg = document.getElementById("bar-ghost");
+      var bc = document.getElementById("bar-chat");
+      var bw = document.getElementById("bar-wa");
+      if (bf) bf.style.width = pct(FIXED) + "%";
+      if (bg) bg.style.width = pct(ghost) + "%";
+      if (bc) bc.style.width = pct(chatCost) + "%";
+      if (bw) bw.style.width = pct(waCost) + "%";
+    }
+
+    [rMin, rCons, rChat, rWa].forEach(function (r) {
+      r.addEventListener("input", recompute);
+    });
+    recompute();
+  }
+})();
+</script>
+</body>
+</html>

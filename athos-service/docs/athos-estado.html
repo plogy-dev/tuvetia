@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Athos — Estado del sistema (en vivo)</title>
+<style>
+  :root{
+    --bg:#0f1115; --panel:#171a21; --panel2:#1e222b; --border:#2a2f3a;
+    --text:#e6e8ec; --muted:#9aa1ad; --accent:#6ea8fe; --ok:#4ec99a;
+    --warn:#e8b04b; --danger:#e5675f; --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+  }
+  @media (prefers-color-scheme: light){
+    :root{--bg:#f6f7f9;--panel:#fff;--panel2:#f0f2f5;--border:#e2e5ea;--text:#1a1d23;--muted:#5b6472;--accent:#2563eb;}
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--text);font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;line-height:1.55;padding:32px 16px}
+  .wrap{max-width:920px;margin:0 auto}
+  h1{font-size:22px;margin:0 0 4px}
+  .sub{color:var(--muted);font-size:13px;margin-bottom:20px}
+  .badge{display:inline-block;font-size:11px;font-weight:600;padding:2px 9px;border-radius:99px;border:1px solid var(--border);vertical-align:middle}
+  .b-prod{color:var(--warn);border-color:color-mix(in srgb,var(--warn) 45%,transparent)}
+  .b-ok{color:var(--ok);border-color:color-mix(in srgb,var(--ok) 45%,transparent)}
+  section{background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:16px 18px;margin-bottom:14px}
+  h2{font-size:14px;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);margin:0 0 12px}
+  table{width:100%;border-collapse:collapse;font-size:13.5px}
+  th,td{text-align:left;padding:8px 10px;border-bottom:1px solid var(--border);vertical-align:top}
+  th{color:var(--muted);font-weight:600;font-size:12px}
+  tr:last-child td{border-bottom:none}
+  code{font-family:var(--mono);font-size:12.5px;background:var(--panel2);padding:1px 6px;border-radius:5px}
+  .kv{display:grid;grid-template-columns:auto 1fr;gap:6px 14px;font-size:13.5px}
+  .kv .k{color:var(--muted)}
+  .warn{border-left:3px solid var(--warn);background:color-mix(in srgb,var(--warn) 8%,transparent);border-radius:8px;padding:10px 14px;margin:8px 0;font-size:13.5px}
+  .warn b{color:var(--warn)}
+  .ok{border-left:3px solid var(--ok);background:color-mix(in srgb,var(--ok) 8%,transparent);border-radius:8px;padding:10px 14px;margin:8px 0;font-size:13.5px}
+  .ok b{color:var(--ok)}
+  ol{margin:6px 0 0;padding-left:20px} ol li{margin:6px 0;font-size:13.5px}
+  a{color:var(--accent)}
+  .pill{font-family:var(--mono);font-size:11.5px;color:var(--muted)}
+  .foot{color:var(--muted);font-size:12px;text-align:center;margin-top:18px}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Athos — Estado del sistema <span class="badge b-ok">EN VIVO · desplegado</span></h1>
+  <div class="sub">Snapshot: 2026-07-23 · la plataforma está pública y conectada, con la IA calibrada (DeepSeek) y desplegada. Mapa de qué corre dónde.</div>
+
+  <section>
+    <h2>🌐 En vivo (URLs públicas)</h2>
+    <table>
+      <tr><th>Pieza</th><th>Plataforma</th><th>URL</th><th>Estado</th></tr>
+      <tr>
+        <td><b>Front</b> (Next.js)</td>
+        <td>Vercel · team <code>Plogydevs</code></td>
+        <td><a href="https://tuvetia.vercel.app">tuvetia.vercel.app</a></td>
+        <td><span class="badge b-ok">200 OK</span></td>
+      </tr>
+      <tr>
+        <td><b>Athos</b> (FastAPI)</td>
+        <td>Railway · proyecto <code>athos-service</code></td>
+        <td><a href="https://athos-service-production.up.railway.app">athos-service-production.up.railway.app</a></td>
+        <td><span class="badge b-ok">Online</span></td>
+      </tr>
+      <tr>
+        <td>Health</td>
+        <td>—</td>
+        <td><code>/health</code> → <code>{"status":"ok"}</code></td>
+        <td><span class="badge b-ok">200</span></td>
+      </tr>
+    </table>
+    <div class="ok"><b>✔ Cableado verificado:</b> CORS del backend acepta el origen <code>tuvetia.vercel.app</code>; <code>/athos/chat</code> sin token responde <code>401</code> (gate de auth vivo); el front sirve con <code>NEXT_PUBLIC_ATHOS_URL</code> → Railway.</div>
+  </section>
+
+  <section>
+    <h2>🔌 A qué apunta Athos (env en Railway)</h2>
+    <div class="kv">
+      <span class="k">DATABASE_URL (paciente + trazas)</span><span>→ <b>PRINCIPAL</b> <code>auxlnexhkmtoedrzfsnz</code> · <span style="color:var(--warn)">producción, compartida con Santi</span></span>
+      <span class="k">CORPUS_DATABASE_URL (corpus/glosario)</span><span>→ <b>DEV</b> <code>ghmpjyuchwkrvnjvdeum</code> · 67k chunks</span>
+      <span class="k">Auth (JWT)</span><span>→ JWKS <b>ES256</b> del principal</span>
+      <span class="k">CORS_ORIGINS</span><span><code>https://tuvetia.vercel.app, http://localhost:3000</code></span>
+      <span class="k">IA — redacción (LLM)</span><span><b>DeepSeek</b> (<code>deepseek-chat</code>, OpenAI-compatible; <code>LLM_PROVIDER=openai</code>) — proveedor elegido, golden 11/11. Cliente multi-proveedor: Anthropic queda como respaldo (env var).</span>
+      <span class="k">IA — embeddings / retrieval</span><span>Cohere embed-v4 (dim 1024). Tier 2 vectorial = complemento siempre (calibrado 2026-07-23).</span>
+    </div>
+    <div class="warn"><b>⚠️ Ojo:</b> cada uso real del chat/phantom <b>escribe en la DB de producción</b> (trazas <code>rag_*</code>, nota <code>draft</code>). Es el comportamiento normal; tenerlo presente al probar en vivo.</div>
+  </section>
+
+  <section>
+    <h2>🗄️ Bases de datos</h2>
+    <div class="kv">
+      <span class="k">Principal (producción)</span><span>Datos reales de Santi <b>+ siembra de demo</b> (<b>11 consultas</b>: 2 gatos, 1 conejo, 8 perros; 2 alergias severas; <code>devsplogy</code> en la clínica). Reversible (cleanup en scratchpad).</span>
+      <span class="k">Dev (tuvetia-athos-dev)</span><span>Solo corpus/glosario. Aquí está el índice GIN del Tier 1 (migración <code>0003</code>).</span>
+    </div>
+  </section>
+
+  <section>
+    <h2>🚀 Cómo se despliega cada uno</h2>
+    <table>
+      <tr><th>Pieza</th><th>Origen del deploy</th><th>Disparo</th></tr>
+      <tr>
+        <td><b>Front</b> (Vercel)</td>
+        <td>Repo <code>plogy-dev/tuvetia</code> (raíz)</td>
+        <td><b>Git-connected:</b> cada push a <code>master</code> redespliega solo. (También manual: <code>vercel deploy --prod</code>.)</td>
+      </tr>
+      <tr>
+        <td><b>Athos</b> (Railway)</td>
+        <td><code>skeleton/athos-service/</code> (build = NIXPACKS + <code>requirements.txt</code>, Python 3.12)</td>
+        <td><b>Git-connected</b> a <code>master</code> (Root Dir <code>athos-service/</code>, watch <code>athos-service/**</code>): push a <code>master</code> → auto-deploy. <span style="color:var(--muted)">(Manual opcional: <code>railway up</code>.)</span></td>
+      </tr>
+    </table>
+    <div class="kv" style="margin-top:10px">
+      <span class="k">PRs #1 (UI) y #2 (backend monorepo)</span><span><b>mergeados</b> a <code>master</code>.</span>
+      <span class="k">Tokens de deploy</span><span>Vercel + Railway (Account) en <code>scratchpad/*_token.txt</code> (local, fuera del repo). No en esta página.</span>
+    </div>
+  </section>
+
+  <section>
+    <h2>🔁 Redeploy (comandos)</h2>
+    <div class="kv">
+      <span class="k">Backend (tras cambios en <code>app/</code>)</span><span><code>cd skeleton/athos-service &amp;&amp; RAILWAY_API_TOKEN=… railway up</code></span>
+      <span class="k">Backend — env vars</span><span><code>railway variables --set "KEY=VALUE"</code> (redespliega al setear)</span>
+      <span class="k">Backend — logs / estado</span><span><code>railway logs</code> · <code>railway status</code></span>
+      <span class="k">Front</span><span>push a <code>master</code> (auto) · o <code>cd skeleton &amp;&amp; vercel deploy --prod</code></span>
+    </div>
+  </section>
+
+  <section>
+    <h2>🚨 Pendientes / para no tropezar</h2>
+    <ol>
+      <li><b>Login del equipo:</b> el principal debe permitir el redirect a <code>https://tuvetia.vercel.app</code> (Supabase principal → Auth → URL Configuration → Site URL + Redirect URLs). Si el magic-link/login no vuelve, es esto.</li>
+      <li><b>Deploy automático (ambos):</b> push a <code>master</code> redespliega el backend (Railway, solo si cambia <code>athos-service/**</code>) y el front (Vercel). Manual del backend si hace falta: <code>railway up</code>.</li>
+      <li><b>Fuente de verdad = monorepo</b> (<code>skeleton/athos-service/</code>). El checkout standalone es solo referencia; el deploy sale del monorepo.</li>
+      <li><b>Credenciales sin rotar</b> (por decisión: hoy solo prueba el equipo/propietarios). Password DB principal, <code>sb_secret</code>, keys DeepSeek/Anthropic/Cohere.</li>
+      <li><b>Escritura a producción</b> en cada chat/phantom (trazas + nota draft). Normal, pero es la DB real de Santi.</li>
+    </ol>
+  </section>
+
+  <div class="foot">Documento de estado personal · no contiene credenciales · regenerar si cambia el deploy/entorno.</div>
+</div>
+</body>
+</html>
