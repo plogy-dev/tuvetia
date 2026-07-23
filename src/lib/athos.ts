@@ -81,6 +81,16 @@ export async function athosChat(
   }
 }
 
+// Alerta de condición clínica relevante (no bloqueante). `detail` es el panel "afectaciones en este
+// paciente", que llega cuando se habilite la generación con IA (hoy null).
+export type ConditionAlert = {
+  condition: string
+  mesh?: string | null
+  severity?: string
+  source?: string
+  detail?: string | null
+}
+
 export type PhantomResponse = {
   note_id: string
   status: string
@@ -89,6 +99,7 @@ export type PhantomResponse = {
   allergy_transcript_flag: boolean
   insufficient_evidence: boolean
   citations: Citation[]
+  alerts?: ConditionAlert[]
   ai_model: string
   ai_generated_at: string
 }

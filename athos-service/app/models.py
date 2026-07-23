@@ -75,6 +75,17 @@ class ChatRequest(BaseModel):
     clinic_id: str
 
 
+class ConditionAlert(BaseModel):
+    """Alerta de condición clínica relevante detectada en la nota (hermana del gate de alergia, pero
+    NUNCA bloqueante). Determinística desde el assessment; el `detail` (panel 'afectaciones en este
+    paciente') lo genera la IA aparte — pendiente de presupuesto."""
+    condition: str                            # etiqueta (ES) para mostrar, p.ej. "Diabetes mellitus"
+    mesh: str | None = None                   # descriptor canónico (consistencia con el corpus)
+    severity: str = "warning"                 # info | warning (informativa; el bloqueo es solo alergia)
+    source: str = "assessment"                # de dónde se detectó
+    detail: str | None = None                 # panel por paciente -> IA (pendiente de presupuesto)
+
+
 class PhantomSuggestRequest(BaseModel):
     consultation_id: str
     clinic_id: str
@@ -88,5 +99,6 @@ class PhantomSuggestResponse(BaseModel):
     allergy_transcript_flag: bool = False       # red del modelo (mención en la consulta)
     insufficient_evidence: bool = False
     citations: list[Citation] = Field(default_factory=list)
+    alerts: list[ConditionAlert] = Field(default_factory=list)  # condiciones relevantes (no bloqueantes)
     ai_model: str = ""
     ai_generated_at: datetime | None = None
