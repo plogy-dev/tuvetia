@@ -5,8 +5,15 @@ from fastapi.responses import StreamingResponse
 
 from app.config import get_settings
 from app.auth import verify_jwt, resolve_clinic_id
-from app.models import ChatRequest, PhantomSuggestRequest, PhantomSuggestResponse
+from app.models import (
+    ChatRequest,
+    PhantomSuggestRequest,
+    PhantomSuggestResponse,
+    TranscribeRequest,
+    TranscribeResponse,
+)
 from app.phantom import suggest as phantom_suggest_service
+from app.transcription import transcribe as transcribe_service
 from app.chat import stream_answer
 
 settings = get_settings()
@@ -63,3 +70,19 @@ def phantom_suggest(body: PhantomSuggestRequest, authorization: str | None = Hea
 def ingest(authorization: str | None = Header(default=None)):
     """Admin: dispara la ingesta del corpus. TODO: proteger con una llave de admin."""
     raise NotImplementedError("implementar disparo de ingesta (sección 9)")
+
+
+@app.post("/athos/transcribe", response_model=TranscribeResponse)
+def athos_transcribe(body: TranscribeRequest, authorization: str | None = Header(default=None)):
+    """Transcribe el audio de la consulta (Deepgram) y guarda el transcript.
+
+    Se llama justo después de subir el audio; deja la consulta lista para
+    /athos/phantom/suggest. El clinic_id se resuelve contra la membresía del usuario.
+    """
+    _user_id, clinic_id = _auth(authorization, body.clinic_id)
+    result = transcribe_service(body.consultation_id, clinic_id)
+    return TranscribeResponse(
+        transcript_id=result["transcript_id"],
+        full_text=result["full_text"],
+        stt_model=result["stt_model"],
+    )

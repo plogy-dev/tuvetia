@@ -120,3 +120,26 @@ export async function athosPhantomSuggest(params: {
   if (!res.ok) throw new Error(`Athos respondió ${res.status}`)
   return (await res.json()) as PhantomResponse
 }
+
+export type TranscribeResponse = {
+  transcript_id: string
+  full_text: string
+  stt_model: string
+}
+
+// Modo Fantasma: transcribe el audio ya subido de una consulta.
+export async function athosTranscribe(params: {
+  consultationId: string
+  clinicId: string
+}): Promise<TranscribeResponse> {
+  const res = await fetch(`${ATHOS_URL}/athos/transcribe`, {
+    method: "POST",
+    headers: await authHeaders(),
+    body: JSON.stringify({
+      consultation_id: params.consultationId,
+      clinic_id: params.clinicId,
+    }),
+  })
+  if (!res.ok) throw new Error(`Athos respondió ${res.status}`)
+  return (await res.json()) as TranscribeResponse
+}

@@ -19,6 +19,7 @@ import { toast } from "sonner"
 
 import { athosPhantomSuggest, type Citation, type ConditionAlert } from "@/lib/athos"
 import { createClient } from "@/lib/supabase/client"
+import { ConsultationRecorder } from "@/components/consultation-recorder"
 import { SourceCard } from "@/components/athos/source-card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -44,6 +45,7 @@ type Consultation = {
   status: string
   chief_complaint: string | null
   clinic_id: string
+  patient_id: string
   patient: { name: string; species: string } | null
 }
 
@@ -91,7 +93,7 @@ export default function NotaConsultaPage({ params }: { params: Promise<{ id: str
   const load = useCallback(async () => {
     const { data: c } = await supabase
       .from("consultations")
-      .select("id, status, chief_complaint, clinic_id, patient:patients(name, species)")
+      .select("id, status, chief_complaint, clinic_id, patient_id, patient:patients(name, species)")
       .eq("id", id)
       .single()
     setConsultation(c as unknown as Consultation | null)
@@ -278,6 +280,17 @@ export default function NotaConsultaPage({ params }: { params: Promise<{ id: str
             </details>
           ))}
         </div>
+      )}
+
+      {/* Captura de la consulta (consentimiento -> grabar -> transcribir) */}
+      {consultation && !approved && (
+        <ConsultationRecorder
+          consultationId={id}
+          clinicId={consultation.clinic_id}
+          patientId={consultation.patient_id}
+          patientName={pet?.name}
+          onTranscribed={load}
+        />
       )}
 
       {/* Dos columnas: transcripción | nota clínica */}

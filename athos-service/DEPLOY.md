@@ -65,6 +65,72 @@ Pasos el día que se pague Vercel:
 4. Cambiar en el front **una sola variable**: `NEXT_PUBLIC_ATHOS_URL` → la nueva URL de Vercel. **Nada más.**
 5. (Opcional) apagar el servicio de Railway.
 
-## 6) Hands-off
+## 6) Modo Fantasma (E5) — captura, consentimiento y transcripción
+Hasta E5 el Fantasma sabía redactar la nota pero **nadie producía el transcript**. Esta pieza cierra
+la entrada del flujo:
+
+```
+grabar ──▶ consentimiento (Ley 1581) ──▶ audio a Storage ──▶ consultation_audios
+      ──▶ POST /athos/transcribe (Deepgram nova-2, es, diarize) ──▶ transcripts
+      ──▶ POST /athos/phantom/suggest ──▶ clinical_notes draft ──▶ el vet aprueba
+```
+
+**Ruta nueva:** `POST /athos/transcribe`, body `{ consultation_id, clinic_id }` → `{ transcript_id,
+full_text, stt_model }`. Igual que las demás: verifica el JWT de Supabase del `Authorization: Bearer`
+y resuelve el `clinic_id` contra la membresía del usuario. La llama el front (`athosTranscribe` en
+`src/lib/athos.ts`) justo después de subir el audio. Baja el objeto del bucket con `service_role`,
+lo manda a Deepgram y escribe `public.transcripts` (con los segmentos diarizados en `segments`).
+Mueve `consultations.status`: `transcribing` mientras corre → `generating_note` al terminar, y lo
+devuelve a `open` si algo falla.
+
+**Bucket `consultation-audios` (privado) y sus 4 policies.** Migración
+`supabase/migrations/0004_phantom_audio_storage.sql`. Ruta de los objetos:
+`<clinic_id>/<consultation_id>/<audio_id>.webm` — el **primer segmento es el `clinic_id`**, y es lo
+que usan las policies para aislar por clínica (`(storage.foldername(name))[1] =
+private.my_clinic_id()::text`).
+Son **4** policies (select/insert/update/delete), no 3: el servicio de Storage hace internamente
+`INSERT ... RETURNING` para devolver los metadatos del objeto, y Postgres exige una policy de SELECT
+permisiva para autorizar ese `RETURNING` — sin ella **el INSERT completo se rechaza** con
+`new row violates row-level security policy for table "objects"`. Ya nos pasó con `patient-photos`
+(causa raíz documentada en `DATABASE.md`, sección *Storage*). Si el insert del audio falla con error
+de Storage, lo primero que hay que mirar es que estén las 4.
+
+**Trigger de consentimiento (no negociable).** `consultation_audios_require_consent` (BEFORE INSERT
+sobre `public.consultation_audios`, función `private.enforce_consent_before_audio()`): si no hay fila
+en `consents` para esa `(consultation_id, clinic_id)`, el insert se rechaza con `check_violation` y el
+mensaje *"Ley 1581: no se puede registrar audio sin consentimiento previo…"*. La UI **también** pide
+el consentimiento antes de habilitar el micrófono, pero el no negociable vive en la BD: deja de
+depender de que el front se porte bien. Prueba de regresión: intentar insertar un audio para una
+consulta sin `consents` debe fallar.
+
+**Retención.** `consultation_audios.retain_until` tiene default `now() + 7 days` + índice
+`consultation_audios_retention_idx` para el job de purga. El **audio** se borra a los 7 días; el
+**transcript se conserva**.
+
+**Variables en Railway** (Settings → Variables, se suman a las de §1.4):
+- `DEEPGRAM_API_KEY` = la key de console.deepgram.com — **sin ella `/athos/transcribe` devuelve 500**.
+- `STT_MODEL` = `nova-2` (el idioma `es` y `diarize` van fijos en código, no por env var).
+- `CORS_ORIGINS` = **las dos URLs separadas por coma**: `https://<la-url-de-vercel>,http://localhost:3000`.
+  La grabación se prueba mucho en local contra el backend desplegado; si solo está la de Vercel, el
+  navegador bloquea la llamada desde `localhost`.
+
+**En Vercel no se agrega nada**: el front solo necesita `NEXT_PUBLIC_ATHOS_URL`, que ya existe.
+Ningún secreto de Deepgram toca el navegador ni el repo (en git solo el nombre, en `.env.example`).
+
+**Por qué la transcripción sigue en Railway y no en Vercel.** Es la razón de §5 pero más aguda: subir
+el audio + Deepgram tarda **decenas de segundos**, y encima corre antes del Fantasma (~60–90 s más).
+En el plan free de Vercel las funciones cortan a ~60 s → timeout garantizado. El `maxDuration: 300`
+de `vercel.json` ya está puesto, pero **requiere plan Pro**. Hasta que se pague, Railway.
+
+**Pendientes (deuda conocida, no bloquea E5):**
+- **Job de purga de audio a 7 días:** `retain_until` ya se setea y el índice existe, pero **falta el
+  cron** que anule `storage_path` y borre el objeto del bucket. Hoy el audio se queda.
+- **Transcripción en batch, no en vivo:** se transcribe al detener la grabación, no mientras se habla.
+- **Retención del transcript:** decisión legal **abierta** (ADR-0018). Hoy se conserva indefinidamente.
+- **Roles de hablante por heurística:** Deepgram devuelve índices (0,1,…), no roles; asumimos que el
+  hablante 0 es el veterinario. Los segmentos crudos quedan en `transcripts.segments`, así que el dato
+  original no se pierde si luego se permite intercambiarlos en la UI.
+
+## 7) Hands-off
 Conectados Railway y Vercel al repo, **cada `git push` a `master` redespliega ambos** automáticamente.
 A partir de ahí: trabajas en la estética/UX, haces push, y se actualiza solo. Sin tocar dashboards.

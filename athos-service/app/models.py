@@ -102,3 +102,14 @@ class PhantomSuggestResponse(BaseModel):
     alerts: list[ConditionAlert] = Field(default_factory=list)  # condiciones relevantes (no bloqueantes)
     ai_model: str = ""
     ai_generated_at: datetime | None = None
+
+
+class TranscribeRequest(BaseModel):
+    consultation_id: str
+    clinic_id: str
+
+
+class TranscribeResponse(BaseModel):
+    transcript_id: str
+    full_text: str
+    stt_model: str

@@ -26,6 +26,10 @@ class Settings(BaseSettings):
     embedding_dim: int = 1024
     embedding_api_key: str = ""
 
+    # STT — Modo Fantasma (ADR-0016: Deepgram Nova, batch + diarización)
+    deepgram_api_key: str = ""
+    stt_model: str = "nova-2"
+
     # App
     cors_origins: str = "http://localhost:3000"
     app_env: str = "dev"
