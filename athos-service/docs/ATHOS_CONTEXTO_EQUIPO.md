@@ -114,7 +114,7 @@ Filosofía: **gastar la mínima IA**. Un buscador determinístico con un diccion
 - Entornos y migraciones (dev → PR → principal): `MIGRACIONES.md`
 
 ## 10. Bitácora de montaje y decisiones (se actualiza)
-> Registro vivo del progreso del microservicio, para que Santiago y Pipe sigan el avance y las decisiones. Última actualización: **2026-07-22**.
+> Registro vivo del progreso del microservicio, para que Santiago y Pipe sigan el avance y las decisiones. Última actualización: **2026-07-23**.
 
 **2026-07-13 — Entorno local montado y verificado**
 - Herramientas: `uv`, Node 22, Git, Claude Code, **Supabase CLI 2.109.1**.
@@ -217,6 +217,14 @@ Filosofía: **gastar la mínima IA**. Un buscador determinístico con un diccion
 - **Prototipos de UX** (Artifacts, con los **tokens shadcn `neutral` del front** de Santiago): `docs/mockup-nota-athos.html` (pantalla del Phantom) y `docs/mockup-chat-copiloto.html` (copiloto). Sirven para alinear la experiencia; el diseño final se ajustará cuando el equipo monte el sistema de diseño completo.
 - **Ownership (acordado):** todo lo de Athos (copiloto, respuestas, corpus, **y sus piezas de front**) lo lleva nuestro equipo; al resto se le involucra solo en arquitectura/otras funcionalidades. Ver §5.
 - **Ops pendiente (para el deploy):** para que la redacción/chat y el panel de A funcionen **en vivo con DeepSeek**, poner en **Railway** las env vars `LLM_PROVIDER=openai`, `LLM_BASE_URL=https://api.deepseek.com`, `LLM_MODEL=deepseek-chat`, `LLM_LIGHT_MODEL=deepseek-chat`, `LLM_API_KEY=<deepseek>`. Mientras prod siga en Anthropic (sin crédito), esas llamadas fallan pero **degradan con gracia** (el servicio no se cae).
+
+**2026-07-23 — 🎯 Optimización para DeepSeek: golden 7-8/11 → 11/11 estable**
+> DeepSeek es el proveedor elegido; se optimizó su calidad con el golden set. Arrancó en **7-8/11 flappy** (Sonnet daba 11/11); dos fixes medidos lo llevaron a **11/11 estable** (3 corridas idénticas), a fracción del costo.
+- **Fix 1 — prompt de redacción (`CLINICAL_SYSTEM_PROMPT`):** DeepSeek interpretaba "cita o se calla" demasiado estricto (assessment correcto pero `citations=[]`). El prompt ahora encuadra que la LITERATURA ya viene **filtrada por relevancia** → debe apoyarse en ella (basta 1 chunk que respalde una afirmación para citarlo; abstenerse solo si NADA se relaciona). **7-8 → 10/11 estable.**
+- **Fix 2 — Tier 2 vector = complemento SIEMPRE** (antes solo fallback si Tier 1 débil): el Tier 1 léxico/MeSH puede ser *fuerte pero off-topic* — los signos incidentales del cuadro (vómito/diarrea) + el MeSH de especie **sepultan** la literatura de la condición real. Ej. hipertiroidismo felino: **0/8** chunks de tiroides en el top del Tier 1, **8/8** en el Tier 2 (semántico sobre el texto crudo). Correr el Tier 2 siempre y fusionar ambas modalidades → **10 → 11/11 estable**. Cuesta +1 embedding de Cohere/consulta (~US$0,0006) y +~100-300ms de latencia. **Cambia el diseño de §cascada de CLAUDE.md** (Tier 2 condicional → complemento; ratificado).
+- **Ojo — fue RETRIEVAL, no generación:** el corpus SÍ tiene la literatura de tiroides felino (29 chunks Cats+thyroid), solo estaba mal rankeada por los signos incidentales. Misma familia de problema que el tuning del 2026-07-21.
+- **Resultado:** golden con DeepSeek **11/11 estable**, igualando a Sonnet. La abstención honesta de los `corpus_gap` (conejo) se mantiene. **73 tests verdes**, ruff limpio. Desplegado a `master`.
+- **Siguiente (hoja de ruta):** ampliar corpus + terminar la indexación de todos los documentos; luego la fase estética (design system + feedback del cliente).
 
 ## 11. Coordinación abierta — 3 decisiones que necesitamos del equipo (antes del PR a main)
 > Todo lo de abajo está **probado en el proyecto dev** (`tuvetia-athos-dev`, ref `ghmpjyuchwkrvnjvdeum`). **Nada se ha tocado en el principal** (ref `auxlnexhkmtoedrzfsnz`). Para llevar las migraciones `0001`/`0002` al principal necesitamos confirmar 3 cosas, porque tocan **tablas generales** y **auth compartida**. El PR incluirá **solo** `supabase/migrations/0001*.sql` y `0002*.sql` (el bootstrap **no** se PR-ea).

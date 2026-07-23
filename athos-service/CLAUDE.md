@@ -32,7 +32,7 @@ Despliegue: **Railway**. Base de datos: **Supabase** (Postgres + pgvector). Fron
 0. **A→B** *(determinístico + LLM liviano de respaldo)*: palabras (ES) → `glossary_synonym` → conceptos canónicos (EN + MeSH + relacionados). Si el glosario no basta, LLM liviano distila. Loguea en `rag_retrieval_log`.
 1. **Tier 0 filtros** *(gratis)*: especie como **preferencia, no exclusión** (etiquetas ruidosas, 63% "mixto"; apóyate en MeSH `Cats`/`Dogs`) + idioma, `is_current`, `tier`, recencia.
 2. **Tier 1 léxico + glosario** *(gratis)*: conceptos vs `mesh`/`glossary_terms` del chunk + full-text (EN) sobre `content`.
-3. **Tier 2 vector** *(condicional)*: solo si Tier 1 es débil. Loguea cuándo se dispara (huecos del glosario).
+3. **Tier 2 vector** *(complemento semántico, SIEMPRE)*: corre en toda consulta y se fusiona con el Tier 1 (tope por modalidad). Calibrado 2026-07-22 (golden con DeepSeek 10→11/11): el Tier 1 léxico/MeSH puede ser *fuerte pero off-topic* (signos incidentales + MeSH de especie sepultan la condición real), así que el vector deja de ser solo fallback. Cohere ~US$0,0006/consulta. Degrada con gracia si Cohere no está (se queda con el Tier 1).
 4. **Umbral** *(determinístico)*: si no pasa → Athos responde plantilla **sin LLM**; Fantasma redacta la nota del transcript **sin literatura**.
 5. **Fusión de contexto** *(determinístico)*: literatura global + contexto del paciente (estructurado + `patient_embeddings`, RLS por `clinic_id`+`patient_id`). En memoria, separado.
 6. **Gate de alergia severa** *(determinístico, antes del plan)*.
