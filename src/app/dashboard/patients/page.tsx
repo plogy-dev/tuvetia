@@ -1,4 +1,5 @@
-import { PawPrintIcon } from "lucide-react"
+import Link from "next/link"
+import { ChevronRightIcon, PawPrintIcon } from "lucide-react"
 import { SearchBar } from "@/components/search-bar"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import {
@@ -59,6 +60,7 @@ export default async function PatientsPage({
               <TableHead>Sexo</TableHead>
               <TableHead>Titular</TableHead>
               <TableHead>Teléfono</TableHead>
+              <TableHead className="w-16 text-right">Historia</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -66,7 +68,10 @@ export default async function PatientsPage({
               patients.map((patient) => (
                 <TableRow key={patient.id}>
                   <TableCell className="font-medium">
-                    <div className="flex items-center gap-3">
+                    <Link
+                      href={`/dashboard/patients/${patient.id}`}
+                      className="flex items-center gap-3 hover:underline"
+                    >
                       <Avatar className="size-9">
                         <AvatarImage
                           src={patient.photo_url ?? undefined}
@@ -77,7 +82,7 @@ export default async function PatientsPage({
                         </AvatarFallback>
                       </Avatar>
                       {patient.name}
-                    </div>
+                    </Link>
                   </TableCell>
                   <TableCell>{patient.species}</TableCell>
                   <TableCell>
@@ -85,12 +90,21 @@ export default async function PatientsPage({
                   </TableCell>
                   <TableCell>{patient.owner?.full_name ?? "—"}</TableCell>
                   <TableCell>{patient.owner?.phone ?? "—"}</TableCell>
+                  <TableCell className="text-right">
+                    <Link
+                      href={`/dashboard/patients/${patient.id}`}
+                      className="inline-flex items-center justify-end text-primary hover:underline"
+                      aria-label={`Ver historia de ${patient.name}`}
+                    >
+                      <ChevronRightIcon className="size-4" />
+                    </Link>
+                  </TableCell>
                 </TableRow>
               ))
             ) : (
               <TableRow>
                 <TableCell
-                  colSpan={5}
+                  colSpan={6}
                   className="h-24 text-center text-muted-foreground"
                 >
                   {q

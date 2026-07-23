@@ -140,6 +140,15 @@ export async function athosTranscribe(params: {
       clinic_id: params.clinicId,
     }),
   })
-  if (!res.ok) throw new Error(`Athos respondió ${res.status}`)
+  if (!res.ok) {
+    // Superficiar el `detail` de FastAPI: sin esto el toast solo decía "Athos respondió 500"
+    // y ocultaba la causa real (falta DEEPGRAM_API_KEY / SUPABASE_URL, Deepgram 4xx, etc.).
+    const detail = await res
+      .clone()
+      .json()
+      .then((b) => (b as { detail?: string })?.detail)
+      .catch(() => null)
+    throw new Error(`Athos respondió ${res.status}${detail ? `: ${detail}` : ""}`)
+  }
   return (await res.json()) as TranscribeResponse
 }

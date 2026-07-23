@@ -19,6 +19,7 @@ import { toast } from "sonner"
 
 import { athosPhantomSuggest, type Citation, type ConditionAlert } from "@/lib/athos"
 import { createClient } from "@/lib/supabase/client"
+import { parseTranscript } from "@/lib/transcript"
 import { ConsultationRecorder } from "@/components/consultation-recorder"
 import { SourceCard } from "@/components/athos/source-card"
 import { Badge } from "@/components/ui/badge"
@@ -56,26 +57,6 @@ const SOAP_FIELDS: { key: keyof Soap; label: string; hint: string }[] = [
   { key: "plan", label: "Plan", hint: "Conducta y siguientes pasos" },
 ]
 
-// Parte la transcripción en turnos (Vet / Dueño) para mostrarla como diálogo.
-type Turn = { who: "vet" | "owner"; text: string }
-function parseTranscript(text: string): Turn[] {
-  if (!text) return []
-  const turns: Turn[] = []
-  for (const raw of text.split(/\n+/)) {
-    const line = raw.trim()
-    if (!line) continue
-    const m = line.match(
-      /^(veterinari[oa]|vet|m[ée]dic[oa]|due[nñ][oa]|due[nñ]a|propietari[oa]|cliente)\s*:\s*(.*)$/i,
-    )
-    if (m) {
-      turns.push({ who: /vet|m[ée]dic/i.test(m[1]) ? "vet" : "owner", text: m[2] })
-    } else {
-      turns.push({ who: "owner", text: line })
-    }
-  }
-  return turns
-}
-
 export default function NotaConsultaPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params)
   const [supabase] = useState(() => createClient())
@@ -91,11 +72,14 @@ export default function NotaConsultaPage({ params }: { params: Promise<{ id: str
   const [soap, setSoap] = useState<Soap>({ subjective: "", objective: "", assessment: "", plan: "" })
 
   const load = useCallback(async () => {
-    const { data: c } = await supabase
+    const { data: c, error: cErr } = await supabase
       .from("consultations")
       .select("id, status, chief_complaint, clinic_id, patient_id, patient:patients(name, species)")
       .eq("id", id)
       .single()
+    // Si la consulta no carga (RLS, id inexistente, columna renombrada), `consultation` queda null y
+    // no se monta el grabador ni nada que dependa de ella. Sin esto, el fallo es silencioso.
+    if (cErr) console.error("No se pudo cargar la consulta:", cErr)
     setConsultation(c as unknown as Consultation | null)
 
     const { data: t } = await supabase
