@@ -123,6 +123,15 @@ export default function NotaConsultaPage({ params }: { params: Promise<{ id: str
         assessment: parsed.assessment ?? "",
         plan: parsed.plan ?? "",
       })
+      // Alertas de condición persistidas (migración 0004). Tolerante: si la columna aún no existe,
+      // la query falla y conservamos lo que haya (p.ej. las del último suggest); no rompe la carga.
+      const { data: al, error: alErr } = await supabase
+        .from("clinical_notes")
+        .select("alerts")
+        .eq("id", parsed.id)
+        .maybeSingle()
+      const persisted = (al as { alerts?: ConditionAlert[] } | null)?.alerts
+      if (!alErr && Array.isArray(persisted)) setAlerts(persisted)
     }
     setLoading(false)
   }, [supabase, id])

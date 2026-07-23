@@ -39,9 +39,10 @@ def _patch_common(monkeypatch, *, passed: bool, captured: dict) -> None:
     monkeypatch.setattr(phantom, "generate_note", fake_generate_note)
 
     def fake_insert_note(clinic_id, consultation_id, transcript_id, soap, citations,
-                         gate_triggered, model, ai_at):
+                         gate_triggered, model, ai_at, alerts):
         captured["note_citations"] = citations
         captured["note_gate"] = gate_triggered
+        captured["note_alerts"] = alerts
         return "note-xyz"
     monkeypatch.setattr(phantom, "_insert_note", fake_insert_note)
     monkeypatch.setattr(phantom, "log_retrieval", lambda *a, **k: "ret-1")
@@ -62,6 +63,27 @@ def test_suggest_gate_and_citations_flow(monkeypatch):
     assert [c.chunk_id for c in captured["note_citations"]] == ["c1"]  # citas -> clinical_notes
     assert resp.note_id == "note-xyz"
     assert resp.status == "draft"
+
+
+def test_suggest_persiste_alertas_de_condicion(monkeypatch):
+    """Las alertas de condición detectadas en el assessment se propagan a _insert_note (persistencia
+    en la nota) y también al payload."""
+    captured: dict = {}
+    _patch_common(monkeypatch, passed=True, captured=captured)
+
+    def _gen_diabetes(transcript, literature, patient, severe):
+        return (SOAP(assessment="cuadro compatible con diabetes mellitus"),
+                [Citation(chunk_id="c1", doc_id="PM1")], False)
+
+    monkeypatch.setattr(phantom, "generate_note", _gen_diabetes)
+    # evita la llamada real del panel: identidad (deja las alertas tal como se detectan)
+    monkeypatch.setattr(phantom, "explain_conditions", lambda alerts, patient, lit: alerts)
+
+    resp = phantom.suggest("cons-1", "clinic-a")
+
+    labels = [a.condition for a in captured["note_alerts"]]
+    assert "Diabetes mellitus" in labels                        # detectada -> a la nota
+    assert [a.condition for a in resp.alerts] == labels          # y al payload
 
 
 def test_suggest_passed_pero_sin_citas_es_insuficiente(monkeypatch):

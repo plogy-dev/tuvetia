@@ -40,18 +40,30 @@ def _load_transcript(clinic_id: str, consultation_id: str) -> dict | None:
     return rows[0] if rows else None
 
 
+def _clinical_notes_has_alerts() -> bool:
+    """¿Existe ya la columna `alerts` en clinical_notes (migración 0004)? Permite desplegar el código
+    ANTES de aplicar la migración al principal sin romper el insert (degrada a NO persistir alertas).
+    Sin caché: en cuanto la migración se aplique, se persiste sin necesidad de redeploy."""
+    return bool(fetch_all(
+        "select 1 from information_schema.columns where table_schema = 'public' "
+        "and table_name = 'clinical_notes' and column_name = 'alerts' limit 1"))
+
+
 def _insert_note(clinic_id, consultation_id, transcript_id, soap, citations,
-                 gate_triggered, model, ai_at) -> str:
+                 gate_triggered, model, ai_at, alerts) -> str:
+    cols = ["clinic_id", "consultation_id", "transcript_id", "status", "subjective", "objective",
+            "assessment", "plan", "citations", "ai_generated_at", "ai_model", "allergy_gate_triggered"]
+    vals = ["%s", "%s", "%s", "'draft'", "%s", "%s", "%s", "%s", "%s", "%s", "%s", "%s"]
+    params = [clinic_id, consultation_id, transcript_id, soap.subjective, soap.objective,
+              soap.assessment, soap.plan, Json([c.model_dump() for c in citations]),
+              ai_at, model, gate_triggered]
+    if _clinical_notes_has_alerts():                      # persiste solo si la columna existe (0004)
+        cols.append("alerts")
+        vals.append("%s")
+        params.append(Json([a.model_dump() for a in alerts]))
     with get_conn() as conn, conn.cursor() as cur:
-        cur.execute(
-            "insert into public.clinical_notes "
-            "(clinic_id, consultation_id, transcript_id, status, subjective, objective, assessment, "
-            " plan, citations, ai_generated_at, ai_model, allergy_gate_triggered) "
-            "values (%s,%s,%s,'draft',%s,%s,%s,%s,%s,%s,%s,%s) returning id",
-            (clinic_id, consultation_id, transcript_id, soap.subjective, soap.objective,
-             soap.assessment, soap.plan, Json([c.model_dump() for c in citations]),
-             ai_at, model, gate_triggered),
-        )
+        cur.execute(f"insert into public.clinical_notes ({', '.join(cols)}) "
+                    f"values ({', '.join(vals)}) returning id", params)
         note_id = cur.fetchone()["id"]
         conn.commit()
     return str(note_id)
@@ -96,7 +108,7 @@ def suggest(consultation_id: str, clinic_id: str, user_id: str | None = None) ->
         user_id=user_id, patient_id=patient_id,
     )
     note_id = _insert_note(clinic_id, consultation_id, transcript_id, soap, citations,
-                           gate_triggered, model, ai_at)
+                           gate_triggered, model, ai_at, alerts)
     soap_text = f"S: {soap.subjective}\nO: {soap.objective}\nA: {soap.assessment}\nP: {soap.plan}"
     log_answer(clinic_id, retrieval_id, note_id, soap_text,
                [c.model_dump() for c in citations], insufficient, gate_triggered, model)
