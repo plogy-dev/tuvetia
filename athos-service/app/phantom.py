@@ -13,6 +13,7 @@ from psycopg.types.json import Json
 from app.config import get_settings
 from app.db import fetch_all, get_conn
 from app.generation.allergy_gate import evaluate_gate
+from app.generation.condition_alerts import detect_conditions, explain_conditions
 from app.generation.generate import generate_note
 from app.models import PhantomSuggestResponse
 from app.patient_context import load_patient_context
@@ -82,6 +83,9 @@ def suggest(consultation_id: str, clinic_id: str, user_id: str | None = None) ->
     # cita (la literatura recuperada no sustentaba el caso), no afirmamos evidencia suficiente. Así
     # el flag es consistente con la nota (citations=[] <-> insufficient_evidence=True).
     insufficient = not passed or not citations
+    # Alertas de condición: detección determinística (desde el assessment) + panel "afectaciones en
+    # este paciente" (una llamada LLM, grounded en la literatura; degrada a sin-detail si falla).
+    alerts = explain_conditions(detect_conditions(soap.assessment, patient), patient, literature)
     model = get_settings().llm_model
     ai_at = datetime.now(timezone.utc)
 
@@ -100,6 +104,6 @@ def suggest(consultation_id: str, clinic_id: str, user_id: str | None = None) ->
     return PhantomSuggestResponse(
         note_id=note_id, status="draft", soap=soap,
         allergy_gate_triggered=gate_triggered, allergy_transcript_flag=allergy_flag,
-        insufficient_evidence=insufficient, citations=citations,
+        insufficient_evidence=insufficient, citations=citations, alerts=alerts,
         ai_model=model, ai_generated_at=ai_at,
     )

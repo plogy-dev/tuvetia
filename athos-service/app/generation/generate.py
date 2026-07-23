@@ -10,6 +10,7 @@ orquesta la (única) llamada al modelo en el medio.
 import json
 import re
 
+from app.generation.allergy_gate import transcript_mentions_allergy
 from app.generation.citations import verify_citations
 from app.generation.llm_client import LLMClient
 from app.models import SOAP, Citation, PatientContext, RetrievedChunk
@@ -107,7 +108,11 @@ def generate_note(transcript: str, literature: list[RetrievedChunk], patient: Pa
     # La nota SOAP + citas puede ser larga; 2000 truncaba el JSON (stop_reason=max_tokens) y el
     # parseo caía a una nota vacía. 4000 da margen para que el JSON cierre completo.
     text = LLMClient().complete(system, user, max_tokens=4000)
-    return parse_note_response(text, literature)
+    soap, citations, model_flag = parse_note_response(text, literature)
+    # Backstop determinístico: el flag del modelo es no-determinístico y de él depende la única
+    # señal de una alergia dicha en la consulta sin fila en `allergies`. OR con el escaneo del texto.
+    allergy_flag = model_flag or transcript_mentions_allergy(transcript)
+    return soap, citations, allergy_flag
 
 
 def generate_chat_answer(question: str, literature: list[RetrievedChunk], patient: PatientContext,

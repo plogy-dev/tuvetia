@@ -6,41 +6,66 @@ import { toast } from "sonner"
 
 import { athosChat, type Citation } from "@/lib/athos"
 import { createClient } from "@/lib/supabase/client"
+import { SourceCard } from "@/components/athos/source-card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 
 type Patient = { id: string; name: string; species: string }
 
+// Un turno del hilo. El backend mantiene la memoria por (clinica, paciente); aquí acumulamos la
+// conversación para que el vet la vea completa (antes era de un solo turno).
+type Msg = {
+  role: "user" | "assistant"
+  content: string
+  warning?: string
+  citations?: Citation[]
+  insufficient?: boolean
+  streaming?: boolean
+}
+
 // Resalta el lenguaje de posibilidad (regla clínica: nunca diagnóstico cerrado).
 const POSSIBILITY =
   /(compatible con|sugestivo de|sugerente de|no hay evidencia suficiente|evidencia insuficiente|posiblemente|posible|podría|sugiere|se recomienda valorar)/i
-function highlight(text: string) {
-  const parts = text.split(new RegExp(`(${POSSIBILITY.source})`, "gi"))
-  return parts.map((p, i) =>
-    POSSIBILITY.test(p) ? (
-      <span key={i} className="font-medium text-foreground underline decoration-dotted decoration-muted-foreground/60 underline-offset-2">
-        {p}
-      </span>
-    ) : (
-      <span key={i}>{p}</span>
-    ),
-  )
-}
 
-// Tarjeta de fuente verificable (mismo lenguaje visual que la propuesta, con nuestros tokens).
-function SourceCard({ c }: { c: Citation }) {
-  return (
-    <div className="rounded-lg border bg-muted/40 p-3">
-      <div className="mb-1 font-mono text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
-        Fuente verificable
-      </div>
-      <div className="text-sm leading-relaxed">
-        <span className="font-medium">{c.source ?? "Fuente"}</span>
-        {c.locator && <span className="text-muted-foreground"> · {c.locator}</span>}
-        <span className="text-muted-foreground"> · {c.doc_id}</span>
-      </div>
-    </div>
-  )
+// Renderiza un tramo de texto: enlaza los marcadores [n] a su cita y resalta el lenguaje de
+// posibilidad. Devuelve nodos listos para React.
+function renderRich(text: string, citations: Citation[]) {
+  return text.split(/(\[\d+\])/g).map((part, i) => {
+    const cite = part.match(/^\[(\d+)\]$/)
+    if (cite) {
+      const c = citations[parseInt(cite[1], 10) - 1]
+      const cls =
+        "mx-px rounded bg-secondary px-1 align-super text-[10px] font-bold text-foreground"
+      return c?.url ? (
+        <a
+          key={i}
+          href={c.url}
+          target="_blank"
+          rel="noopener noreferrer"
+          title={c.title ?? c.source ?? "Ver fuente"}
+          className={`${cls} underline decoration-dotted underline-offset-2 hover:bg-accent`}
+        >
+          [{cite[1]}]
+        </a>
+      ) : (
+        <sup key={i} className={cls}>
+          [{cite[1]}]
+        </sup>
+      )
+    }
+    return part.split(new RegExp(`(${POSSIBILITY.source})`, "gi")).map((p, j) =>
+      POSSIBILITY.test(p) ? (
+        <span
+          key={`${i}-${j}`}
+          className="font-medium text-foreground underline decoration-dotted decoration-muted-foreground/60 underline-offset-2"
+        >
+          {p}
+        </span>
+      ) : (
+        <span key={`${i}-${j}`}>{p}</span>
+      ),
+    )
+  })
 }
 
 export default function AsistentePage() {
@@ -48,12 +73,8 @@ export default function AsistentePage() {
   const [patients, setPatients] = useState<Patient[]>([])
   const [patientId, setPatientId] = useState<string>("")
   const [question, setQuestion] = useState<string>("")
-  const [asked, setAsked] = useState<string>("")
   const [loading, setLoading] = useState(false)
-  const [warning, setWarning] = useState<string>("")
-  const [answer, setAnswer] = useState<string>("")
-  const [citations, setCitations] = useState<Citation[]>([])
-  const [insufficient, setInsufficient] = useState(false)
+  const [messages, setMessages] = useState<Msg[]>([])
   const threadRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -82,10 +103,17 @@ export default function AsistentePage() {
 
   useEffect(() => {
     threadRef.current?.scrollTo({ top: threadRef.current.scrollHeight })
-  }, [answer, asked])
+  }, [messages])
 
   const patient = patients.find((p) => p.id === patientId)
-  const blocks = answer.split(/\n{2,}|\n(?=[-•])/).map((b) => b.trim()).filter(Boolean)
+
+  // Actualiza el último mensaje (el del asistente en curso) sin recrear el resto del hilo.
+  const patchLast = (fn: (m: Msg) => Msg) =>
+    setMessages((prev) => {
+      const next = [...prev]
+      next[next.length - 1] = fn(next[next.length - 1])
+      return next
+    })
 
   async function ask() {
     const q = question.trim()
@@ -94,23 +122,32 @@ export default function AsistentePage() {
       return
     }
     setLoading(true)
-    setAsked(q)
     setQuestion("")
-    setWarning("")
-    setAnswer("")
-    setCitations([])
-    setInsufficient(false)
+    setMessages((prev) => [
+      ...prev,
+      { role: "user", content: q },
+      { role: "assistant", content: "", streaming: true },
+    ])
     await athosChat(
       { question: q, patientId, clinicId },
       {
-        onWarning: (t) => setWarning(t),
-        onToken: (t) => setAnswer((prev) => prev + t),
+        onWarning: (t) => patchLast((m) => ({ ...m, warning: t })),
+        onToken: (t) => patchLast((m) => ({ ...m, content: m.content + t })),
         onDone: (d) => {
-          setCitations(d.citations)
-          setInsufficient(d.insufficient_evidence)
+          patchLast((m) => ({
+            ...m,
+            citations: d.citations,
+            insufficient: d.insufficient_evidence,
+            streaming: false,
+          }))
           setLoading(false)
         },
         onError: (e) => {
+          patchLast((m) => ({
+            ...m,
+            content: m.content || "No se pudo consultar a Athos.",
+            streaming: false,
+          }))
           toast.error(`No se pudo consultar a Athos: ${(e as Error)?.message ?? e}`)
           setLoading(false)
         },
@@ -137,7 +174,10 @@ export default function AsistentePage() {
           {patient && <Badge variant="secondary">Contexto · {patient.name}</Badge>}
           <select
             value={patientId}
-            onChange={(e) => setPatientId(e.target.value)}
+            onChange={(e) => {
+              setPatientId(e.target.value)
+              setMessages([]) // nuevo paciente = hilo nuevo en pantalla
+            }}
             className="h-8 rounded-md border border-input bg-background px-2 text-sm focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
           >
             {patients.length === 0 && <option value="">Sin pacientes</option>}
@@ -150,71 +190,75 @@ export default function AsistentePage() {
         </div>
       </div>
 
-      {/* Hilo de conversación */}
+      {/* Hilo de conversación (con memoria) */}
       <div
         ref={threadRef}
         className="flex flex-1 flex-col gap-4 overflow-y-auto rounded-xl border bg-card/40 p-4"
       >
-        {!asked && !loading && (
+        {messages.length === 0 && (
           <div className="m-auto max-w-sm text-center text-sm text-muted-foreground">
             <Bot className="mx-auto mb-2 size-6 opacity-50" />
-            Pregúntame sobre un caso. Respondo con literatura citada y verificable — nunca un diagnóstico
-            cerrado.
+            Pregúntame sobre un caso. Recuerdo el hilo de este paciente y respondo con literatura
+            citada y verificable — nunca un diagnóstico cerrado.
           </div>
         )}
 
-        {asked && (
-          <div className="flex justify-end">
-            <div className="max-w-[82%] rounded-2xl rounded-br-sm border bg-background px-4 py-2.5 text-sm">
-              {asked}
+        {messages.map((msg, i) =>
+          msg.role === "user" ? (
+            <div key={i} className="flex justify-end">
+              <div className="max-w-[82%] rounded-2xl rounded-br-sm border bg-background px-4 py-2.5 text-sm">
+                {msg.content}
+              </div>
             </div>
-          </div>
-        )}
-
-        {warning && (
-          <div className="flex items-start gap-2 rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900 dark:border-amber-900/50 dark:bg-amber-950/40 dark:text-amber-200">
-            <AlertTriangle className="mt-0.5 size-4 shrink-0" />
-            <span>{warning}</span>
-          </div>
-        )}
-
-        {(answer || loading) && (
-          <div className="flex gap-2.5">
-            <div className="mt-0.5 flex size-7 shrink-0 items-center justify-center rounded-lg bg-primary text-primary-foreground">
-              <Bot className="size-4" />
-            </div>
-            <div className="max-w-[92%] flex-1">
-              <div className="rounded-2xl rounded-tl-sm border bg-muted/50 px-4 py-1 text-sm leading-relaxed">
-                {blocks.map((b, i) => (
-                  <div key={i} className="border-b border-border/60 py-2.5 last:border-b-0">
-                    {highlight(b)}
+          ) : (
+            <div key={i} className="flex gap-2.5">
+              <div className="mt-0.5 flex size-7 shrink-0 items-center justify-center rounded-lg bg-primary text-primary-foreground">
+                <Bot className="size-4" />
+              </div>
+              <div className="max-w-[92%] flex-1">
+                {msg.warning && (
+                  <div className="mb-2 flex items-start gap-2 rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900 dark:border-amber-900/50 dark:bg-amber-950/40 dark:text-amber-200">
+                    <AlertTriangle className="mt-0.5 size-4 shrink-0" />
+                    <span>{msg.warning}</span>
                   </div>
-                ))}
-                {loading && (
-                  <div className="py-2.5">
-                    <span className="inline-block h-4 w-1.5 animate-pulse bg-foreground align-middle" />
+                )}
+
+                <div className="rounded-2xl rounded-tl-sm border bg-muted/50 px-4 py-1 text-sm leading-relaxed">
+                  {msg.content
+                    .split(/\n{2,}|\n(?=[-•])/)
+                    .map((b) => b.trim())
+                    .filter(Boolean)
+                    .map((b, j) => (
+                      <div key={j} className="border-b border-border/60 py-2.5 last:border-b-0">
+                        {renderRich(b, msg.citations ?? [])}
+                      </div>
+                    ))}
+                  {msg.streaming && (
+                    <div className="py-2.5">
+                      <span className="inline-block h-4 w-1.5 animate-pulse bg-foreground align-middle" />
+                    </div>
+                  )}
+                </div>
+
+                {msg.insufficient && (
+                  <Badge variant="outline" className="mt-2">
+                    Evidencia insuficiente
+                  </Badge>
+                )}
+
+                {msg.citations && msg.citations.length > 0 && (
+                  <div className="mt-3 flex flex-col gap-2">
+                    <div className="flex items-center gap-2 text-xs font-medium text-muted-foreground">
+                      <BookText className="size-3.5" /> Fuentes citadas ({msg.citations.length})
+                    </div>
+                    {msg.citations.map((c) => (
+                      <SourceCard key={c.chunk_id} c={c} />
+                    ))}
                   </div>
                 )}
               </div>
-
-              {insufficient && (
-                <Badge variant="outline" className="mt-2">
-                  Evidencia insuficiente
-                </Badge>
-              )}
-
-              {citations.length > 0 && (
-                <div className="mt-3 flex flex-col gap-2">
-                  <div className="flex items-center gap-2 text-xs font-medium text-muted-foreground">
-                    <BookText className="size-3.5" /> Fuentes citadas ({citations.length})
-                  </div>
-                  {citations.map((c) => (
-                    <SourceCard key={c.chunk_id} c={c} />
-                  ))}
-                </div>
-              )}
             </div>
-          </div>
+          ),
         )}
       </div>
 

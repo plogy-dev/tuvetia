@@ -13,6 +13,19 @@ def log_message(clinic_id: str, user_id: str | None, patient_id: str | None,
     return str(rows[0]["id"])
 
 
+def load_thread(clinic_id: str, patient_id: str, limit: int = 8) -> list[dict]:
+    """Carga los últimos `limit` mensajes (user/assistant) del hilo del paciente, del más antiguo al
+    más reciente, para dar MEMORIA al chat. El hilo es implícito por (clinic_id, patient_id): no hay
+    thread_id en `athos_messages`. `clinic_id` explícito (service_role se salta RLS)."""
+    rows = fetch_all(
+        "select role, content from public.athos_messages "
+        "where clinic_id = %s and patient_id = %s and role in ('user','assistant') "
+        "order by created_at desc limit %s",
+        (clinic_id, patient_id, limit),
+    )
+    return list(reversed(rows))  # oldest -> newest
+
+
 def log_retrieval(clinic_id: str, source: str, query_used: str, concepts: list[str],
                   chunk_ids: list[str], top_score: float, passed: bool,
                   user_id: str | None = None, patient_id: str | None = None) -> str:

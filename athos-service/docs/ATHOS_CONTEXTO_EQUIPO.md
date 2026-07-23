@@ -2,6 +2,22 @@
 
 > Todo lo que necesitan saber del microservicio de Athos y cómo se conecta con las demás partes de la plataforma. El detalle interno del RAG está en `tuvetia_rag_documento_final.md` (misma carpeta); las reglas para construirlo, en `../CLAUDE.md`; su montaje, en `../SETUP.md`; entornos y migraciones, en `MIGRACIONES.md`.
 
+## ⚡ Estado actual (2026-07-22) — resumen rápido
+> Lee esto primero para orientarte; el detalle histórico está en la bitácora (§10).
+
+**EN VIVO:** front `https://tuvetia.vercel.app` + backend `https://athos-service-production.up.railway.app`, **git-connected a `master`** (cada push → auto-deploy: Vercel el front, Railway el backend). Corpus (~67k chunks) en el proyecto **dev**; datos de paciente + trazas en el **principal**.
+
+**Qué funciona hoy:**
+- **Chat (copiloto):** responde con literatura **citada y verificable**, tiene **memoria del hilo** (recuerda la conversación de ese paciente) y las **citas enlazan al artículo** (PubMed). Marcadores `[n]` en el texto ligados a su fuente.
+- **Modo Fantasma:** nota **SOAP citada** + **gate de alergia severa** (duro, desde `allergies`) + **alertas de condición** (p.ej. diabetes) con un panel **"afectaciones en este paciente"** + citas enlazadas. El vet revisa y aprueba (`draft → aprobado`).
+- **Retrieval "mínima IA":** el glosario determinístico (ampliado a ~42 conceptos) resuelve casi toda consulta sin gastar tokens; la distilación con LLM liviano pasó del **100% al ~9%** de las consultas del golden.
+- **Seguridad clínica robusta:** `allergy_transcript_flag` con **backstop determinístico** (una alergia dicha en la consulta no se pierde aunque no esté en `allergies`); "cita o se calla"; lenguaje de posibilidad.
+- **LLM multi-proveedor:** conmutable **Anthropic ↔ DeepSeek** (OpenAI-compatible) por env var, sin dependencia nueva. Golden set: **Sonnet 11/11, DeepSeek 10/11**.
+
+**Ownership (importante):** todo lo de **Athos** —copiloto, respuestas, corpus, citas, **y sus piezas de front** (`src/lib/athos.ts`, `dashboard/asistente`, la nota en `consultas/[id]`)— lo lleva **nuestro equipo (Plogy)**, no Santiago. Al resto del equipo se le involucra solo cuando el cambio toca **arquitectura compartida u otras funcionalidades** de la plataforma.
+
+**Pendientes / ops:** (1) para usar **DeepSeek en vivo** hay que poner su config en las env vars de **Railway** (hoy prod = Anthropic); (2) **persistir `alerts`** en `clinical_notes` (requiere migración coordinada del esquema de paciente — hoy las alertas se ven tras generar, no en un reload); (3) ampliar corpus (conejo/exóticos).
+
 ## 1. Qué es Athos y qué hace
 Athos es el **microservicio de IA clínica** de la plataforma (FastAPI, desplegado en Railway). Hace dos cosas:
 1. **Chat de Athos:** el veterinario pregunta y Athos responde con **literatura veterinaria citada y verificable**.
@@ -45,26 +61,32 @@ Filosofía: **gastar la mínima IA**. Un buscador determinístico con un diccion
 
 **Auth:** quien llama manda el **JWT de Supabase del usuario** en `Authorization: Bearer <token>`. Athos lo verifica, saca el `user_id` y resuelve `clinic_id` desde `profiles` (`profiles.clinic_id`). (Athos usa `service_role` hacia la DB, por eso el `clinic_id` va explícito.)
 
-## 5. Para Santiago (Frontend)
-- **Chat:** `POST /athos/chat` con body `{ question, patient_id, clinic_id }` + el JWT del usuario. La respuesta llega por **SSE (streaming)**: muéstrala en vivo, con sus **citas** (fuentes verificables) visibles.
-- **CORS:** pásame el dominio de Vercel para agregarlo a `CORS_ORIGINS`.
-- **Notas (Modo Fantasma):** Athos escribe la nota en `clinical_notes` con `status=draft`. El front la muestra, permite **editar** por secciones SOAP, y el vet **aprueba** (`draft → aprobado`). **Ninguna nota se guarda en la historia sin aprobación.**
-- **Presentación clínica:** nunca muestres una sugerencia como diagnóstico cerrado. El lenguaje es de posibilidad, las citas se ven, y las alergias severas se advierten antes del plan.
+## 5. Front del copiloto y de la nota — lo lleva nuestro equipo (Plogy)
+> Las **pantallas propias de Athos** (chat del copiloto, nota del Fantasma, render de citas/alertas) las construimos y mantenemos **nosotros** (`src/lib/athos.ts`, `src/app/dashboard/asistente`, `src/app/dashboard/consultas/[id]`). **A Santiago** le corresponde la **integración de plataforma** (shell/layout, routing, auth, CORS), no la UI de Athos.
+- **Integración de plataforma (Santiago):** agregar el dominio del front a `CORS_ORIGINS`; el front pasa el **JWT del usuario** en `Authorization: Bearer`. El backbone de integración es la DB compartida.
+- **Estado del front de Athos (hecho por nosotros):** chat SSE con **memoria del hilo** (multi-turno por paciente); **citas enlazadas** al artículo — los `[n]` del texto ligan a su fuente y las tarjetas muestran título·año·fuente → *Abrir artículo* (componente compartido `SourceCard`); nota del Fantasma con SOAP editable, **gate de alergia** (rojo, bloqueante) y **alertas de condición** (ámbar, panel expandible "afectaciones en este paciente"). El vet **aprueba** (`draft → aprobado`); ninguna nota entra a la historia sin aprobación.
+- **Presentación clínica (regla dura):** nunca mostrar una sugerencia como diagnóstico cerrado — lenguaje de posibilidad, citas visibles, alergias severas advertidas **antes** del plan.
 
 ## 6. Para Pipe (Phantom)
 - **Disparo (decidido):** cuando el vet hace **stop**, tu código llama `POST /athos/phantom/suggest` con `{ consultation_id, clinic_id }` + el JWT del usuario.
 - **Qué hace Athos:** corre la cascada sobre el **transcript** de esa consulta, aplica el gate de alergia, genera la nota, la **escribe en `clinical_notes` (draft)**, registra la trazabilidad y **devuelve** el payload.
-- **Shape de respuesta:**
+- **Shape de respuesta** (creció de forma **aditiva**; los campos nuevos no rompen lo anterior):
   ```json
   { "note_id": "...", "status": "draft",
     "soap": { "subjective": "...", "objective": "...", "assessment": "...", "plan": "..." },
     "allergy_gate_triggered": true,       // DURO: desde allergies.severity='severe'
-    "allergy_transcript_flag": false,      // red del modelo: alergia MENCIONADA en la consulta
+    "allergy_transcript_flag": false,      // alergia MENCIONADA en la consulta (LLM + backstop determinístico)
     "insufficient_evidence": false,        // si no pasó el umbral, la nota va sin literatura
-    "citations": [ { "chunk_id": "...", "doc_id": "...", "locator": "...", "source": "..." } ],
+    "citations": [ { "chunk_id": "...", "doc_id": "...", "locator": "...", "source": "...",
+                     "url": "https://pubmed.ncbi.nlm.nih.gov/…", "title": "…", "year": 2018 } ],
+    "alerts": [ { "condition": "Diabetes mellitus", "mesh": "Diabetes Mellitus",
+                  "severity": "warning", "source": "assessment",
+                  "detail": "afectaciones en este paciente… (o null si no hay literatura/LLM)" } ],
     "ai_model": "...", "ai_generated_at": "..." }
   ```
-- **Dos capas de alergia:** el **gate duro** lo calcula **Athos** desde `allergies` (no el modelo). Tu `summarize.ts` `allergy_flag` es una **red adicional** (una alergia mencionada en la consulta) → va en `allergy_transcript_flag`.
+- **`citations` enriquecidas:** ahora traen `url` (link a PubMed/DOI), `title` y `year` (vienen del corpus) → se pueden **enlazar** al artículo. Se reconstruyen desde el chunk recuperado (fuente autoritativa), el modelo solo elige el `chunk_id`.
+- **`alerts[]` (nuevo, no bloqueante):** condiciones relevantes detectadas de forma **determinística** en el `assessment` (p.ej. diabetes, ERC), con un `detail` = panel **"afectaciones en este paciente"** generado por IA (grounded en la literatura; `null` si no hay soporte o el LLM no está disponible). **Distinto** del `allergy_gate_triggered`, que sí es bloqueante. *Nota:* `alerts` viaja en el **response** del suggest; aún **no se persiste** en `clinical_notes` (pendiente de una migración coordinada).
+- **Dos capas de alergia:** el **gate duro** lo calcula **Athos** desde `allergies` (no el modelo). El `allergy_transcript_flag` (alergia mencionada en la consulta) lo evalúa el modelo **+ un backstop determinístico** que escanea el transcript (no se pierde una alergia dicha aunque no esté en `allergies`).
 - **Mapeo de tu `summarize.ts`:** `soap.subjetivo/objetivo/analisis/plan` → `clinical_notes.subjective/objective/assessment/plan`. El modelo queda parametrizable (env var), no hardcodeado.
 - **Sin evidencia suficiente:** la nota SOAP se genera igual del transcript, **sin literatura** (`insufficient_evidence=true`).
 
@@ -77,7 +99,7 @@ Filosofía: **gastar la mínima IA**. Un buscador determinístico con un diccion
 
 ## 8. Decisiones cerradas (para que no re-pregunten)
 - **Tenancy:** compartido + `clinic_id` + RLS.
-- **LLM redacción:** Claude Sonnet 5 (validar Opus 4.8 en el golden set). **Liviano:** Haiku 4.5.
+- **LLM (config-driven, multi-proveedor):** `LLM_PROVIDER` conmuta **`anthropic`** (Sonnet 5 redacción / Haiku 4.5 liviano) ↔ **`openai`-compatible** (DeepSeek/Kimi, vía `LLM_BASE_URL`) — todo por env var, sin dependencia nueva. Golden set: **Sonnet 11/11, DeepSeek 10/11**. Prod hoy = Anthropic; **DeepSeek** es el candidato "bueno y barato" (proveedor final se decide tras el A/B).
 - **Embeddings:** **Cohere embed-v4** (multilingüe, cross-lingual ES→EN, dim 1024). Rerank: Cohere Rerank.
 - **Corpus:** 61.544 documentos (validados, en inglés). El **glosario** es el puente ES→EN.
 - **Ubicación (monorepo):** repo **`plogy-dev/tuvetia`** — front Next en la **raíz** + este backend en **`athos-service/`**. Athos despliega en **Railway** (*Root Directory* = `athos-service/`); DB en **Supabase**; front en **Vercel**; Phantom lo hace Pipe.
@@ -90,7 +112,7 @@ Filosofía: **gastar la mínima IA**. Un buscador determinístico con un diccion
 - Entornos y migraciones (dev → PR → principal): `MIGRACIONES.md`
 
 ## 10. Bitácora de montaje y decisiones (se actualiza)
-> Registro vivo del progreso del microservicio, para que Santiago y Pipe sigan el avance y las decisiones. Última actualización: **2026-07-21**.
+> Registro vivo del progreso del microservicio, para que Santiago y Pipe sigan el avance y las decisiones. Última actualización: **2026-07-22**.
 
 **2026-07-13 — Entorno local montado y verificado**
 - Herramientas: `uv`, Node 22, Git, Claude Code, **Supabase CLI 2.109.1**.
@@ -181,6 +203,18 @@ Filosofía: **gastar la mínima IA**. Un buscador determinístico con un diccion
   2. **Citas honestas del Chat** — antes adjuntaba `chunks[:8]` a ciegas; ahora presenta la literatura **numerada `[n]`** y devuelve **SOLO** las fuentes que el modelo referencia en el texto (verificado en vivo: pregunta de ERC felina → cita `[n]` inline + 9 fuentes PubMed reales, todas efectivamente usadas). Mismo espíritu "cita o se calla" del Phantom.
   - **⚠️ Para Santiago (front):** la respuesta del Chat ahora incluye marcadores `[n]` inline en el texto; conviene renderizarlos como enlaces a `citations[n-1]` (no rompe nada si no se hace: se muestran como `[1]`). La forma de `citations` no cambia. **41 tests verdes** (+5 de chat).
 - **Pendiente:** ampliar corpus (conejo/exóticos); comparar **Opus 4.8 vs Sonnet** contra el golden (`--model`); (front) linkear los marcadores `[n]` del Chat a sus citas.
+
+**2026-07-22 — 🎨🧠 UX de respuestas (citas enlazadas, memoria del hilo, alertas de condición) + LLM multi-proveedor (DeepSeek)**
+> Fase de "estética y formato" + desbloqueo del presupuesto de IA con DeepSeek. Todo commiteado en el monorepo, listo para push. **72 tests verdes** (back) + `ruff` limpio; `tsc`/`eslint` limpios (front).
+- **Retrieval más determinístico ("mínima IA"):** el glosario curado `approved` estaba sub-sembrado (12 signos) → distilaba con LLM liviano el **100%** de las consultas. Se amplió `CURATED` a **~42 conceptos** (signos frecuentes con coloquial del dueño + síndromes ES→EN del criterio del vet) y se bajó `MIN_CONFIDENT_CONCEPTS` de **4→3**. Golden retrieval-only: distilación **11/11 → 1/11** manteniendo **relevancia 11/11**. El seed es idempotente (`seed_curated_glossary`). *Ojo:* el corpus (glosario incluido) vive en **dev** y **prod también lo usa** → esta siembra ya beneficia a producción.
+- **Alergia — backstop determinístico (seguridad):** el `allergy_transcript_flag` lo evaluaba **solo** el LLM (no-determinístico, flaky). En el caso crítico —alergia dicha en el transcript **sin fila en `allergies`**— el gate duro no la ve y ese flag es la única señal. Ahora `transcript_mentions_allergy()` escanea el texto (ES+EN, salta negaciones) y se **OR-ea** con el flag del modelo. Golden flag **11/11** determinístico.
+- **Citas enlazables (back + front):** `Citation` gana `url/title/year` (ya estaban en el corpus, se descartaban); se **reconstruyen desde el chunk** (fuente autoritativa, no lo que escriba el LLM). Front: componente compartido **`SourceCard`** → el chat y la nota del Phantom citan igual (título·año·fuente → *Abrir artículo*) y los `[n]` del chat enlazan a su fuente. **(El tipo `Citation` en `lib/athos.ts` ya trae los campos; lo hicimos nosotros — no queda trabajo para Santiago.)**
+- **Copiloto con memoria:** `/athos/chat` era stateless. Ahora `load_thread()` carga el hilo del paciente (`athos_messages`) y lo inyecta como historial en el LLM (`LLMClient.stream(history=…)`); el front (`dashboard/asistente`) pasó de **un-solo-turno a hilo multi-turno**.
+- **Alertas de condición (Modo Fantasma) — Opción A completa:** `alerts[]` en el payload = condiciones relevantes detectadas **determinísticamente** en el `assessment` (no bloqueantes) + un panel **"afectaciones en este paciente"** generado por IA (`explain_conditions`, una llamada, grounded en la literatura, lenguaje de posibilidad, degrada a `detail=null` si no hay literatura/LLM). Se renderizan en `consultas/[id]` bajo el gate de alergia. **Pendiente:** persistir `alerts` en `clinical_notes` (migración coordinada del esquema de paciente) — hoy se ven tras generar, no en reload.
+- **LLM multi-proveedor (tarea RETOMADA):** `LLMClient` conmuta por `LLM_PROVIDER`: `anthropic` (SDK, prompt caching) ↔ `openai`-compatible (**DeepSeek**/Kimi) vía **httpx directo** a `{LLM_BASE_URL}/chat/completions` — sin dependencia nueva, TLS por `_tls_context()`, ignora `reasoning_content`. `eval_golden` gana `--provider/--base-url/--api-key-env`. **Golden completo con DeepSeek: 10/11** (relevancia 11/11, citas 10/11, flag 11/11; el único FAIL es hipertiroidismo, donde DeepSeek se abstiene de citar con corpus delgado — abstención honesta). **DeepSeek viable como redactor** a fracción del costo de Sonnet.
+- **Prototipos de UX** (Artifacts, con los **tokens shadcn `neutral` del front** de Santiago): `docs/mockup-nota-athos.html` (pantalla del Phantom) y `docs/mockup-chat-copiloto.html` (copiloto). Sirven para alinear la experiencia; el diseño final se ajustará cuando el equipo monte el sistema de diseño completo.
+- **Ownership (acordado):** todo lo de Athos (copiloto, respuestas, corpus, **y sus piezas de front**) lo lleva nuestro equipo; al resto se le involucra solo en arquitectura/otras funcionalidades. Ver §5.
+- **Ops pendiente (para el deploy):** para que la redacción/chat y el panel de A funcionen **en vivo con DeepSeek**, poner en **Railway** las env vars `LLM_PROVIDER=openai`, `LLM_BASE_URL=https://api.deepseek.com`, `LLM_MODEL=deepseek-chat`, `LLM_LIGHT_MODEL=deepseek-chat`, `LLM_API_KEY=<deepseek>`. Mientras prod siga en Anthropic (sin crédito), esas llamadas fallan pero **degradan con gracia** (el servicio no se cae).
 
 ## 11. Coordinación abierta — 3 decisiones que necesitamos del equipo (antes del PR a main)
 > Todo lo de abajo está **probado en el proyecto dev** (`tuvetia-athos-dev`, ref `ghmpjyuchwkrvnjvdeum`). **Nada se ha tocado en el principal** (ref `auxlnexhkmtoedrzfsnz`). Para llevar las migraciones `0001`/`0002` al principal necesitamos confirmar 3 cosas, porque tocan **tablas generales** y **auth compartida**. El PR incluirá **solo** `supabase/migrations/0001*.sql` y `0002*.sql` (el bootstrap **no** se PR-ea).
