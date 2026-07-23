@@ -21,6 +21,34 @@
 
 **Pendientes:** (1) **optimizar calidad con DeepSeek** (prompts/retrieval); (2) **ampliar corpus** + terminar la indexación de todos los documentos; (3) **cerrar la máquina de estados de `consultations`** (`review/completed`) con la plataforma. *(La captura+transcripción, la alineación de versión y los huecos de integración del front de Athos quedaron resueltos el 2026-07-23 — ver §10.)*
 
+## 🔒 Despliegue y alineación — LÉELO ANTES DE TRABAJAR (para no desalinearnos)
+> Regla de oro para que todos (Plogy, Santiago, Pipe) estemos sobre lo mismo y nada se pierda ni se rompa.
+
+**Una sola verdad:** repo **`plogy-dev/tuvetia`**, rama **`master`**. Es exactamente lo que está en vivo. **No existe otra fuente.** El checkout standalone `tuvetia/athos-service` está **`DEPRECATED`** (código viejo, sin remote) — **no lo edites.**
+
+**Links — cuál es cuál (para no confundir "el link"):**
+| Qué | Link | Regla |
+|---|---|---|
+| **Producción (front)** | `https://tuvetia.vercel.app` | = último `master`, **automático** (git-connected + auto-alias). Cada merge a `master` se refleja aquí solo. |
+| **Backend (único)** | `https://athos-service-production.up.railway.app` | = último `master` de `athos-service/` (Railway, Root Dir `athos-service/`). Todos los fronts le pegan por `NEXT_PUBLIC_ATHOS_URL`. |
+| **Previews (por rama)** | `tuvetia-<hash>-plogydevs.vercel.app` | temporales, uno por rama/commit. **Solo para revisar** antes de mergear; no es "otro producto". |
+
+**Flujo obligatorio (así nada se pierde ni sale en el link equivocado):**
+1. **`git fetch` y parte SIEMPRE de `master`.**
+2. **Feature branch → push → PR → merge a `master`.** El merge a `master` = despliegue a producción (Vercel el front, Railway el backend, ambos auto).
+3. **Nunca `vercel deploy --prod` a mano** (rompe el "mismo link"). Todo por git.
+4. **Env vars iguales en `production` y `preview`:** `NEXT_PUBLIC_ATHOS_URL` y las de Supabase deben coincidir en ambos entornos (ya alineadas, 2026-07-23). Cambiar una env var **NO** redespliega solo → hay que pushear para que tome efecto.
+
+**Ownership — no pisarse:**
+- **Nuestro (Plogy/Athos):** `src/lib/athos.ts`, `src/app/dashboard/asistente` (Copiloto), `src/app/dashboard/consultas/[id]` + `src/components/consultation-recorder.tsx` (Phantom), `src/components/athos/*`, y **todo el backend `athos-service/`**.
+- **De la plataforma (Santiago):** el shell (`app-sidebar`, `dashboard/layout`, auth, routing), `navMain` (incl. **Calendario** — en curso, NO tocar), y el **esquema base de Supabase** (`profiles`, `patients`, `owners`, `consultations`, etc.).
+- **Regla:** si algo ya lo trabaja un compañero, **no lo tocamos**; solo dejamos nuestra parte lista para conectar.
+
+**Seams (contratos entre partes) — quién los mueve:**
+- **`profiles.is_active`** *(tabla de Santiago)*: Athos la exige para el auth (**403 si falta**). Hoy PRESENTE y OK. No la tocamos; si Santiago la cambia, avisar.
+- **`consultations.status`** *(nuestro flujo del Phantom)*: `open→transcribing→generating_note` lo pone el **backend** en `/athos/transcribe`; **nuestro front lo lleva a `review` al generar la sugerencia y a `completed` al aprobar la nota** (cerrado 2026-07-23, `consultas/[id]`). Si la plataforma también gestiona este estado, coordinar para no chocar.
+- **Storage de audio** *(cross-proyecto)*: el front sube al bucket privado `consultation-audios` del **principal**; el backend lo baja del proyecto de `SUPABASE_URL` (= **principal**). Deben ser el **MISMO** proyecto — no romper.
+
 ## 1. Qué es Athos y qué hace
 Athos es el **microservicio de IA clínica** de la plataforma (FastAPI, desplegado en Railway). Hace dos cosas:
 1. **Chat de Athos:** el veterinario pregunta y Athos responde con **literatura veterinaria citada y verificable**.

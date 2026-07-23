@@ -150,6 +150,11 @@ export default function NotaConsultaPage({ params }: { params: Promise<{ id: str
     try {
       const res = await athosPhantomSuggest({ consultationId: id, clinicId: consultation.clinic_id })
       setAlerts(res.alerts ?? [])
+      // La sugerencia está lista para la revisión del vet -> avanza el estado de la consulta.
+      await supabase
+        .from("consultations")
+        .update({ status: "review", updated_at: new Date().toISOString() })
+        .eq("id", id)
       toast.success("Sugerencia generada por el Modo Fantasma")
       await load()
     } catch (e) {
@@ -191,11 +196,23 @@ export default function NotaConsultaPage({ params }: { params: Promise<{ id: str
         approved_at: new Date().toISOString(),
       })
       .eq("id", note.id)
-    setApproving(false)
     if (error) {
+      setApproving(false)
       toast.error(`No se pudo aprobar: ${error.message}`)
       return
     }
+    // Cierra el ciclo: la nota entró a la historia -> consulta 'completed'.
+    // (open->transcribing->generating_note lo pone el backend en /athos/transcribe;
+    //  aquí nuestro flujo del Phantom la lleva a 'completed' al aprobar. Ver seam en la bitácora.)
+    await supabase
+      .from("consultations")
+      .update({
+        status: "completed",
+        ended_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", id)
+    setApproving(false)
     toast.success("Nota aprobada y añadida a la historia clínica")
     await load()
   }
