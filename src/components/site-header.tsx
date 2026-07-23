@@ -8,11 +8,22 @@ const TITLES: Record<string, string> = {
   "/dashboard": "Dashboard",
   "/dashboard/patients": "Pacientes",
   "/dashboard/owners": "Titulares",
+  "/dashboard/asistente": "Copiloto",
+  "/dashboard/consultas": "Consultas",
+}
+
+function titleFor(pathname: string): string {
+  if (TITLES[pathname]) return TITLES[pathname]
+  // coincidencia por prefijo para rutas anidadas (p.ej. /dashboard/consultas/[id])
+  const match = Object.keys(TITLES)
+    .filter((p) => p !== "/dashboard" && pathname.startsWith(p + "/"))
+    .sort((a, b) => b.length - a.length)[0]
+  return match ? TITLES[match] : "Dashboard"
 }
 
 export function SiteHeader() {
   const pathname = usePathname()
-  const title = TITLES[pathname] ?? "Dashboard"
+  const title = titleFor(pathname)
 
   return (
     <header className="flex h-(--header-height) shrink-0 items-center gap-2 border-b transition-[width,height] ease-linear group-has-data-[collapsible=icon]/sidebar-wrapper:h-(--header-height)">

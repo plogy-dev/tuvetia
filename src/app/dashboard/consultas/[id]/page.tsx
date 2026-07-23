@@ -24,6 +24,7 @@ import { SourceCard } from "@/components/athos/source-card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
+import { Checkbox } from "@/components/ui/checkbox"
 
 type Soap = { subjective: string; objective: string; assessment: string; plan: string }
 
@@ -84,6 +85,7 @@ export default function NotaConsultaPage({ params }: { params: Promise<{ id: str
   const [generating, setGenerating] = useState(false)
   const [saving, setSaving] = useState(false)
   const [approving, setApproving] = useState(false)
+  const [gateAck, setGateAck] = useState(false)
   const [consultation, setConsultation] = useState<Consultation | null>(null)
   const [note, setNote] = useState<Note | null>(null)
   const [alerts, setAlerts] = useState<ConditionAlert[]>([])
@@ -171,6 +173,11 @@ export default function NotaConsultaPage({ params }: { params: Promise<{ id: str
 
   async function approve() {
     if (!note) return
+    // Gate de alergia severa: bloqueante. No se aprueba hasta que el vet confirme que revisó el plan.
+    if (note.allergy_gate_triggered && !gateAck) {
+      toast.error("Confirma que revisaste la alergia severa antes de aprobar la nota.")
+      return
+    }
     setApproving(true)
     const {
       data: { user },
@@ -240,14 +247,25 @@ export default function NotaConsultaPage({ params }: { params: Promise<{ id: str
         </Badge>
       </div>
 
-      {/* Gate de alergia severa */}
+      {/* Gate de alergia severa (BLOQUEANTE para aprobar) */}
       {note?.allergy_gate_triggered && (
-        <div className="flex items-start gap-2 rounded-lg border border-destructive/50 bg-destructive/10 px-3 py-2 text-sm text-destructive">
-          <AlertTriangle className="mt-0.5 size-4 shrink-0" />
-          <span>
-            <strong>Gate de alergia severa activado.</strong> El paciente tiene una alergia severa
-            registrada. Verifica el plan antes de aprobar.
-          </span>
+        <div className="flex flex-col gap-2 rounded-lg border border-destructive/50 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+          <div className="flex items-start gap-2">
+            <AlertTriangle className="mt-0.5 size-4 shrink-0" />
+            <span>
+              <strong>Gate de alergia severa activado.</strong> El paciente tiene una alergia severa
+              registrada. Verifica el plan antes de aprobar.
+            </span>
+          </div>
+          {!approved && (
+            <label className="ml-6 flex cursor-pointer items-center gap-2 text-xs font-medium">
+              <Checkbox
+                checked={gateAck}
+                onCheckedChange={(checked) => setGateAck(checked === true)}
+              />
+              Confirmo que revisé el plan considerando esta alergia severa
+            </label>
+          )}
         </div>
       )}
 
@@ -383,7 +401,14 @@ export default function NotaConsultaPage({ params }: { params: Promise<{ id: str
                   {saving ? <Loader2 className="size-4 animate-spin" /> : <Save className="size-4" />}
                   Guardar cambios
                 </Button>
-                <Button onClick={approve} disabled={approving || approved}>
+                <Button
+                  onClick={approve}
+                  disabled={
+                    approving ||
+                    approved ||
+                    (note.allergy_gate_triggered && !gateAck)
+                  }
+                >
                   {approving ? (
                     <Loader2 className="size-4 animate-spin" />
                   ) : (

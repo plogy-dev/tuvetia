@@ -11,6 +11,7 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import { createClient } from "@/lib/supabase/server"
+import { NewConsultationDrawer } from "@/components/new-consultation-drawer"
 
 const CONSULTATION_STATUS: Record<string, string> = {
   open: "Abierta",
@@ -53,9 +54,12 @@ export default async function ConsultasPage() {
 
   return (
     <div className="flex flex-col gap-4 px-4 py-4 md:gap-6 md:py-6 lg:px-6">
-      <div className="flex items-center gap-2">
-        <GhostIcon className="size-5 text-muted-foreground" />
-        <h1 className="text-lg font-semibold">Modo fantasma — notas de consulta</h1>
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div className="flex items-center gap-2">
+          <GhostIcon className="size-5 text-muted-foreground" />
+          <h1 className="text-lg font-semibold">Modo fantasma — notas de consulta</h1>
+        </div>
+        <NewConsultationDrawer />
       </div>
       <p className="max-w-2xl text-sm text-muted-foreground">
         Al cerrar una consulta, Athos redacta una nota SOAP con citas verificables de

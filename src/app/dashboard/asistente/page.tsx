@@ -9,6 +9,14 @@ import { createClient } from "@/lib/supabase/client"
 import { SourceCard } from "@/components/athos/source-card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
+import { Textarea } from "@/components/ui/textarea"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
 
 type Patient = { id: string; name: string; species: string }
 
@@ -172,21 +180,29 @@ export default function AsistentePage() {
         </div>
         <div className="flex items-center gap-2">
           {patient && <Badge variant="secondary">Contexto · {patient.name}</Badge>}
-          <select
+          <Select
             value={patientId}
-            onChange={(e) => {
-              setPatientId(e.target.value)
+            onValueChange={(v) => {
+              setPatientId(v ?? "")
               setMessages([]) // nuevo paciente = hilo nuevo en pantalla
             }}
-            className="h-8 rounded-md border border-input bg-background px-2 text-sm focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+            items={patients.map((p) => ({
+              label: `${p.name} · ${p.species}`,
+              value: p.id,
+            }))}
+            disabled={patients.length === 0}
           >
-            {patients.length === 0 && <option value="">Sin pacientes</option>}
-            {patients.map((p) => (
-              <option key={p.id} value={p.id}>
-                {p.name} · {p.species}
-              </option>
-            ))}
-          </select>
+            <SelectTrigger size="sm" className="min-w-40">
+              <SelectValue placeholder={patients.length === 0 ? "Sin pacientes" : "Paciente"} />
+            </SelectTrigger>
+            <SelectContent>
+              {patients.map((p) => (
+                <SelectItem key={p.id} value={p.id}>
+                  {p.name} · {p.species}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </div>
       </div>
 
@@ -264,7 +280,7 @@ export default function AsistentePage() {
 
       {/* Composer */}
       <div className="flex items-end gap-2 rounded-xl border bg-background p-2 shadow-xs">
-        <textarea
+        <Textarea
           value={question}
           onChange={(e) => setQuestion(e.target.value)}
           onKeyDown={(e) => {
@@ -272,7 +288,7 @@ export default function AsistentePage() {
           }}
           rows={1}
           placeholder="Escribe tu consulta clínica…  (Ctrl/⌘ + Enter para enviar)"
-          className="max-h-40 min-h-9 flex-1 resize-none bg-transparent px-2 py-1.5 text-sm focus-visible:outline-none"
+          className="max-h-40 min-h-9 flex-1 resize-none border-0 bg-transparent px-2 py-1.5 shadow-none focus-visible:ring-0 dark:bg-transparent"
         />
         <Button size="icon" onClick={ask} disabled={loading} aria-label="Enviar">
           {loading ? <Loader2 className="size-4 animate-spin" /> : <Send className="size-4" />}

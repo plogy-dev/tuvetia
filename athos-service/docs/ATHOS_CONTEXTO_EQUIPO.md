@@ -2,14 +2,15 @@
 
 > Todo lo que necesitan saber del microservicio de Athos y cómo se conecta con las demás partes de la plataforma. El detalle interno del RAG está en `tuvetia_rag_documento_final.md` (misma carpeta); las reglas para construirlo, en `../CLAUDE.md`; su montaje, en `../SETUP.md`; entornos y migraciones, en `MIGRACIONES.md`.
 
-## ⚡ Estado actual (2026-07-22) — resumen rápido
+## ⚡ Estado actual (2026-07-23) — resumen rápido
 > Lee esto primero para orientarte; el detalle histórico está en la bitácora (§10).
 
 **EN VIVO:** front `https://tuvetia.vercel.app` + backend `https://athos-service-production.up.railway.app`, **git-connected a `master`** (cada push → auto-deploy: Vercel el front, Railway el backend). Corpus (~67k chunks) en el proyecto **dev**; datos de paciente + trazas en el **principal**.
 
 **Qué funciona hoy:**
 - **Chat (copiloto):** responde con literatura **citada y verificable**, tiene **memoria del hilo** (recuerda la conversación de ese paciente) y las **citas enlazan al artículo** (PubMed). Marcadores `[n]` en el texto ligados a su fuente.
-- **Modo Fantasma:** nota **SOAP citada** + **gate de alergia severa** (duro, desde `allergies`) + **alertas de condición** (p.ej. diabetes) con un panel **"afectaciones en este paciente"** + citas enlazadas. El vet revisa y aprueba (`draft → aprobado`).
+- **Modo Fantasma:** nota **SOAP citada** + **gate de alergia severa** (duro, desde `allergies`, **ahora bloquea la aprobación**) + **alertas de condición** (p.ej. diabetes) con un panel **"afectaciones en este paciente"** + citas enlazadas. El vet revisa y aprueba (`draft → aprobado`).
+- **Captura de consulta (E5) — EN VIVO:** el vet graba en la app (consentimiento Ley 1581) → audio al bucket `consultation-audios` del **principal** → **transcripción con Deepgram Nova-2** (`/athos/transcribe`, diarización) → la nota del Fantasma parte de ese texto. Flujo **grabar → transcribir → nota** verificado end-to-end.
 - **Retrieval "mínima IA":** el glosario determinístico (ampliado a ~42 conceptos) resuelve casi toda consulta sin gastar tokens; la distilación con LLM liviano pasó del **100% al ~9%** de las consultas del golden.
 - **Seguridad clínica robusta:** `allergy_transcript_flag` con **backstop determinístico** (una alergia dicha en la consulta no se pierde aunque no esté en `allergies`); "cita o se calla"; lenguaje de posibilidad.
 - **LLM multi-proveedor:** conmutable **Anthropic ↔ DeepSeek** (OpenAI-compatible) por env var, sin dependencia nueva. Golden set: **Sonnet 11/11, DeepSeek 10/11**.
@@ -18,7 +19,7 @@
 
 **Proveedor de LLM:** **DeepSeek** es el elegido (lo quieren los clientes) — ya en vivo en Railway (`LLM_PROVIDER=openai`, `deepseek-chat`). El foco ahora es **optimizar todo para máxima calidad con DeepSeek**.
 
-**Pendientes:** (1) **optimizar calidad con DeepSeek** (prompts/retrieval); (2) **ampliar corpus** + terminar la indexación de todos los documentos; (3) fase **estética** (design system + feedback del cliente). *(La persistencia de `alerts` ya está resuelta — migración `0004` aplicada al principal.)*
+**Pendientes:** (1) **optimizar calidad con DeepSeek** (prompts/retrieval); (2) **ampliar corpus** + terminar la indexación de todos los documentos; (3) **cerrar la máquina de estados de `consultations`** (`review/completed`) con la plataforma. *(La captura+transcripción, la alineación de versión y los huecos de integración del front de Athos quedaron resueltos el 2026-07-23 — ver §10.)*
 
 ## 1. Qué es Athos y qué hace
 Athos es el **microservicio de IA clínica** de la plataforma (FastAPI, desplegado en Railway). Hace dos cosas:
@@ -225,6 +226,14 @@ Filosofía: **gastar la mínima IA**. Un buscador determinístico con un diccion
 - **Ojo — fue RETRIEVAL, no generación:** el corpus SÍ tiene la literatura de tiroides felino (29 chunks Cats+thyroid), solo estaba mal rankeada por los signos incidentales. Misma familia de problema que el tuning del 2026-07-21.
 - **Resultado:** golden con DeepSeek **11/11 estable**, igualando a Sonnet. La abstención honesta de los `corpus_gap` (conejo) se mantiene. **73 tests verdes**, ruff limpio. Desplegado a `master`.
 - **Siguiente (hoja de ruta):** ampliar corpus + terminar la indexación de todos los documentos; luego la fase estética (design system + feedback del cliente).
+
+**2026-07-23 (tarde) — 🔌 Captura+transcripción EN VIVO, alineación de versión y cierre de huecos de integración**
+> Se cerró el flujo grabar→transcribir→nota, se alineó al equipo en una sola versión y se taparon los huecos de integración del front. Todo desde `master` del monorepo. Build verde (`tsc` + `next build`).
+- **Transcripción arreglada (2 causas):** (1) la `DEEPGRAM_API_KEY` de Railway era **inválida** (Deepgram 401 → 502) → key válida nueva. (2) **cruce de proyectos Supabase**: el front sube el audio al **principal** (`auxlnexhkmtoedrzfsnz`) pero el backend lo bajaba con `SUPABASE_URL`/`SUPABASE_SERVICE_ROLE_KEY` apuntando a **dev** (`ghmpjyuchwkrvnjvdeum`) → *"Bucket not found"*. **Fix:** esas dos vars en Railway ahora apuntan al **principal** (bucket privado `consultation-audios`). Verificado e2e: `/athos/transcribe` → 200 (transcript con diarización, `nova-2`) y `/athos/phantom/suggest` → nota `draft` con `deepseek-chat`. **Regla dura:** el audio se sube al MISMO proyecto que `SUPABASE_URL` (principal); no romper esto. (`SUPABASE_JWKS_URL` sigue explícito al principal para el auth.)
+- **Alineación de versión (una sola verdad):** fuente de verdad = **`plogy-dev/tuvetia` @ `master`** (lo desplegado). PRs #1/#2/#3 mergeados; sin ramas sueltas. El checkout local se reconcilió con `master`; el **checkout standalone `tuvetia/athos-service` quedó marcado `DEPRECATED`** (código viejo, sin remote — le faltaban `transcription.py` y `condition_alerts.py`). **Todos trabajan sobre `master` del monorepo** (feature branch → PR); nadie edita el standalone.
+- **Huecos de integración cerrados (front de Athos):** `<Toaster/>` montado (antes los errores/éxitos —incluidos fallos de Athos y subida de audio— se perdían **en silencio**); **flujo "Nueva consulta"** en la UI (antes no había forma de iniciar una consulta desde la app); **el gate de alergia severa ahora BLOQUEA la aprobación** (checkbox de confirmación obligatorio, antes era solo un banner); consistencia de diseño con el shell de Santiago (`Select`/`Textarea` shadcn en vez de nativos, títulos del header para Copiloto/Consultas, estado activo en el nav de IA).
+- **Contrato (recordatorio, aditivo/retrocompatible):** `citations` ya traen `url/title/year`; el Phantom devuelve `alerts[]` (se persisten si existe la columna `clinical_notes.alerts`, migración `0004`). Si algo se codifica contra el contrato viejo de `../CLAUDE.md`, actualizarlo.
+- **Seams a coordinar con la plataforma:** `profiles.is_active` (tabla de Santiago) es **dependencia dura** del auth de Athos (403 si falta); la máquina de estados de `consultations` (`open→transcribing→generating_note`) **no avanza a `review/completed`** desde Athos — definir quién cierra el ciclo.
 
 ## 11. Coordinación abierta — 3 decisiones que necesitamos del equipo (antes del PR a main)
 > Todo lo de abajo está **probado en el proyecto dev** (`tuvetia-athos-dev`, ref `ghmpjyuchwkrvnjvdeum`). **Nada se ha tocado en el principal** (ref `auxlnexhkmtoedrzfsnz`). Para llevar las migraciones `0001`/`0002` al principal necesitamos confirmar 3 cosas, porque tocan **tablas generales** y **auth compartida**. El PR incluirá **solo** `supabase/migrations/0001*.sql` y `0002*.sql` (el bootstrap **no** se PR-ea).
