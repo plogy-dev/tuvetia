@@ -27,6 +27,28 @@ type AppointmentForSync = {
   google_event_id: string | null
 }
 
+// Guarda el refresh token de Google del usuario (lo llama el /auth/callback cuando el login trae uno,
+// o el route /connect en el reconnect explícito). Idempotente por (user_id, provider). Sin clínica, no-op.
+export async function upsertGoogleIntegration(
+  userId: string,
+  clinicId: string,
+  refreshToken: string,
+  googleCalendarId = "primary",
+): Promise<void> {
+  const admin = createAdminClient()
+  await admin.from("calendar_integrations").upsert(
+    {
+      clinic_id: clinicId,
+      user_id: userId,
+      provider: "google",
+      google_calendar_id: googleCalendarId,
+      refresh_token: refreshToken,
+      updated_at: new Date().toISOString(),
+    },
+    { onConflict: "user_id,provider" },
+  )
+}
+
 function googleCreds(): { id: string; secret: string } {
   const id = process.env.GOOGLE_CLIENT_ID
   const secret = process.env.GOOGLE_CLIENT_SECRET

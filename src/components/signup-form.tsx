@@ -63,6 +63,10 @@ export function SignupForm({
       provider: "google",
       options: {
         redirectTo: `${window.location.origin}/auth/callback`,
+        // Vinculación de calendario de un clic (ver login-form): se pide el acceso a Google Calendar
+        // en el mismo consentimiento y el callback captura el refresh token.
+        scopes: "https://www.googleapis.com/auth/calendar.events",
+        queryParams: { access_type: "offline" },
       },
     })
     if (error) {

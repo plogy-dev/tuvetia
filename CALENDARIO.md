@@ -52,9 +52,14 @@ Agenda de citas de la clínica. UI con **react-big-calendar** (mes/semana/día, 
 3. **Vercel → Environment Variables** (server, NO `NEXT_PUBLIC_`):
    - `SUPABASE_SERVICE_ROLE_KEY` — service_role del principal (lee refresh_token, escribe google_event_id).
    - `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`.
-4. En la app: **Calendario → "Conectar Google Calendar"** (reautoriza offline; guarda el refresh token).
-   Desde ahí, crear/editar/mover/borrar una cita hace **push** a Google; **"Sincronizar"** hace el **pull**
-   incremental (por `syncToken`).
+4. **Vinculación de un clic (recomendada): en el propio login con Google.** El botón "Continuar con Google"
+   (login y signup) pide el scope `calendar.events` en el **mismo consentimiento** (`access_type=offline`);
+   al volver, `/auth/callback` captura el `provider_refresh_token` y lo guarda (`upsertGoogleIntegration`).
+   Así, un vet que entra con Google queda vinculado sin pasos extra. **Fallback:** para usuarios de
+   magic-link (sin Google) o para forzar un token nuevo, el botón **Calendario → "Conectar Google Calendar"**
+   reautoriza con `prompt=consent` (route `/api/google/calendar/connect`).
+5. Con el calendario vinculado: crear/editar/mover/borrar una cita hace **push** a Google;
+   **"Sincronizar"** hace el **pull** incremental (por `syncToken`).
 
 ## Verificación
 

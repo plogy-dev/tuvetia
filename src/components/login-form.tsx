@@ -59,6 +59,12 @@ export function LoginForm({
       provider: "google",
       options: {
         redirectTo: `${window.location.origin}/auth/callback`,
+        // Vinculación de calendario de un clic: pedimos el acceso a Google Calendar en el mismo
+        // consentimiento del login. access_type=offline -> Google devuelve un refresh token la primera
+        // vez que se concede el scope; el callback lo guarda. (Sin prompt=consent para no re-preguntar
+        // en cada login; el botón "Reconectar" del calendario fuerza un token nuevo si hiciera falta.)
+        scopes: "https://www.googleapis.com/auth/calendar.events",
+        queryParams: { access_type: "offline" },
       },
     })
     if (error) {
