@@ -72,3 +72,14 @@ class PhantomSuggestResponse(BaseModel):
     citations: list[Citation] = Field(default_factory=list)
     ai_model: str = ""
     ai_generated_at: datetime | None = None
+
+
+class TranscribeRequest(BaseModel):
+    consultation_id: str
+    clinic_id: str
+
+
+class TranscribeResponse(BaseModel):
+    transcript_id: str
+    full_text: str
+    stt_model: str
