@@ -3,11 +3,13 @@
 import { use, useCallback, useEffect, useState } from "react"
 import Link from "next/link"
 import {
+  Activity,
   AlertTriangle,
   ArrowLeft,
   AudioLines,
   BookText,
   CheckCircle2,
+  ChevronDown,
   FileText,
   Loader2,
   Save,
@@ -15,7 +17,7 @@ import {
 } from "lucide-react"
 import { toast } from "sonner"
 
-import { athosPhantomSuggest, type Citation } from "@/lib/athos"
+import { athosPhantomSuggest, type Citation, type ConditionAlert } from "@/lib/athos"
 import { createClient } from "@/lib/supabase/client"
 import { SourceCard } from "@/components/athos/source-card"
 import { Badge } from "@/components/ui/badge"
@@ -82,6 +84,7 @@ export default function NotaConsultaPage({ params }: { params: Promise<{ id: str
   const [approving, setApproving] = useState(false)
   const [consultation, setConsultation] = useState<Consultation | null>(null)
   const [note, setNote] = useState<Note | null>(null)
+  const [alerts, setAlerts] = useState<ConditionAlert[]>([])
   const [transcript, setTranscript] = useState<string>("")
   const [soap, setSoap] = useState<Soap>({ subjective: "", objective: "", assessment: "", plan: "" })
 
@@ -132,7 +135,8 @@ export default function NotaConsultaPage({ params }: { params: Promise<{ id: str
     if (!consultation) return
     setGenerating(true)
     try {
-      await athosPhantomSuggest({ consultationId: id, clinicId: consultation.clinic_id })
+      const res = await athosPhantomSuggest({ consultationId: id, clinicId: consultation.clinic_id })
+      setAlerts(res.alerts ?? [])
       toast.success("Sugerencia generada por el Modo Fantasma")
       await load()
     } catch (e) {
@@ -233,6 +237,37 @@ export default function NotaConsultaPage({ params }: { params: Promise<{ id: str
             <strong>Gate de alergia severa activado.</strong> El paciente tiene una alergia severa
             registrada. Verifica el plan antes de aprobar.
           </span>
+        </div>
+      )}
+
+      {/* Alertas de condición relevantes (no bloqueantes; panel "afectaciones en este paciente") */}
+      {alerts.length > 0 && (
+        <div className="flex flex-col gap-2">
+          {alerts.map((a, i) => (
+            <details
+              key={`${a.condition}-${i}`}
+              className="group rounded-lg border border-amber-300 bg-amber-50 text-amber-900 dark:border-amber-900/50 dark:bg-amber-950/40 dark:text-amber-200"
+            >
+              <summary className="flex cursor-pointer list-none items-center gap-2.5 p-3 text-sm">
+                <Activity className="size-4 shrink-0" />
+                <span className="text-[10px] font-semibold tracking-wide uppercase opacity-70">
+                  Condición relevante
+                </span>
+                <span className="font-medium">{a.condition}</span>
+                {a.detail && (
+                  <span className="ml-auto flex items-center gap-1 text-xs font-medium opacity-80">
+                    Ver afectaciones
+                    <ChevronDown className="size-3.5 transition-transform group-open:rotate-180" />
+                  </span>
+                )}
+              </summary>
+              {a.detail && (
+                <div className="border-t border-amber-300/60 px-3 py-2.5 text-sm leading-relaxed dark:border-amber-900/50">
+                  {a.detail}
+                </div>
+              )}
+            </details>
+          ))}
         </div>
       )}
 
