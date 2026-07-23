@@ -93,21 +93,27 @@ def test_tier2_dispara_si_distilled(monkeypatch):
     assert passed is True
 
 
-def test_tier2_no_dispara_si_tier1_fuerte_sin_distill(monkeypatch):
-    """Tier 1 fuerte y sin distill -> NO se gasta el vector (respeta 'condicional / mínima IA')."""
+def test_tier2_corre_siempre_como_complemento(monkeypatch):
+    """Calibración 2026-07-22: el Tier 2 corre SIEMPRE (complemento semántico), incluso con Tier 1
+    fuerte y sin distill — porque el Tier 1 puede ser *fuerte pero off-topic* (signos incidentales +
+    especie sepultan la condición). Se conservan ambas modalidades."""
     import app.retrieval.cascade as csc
     tier1 = [_chunk(f"t1_{i}", "gato", ["Cats"], 0.9) for i in range(5)]
+    tier2 = [_chunk(f"v_{i}", "gato", ["Hyperthyroidism", "Cats"], 0.5) for i in range(5)]
     monkeypatch.setattr(csc, "tier1_lexical_glossary", lambda q, f: tier1)
     llamado = {"n": 0}
 
     def _t2(q, f):
         llamado["n"] += 1
-        return []
+        return tier2
 
     monkeypatch.setattr(csc, "tier2_vector_fallback", _t2)
     q = StructuredQuery(concepts=["Cats"], mesh=["Cats"], raw="x", distilled=False)
-    _, passed = csc.retrieve(q)
-    assert llamado["n"] == 0
+    chunks, passed = csc.retrieve(q)
+    ids = {c.chunk_id for c in chunks}
+    assert llamado["n"] == 1                        # Tier 2 SÍ corre (complemento, no condicional)
+    assert any(i.startswith("v_") for i in ids)     # semánticos presentes...
+    assert any(i.startswith("t1_") for i in ids)    # ...junto a los léxicos
     assert passed is True
 
 

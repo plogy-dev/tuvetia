@@ -19,6 +19,7 @@ import sys
 # Permite ejecutar el script directamente (python scripts/eval_golden.py) resolviendo el paquete app.
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
+from app.generation.allergy_gate import transcript_mentions_allergy  # noqa: E402
 from app.generation.generate import build_note_prompt, parse_note_response  # noqa: E402
 from app.generation.llm_client import LLMClient  # noqa: E402
 from app.glossary.resolve import _normalize  # noqa: E402
@@ -41,15 +42,18 @@ def _has_terms(chunks, terms) -> int:
     return n
 
 
-def _gen_note(transcript, literature, species, model):
-    """Replica generate_note pero permite fijar el modelo (para comparar redactores)."""
+def _gen_note(transcript, literature, species, llm):
+    """Replica generate_note pero permite fijar modelo/proveedor (para comparar redactores, p.ej.
+    DeepSeek vs Sonnet). `llm` = kwargs de LLMClient. Incluye el backstop determinístico de alergia."""
     patient = PatientContext(patient_id="golden", species=species)
     system, user = build_note_prompt(transcript, literature, patient, [])
-    raw = LLMClient(model=model).complete(system, user, max_tokens=4000)
-    return parse_note_response(raw, literature)
+    raw = LLMClient(**llm).complete(system, user, max_tokens=4000)
+    soap, citations, model_flag = parse_note_response(raw, literature)
+    flag = model_flag or transcript_mentions_allergy(transcript)
+    return soap, citations, flag
 
 
-def eval_case(case, model, retrieval_only):
+def eval_case(case, llm, retrieval_only):
     exp = case["expect"]
     q = build_query(case["query"], case["species"])
     chunks, passed = retrieve(q)
@@ -67,7 +71,7 @@ def eval_case(case, model, retrieval_only):
         return row
 
     literature = chunks if passed else []
-    soap, citations, flag = _gen_note(case["query"], literature, case["species"], model)
+    soap, citations, flag = _gen_note(case["query"], literature, case["species"], llm)
     row["n_cit"] = len(citations)
     row["flag"] = flag
     assess_norm = _normalize(soap.assessment or "")
@@ -84,20 +88,28 @@ def eval_case(case, model, retrieval_only):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--model", default=None, help="modelo redactor (default: LLM_MODEL del env)")
+    ap.add_argument("--provider", default=None, help="anthropic | openai (default: LLM_PROVIDER del env)")
+    ap.add_argument("--base-url", default=None, help="base URL OpenAI-compatible (p.ej. https://api.deepseek.com)")
+    ap.add_argument("--api-key-env", default=None, help="env var con la API key (p.ej. DEEPSEEK_API_KEY)")
     ap.add_argument("--retrieval-only", action="store_true", help="omite la redaccion (barato)")
     ap.add_argument("--case", default=None, help="corre solo un caso por id")
     args = ap.parse_args()
 
     from app.config import get_settings
-    model = args.model or get_settings().llm_model
+    s = get_settings()
+    # kwargs de LLMClient (None -> cae al env). --api-key-env evita poner la key en la linea de comandos.
+    llm = {"model": args.model, "provider": args.provider, "base_url": args.base_url,
+           "api_key": os.getenv(args.api_key_env) if args.api_key_env else None}
+    model = args.model or s.llm_model
+    provider = args.provider or s.llm_provider
     data = json.load(open(CASES_PATH, encoding="utf-8"))
     cases = [c for c in data["cases"] if not args.case or c["id"] == args.case]
 
-    mode = "retrieval-only" if args.retrieval_only else f"model={model}"
+    mode = "retrieval-only" if args.retrieval_only else f"{provider}:{model}"
     print(f"GOLDEN SET  ({len(cases)} casos, {mode})\n" + "=" * 78)
     agg = {"ok": 0, "rel": 0, "cit": 0, "flag": 0}
     for c in cases:
-        r = eval_case(c, model, args.retrieval_only)
+        r = eval_case(c, llm, args.retrieval_only)
         agg["ok"] += int(r["ok"])
         agg["rel"] += int(r["rel_ok"])
         tag = "PASS" if r["ok"] else "FAIL"

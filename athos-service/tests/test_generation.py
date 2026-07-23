@@ -56,3 +56,17 @@ def test_generate_note_con_llm_mockeado(monkeypatch, sample_chunks):
     assert soap.subjective == "vómito agudo"
     assert [c.chunk_id for c in cites] == ["c1"]
     assert flag is False
+
+
+def test_generate_note_backstop_rescata_flag_que_el_modelo_pierde(monkeypatch, sample_chunks):
+    """Backstop: aunque el modelo devuelva allergy_transcript_flag=False, si la transcripción
+    menciona una alergia (sin fila en `allergies`), generate_note lo marca True (determinístico)."""
+    canned = json.dumps({
+        "soap": {"assessment": "compatible con gastroenteritis aguda"},
+        "citations": [], "allergy_transcript_flag": False,   # el modelo la pierde (flaky)
+    })
+    monkeypatch.setattr(gen.LLMClient, "complete",
+                        lambda self, system, user, max_tokens=2000: canned)
+    transcript = "vomito y diarrea; ojo: alergia severa a la penicilina, evitar betalactamicos"
+    _, _, flag = generate_note(transcript, sample_chunks, _patient(), [])
+    assert flag is True

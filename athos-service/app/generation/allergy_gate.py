@@ -2,8 +2,45 @@
 
 Sale de la tabla `allergies` (severity='severe'). Nunca depende del LLM. Filtra por clinic_id
 explícito (el microservicio usa service_role).
+
+Incluye además `transcript_mentions_allergy`: backstop DETERMINÍSTICO del `allergy_transcript_flag`
+(que el modelo evalúa de forma no-determinística). Cubre el hueco donde una alergia se dice en la
+consulta pero NO tiene fila en `allergies` (el gate DURO no la vería): ahí el flag del transcript es
+la única señal, y no puede depender de que el LLM la pesque esa vez.
 """
+import re
+import unicodedata
+
 from app.db import fetch_all
+
+# Núcleo de la mención de alergia (ES + EN), sobre texto normalizado (minúsculas, sin acentos).
+_ALLERGY_CUE = r"(?:alerg|allerg|hipersensibil|hypersensitiv|anafilax|anaphylax)"
+_ALLERGY = re.compile(_ALLERGY_CUE)
+# Mención NEGADA: un negador seguido (hasta 3 palabras no-cue en medio) de la mención. El lookahead
+# evita que una palabra intermedia sea a su vez un cue, para que el negador ate solo a la mención
+# MÁS CERCANA ('sin alergias pero alergico a X' -> solo 'sin alergias' queda negado).
+_NEGATED_ALLERGY = re.compile(
+    r"\b(?:sin|no|niega|niegan|nego|ningun\w*|descarta\w*|negativ\w*)\b"
+    r"(?:\s+(?!" + _ALLERGY_CUE + r")\w+){0,3}\s+" + _ALLERGY_CUE
+)
+
+
+def _strip_accents(text: str) -> str:
+    return unicodedata.normalize("NFKD", text or "").encode("ascii", "ignore").decode("ascii").lower()
+
+
+def transcript_mentions_allergy(transcript: str) -> bool:
+    """Backstop DETERMINÍSTICO del `allergy_transcript_flag`: ¿la transcripción menciona una alergia
+    NO negada? Se OR-ea con el flag (no-determinístico) del modelo para no perder una alergia dicha
+    en la consulta que aún no tiene fila en `allergies`.
+
+    Salta las negaciones frecuentes ('sin alergias conocidas', 'no refiere alergias', 'niega
+    alergias') para no ensuciar consultas rutinarias con falsos positivos. Sesgo a seguridad: una
+    sola mención afirmativa basta para marcar.
+    """
+    t = _strip_accents(transcript)
+    t = _NEGATED_ALLERGY.sub(" ", t)   # borra las menciones negadas
+    return bool(_ALLERGY.search(t))    # ¿queda alguna mención afirmativa?
 
 
 def severe_allergies(clinic_id: str, patient_id: str) -> list[str]:

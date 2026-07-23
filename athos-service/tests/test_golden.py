@@ -25,30 +25,26 @@ def _cases():
 def test_golden_retrieval_surfaces_relevant_literature():
     """El retrieval hace aflorar literatura relevante en los casos con cobertura (no corpus_gap).
     Tolera 1 fallo por variabilidad del A->B liviano / corpus."""
-    from app.config import get_settings
     from scripts.eval_golden import eval_case
 
-    model = get_settings().llm_model
     total = ok = 0
     for c in _cases():
         if c["expect"].get("corpus_gap"):
             continue
         total += 1
-        ok += int(eval_case(c, model, retrieval_only=True)["rel_ok"])
+        ok += int(eval_case(c, {}, retrieval_only=True)["rel_ok"])  # {} -> proveedor/modelo del env
     assert ok >= total - 1, f"relevancia del retrieval por debajo del umbral: {ok}/{total}"
 
 
 def test_golden_citation_floor_and_allergy_flag():
     """Los casos con cobertura CITAN (>= floor); los corpus_gap pueden abstenerse (no penaliza).
     El allergy_transcript_flag (lectura del transcript por el modelo) debe ser correcto en agregado."""
-    from app.config import get_settings
     from scripts.eval_golden import eval_case
 
-    model = get_settings().llm_model
     solid = cite = 0
     flag_ok = flag_total = 0
     for c in _cases():
-        r = eval_case(c, model, retrieval_only=False)
+        r = eval_case(c, {}, retrieval_only=False)
         flag_total += 1
         flag_ok += int(r["flag_ok"])
         if c["expect"].get("min_citations", 0) >= 1:

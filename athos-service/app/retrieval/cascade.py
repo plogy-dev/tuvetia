@@ -165,10 +165,16 @@ def _is_weak(chunks: list[RetrievedChunk]) -> bool:
 
 
 def _should_run_tier2(query: StructuredQuery, tier1: list[RetrievedChunk]) -> bool:
-    """El Tier 2 (vector) se dispara cuando el ancla léxico/glosario NO es de fiar:
-    Tier 1 débil (pocos resultados o bajo umbral) O el A->B tuvo que distilar (hueco de glosario ->
-    los conceptos pueden ser incidentales; la semántica sobre el texto crudo halla lo relevante)."""
-    return _is_weak(tier1) or query.distilled
+    """El Tier 2 (vector) corre SIEMPRE, como COMPLEMENTO semántico del Tier 1 (no solo fallback).
+
+    Calibración 2026-07-22 (golden con DeepSeek): el Tier 1 léxico/MeSH puede ser *fuerte pero
+    off-topic* — los signos incidentales del cuadro (p.ej. vómito/diarrea) + el MeSH de especie
+    sepultan la literatura de la condición real (hipertiroidismo felino: 0/8 chunks de tiroides en el
+    top del Tier 1, 8/8 en el Tier 2). Correr el Tier 2 siempre y fusionar ambas modalidades subió el
+    golden de 10/11 a 11/11 estable. Es una embedding de Cohere por consulta (~US$0,0006): trivial
+    frente a la ganancia de calidad. (`_is_weak`/`distilled` quedan como señales históricas; ya no
+    cambian el resultado, pero documentan cuándo el Tier 1 es dudoso.)"""
+    return True
 
 
 def _merge_unique(primary: list[RetrievedChunk], extra: list[RetrievedChunk]) -> list[RetrievedChunk]:

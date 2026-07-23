@@ -16,6 +16,8 @@ class Settings(BaseSettings):
     corpus_database_url: str = ""          # DB del CORPUS/glosario (global); si vacío usa database_url
 
     # Motores de IA (parametrizables)
+    llm_provider: str = "anthropic"        # "anthropic" | "openai" (compatible: DeepSeek, Moonshot/Kimi)
+    llm_base_url: str = ""                  # base URL del proveedor OpenAI-compatible (p.ej. https://api.deepseek.com)
     llm_model: str = "claude-sonnet-5"
     llm_light_model: str = "claude-haiku-4-5"
     llm_api_key: str = ""
