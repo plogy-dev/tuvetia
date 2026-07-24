@@ -95,7 +95,9 @@ function ageToBirthISO(v: unknown, todayISO: string): string | null {
   const s = norm(String(v))
   const num = parseFloat(s.replace(",", "."))
   if (isNaN(num)) return null
-  const months = /\bm|mes/.test(s) && !/a|ano|year/.test(s) ? num : num * 12
+  // meses si dice "mes" o la unidad es "m" pegada/junto al número ("6m", "6 m") y NO años.
+  const isMonths = /mes|\d\s*m\b|\d\s*m$/.test(s) && !/(a[nñ]o|year)/.test(s)
+  const months = isMonths ? num : num * 12
   const base = new Date(todayISO + "T00:00:00Z")
   base.setUTCMonth(base.getUTCMonth() - Math.round(months))
   return base.toISOString().slice(0, 10)
