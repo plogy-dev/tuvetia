@@ -37,7 +37,8 @@ export default async function OwnersPage({
     query = query.ilike("full_name", `%${q}%`)
   }
 
-  const { data: owners } = await query.order("full_name")
+  // Guarda de escala: listado acotado; con más titulares se busca por nombre (paginación real: backlog).
+  const { data: owners } = await query.order("full_name").limit(200)
 
   return (
     <div className="flex flex-col gap-4 px-4 py-4 md:gap-6 md:py-6 lg:px-6">

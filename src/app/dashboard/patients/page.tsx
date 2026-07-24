@@ -1,5 +1,6 @@
 import Link from "next/link"
 import { ChevronRightIcon, PawPrintIcon } from "lucide-react"
+import { HelpTip } from "@/components/help-tip"
 import { SearchBar } from "@/components/search-bar"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import {
@@ -45,12 +46,19 @@ export default async function PatientsPage({
     query = query.ilike("name", `%${q}%`)
   }
 
-  const { data } = await query.order("created_at", { ascending: false })
+  // Guarda de escala: listado acotado; con más pacientes se busca por nombre (paginación real: backlog).
+  const { data } = await query.order("created_at", { ascending: false }).limit(200)
   const patients = data as unknown as PatientRow[] | null
 
   return (
     <div className="flex flex-col gap-4 px-4 py-4 md:gap-6 md:py-6 lg:px-6">
-      <SearchBar defaultValue={q ?? ""} placeholder="Buscar paciente..." />
+      <div className="flex items-center gap-2">
+        <SearchBar defaultValue={q ?? ""} placeholder="Buscar paciente..." />
+        <HelpTip side="right">
+          La ficha de cada paciente guarda su historia clínica completa: consultas con transcripción y
+          audio, alergias, vacunas y medicación. Hacé clic en un paciente para verla.
+        </HelpTip>
+      </div>
       <div className="overflow-hidden rounded-lg border">
         <Table>
           <TableHeader className="bg-muted">

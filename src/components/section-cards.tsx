@@ -1,10 +1,12 @@
 import { Card, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { HelpTip } from "@/components/help-tip"
 
 export type Metric = {
   label: string
   value: number
   hint: string
   icon?: React.ReactNode
+  help?: string
 }
 
 // Tarjetas de resumen de la clínica (datos reales, por RLS). Presentacional: la página server
@@ -18,6 +20,7 @@ export function SectionCards({ metrics }: { metrics: Metric[] }) {
             <CardDescription className="flex items-center gap-1.5">
               {m.icon}
               {m.label}
+              {m.help && <HelpTip>{m.help}</HelpTip>}
             </CardDescription>
             <CardTitle className="text-2xl font-semibold tabular-nums @[250px]/card:text-3xl">
               {m.value}

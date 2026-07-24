@@ -21,6 +21,7 @@ import { athosPhantomSuggest, type Citation, type ConditionAlert } from "@/lib/a
 import { createClient } from "@/lib/supabase/client"
 import { parseTranscript } from "@/lib/transcript"
 import { ConsultationRecorder } from "@/components/consultation-recorder"
+import { HelpTip } from "@/components/help-tip"
 import { SourceCard } from "@/components/athos/source-card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -125,6 +126,9 @@ export default function NotaConsultaPage({ params }: { params: Promise<{ id: str
   }, [supabase, id])
 
   useEffect(() => {
+    // load() es async: todos sus setState ocurren después de awaits (nunca síncronos en el effect).
+    // El compilador de React no traza a través del async y lo marca igual — falso positivo.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     load()
   }, [load])
 
@@ -399,6 +403,11 @@ export default function NotaConsultaPage({ params }: { params: Promise<{ id: str
           <div className="flex items-center justify-between border-b px-4 py-2.5">
             <div className="flex items-center gap-2 text-sm font-semibold">
               <FileText className="size-4 text-muted-foreground" /> Nota clínica
+              <HelpTip>
+                Athos redacta la nota SOAP a partir de la transcripción, con literatura veterinaria
+                citada y verificable. Es un <b>borrador</b>: revisala, editala y aprobala — nada entra
+                a la historia sin tu aprobación.
+              </HelpTip>
             </div>
             {note && (
               <Badge variant="secondary" className="gap-1 text-xs">
