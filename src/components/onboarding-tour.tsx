@@ -4,22 +4,29 @@
 // principales del sidebar con globos explicativos. Se marca `onboarded` al terminar o cerrar, así
 // no vuelve a aparecer. Para usuarios no técnicos: complementa los marcadores "?" (HelpTip).
 
-import { useEffect, useRef } from "react"
+import { useEffect } from "react"
 import { driver } from "driver.js"
 
 import "driver.js/dist/driver.css"
 
 import { createClient } from "@/lib/supabase/client"
 
-export function OnboardingTour({ onboarded }: { onboarded: boolean }) {
-  const started = useRef(false)
+// Flag "ya se mostró" por navegador. Es el guard robusto: evita que el tour reaparezca al cambiar de
+// página aunque el layout se re-monte o el flag del server (`onboarded`) llegue tarde. El RPC
+// mark_onboarded persiste además entre dispositivos.
+const SEEN_KEY = "tuvetia_onboarding_seen"
 
+export function OnboardingTour({ onboarded }: { onboarded: boolean }) {
   useEffect(() => {
-    if (onboarded || started.current) return
-    // El tour resalta elementos del sidebar (visible en desktop). En pantallas chicas el sidebar está
-    // colapsado tras un botón, así que lo diferimos: se mostrará en el próximo ingreso desde desktop.
-    if (typeof window !== "undefined" && window.innerWidth < 1024) return
-    started.current = true
+    if (onboarded) return
+    if (typeof window === "undefined") return
+    if (localStorage.getItem(SEEN_KEY)) return
+    // El tour resalta el sidebar (visible en desktop). En pantallas chicas el sidebar está colapsado,
+    // así que lo diferimos al próximo ingreso desde desktop (sin marcar el flag todavía).
+    if (window.innerWidth < 1024) return
+
+    // Marca ANTES de arrancar -> a lo sumo un tour por navegador, pase lo que pase con el montaje.
+    localStorage.setItem(SEEN_KEY, "1")
 
     const supabase = createClient()
     const markOnboarded = () => {

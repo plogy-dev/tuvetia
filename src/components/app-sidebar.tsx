@@ -15,7 +15,7 @@ import {
   SidebarMenuButton,
   SidebarMenuItem,
 } from "@/components/ui/sidebar"
-import { LayoutDashboardIcon, UsersIcon, ContactIcon, CalendarIcon, MessageCircleIcon, CameraIcon, FileTextIcon, Settings2Icon, CircleHelpIcon, SearchIcon, BotIcon, GhostIcon, CommandIcon } from "lucide-react"
+import { LayoutDashboardIcon, UsersIcon, ContactIcon, CalendarIcon, MessageCircleIcon, Settings2Icon, CircleHelpIcon, BotIcon, GhostIcon, CommandIcon } from "lucide-react"
 
 const data = {
   navMain: [
@@ -60,85 +60,20 @@ const data = {
       ),
     },
   ],
-  navClouds: [
-    {
-      title: "Capture",
-      icon: (
-        <CameraIcon
-        />
-      ),
-      isActive: true,
-      url: "#",
-      items: [
-        {
-          title: "Active Proposals",
-          url: "#",
-        },
-        {
-          title: "Archived",
-          url: "#",
-        },
-      ],
-    },
-    {
-      title: "Proposal",
-      icon: (
-        <FileTextIcon
-        />
-      ),
-      url: "#",
-      items: [
-        {
-          title: "Active Proposals",
-          url: "#",
-        },
-        {
-          title: "Archived",
-          url: "#",
-        },
-      ],
-    },
-    {
-      title: "Prompts",
-      icon: (
-        <FileTextIcon
-        />
-      ),
-      url: "#",
-      items: [
-        {
-          title: "Active Proposals",
-          url: "#",
-        },
-        {
-          title: "Archived",
-          url: "#",
-        },
-      ],
-    },
-  ],
   navSecondary: [
     {
-      title: "Settings",
-      url: "#",
+      title: "Configuración",
+      url: "/dashboard/settings",
       icon: (
         <Settings2Icon
         />
       ),
     },
     {
-      title: "Get Help",
-      url: "#",
+      title: "Ayuda",
+      url: "/dashboard/ayuda",
       icon: (
         <CircleHelpIcon
-        />
-      ),
-    },
-    {
-      title: "Search",
-      url: "#",
-      icon: (
-        <SearchIcon
         />
       ),
     },
@@ -175,7 +110,7 @@ export function AppSidebar({
           <SidebarMenuItem>
             <SidebarMenuButton
               className="data-[slot=sidebar-menu-button]:p-1.5!"
-              render={<a href="#" />}
+              render={<a href="/dashboard" />}
             >
               <CommandIcon className="size-5!" />
               <span className="text-base font-semibold">TuvetIA</span>

@@ -1,6 +1,7 @@
 "use client"
 
 import { useState } from "react"
+import Link from "next/link"
 import { cn } from "@/lib/utils"
 import { createClient } from "@/lib/supabase/client"
 import { Button } from "@/components/ui/button"
@@ -96,18 +97,15 @@ export function LoginForm({
       <form onSubmit={handleSubmit}>
         <FieldGroup>
           <div className="flex flex-col items-center gap-2 text-center">
-            <a
-              href="#"
-              className="flex flex-col items-center gap-2 font-medium"
-            >
+            <Link href="/" className="flex flex-col items-center gap-2 font-medium">
               <div className="flex size-8 items-center justify-center rounded-md">
                 <GalleryVerticalEndIcon className="size-6" />
               </div>
               <span className="sr-only">TuvetIA</span>
-            </a>
-            <h1 className="text-xl font-bold">Welcome to TuvetIA</h1>
+            </Link>
+            <h1 className="text-xl font-bold">Bienvenido a TuvetIA</h1>
             <FieldDescription>
-              Don&apos;t have an account? <a href="/signup">Sign up</a>
+              ¿No tenés cuenta? <Link href="/signup">Regístrate</Link>
             </FieldDescription>
           </div>
           <Field>
@@ -137,7 +135,7 @@ export function LoginForm({
                   fill="currentColor"
                 />
               </svg>
-              Continue with Apple
+              Continuar con Apple
             </Button>
             <Button
               variant="outline"
@@ -155,14 +153,15 @@ export function LoginForm({
                   />
                 </svg>
               )}
-              Continue with Google
+              Continuar con Google
             </Button>
           </Field>
         </FieldGroup>
       </form>
       <FieldDescription className="px-6 text-center">
-        By clicking continue, you agree to our <a href="#">Terms of Service</a>{" "}
-        and <a href="#">Privacy Policy</a>.
+        Al continuar, aceptás nuestros{" "}
+        <Link href="/legal/terminos">Términos de servicio</Link> y{" "}
+        <Link href="/legal/privacidad">Política de privacidad</Link>.
       </FieldDescription>
     </div>
   )
