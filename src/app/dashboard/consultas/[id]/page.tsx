@@ -253,7 +253,17 @@ export default function NotaConsultaPage({ params }: { params: Promise<{ id: str
           </div>
           <div className="min-w-0 flex-1">
             <h1 className="text-xl font-semibold tracking-tight md:text-2xl">
-              {pet?.name ?? "Consulta"}
+              {consultation ? (
+                <Link
+                  href={`/dashboard/patients/${consultation.patient_id}`}
+                  className="underline-offset-4 hover:underline"
+                  title={`Abrir la ficha clínica de ${pet?.name ?? "este paciente"}`}
+                >
+                  {pet?.name ?? "Consulta"}
+                </Link>
+              ) : (
+                pet?.name ?? "Consulta"
+              )}
             </h1>
             <div className="mt-0.5 flex flex-wrap gap-x-4 gap-y-1 text-sm text-muted-foreground">
               {pet?.species && <span className="font-medium text-foreground">{pet.species}</span>}
