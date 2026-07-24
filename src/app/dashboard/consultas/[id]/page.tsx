@@ -1,15 +1,15 @@
 "use client"
 
-import { use, useCallback, useEffect, useState } from "react"
+import { use, useCallback, useEffect, useState, type ReactNode } from "react"
 import Link from "next/link"
 import {
   Activity,
   AlertTriangle,
   ArrowLeft,
   AudioLines,
-  BookText,
   CheckCircle2,
   ChevronDown,
+  ExternalLink,
   FileText,
   Loader2,
   Save,
@@ -22,7 +22,6 @@ import { createClient } from "@/lib/supabase/client"
 import { parseTranscript } from "@/lib/transcript"
 import { ConsultationRecorder } from "@/components/consultation-recorder"
 import { HelpTip } from "@/components/help-tip"
-import { SourceCard } from "@/components/athos/source-card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
@@ -59,6 +58,74 @@ const SOAP_FIELDS: { key: keyof Soap; label: string; hint: string }[] = [
   { key: "plan", label: "Plan", hint: "Conducta y siguientes pasos" },
 ]
 
+// Resalta el lenguaje de posibilidad (regla clínica: nunca diagnóstico cerrado).
+const POSSIBILITY =
+  /(compatible con|sugestivo de|sugerente de|no hay evidencia suficiente|evidencia insuficiente|posiblemente|posible|podría|sugiere|se recomienda valorar)/i
+
+// Render de la nota aprobada (solo lectura): negritas **..**, citas [n] enlazadas a su fuente, y
+// resalta el lenguaje de posibilidad. En borrador, el SOAP es editable (textarea) — sin este render.
+function renderRich(text: string, citations: Citation[]): ReactNode[] {
+  const nodes: ReactNode[] = []
+  const pushText = (t: string, base: string) => {
+    t.split(new RegExp(POSSIBILITY.source, "gi")).forEach((p, j) => {
+      if (!p) return
+      nodes.push(
+        POSSIBILITY.test(p) ? (
+          <span
+            key={`${base}-p${j}`}
+            className="font-medium underline decoration-dotted decoration-muted-foreground/60 underline-offset-2"
+          >
+            {p}
+          </span>
+        ) : (
+          <span key={`${base}-t${j}`}>{p}</span>
+        ),
+      )
+    })
+  }
+  const regex = /(\[\d+\])|(\*\*[^*]+\*\*)/g
+  let last = 0
+  let m: RegExpExecArray | null
+  let k = 0
+  while ((m = regex.exec(text)) !== null) {
+    if (m.index > last) pushText(text.slice(last, m.index), `x${k}`)
+    if (m[1]) {
+      const n = parseInt(m[1].slice(1, -1), 10)
+      const c = citations[n - 1]
+      const cls =
+        "mx-0.5 inline-block rounded border bg-secondary px-1 font-mono text-[11px] font-bold text-foreground underline decoration-dotted underline-offset-2 align-baseline"
+      nodes.push(
+        c?.url ? (
+          <a
+            key={`c${k}`}
+            href={c.url}
+            target="_blank"
+            rel="noopener noreferrer"
+            title={c.title ?? c.source ?? "Ver fuente"}
+            className={`${cls} hover:bg-accent`}
+          >
+            [{n}]
+          </a>
+        ) : (
+          <span key={`c${k}`} className={cls}>
+            [{n}]
+          </span>
+        ),
+      )
+    } else if (m[2]) {
+      nodes.push(
+        <strong key={`b${k}`} className="font-semibold">
+          {m[2].slice(2, -2)}
+        </strong>,
+      )
+    }
+    last = regex.lastIndex
+    k++
+  }
+  if (last < text.length) pushText(text.slice(last), `x${k}`)
+  return nodes
+}
+
 export default function NotaConsultaPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params)
   const [supabase] = useState(() => createClient())
@@ -73,6 +140,7 @@ export default function NotaConsultaPage({ params }: { params: Promise<{ id: str
   const [alerts, setAlerts] = useState<ConditionAlert[]>([])
   const [transcript, setTranscript] = useState<string>("")
   const [soap, setSoap] = useState<Soap>({ subjective: "", objective: "", assessment: "", plan: "" })
+  const [captureOpen, setCaptureOpen] = useState(true) // panel colapsable de grabación/transcripción
 
   const load = useCallback(async () => {
     const { data: c, error: cErr } = await supabase
@@ -220,7 +288,7 @@ export default function NotaConsultaPage({ params }: { params: Promise<{ id: str
   const initial = (pet?.name ?? "?").charAt(0).toUpperCase()
 
   return (
-    <div className="flex flex-col gap-4 px-4 py-4 md:gap-5 md:py-6 lg:px-6">
+    <div className="mx-auto flex w-full max-w-4xl flex-col gap-4 px-4 py-4 md:gap-5 md:py-6 lg:px-6">
       <Link
         href="/dashboard/consultas"
         className="inline-flex w-fit items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
@@ -352,164 +420,195 @@ export default function NotaConsultaPage({ params }: { params: Promise<{ id: str
         </section>
       )}
 
-      {/* Captura de la consulta (consentimiento -> grabar -> transcribir) */}
-      {consultation && !approved && (
-        <ConsultationRecorder
-          consultationId={id}
-          clinicId={consultation.clinic_id}
-          patientId={consultation.patient_id}
-          patientName={pet?.name}
-          onTranscribed={load}
-        />
+      {/* Grabar y transcripción — panel colapsable (no compite con la nota) */}
+      {((consultation && !approved) || turns.length > 0) && (
+        <details
+          open={captureOpen}
+          onToggle={(e) => setCaptureOpen((e.currentTarget as HTMLDetailsElement).open)}
+          className="group rounded-xl border bg-card shadow-sm"
+        >
+          <summary className="flex cursor-pointer list-none items-center justify-between gap-2 px-4 py-3">
+            <div className="flex items-center gap-2 text-sm font-semibold">
+              <AudioLines className="size-4 text-muted-foreground" /> Grabar y transcripción de la consulta
+            </div>
+            <ChevronDown className="size-4 text-muted-foreground transition-transform group-open:rotate-180" />
+          </summary>
+          <div className="flex flex-col gap-4 border-t p-4">
+            {consultation && !approved && (
+              <ConsultationRecorder
+                consultationId={id}
+                clinicId={consultation.clinic_id}
+                patientId={consultation.patient_id}
+                patientName={pet?.name}
+                onTranscribed={load}
+              />
+            )}
+            {turns.length === 0 ? (
+              <p className="text-sm text-muted-foreground">Esta consulta aún no tiene transcripción.</p>
+            ) : (
+              <div className="flex max-h-[45vh] flex-col gap-2.5 overflow-y-auto">
+                {turns.map((t, i) => (
+                  <div key={i} className={t.who === "vet" ? "flex flex-col items-end" : "flex flex-col items-start"}>
+                    <span className="mb-0.5 px-1 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+                      {t.who === "vet" ? "Veterinario" : "Titular"}
+                    </span>
+                    <div
+                      className={`max-w-[88%] rounded-2xl px-3 py-2 text-sm ${
+                        t.who === "vet"
+                          ? "rounded-br-sm bg-primary text-primary-foreground"
+                          : "rounded-bl-sm border bg-background"
+                      }`}
+                    >
+                      {t.text}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </details>
       )}
 
-      {/* Dos columnas: transcripción | nota clínica */}
-      <div className="grid gap-4 lg:grid-cols-2 lg:items-start">
-        {/* Transcripción */}
-        <div className="flex flex-col rounded-xl border bg-card">
-          <div className="flex items-center justify-between border-b px-4 py-2.5">
-            <div className="flex items-center gap-2 text-sm font-semibold">
-              <AudioLines className="size-4 text-muted-foreground" /> Transcripción
-            </div>
-            <Badge variant="outline" className="text-xs">
-              Consulta
+      {/* Nota clínica (SOAP) — una columna */}
+      <section className="flex flex-col rounded-xl border bg-card shadow-sm">
+        <div className="flex items-center justify-between border-b px-4 py-3">
+          <div className="flex items-center gap-2 text-sm font-semibold">
+            <FileText className="size-4 text-muted-foreground" /> Nota clínica
+            <HelpTip>
+              Athos redacta la nota SOAP a partir de la transcripción, con literatura veterinaria
+              citada y verificable. Es un <b>borrador</b>: revisala, editala y aprobala — nada entra
+              a la historia sin tu aprobación.
+            </HelpTip>
+          </div>
+          {note && (
+            <Badge variant="secondary" className="gap-1 text-xs">
+              <Sparkles className="size-3" /> {approved ? "Aprobada" : "Athos redacta · borrador"}
             </Badge>
-          </div>
-          <div className="flex max-h-[60vh] flex-col gap-2.5 overflow-y-auto p-4">
-            {turns.length === 0 && (
-              <p className="text-sm text-muted-foreground">Esta consulta no tiene transcripción.</p>
-            )}
-            {turns.map((t, i) => (
-              <div key={i} className={t.who === "vet" ? "flex flex-col items-end" : "flex flex-col items-start"}>
-                <span className="mb-0.5 px-1 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
-                  {t.who === "vet" ? "Veterinario" : "Titular"}
-                </span>
-                <div
-                  className={`max-w-[88%] rounded-2xl px-3 py-2 text-sm ${
-                    t.who === "vet"
-                      ? "rounded-br-sm bg-primary text-primary-foreground"
-                      : "rounded-bl-sm border bg-background"
-                  }`}
-                >
-                  {t.text}
-                </div>
-              </div>
-            ))}
-          </div>
+          )}
         </div>
 
-        {/* Nota clínica */}
-        <div className="flex flex-col rounded-xl border bg-card">
-          <div className="flex items-center justify-between border-b px-4 py-2.5">
-            <div className="flex items-center gap-2 text-sm font-semibold">
-              <FileText className="size-4 text-muted-foreground" /> Nota clínica
-              <HelpTip>
-                Athos redacta la nota SOAP a partir de la transcripción, con literatura veterinaria
-                citada y verificable. Es un <b>borrador</b>: revisala, editala y aprobala — nada entra
-                a la historia sin tu aprobación.
-              </HelpTip>
+        {!note ? (
+          <div className="flex flex-col items-center gap-4 px-4 py-14 text-center">
+            <Sparkles className="size-8 text-muted-foreground" />
+            <div>
+              <p className="font-medium">Aún no hay nota para esta consulta</p>
+              <p className="text-sm text-muted-foreground">
+                Genera una sugerencia SOAP con literatura veterinaria citada a partir de la
+                transcripción.
+              </p>
             </div>
-            {note && (
-              <Badge variant="secondary" className="gap-1 text-xs">
-                <Sparkles className="size-3" /> Athos redacta · borrador
-              </Badge>
-            )}
+            <Button onClick={generate} disabled={generating}>
+              {generating ? <Loader2 className="size-4 animate-spin" /> : <Sparkles className="size-4" />}
+              Generar sugerencia (Modo Fantasma)
+            </Button>
           </div>
-
-          {!note ? (
-            <div className="flex flex-col items-center gap-4 px-4 py-14 text-center">
-              <Sparkles className="size-8 text-muted-foreground" />
-              <div>
-                <p className="font-medium">Aún no hay nota para esta consulta</p>
-                <p className="text-sm text-muted-foreground">
-                  Genera una sugerencia SOAP con literatura veterinaria citada a partir de la
-                  transcripción.
-                </p>
-              </div>
-              <Button onClick={generate} disabled={generating}>
-                {generating ? <Loader2 className="size-4 animate-spin" /> : <Sparkles className="size-4" />}
-                Generar sugerencia (Modo Fantasma)
-              </Button>
-            </div>
-          ) : (
-            <div className="flex flex-col gap-3 p-4">
-              {SOAP_FIELDS.map((f) => (
-                <div key={f.key} className="flex gap-3">
-                  <span className="mt-0.5 grid size-9 shrink-0 place-items-center rounded-lg border bg-secondary text-sm font-bold">
-                    {f.label.charAt(0)}
-                  </span>
-                  <div className="min-w-0 flex-1">
-                    <div className="mb-1 flex items-baseline gap-2">
-                      <span className="text-[11px] font-bold uppercase tracking-wide text-muted-foreground">
-                        {f.label}
-                      </span>
-                      <span className="text-xs text-muted-foreground">{f.hint}</span>
-                    </div>
+        ) : (
+          <div className="flex flex-col gap-4 p-4 md:p-6">
+            {SOAP_FIELDS.map((f) => (
+              <div key={f.key} className="flex gap-3">
+                <span className="mt-0.5 grid size-9 shrink-0 place-items-center rounded-lg border bg-secondary text-sm font-bold">
+                  {f.label.charAt(0)}
+                </span>
+                <div className="min-w-0 flex-1">
+                  <div className="mb-1 flex items-baseline gap-2">
+                    <span className="text-[11px] font-bold uppercase tracking-wide text-muted-foreground">
+                      {f.label}
+                    </span>
+                    <span className="text-xs text-muted-foreground">{f.hint}</span>
+                  </div>
+                  {approved ? (
+                    <p className="text-sm leading-relaxed whitespace-pre-wrap">
+                      {soap[f.key] ? (
+                        renderRich(soap[f.key], citations)
+                      ) : (
+                        <span className="text-muted-foreground">—</span>
+                      )}
+                    </p>
+                  ) : (
                     <Textarea
                       value={soap[f.key]}
                       onChange={(e) => setSoap((s) => ({ ...s, [f.key]: e.target.value }))}
-                      disabled={approved}
                       rows={f.key === "assessment" || f.key === "plan" ? 4 : 2}
                     />
-                  </div>
+                  )}
                 </div>
-              ))}
+              </div>
+            ))}
 
+            {!approved && (
               <p className="text-xs text-muted-foreground">
                 Se guardará en la ficha de <b className="text-foreground">{pet?.name}</b> cuando
                 apruebes. Ninguna nota entra a la historia sin tu aprobación.
               </p>
+            )}
 
-              <div className="flex flex-wrap items-center gap-2">
-                <Button variant="outline" onClick={save} disabled={saving || approved}>
-                  {saving ? <Loader2 className="size-4 animate-spin" /> : <Save className="size-4" />}
-                  Guardar cambios
-                </Button>
-                <Button
-                  onClick={approve}
-                  disabled={
-                    approving ||
-                    approved ||
-                    (note.allergy_gate_triggered && !gateAck)
-                  }
-                >
-                  {approving ? (
-                    <Loader2 className="size-4 animate-spin" />
-                  ) : (
-                    <CheckCircle2 className="size-4" />
-                  )}
-                  {approved ? "Nota aprobada" : "Revisar y aprobar"}
-                </Button>
-                {note.ai_model && (
-                  <span className="ml-auto text-xs text-muted-foreground">
-                    Redactada por {note.ai_model}
-                  </span>
+            <div className="flex flex-wrap items-center gap-2">
+              <Button variant="outline" onClick={save} disabled={saving || approved}>
+                {saving ? <Loader2 className="size-4 animate-spin" /> : <Save className="size-4" />}
+                Guardar cambios
+              </Button>
+              <Button
+                onClick={approve}
+                disabled={approving || approved || (note.allergy_gate_triggered && !gateAck)}
+              >
+                {approving ? (
+                  <Loader2 className="size-4 animate-spin" />
+                ) : (
+                  <CheckCircle2 className="size-4" />
                 )}
-              </div>
+                {approved ? "Nota aprobada" : "Revisar y aprobar"}
+              </Button>
+              {note.ai_model && (
+                <span className="ml-auto text-xs text-muted-foreground">
+                  Redactada por {note.ai_model}
+                </span>
+              )}
             </div>
-          )}
-        </div>
-      </div>
-
-      {/* Fuentes citadas */}
-      {note && (
-        <div className="rounded-xl border bg-card p-4">
-          <div className="mb-3 flex items-center gap-2 text-sm font-semibold">
-            <BookText className="size-4 text-muted-foreground" /> Fuentes citadas ({citations.length})
           </div>
+        )}
+      </section>
+
+      {/* Referencias citadas — lista numerada estilo mockup */}
+      {note && (
+        <section className="rounded-xl border bg-card p-4 shadow-sm md:p-5">
+          <p className="mb-3 text-[11px] font-bold uppercase tracking-[0.09em] text-muted-foreground">
+            Referencias citadas ({citations.length})
+          </p>
           {citations.length === 0 ? (
             <p className="text-sm text-muted-foreground">
               Sin evidencia suficiente: esta nota no cita literatura (Athos se abstiene antes que
               inventar una fuente).
             </p>
           ) : (
-            <div className="grid gap-2 sm:grid-cols-2">
+            <ol className="flex flex-col divide-y">
               {citations.map((c, i) => (
-                <SourceCard key={`${c.chunk_id}-${i}`} c={c} />
+                <li key={`${c.chunk_id}-${i}`} className="flex gap-3 py-3 first:pt-0 last:pb-0">
+                  <span className="grid size-6 shrink-0 place-items-center rounded border bg-secondary font-mono text-[11px] font-bold">
+                    {i + 1}
+                  </span>
+                  <div className="min-w-0 flex-1">
+                    {c.title && <div className="text-sm font-medium leading-snug">{c.title}</div>}
+                    <div className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs text-muted-foreground">
+                      {c.source && <span className="font-medium text-foreground/80">{c.source}</span>}
+                      {c.year && <span className="font-mono">{c.year}</span>}
+                      {c.locator && <span>· {c.locator}</span>}
+                    </div>
+                    {c.url && (
+                      <a
+                        href={c.url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="mt-1 inline-flex items-center gap-1 text-xs font-semibold text-foreground underline underline-offset-2 hover:text-foreground/80"
+                      >
+                        Abrir artículo <ExternalLink className="size-3" />
+                      </a>
+                    )}
+                  </div>
+                </li>
               ))}
-            </div>
+            </ol>
           )}
-        </div>
+        </section>
       )}
     </div>
   )
