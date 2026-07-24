@@ -117,8 +117,13 @@ export default function ImportPatientsPage() {
   const parseFile = useCallback(async (file: File) => {
     setSummary(null)
     try {
-      const buf = await file.arrayBuffer()
-      const wb = XLSX.read(new Uint8Array(buf), { type: "array", cellDates: true })
+      // CSV/TSV/TXT: leer como TEXTO (UTF-8) — si se lee como binario, SheetJS no detecta el
+      // codepage y destroza los acentos (Michifú -> MichifÃº). Los binarios (xlsx/xls/ods) sí van
+      // por arrayBuffer.
+      const isText = /\.(csv|tsv|txt)$/i.test(file.name)
+      const wb = isText
+        ? XLSX.read(await file.text(), { type: "string" })
+        : XLSX.read(new Uint8Array(await file.arrayBuffer()), { type: "array", cellDates: true })
       const ws = wb.Sheets[wb.SheetNames[0]]
       const matrix = XLSX.utils.sheet_to_json<unknown[]>(ws, { header: 1, blankrows: false, defval: "" })
       if (!matrix.length) {
