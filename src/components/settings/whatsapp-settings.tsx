@@ -87,8 +87,13 @@ export function WhatsappSettings({
     <div className="flex flex-col gap-3">
       <p className="text-sm text-muted-foreground">
         Conecta el WhatsApp de tu clínica para centralizar la comunicación con los titulares.
-        Escaneás un código QR con tu app de WhatsApp Business y <b>seguís usando tu teléfono como
-        siempre</b>; los mensajes también llegan a TuvetIA.
+        Escaneás un código QR y <b>seguís usando tu teléfono como siempre</b>; los mensajes también
+        llegan a TuvetIA.
+      </p>
+      <p className="rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-900 dark:border-amber-900/50 dark:bg-amber-950/40 dark:text-amber-200">
+        <b>Requisito:</b> el número debe usar la app <b>WhatsApp Business</b> (la aplicación gratuita
+        de Meta). Si hoy usás WhatsApp personal, convertí el número desde la app WhatsApp Business —
+        conservás chats y contactos.
       </p>
       <div className="flex flex-wrap items-center gap-2">
         <Button onClick={connect} disabled={busy}>
