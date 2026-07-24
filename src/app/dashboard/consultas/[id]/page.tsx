@@ -64,7 +64,12 @@ const POSSIBILITY =
 
 // Render de la nota aprobada (solo lectura): negritas **..**, citas [n] enlazadas a su fuente, y
 // resalta el lenguaje de posibilidad. En borrador, el SOAP es editable (textarea) — sin este render.
-function renderRich(text: string, citations: Citation[]): ReactNode[] {
+function renderRich(raw: string, citations: Citation[]): ReactNode[] {
+  // Limpia referencias crudas de chunk que algunas notas embebían en el texto
+  // (uuid en [..] o (chunk_id: ..)) — ruido ilegible; la cita real vive en Referencias.
+  const text = raw
+    .replace(/\s*\(chunk_id:[^)]*\)/gi, "")
+    .replace(/\s*\[[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f-]{18,}\]/gi, "")
   const nodes: ReactNode[] = []
   const pushText = (t: string, base: string) => {
     t.split(new RegExp(POSSIBILITY.source, "gi")).forEach((p, j) => {
