@@ -13,6 +13,7 @@ import { toast } from "sonner"
 import { createClient } from "@/lib/supabase/client"
 import { parseTranscript } from "@/lib/transcript"
 import { ConsultationAudioPlayer } from "@/components/consultation-audio-player"
+import { HelpTip } from "@/components/help-tip"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 
@@ -180,6 +181,11 @@ export function PatientConsultationHistory({
             <div className="flex items-center justify-between gap-2 border-b px-4 py-2.5">
               <div className="flex items-center gap-2 text-sm font-semibold">
                 <AudioLines className="size-4 text-muted-foreground" /> Transcripción
+                <HelpTip>
+                  Lo hablado en la consulta, transcrito automáticamente. El <b>audio</b> se elimina
+                  solo a los 7 días; <b>Eliminar</b> borra el texto de la transcripción (la nota
+                  clínica aprobada no se toca).
+                </HelpTip>
               </div>
               {transcript &&
                 (confirming ? (

@@ -88,6 +88,7 @@ export default async function DashboardPage() {
       value: notasRevisar.count ?? 0,
       hint: "Borradores del Modo Fantasma pendientes de aprobar",
       icon: <FileClock className="size-4 text-muted-foreground" />,
+      help: "El Modo Fantasma redacta la nota de cada consulta como borrador. Ninguna entra a la historia clínica hasta que un veterinario la revisa y aprueba.",
     },
   ]
 

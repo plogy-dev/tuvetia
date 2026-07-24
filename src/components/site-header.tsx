@@ -10,6 +10,9 @@ const TITLES: Record<string, string> = {
   "/dashboard/owners": "Titulares",
   "/dashboard/asistente": "Copiloto",
   "/dashboard/consultas": "Consultas",
+  "/dashboard/calendario": "Calendario",
+  "/dashboard/settings": "Configuración",
+  "/dashboard/ayuda": "Ayuda",
 }
 
 function titleFor(pathname: string): string {

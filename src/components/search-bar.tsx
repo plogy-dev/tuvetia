@@ -26,7 +26,6 @@ export function SearchBar({
         params.delete("q")
       }
       router.replace(`${pathname}?${params.toString()}`)
-      // eslint-disable-next-line react-hooks/exhaustive-deps
     }, 300)
     return () => clearTimeout(timeout)
     // eslint-disable-next-line react-hooks/exhaustive-deps
