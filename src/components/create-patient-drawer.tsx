@@ -43,7 +43,15 @@ type Owner = {
 
 const NEW_OWNER = "__new__"
 
-export function CreatePatientDrawer() {
+export function CreatePatientDrawer({
+  trigger,
+  label = "Crear paciente",
+}: {
+  // Trigger alternativo (p.ej. un Button en el header de Pacientes); por defecto,
+  // el botón del sidebar de siempre.
+  trigger?: React.ReactElement
+  label?: string
+} = {}) {
   const isMobile = useIsMobile()
   const router = useRouter()
 
@@ -229,14 +237,16 @@ export function CreatePatientDrawer() {
     >
       <DrawerTrigger
         render={
-          <SidebarMenuButton
-            tooltip="Crear paciente"
-            className="min-w-8 bg-primary text-primary-foreground duration-200 ease-linear hover:bg-primary/90 hover:text-primary-foreground active:bg-primary/90 active:text-primary-foreground"
-          />
+          trigger ?? (
+            <SidebarMenuButton
+              tooltip="Crear paciente"
+              className="min-w-8 bg-primary text-primary-foreground duration-200 ease-linear hover:bg-primary/90 hover:text-primary-foreground active:bg-primary/90 active:text-primary-foreground"
+            />
+          )
         }
       >
         <CirclePlusIcon />
-        <span>Crear paciente</span>
+        <span>{label}</span>
       </DrawerTrigger>
       <DrawerContent>
         <DrawerHeader>
