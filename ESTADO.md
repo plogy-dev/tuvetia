@@ -88,10 +88,11 @@ Para activar lo que hoy está **dormido**:
 
 ---
 
-## Ownership / no tocar
-- **Comunicaciones / WhatsApp**: la **base multi-tenant vía Kapso ya está construida** (conexión por
-  QR en Configuración, webhook, tablas — ver **`WHATSAPP.md`**, migración `0015`). La **bandeja/inbox**
-  (`/dashboard/comunicaciones`, hoy `#` en el sidebar) **es del otro dev** — blueprint en `WHATSAPP.md`.
+## Ownership
+- **Comunicaciones / WhatsApp**: base multi-tenant vía Kapso **y bandeja completa CONSTRUIDAS**
+  (conexión por QR en Configuración; bandeja con envío en `/dashboard/comunicaciones` — ver
+  **`WHATSAPP.md`**, migraciones `0015`/`0018`). Al otro dev le quedan las **extensiones**
+  (plantillas/media, realtime, firma oficial del webhook — §Extensiones de `WHATSAPP.md`).
   Config externa: `KAPSO_API_KEY` + `KAPSO_WEBHOOK_SECRET` en Vercel + webhook registrado en Kapso.
 - Todo lo de **Athos** (copiloto, corpus, citas, y sus piezas de front) → equipo Plogy (ver
   `athos-service/docs/ATHOS_CONTEXTO_EQUIPO.md`).

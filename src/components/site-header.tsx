@@ -11,6 +11,7 @@ const TITLES: Record<string, string> = {
   "/dashboard/asistente": "Athos",
   "/dashboard/consultas": "Phantom",
   "/dashboard/calendario": "Calendario",
+  "/dashboard/comunicaciones": "Comunicaciones",
   "/dashboard/settings": "Configuración",
   "/dashboard/ayuda": "Ayuda",
 }
