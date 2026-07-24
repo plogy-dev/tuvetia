@@ -5,6 +5,7 @@ pasa el umbral, responde una plantilla SIN LLM ("cita o se calla"). Emite evento
   {"type":"warning"|"token"|"done", ...}. `clinic_id` siempre explícito.
 """
 import json
+import logging
 import re
 
 from app.config import get_settings
@@ -19,6 +20,11 @@ from app.trace.logs import load_thread, log_message, log_retrieval
 
 CHAT_LIT_LIMIT = 12   # fuentes numeradas que se ofrecen al modelo (y de las que salen las citas)
 CHAT_HISTORY_MSGS = 8  # turnos previos (user/assistant) que se cargan como memoria del hilo
+# Holgado: los modelos con razonamiento (p.ej. deepseek-v4-*) gastan tokens de 'thinking' antes del
+# 'content'; sin margen la respuesta saldría truncada o vacía.
+CHAT_MAX_TOKENS = 3000
+
+log = logging.getLogger(__name__)
 
 CHAT_SYSTEM = (
     "Eres un asistente clínico veterinario. Responde SOLO con base en la LITERATURA entregada. "
@@ -129,10 +135,27 @@ def stream_answer(question: str, patient_id: str, clinic_id: str, user_id: str |
     system = CHAT_SYSTEM
     user = _chat_prompt(question, literature, patient, severe)
     parts: list[str] = []
-    for tok in LLMClient().stream(system, user, history=history):
-        parts.append(tok)
-        yield _sse({"type": "token", "text": tok})
+    errored = False
+    try:
+        for tok in LLMClient().stream(system, user, history=history, max_tokens=CHAT_MAX_TOKENS):
+            parts.append(tok)
+            yield _sse({"type": "token", "text": tok})
+    except Exception as e:  # noqa: BLE001 — el proveedor LLM falló: NUNCA dejar la UI colgada.
+        errored = True
+        log.warning("chat: el stream del LLM falló: %s", e)
+
     answer = "".join(parts)
+    if not answer.strip():
+        # El proveedor no devolvió texto (rechazó el request, timeout, etc.). Degrada con gracia:
+        # aviso claro + done, para que el hilo del vet no quede "pensando" para siempre.
+        yield _sse({"type": "warning",
+                    "text": "No se pudo generar la respuesta en este momento. Intenta de nuevo "
+                            "en unos segundos."})
+        yield _sse({"type": "done", "citations": [], "allergy_gate_triggered": gate,
+                    "insufficient_evidence": False, "ai_model": get_settings().llm_model,
+                    "error": errored})
+        return
+
     citations = _cited_from_answer(answer, literature)
     if patient_id:
         log_message(clinic_id, None, patient_id, "assistant", answer)

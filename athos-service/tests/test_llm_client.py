@@ -10,8 +10,7 @@ def test_openai_complete_arma_payload_y_parsea_content(monkeypatch):
     captured = {}
 
     class FakeResp:
-        def raise_for_status(self):
-            pass
+        status_code = 200
 
         def json(self):
             return {"choices": [{"message": {"content": "hola", "reasoning_content": "pensando"}}]}
@@ -55,8 +54,7 @@ def test_openai_stream_yields_content_e_ignora_reasoning_y_pasa_historial(monkey
     ]
 
     class FakeStream:
-        def raise_for_status(self):
-            pass
+        status_code = 200
 
         def iter_lines(self):
             return iter(lines)
