@@ -58,13 +58,11 @@ export function LoginForm({
     const { error } = await supabase.auth.signInWithOAuth({
       provider: "google",
       options: {
+        // Login SIN scopes sensibles -> registro sin fricción (nada de "app no verificada"). El acceso
+        // a Google Calendar es opt-in aparte (botón "Conectar Google Calendar" en el calendario), así
+        // solo lo consiente quien lo usa. Cuando la app pase la verificación de Google, se puede volver
+        // a pedir el scope aquí para vincular en un clic sin advertencia (el callback ya lo captura).
         redirectTo: `${window.location.origin}/auth/callback`,
-        // Vinculación de calendario de un clic: pedimos el acceso a Google Calendar en el mismo
-        // consentimiento del login. access_type=offline -> Google devuelve un refresh token la primera
-        // vez que se concede el scope; el callback lo guarda. (Sin prompt=consent para no re-preguntar
-        // en cada login; el botón "Reconectar" del calendario fuerza un token nuevo si hiciera falta.)
-        scopes: "https://www.googleapis.com/auth/calendar.events",
-        queryParams: { access_type: "offline" },
       },
     })
     if (error) {
