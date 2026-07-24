@@ -87,10 +87,16 @@ class LLMClient:
             r = client.post(
                 f"{self.base_url}/chat/completions",
                 headers={"Authorization": f"Bearer {self.api_key}"},
+                # thinking desactivado: los modelos v4 razonan ~30s antes del `content`; sin esto el
+                # chat "se congela" y el JSON del Phantom gasta el presupuesto en 'thinking'. Equivale
+                # al viejo deepseek-chat (no-razonador), la base validada en el golden.
                 json={"model": self.model, "max_tokens": max_tokens, "stream": False,
+                      "thinking": {"type": "disabled"},
                       "messages": self._openai_messages(system, user)},
             )
-            r.raise_for_status()
+            if r.status_code >= 400:
+                # Incluye el cuerpo (motivo real del proveedor: modelo inválido, contexto, etc.).
+                raise RuntimeError(f"LLM {self.model} HTTP {r.status_code}: {r.text[:400]}")
             data = r.json()
         # Ignora `reasoning_content` (solo el `content` final -> JSON limpio para el Phantom).
         return (data.get("choices") or [{}])[0].get("message", {}).get("content") or ""
@@ -103,10 +109,14 @@ class LLMClient:
             with client.stream(
                 "POST", f"{self.base_url}/chat/completions",
                 headers={"Authorization": f"Bearer {self.api_key}"},
+                # thinking desactivado: sin esto el primer token del chat tarda ~30s (razonamiento).
                 json={"model": self.model, "max_tokens": max_tokens, "stream": True,
+                      "thinking": {"type": "disabled"},
                       "messages": self._openai_messages(system, user, history)},
             ) as r:
-                r.raise_for_status()
+                if r.status_code >= 400:
+                    body = r.read().decode("utf-8", "replace")[:400]
+                    raise RuntimeError(f"LLM {self.model} HTTP {r.status_code}: {body}")
                 for line in r.iter_lines():
                     line = line.strip()
                     if not line.startswith("data:"):
