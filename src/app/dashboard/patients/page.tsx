@@ -1,5 +1,5 @@
 import Link from "next/link"
-import { FileTextIcon, PawPrintIcon, PlusIcon } from "lucide-react"
+import { FileTextIcon, PawPrintIcon, PlusIcon, UploadIcon } from "lucide-react"
 
 import { CreatePatientDrawer } from "@/components/create-patient-drawer"
 import { ExportCsvButton } from "@/components/export-csv-button"
@@ -159,6 +159,9 @@ export default async function PatientsPage({
           </p>
         </div>
         <div className="flex items-center gap-2">
+          <Button variant="outline" size="sm" render={<Link href="/dashboard/patients/import" />}>
+            <UploadIcon className="size-4" /> Importar
+          </Button>
           <ExportCsvButton
             filename="pacientes.csv"
             headers={["Mascota", "Especie", "Raza", "Sexo", "Edad", "Titular", "Teléfono"]}
