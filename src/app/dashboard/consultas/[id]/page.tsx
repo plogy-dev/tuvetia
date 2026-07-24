@@ -224,81 +224,128 @@ export default function NotaConsultaPage({ params }: { params: Promise<{ id: str
         <ArrowLeft className="size-4" /> Volver a consultas
       </Link>
 
-      {/* Barra de sesión */}
-      <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border bg-card p-3">
-        <div className="flex items-center gap-3">
-          <div className="flex size-10 items-center justify-center rounded-full bg-muted text-sm font-semibold">
+      {/* Cabecera del paciente */}
+      <div className="rounded-xl border bg-card p-4 shadow-sm md:p-6">
+        <div className="flex flex-wrap items-center gap-4">
+          <div className="grid size-12 shrink-0 place-items-center rounded-xl bg-secondary text-xl font-bold">
             {initial}
           </div>
-          <div>
-            <div className="text-sm font-semibold">
+          <div className="min-w-0 flex-1">
+            <h1 className="text-xl font-semibold tracking-tight md:text-2xl">
               {pet?.name ?? "Consulta"}
-              {pet?.species && (
-                <span className="ml-2 font-normal text-muted-foreground">{pet.species}</span>
-              )}
-            </div>
-            <div className="text-xs text-muted-foreground">
-              {consultation?.chief_complaint ?? "Consulta"}
+            </h1>
+            <div className="mt-0.5 flex flex-wrap gap-x-4 gap-y-1 text-sm text-muted-foreground">
+              {pet?.species && <span className="font-medium text-foreground">{pet.species}</span>}
+              <span>{consultation?.chief_complaint ?? "Consulta"}</span>
             </div>
           </div>
         </div>
-        <Badge variant={approved ? "default" : "secondary"} className="gap-1.5">
-          <span className={`size-1.5 rounded-full ${approved ? "bg-current" : "bg-current opacity-60"}`} />
-          {note ? (approved ? "Aprobada" : "Borrador") : "Sin nota"}
-        </Badge>
-      </div>
-
-      {/* Gate de alergia severa (BLOQUEANTE para aprobar) */}
-      {note?.allergy_gate_triggered && (
-        <div className="flex flex-col gap-2 rounded-lg border border-destructive/50 bg-destructive/10 px-3 py-2 text-sm text-destructive">
-          <div className="flex items-start gap-2">
-            <AlertTriangle className="mt-0.5 size-4 shrink-0" />
-            <span>
-              <strong>Gate de alergia severa activado.</strong> El paciente tiene una alergia severa
-              registrada. Verifica el plan antes de aprobar.
+        <div className="mt-4 flex flex-wrap gap-2">
+          <span className="inline-flex items-center gap-1.5 rounded-md border bg-secondary px-2.5 py-1 text-xs font-medium">
+            <span className={`size-1.5 rounded-full ${approved ? "bg-foreground" : "bg-muted-foreground"}`} />
+            {note ? (approved ? "Aprobada" : "Borrador — requiere aprobación") : "Sin nota"}
+          </span>
+          {note?.ai_model && (
+            <span className="inline-flex items-center gap-1.5 rounded-md border bg-secondary px-2.5 py-1 text-xs text-muted-foreground">
+              Motor IA <span className="font-mono text-foreground">{note.ai_model}</span>
             </span>
-          </div>
-          {!approved && (
-            <label className="ml-6 flex cursor-pointer items-center gap-2 text-xs font-medium">
-              <Checkbox
-                checked={gateAck}
-                onCheckedChange={(checked) => setGateAck(checked === true)}
-              />
-              Confirmo que revisé el plan considerando esta alergia severa
-            </label>
+          )}
+          {note && (
+            <span className="inline-flex items-center gap-1.5 rounded-md border bg-secondary px-2.5 py-1 text-xs text-muted-foreground">
+              <span className="size-1.5 rounded-full bg-muted-foreground" />
+              {citations.length > 0 ? "Evidencia suficiente" : "Sin literatura citada"}
+            </span>
           )}
         </div>
-      )}
+      </div>
 
-      {/* Alertas de condición relevantes (no bloqueantes; panel "afectaciones en este paciente") */}
-      {alerts.length > 0 && (
-        <div className="flex flex-col gap-2">
-          {alerts.map((a, i) => (
-            <details
-              key={`${a.condition}-${i}`}
-              className="group rounded-lg border border-amber-300 bg-amber-50 text-amber-900 dark:border-amber-900/50 dark:bg-amber-950/40 dark:text-amber-200"
-            >
-              <summary className="flex cursor-pointer list-none items-center gap-2.5 p-3 text-sm">
-                <Activity className="size-4 shrink-0" />
-                <span className="text-[10px] font-semibold tracking-wide uppercase opacity-70">
-                  Condición relevante
-                </span>
-                <span className="font-medium">{a.condition}</span>
-                {a.detail && (
-                  <span className="ml-auto flex items-center gap-1 text-xs font-medium opacity-80">
-                    Ver afectaciones
+      {/* Alertas de la consulta: gate de alergia (bloqueante) + condiciones relevantes */}
+      {(note?.allergy_gate_triggered || alerts.length > 0) && (
+        <section className="rounded-xl border bg-card p-4 shadow-sm md:p-5">
+          <p className="mb-3 text-[11px] font-bold uppercase tracking-[0.09em] text-muted-foreground">
+            Alertas de la consulta
+          </p>
+          <div className="flex flex-col gap-3">
+            {/* Gate de alergia severa — CRÍTICO, bloquea la aprobación */}
+            {note?.allergy_gate_triggered && (
+              <details open className="group overflow-hidden rounded-lg border border-destructive/40 bg-card">
+                <summary className="flex cursor-pointer list-none items-center gap-3 border-l-4 border-l-destructive bg-destructive/10 p-3">
+                  <span className="grid size-9 shrink-0 place-items-center rounded-lg bg-destructive text-destructive-foreground">
+                    <AlertTriangle className="size-[18px]" />
+                  </span>
+                  <span className="min-w-0 flex-1">
+                    <span className="block text-[11px] font-bold uppercase tracking-wide text-destructive">
+                      Alergia severa · bloqueante
+                    </span>
+                    <span className="block font-semibold">Alergia severa registrada — revisa antes del plan</span>
+                  </span>
+                  <span className="flex shrink-0 items-center gap-1 text-xs font-semibold text-muted-foreground">
+                    Ver
                     <ChevronDown className="size-3.5 transition-transform group-open:rotate-180" />
                   </span>
-                )}
-              </summary>
-              {a.detail && (
-                <div className="border-t border-amber-300/60 px-3 py-2.5 text-sm leading-relaxed dark:border-amber-900/50">
-                  {a.detail}
+                </summary>
+                <div className="border-t p-4 text-sm leading-relaxed">
+                  <p className="mb-2 text-[11px] uppercase tracking-wide text-muted-foreground">
+                    Fuente: ficha del paciente (determinístico, no del modelo)
+                  </p>
+                  <p>
+                    <span className="mr-1.5 rounded bg-secondary px-2 py-0.5 text-[11px] font-bold uppercase text-foreground">
+                      En {pet?.name ?? "este paciente"}
+                    </span>
+                    Hay una <strong>alergia severa</strong> registrada en su historia. Evita el fármaco
+                    implicado y su clase en cualquier plan. Esta alerta <strong>bloquea la aprobación</strong> de
+                    la nota hasta tu revisión.
+                  </p>
+                  {!approved && (
+                    <label className="mt-3 flex cursor-pointer items-center gap-2 text-xs font-medium">
+                      <Checkbox
+                        checked={gateAck}
+                        onCheckedChange={(checked) => setGateAck(checked === true)}
+                      />
+                      Confirmo que revisé el plan considerando esta alergia severa
+                    </label>
+                  )}
                 </div>
-              )}
-            </details>
-          ))}
-        </div>
+              </details>
+            )}
+
+            {/* Condiciones relevantes — no bloqueantes, panel "afectaciones en este paciente" */}
+            {alerts.map((a, i) => (
+              <details key={`${a.condition}-${i}`} className="group overflow-hidden rounded-lg border bg-card">
+                <summary className="flex cursor-pointer list-none items-center gap-3 border-l-4 border-l-muted-foreground bg-secondary p-3">
+                  <span className="grid size-9 shrink-0 place-items-center rounded-lg bg-primary text-primary-foreground">
+                    <Activity className="size-[18px]" />
+                  </span>
+                  <span className="min-w-0 flex-1">
+                    <span className="block text-[11px] font-bold uppercase tracking-wide text-muted-foreground">
+                      Condición relevante
+                    </span>
+                    <span className="block font-semibold">{a.condition}</span>
+                  </span>
+                  {a.detail && (
+                    <span className="flex shrink-0 items-center gap-1 text-xs font-semibold text-muted-foreground">
+                      Ver afectaciones
+                      <ChevronDown className="size-3.5 transition-transform group-open:rotate-180" />
+                    </span>
+                  )}
+                </summary>
+                {a.detail && (
+                  <div className="border-t p-4 text-sm leading-relaxed">
+                    <p className="mb-2 text-[11px] uppercase tracking-wide text-muted-foreground">
+                      Explicación generada · anclada a la literatura recuperada
+                    </p>
+                    <p>
+                      <span className="mr-1.5 rounded bg-secondary px-2 py-0.5 text-[11px] font-bold uppercase text-foreground">
+                        En {pet?.name ?? "este paciente"}
+                      </span>
+                      {a.detail}
+                    </p>
+                  </div>
+                )}
+              </details>
+            ))}
+          </div>
+        </section>
       )}
 
       {/* Captura de la consulta (consentimiento -> grabar -> transcribir) */}
@@ -378,17 +425,24 @@ export default function NotaConsultaPage({ params }: { params: Promise<{ id: str
           ) : (
             <div className="flex flex-col gap-3 p-4">
               {SOAP_FIELDS.map((f) => (
-                <div key={f.key}>
-                  <div className="mb-1 flex items-baseline gap-2">
-                    <span className="text-sm font-medium">{f.label}</span>
-                    <span className="text-xs text-muted-foreground">{f.hint}</span>
+                <div key={f.key} className="flex gap-3">
+                  <span className="mt-0.5 grid size-9 shrink-0 place-items-center rounded-lg border bg-secondary text-sm font-bold">
+                    {f.label.charAt(0)}
+                  </span>
+                  <div className="min-w-0 flex-1">
+                    <div className="mb-1 flex items-baseline gap-2">
+                      <span className="text-[11px] font-bold uppercase tracking-wide text-muted-foreground">
+                        {f.label}
+                      </span>
+                      <span className="text-xs text-muted-foreground">{f.hint}</span>
+                    </div>
+                    <Textarea
+                      value={soap[f.key]}
+                      onChange={(e) => setSoap((s) => ({ ...s, [f.key]: e.target.value }))}
+                      disabled={approved}
+                      rows={f.key === "assessment" || f.key === "plan" ? 4 : 2}
+                    />
                   </div>
-                  <Textarea
-                    value={soap[f.key]}
-                    onChange={(e) => setSoap((s) => ({ ...s, [f.key]: e.target.value }))}
-                    disabled={approved}
-                    rows={f.key === "assessment" || f.key === "plan" ? 4 : 2}
-                  />
                 </div>
               ))}
 

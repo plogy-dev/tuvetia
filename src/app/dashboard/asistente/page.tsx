@@ -206,6 +206,17 @@ export default function AsistentePage() {
         </div>
       </div>
 
+      {/* Aviso de memoria del hilo */}
+      {patient && (
+        <div className="flex items-center gap-2 rounded-lg border bg-secondary px-3 py-2 text-xs text-muted-foreground">
+          <span className="size-1.5 shrink-0 animate-pulse rounded-full bg-foreground" />
+          <span>
+            <strong className="font-semibold text-foreground">Hilo con memoria</strong> — recuerdo el
+            contexto de {patient.name} y las respuestas anteriores de esta conversación.
+          </span>
+        </div>
+      )}
+
       {/* Hilo de conversación (con memoria) */}
       <div
         ref={threadRef}
