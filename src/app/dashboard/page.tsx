@@ -5,6 +5,7 @@ import { CalendarClock, FileClock, PawPrint, Stethoscope } from "lucide-react"
 import { createClient } from "@/lib/supabase/server"
 import { SectionCards } from "@/components/section-cards"
 import { ConsultationsChart } from "@/components/dashboard/consultations-chart"
+import { OnboardingChecklist } from "@/components/dashboard/onboarding-checklist"
 import {
   UpcomingAppointments,
   type UpcomingAppointment,
@@ -37,7 +38,7 @@ export default async function DashboardPage() {
     weekStartsOn: 1,
   })
 
-  const [consultasMes, pacientes, citas7d, notasRevisar, chartData, upcomingData] =
+  const [consultasMes, pacientes, citas7d, notasRevisar, chartData, upcomingData, audiosCount, aprobadas, demoOwner] =
     await Promise.all([
       supabase
         .from("consultations")
@@ -62,6 +63,13 @@ export default async function DashboardPage() {
         .neq("status", "canceled")
         .order("starts_at", { ascending: true })
         .limit(8),
+      // Checklist de primeros pasos (datos reales de la clínica)
+      supabase.from("consultation_audios").select("*", { count: "exact", head: true }),
+      supabase.from("clinical_notes").select("*", { count: "exact", head: true }).eq("status", "approved"),
+      supabase
+        .from("owners")
+        .select("*", { count: "exact", head: true })
+        .eq("full_name", "Ejemplo — TuvetIA"),
     ])
 
   const metrics = [
@@ -99,6 +107,12 @@ export default async function DashboardPage() {
 
   return (
     <div className="flex flex-col gap-4 py-4 md:gap-6 md:py-6">
+      <OnboardingChecklist
+        hasPatient={(pacientes.count ?? 0) > 0}
+        hasRecording={(audiosCount.count ?? 0) > 0}
+        hasApprovedNote={(aprobadas.count ?? 0) > 0}
+        hasDemo={(demoOwner.count ?? 0) > 0}
+      />
       <SectionCards metrics={metrics} />
       <div className="grid gap-4 px-4 lg:grid-cols-5 lg:px-6">
         <div className="lg:col-span-3">

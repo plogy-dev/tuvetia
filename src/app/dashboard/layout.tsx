@@ -1,3 +1,5 @@
+import { redirect } from "next/navigation"
+
 import { AppSidebar } from "@/components/app-sidebar"
 import { SiteHeader } from "@/components/site-header"
 import { OnboardingTour } from "@/components/onboarding-tour"
@@ -18,11 +20,21 @@ export default async function DashboardLayout({
     ? (
         await supabase
           .from("profiles")
-          .select("full_name, onboarded_at")
+          .select("full_name, onboarded_at, clinic_id, setup_completed_at")
           .eq("id", user.id)
           .single()
       ).data
     : null
+
+  // Vet nuevo (creador de clínica) sin el wizard completado -> a /bienvenida. Los invitados nunca
+  // caen aquí (accept_invitation marca setup_completed_at) ni los usuarios preexistentes (backfill 0017).
+  const p = profile as {
+    full_name: string | null
+    onboarded_at: string | null
+    clinic_id: string | null
+    setup_completed_at: string | null
+  } | null
+  if (p?.clinic_id && !p.setup_completed_at) redirect("/bienvenida")
 
   const sidebarUser = {
     name: profile?.full_name || user?.email || "Usuario",
