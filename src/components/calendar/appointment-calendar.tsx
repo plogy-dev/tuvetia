@@ -39,6 +39,7 @@ import {
   CreateAppointmentDrawer,
   type AppointmentFormInitial,
 } from "./create-appointment-drawer"
+import { HelpTip } from "@/components/help-tip"
 import { GoogleCalendarConnect } from "./google-calendar-connect"
 import { IcsFeedButton } from "./ics-feed-button"
 
@@ -247,7 +248,13 @@ export function AppointmentCalendar({
   return (
     <div className="flex flex-col gap-3">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <h1 className="text-lg font-semibold">Calendario</h1>
+        <h1 className="flex items-center gap-1.5 text-lg font-semibold">
+          Calendario
+          <HelpTip>
+            Agendá y arrastrá citas. <b>Conectar Google Calendar</b> sincroniza en ambos sentidos;{" "}
+            <b>Enlace ICS</b> muestra la agenda en Google sin conectar la cuenta (solo lectura).
+          </HelpTip>
+        </h1>
         <div className="flex flex-wrap items-center gap-2">
           <IcsFeedButton />
           <GoogleCalendarConnect

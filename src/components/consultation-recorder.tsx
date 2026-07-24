@@ -11,6 +11,7 @@ import { toast } from "sonner"
 
 import { athosTranscribe } from "@/lib/athos"
 import { createClient } from "@/lib/supabase/client"
+import { HelpTip } from "@/components/help-tip"
 import { Button } from "@/components/ui/button"
 
 const AUDIO_BUCKET = "consultation-audios"
@@ -216,6 +217,10 @@ export function ConsultationRecorder({
             ? "Consulta grabada y transcrita."
             : "Graba la consulta para que Athos redacte la nota."}
         </span>
+        <HelpTip>
+          Antes de grabar se pide el <b>consentimiento del titular</b> (Ley 1581). El audio se
+          transcribe y Athos redacta la nota SOAP; el audio se elimina a los 7 días.
+        </HelpTip>
       </div>
       <Button onClick={() => setPhase("consent")} variant={phase === "done" ? "outline" : "default"}>
         <Mic className="size-4" /> {phase === "done" ? "Grabar otra vez" : "Iniciar grabación"}
