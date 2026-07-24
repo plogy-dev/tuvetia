@@ -96,6 +96,17 @@ Para activar lo que hoy está **dormido**:
 - Todo lo de **Athos** (copiloto, corpus, citas, y sus piezas de front) → equipo Plogy (ver
   `athos-service/docs/ATHOS_CONTEXTO_EQUIPO.md`).
 
+## Equipo y panel admin (2026-07-24)
+- **Invitaciones** (PR #13): Configuración → Equipo — un admin invita colegas (link `/invitar/<token>`
+  + email best-effort). RPCs `create_invitation`/`has_pending_invitation` (migración `0016`); el alta
+  ya no crea clínica huérfana a invitados. `accept_invitation` (del esquema base) hace la asignación.
+- **Panel de plataforma `/admin`** (Resumen · Clínicas · Uso IA · Costos): gate por
+  **`PLATFORM_ADMIN_EMAILS`** (env de Vercel, lista por comas; sin la env nadie entra; no-admin → 404).
+  Datos vía service_role (todas las clínicas). Costos = estimación con `src/lib/admin/pricing.ts`
+  (los logs NO guardan tokens — **mejora recomendada al equipo Athos: loguear `tokens_in/out` en
+  `rag_answer_log`**). Rate limits: hoy solo observabilidad (pico msgs/día por clínica); enforcement
+  en backlog.
+
 ## Onboarding de vets nuevos (2026-07-24)
 - **Wizard `/bienvenida`** (primer login del creador de clínica; flag `profiles.setup_completed_at`,
   migración `0017` con backfill): bienvenida → clínica/perfil → primer paciente → **datos de ejemplo**

@@ -29,7 +29,10 @@ CLINICAL_SYSTEM_PROMPT = (
     "práctica, si el cuadro es reconocible en la literatura, deberías citar al menos una fuente. "
     "Cita SOLO chunk_id presentes en la literatura entregada; nunca inventes fuentes. Deja "
     "`citations` en [] ÚNICAMENTE si NINGÚN chunk se relaciona con el cuadro clínico (hueco real de "
-    "literatura); solo en ese caso indícalo en el assessment.\n\n"
+    "literatura); solo en ese caso indícalo en el assessment.\n"
+    "Además, DENTRO del texto del assessment y del plan, marca cada afirmación respaldada con su "
+    "referencia entre corchetes [chunk_id] inmediatamente después de la afirmación (el sistema la "
+    "convertirá en numeración [n] para el veterinario).\n\n"
     "Devuelve EXCLUSIVAMENTE un objeto JSON válido (sin texto adicional, sin ```), con esta forma:\n"
     '{"soap": {"subjective": "", "objective": "", "assessment": "", "plan": ""}, '
     '"citations": [{"chunk_id": "", "doc_id": "", "locator": "", "source": ""}], '
@@ -81,9 +84,35 @@ def _extract_json(text: str) -> dict:
         return {}
 
 
+_UUID_RE = re.compile(
+    r"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}", re.IGNORECASE
+)
+# Grupo de referencia cruda de chunk que el modelo deja en el texto: "(chunk_id: uuid[, uuid])" o
+# "[uuid[; uuid]]". Se reemplaza por los marcadores [n] de las citas (o se elimina si no mapea).
+_CHUNK_REF_RE = re.compile(
+    r"\s*(?:\(\s*chunk_id[^)]*\)|\[\s*" + _UUID_RE.pattern
+    + r"(?:\s*[;,]\s*" + _UUID_RE.pattern + r")*\s*\])",
+    re.IGNORECASE,
+)
+
+
+def _renumber_refs(text: str, idx: dict[str, int]) -> str:
+    """Reemplaza las referencias crudas de chunk_id del texto por marcadores [n] (n = posición en la
+    lista final de citas), para que el front las muestre como citas enlazadas. Una referencia que no
+    mapea a ninguna cita se elimina (ruido ilegible)."""
+    def repl(m: "re.Match[str]") -> str:
+        return "".join(
+            f"[{idx[u.group(0).lower()]}]"
+            for u in _UUID_RE.finditer(m.group(0))
+            if u.group(0).lower() in idx
+        )
+    return _CHUNK_REF_RE.sub(repl, text)
+
+
 def parse_note_response(text: str, literature: list[RetrievedChunk]) -> tuple[SOAP, list[Citation], bool]:
     """Parsea la respuesta del modelo y VERIFICA las citas contra la literatura recuperada
-    (descarta fuentes inventadas). Determinístico. Devuelve (soap, citations, allergy_flag)."""
+    (descarta fuentes inventadas). Además NUMERA las citas en el texto del SOAP ([n]) para que el
+    front las enlace. Determinístico. Devuelve (soap, citations, allergy_flag)."""
     data = _extract_json(text)
     s = data.get("soap") or {}
     soap = SOAP(
@@ -99,6 +128,22 @@ def parse_note_response(text: str, literature: list[RetrievedChunk]) -> tuple[SO
         if isinstance(c, dict) and c.get("chunk_id")
     ]
     verified = verify_citations(text, cited, literature)
+    # Rescata chunk_id citados INLINE en el texto que estén en la literatura pero que el modelo no
+    # listó en `citations` — para no perder una cita real ni dejar la referencia sin numerar.
+    by_id = {c.chunk_id.lower(): c for c in literature}
+    seen = {c.chunk_id.lower() for c in verified}
+    for cid in (u.lower() for u in _UUID_RE.findall(f"{soap.assessment}\n{soap.plan}")):
+        if cid in by_id and cid not in seen:
+            verified.append(Citation.from_chunk(by_id[cid]))
+            seen.add(cid)
+    # Reemplaza las referencias crudas por marcadores [n] (n = posición en `verified`).
+    idx = {c.chunk_id.lower(): i + 1 for i, c in enumerate(verified)}
+    soap = SOAP(
+        subjective=soap.subjective,
+        objective=_renumber_refs(soap.objective, idx),
+        assessment=_renumber_refs(soap.assessment, idx),
+        plan=_renumber_refs(soap.plan, idx),
+    )
     return soap, verified, bool(data.get("allergy_transcript_flag", False))
 
 

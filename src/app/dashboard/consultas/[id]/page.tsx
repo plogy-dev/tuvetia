@@ -1,6 +1,6 @@
 "use client"
 
-import { use, useCallback, useEffect, useState, type ReactNode } from "react"
+import { use, useCallback, useEffect, useState } from "react"
 import Link from "next/link"
 import {
   Activity,
@@ -21,6 +21,8 @@ import { athosPhantomSuggest, type Citation, type ConditionAlert } from "@/lib/a
 import { createClient } from "@/lib/supabase/client"
 import { parseTranscript } from "@/lib/transcript"
 import { ConsultationRecorder } from "@/components/consultation-recorder"
+import { ConsultationThread } from "@/components/athos/consultation-thread"
+import { renderInline } from "@/components/athos/rich-text"
 import { HelpTip } from "@/components/help-tip"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -58,77 +60,13 @@ const SOAP_FIELDS: { key: keyof Soap; label: string; hint: string }[] = [
   { key: "plan", label: "Plan", hint: "Conducta y siguientes pasos" },
 ]
 
-// Resalta el lenguaje de posibilidad (regla clínica: nunca diagnóstico cerrado).
-const POSSIBILITY =
-  /(compatible con|sugestivo de|sugerente de|no hay evidencia suficiente|evidencia insuficiente|posiblemente|posible|podría|sugiere|se recomienda valorar)/i
-
-// Render de la nota aprobada (solo lectura): negritas **..**, citas [n] enlazadas a su fuente, y
-// resalta el lenguaje de posibilidad. En borrador, el SOAP es editable (textarea) — sin este render.
-function renderRich(raw: string, citations: Citation[]): ReactNode[] {
-  // Limpia referencias crudas de chunk que algunas notas embebían en el texto
-  // (uuid en [..] o (chunk_id: ..)) — ruido ilegible; la cita real vive en Referencias.
+// Render de la nota (solo lectura): limpia referencias crudas de chunk que notas viejas embebían
+// en el texto y delega en el render compartido (negritas, citas [n] enlazadas, posibilidad).
+function renderNote(raw: string, citations: Citation[], kp: string) {
   const text = raw
     .replace(/\s*\(chunk_id:[^)]*\)/gi, "")
     .replace(/\s*\[[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f-]{18,}\]/gi, "")
-  const nodes: ReactNode[] = []
-  const pushText = (t: string, base: string) => {
-    t.split(new RegExp(POSSIBILITY.source, "gi")).forEach((p, j) => {
-      if (!p) return
-      nodes.push(
-        POSSIBILITY.test(p) ? (
-          <span
-            key={`${base}-p${j}`}
-            className="font-medium underline decoration-dotted decoration-muted-foreground/60 underline-offset-2"
-          >
-            {p}
-          </span>
-        ) : (
-          <span key={`${base}-t${j}`}>{p}</span>
-        ),
-      )
-    })
-  }
-  const regex = /(\[\d+\])|(\*\*[^*]+\*\*)/g
-  let last = 0
-  let m: RegExpExecArray | null
-  let k = 0
-  while ((m = regex.exec(text)) !== null) {
-    if (m.index > last) pushText(text.slice(last, m.index), `x${k}`)
-    if (m[1]) {
-      const n = parseInt(m[1].slice(1, -1), 10)
-      const c = citations[n - 1]
-      const cls =
-        "mx-0.5 inline-block rounded border bg-secondary px-1 font-mono text-[11px] font-bold text-foreground underline decoration-dotted underline-offset-2 align-baseline"
-      nodes.push(
-        c?.url ? (
-          <a
-            key={`c${k}`}
-            href={c.url}
-            target="_blank"
-            rel="noopener noreferrer"
-            title={c.title ?? c.source ?? "Ver fuente"}
-            className={`${cls} hover:bg-accent`}
-          >
-            [{n}]
-          </a>
-        ) : (
-          <span key={`c${k}`} className={cls}>
-            [{n}]
-          </span>
-        ),
-      )
-    } else if (m[2]) {
-      nodes.push(
-        <strong key={`b${k}`} className="font-semibold">
-          {m[2].slice(2, -2)}
-        </strong>,
-      )
-    }
-    last = regex.lastIndex
-    k++
-  }
-  if (last < text.length) pushText(text.slice(last), `x${k}`)
-  return nodes
+  return renderInline(text, citations, kp)
 }
 
 export default function NotaConsultaPage({ params }: { params: Promise<{ id: string }> }) {
@@ -195,6 +133,8 @@ export default function NotaConsultaPage({ params }: { params: Promise<{ id: str
       const persisted = (al as { alerts?: ConditionAlert[] } | null)?.alerts
       if (!alErr && Array.isArray(persisted)) setAlerts(persisted)
     }
+    // Con nota ya generada, el foco es la nota: el panel de grabación/transcripción arranca plegado.
+    setCaptureOpen(!n)
     setLoading(false)
   }, [supabase, id])
 
@@ -293,13 +233,17 @@ export default function NotaConsultaPage({ params }: { params: Promise<{ id: str
   const initial = (pet?.name ?? "?").charAt(0).toUpperCase()
 
   return (
-    <div className="mx-auto flex w-full max-w-4xl flex-col gap-4 px-4 py-4 md:gap-5 md:py-6 lg:px-6">
+    <div className="mx-auto flex w-full max-w-7xl flex-col gap-4 px-4 py-4 md:gap-5 md:py-6 lg:px-6">
       <Link
         href="/dashboard/consultas"
         className="inline-flex w-fit items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
       >
         <ArrowLeft className="size-4" /> Volver a consultas
       </Link>
+
+      {/* Layout del mockup: nota (izquierda) + hilo de la consulta (derecha, sticky) */}
+      <div className="grid gap-4 md:gap-5 lg:grid-cols-[minmax(0,1.55fr)_minmax(320px,1fr)] lg:items-start">
+      <div className="flex min-w-0 flex-col gap-4 md:gap-5">
 
       {/* Cabecera del paciente */}
       <div className="rounded-xl border bg-card p-4 shadow-sm md:p-6">
@@ -434,12 +378,14 @@ export default function NotaConsultaPage({ params }: { params: Promise<{ id: str
         >
           <summary className="flex cursor-pointer list-none items-center justify-between gap-2 px-4 py-3">
             <div className="flex items-center gap-2 text-sm font-semibold">
-              <AudioLines className="size-4 text-muted-foreground" /> Grabar y transcripción de la consulta
+              <AudioLines className="size-4 text-muted-foreground" /> Grabación y transcripción de la consulta
             </div>
             <ChevronDown className="size-4 text-muted-foreground transition-transform group-open:rotate-180" />
           </summary>
           <div className="flex flex-col gap-4 border-t p-4">
-            {consultation && !approved && (
+            {/* El grabador solo aparece al INICIAR la consulta (aún sin transcripción); después,
+                la nota trabaja con la grabación/transcripción ya tomada. */}
+            {consultation && !approved && turns.length === 0 && (
               <ConsultationRecorder
                 consultationId={id}
                 clinicId={consultation.clinic_id}
@@ -524,7 +470,7 @@ export default function NotaConsultaPage({ params }: { params: Promise<{ id: str
                   {approved ? (
                     <p className="text-sm leading-relaxed whitespace-pre-wrap">
                       {soap[f.key] ? (
-                        renderRich(soap[f.key], citations)
+                        renderNote(soap[f.key], citations, f.key)
                       ) : (
                         <span className="text-muted-foreground">—</span>
                       )}
@@ -615,6 +561,17 @@ export default function NotaConsultaPage({ params }: { params: Promise<{ id: str
           )}
         </section>
       )}
+      </div>
+
+      {/* Hilo del copiloto embebido (columna derecha del mockup) */}
+      {consultation && (
+        <ConsultationThread
+          clinicId={consultation.clinic_id}
+          patientId={consultation.patient_id}
+          patientName={pet?.name}
+        />
+      )}
+      </div>
     </div>
   )
 }
