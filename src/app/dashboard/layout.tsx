@@ -1,5 +1,6 @@
 import { AppSidebar } from "@/components/app-sidebar"
 import { SiteHeader } from "@/components/site-header"
+import { OnboardingTour } from "@/components/onboarding-tour"
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar"
 import { createClient } from "@/lib/supabase/server"
 
@@ -17,7 +18,7 @@ export default async function DashboardLayout({
     ? (
         await supabase
           .from("profiles")
-          .select("full_name")
+          .select("full_name, onboarded_at")
           .eq("id", user.id)
           .single()
       ).data
@@ -39,6 +40,7 @@ export default async function DashboardLayout({
       }
     >
       <AppSidebar variant="inset" user={sidebarUser} />
+      <OnboardingTour onboarded={Boolean((profile as { onboarded_at?: string | null } | null)?.onboarded_at)} />
       <SidebarInset>
         <SiteHeader />
         <div className="flex flex-1 flex-col">
