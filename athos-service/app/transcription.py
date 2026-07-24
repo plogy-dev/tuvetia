@@ -48,6 +48,15 @@ def _load_audio_row(clinic_id: str, consultation_id: str) -> dict | None:
 def _download_audio(storage_path: str) -> bytes:
     """Baja el objeto del bucket privado con service_role."""
     settings = get_settings()
+    # Este endpoint es el primero que baja de Storage por HTTP -> necesita SUPABASE_URL +
+    # SUPABASE_SERVICE_ROLE_KEY (chat/phantom no las usan, van directo a Postgres). Si faltan,
+    # la URL quedaría sin host y httpx reventaría con un error opaco. Fallar claro y temprano.
+    if not settings.supabase_url or not settings.supabase_service_role_key:
+        raise HTTPException(
+            status_code=500,
+            detail="faltan SUPABASE_URL y/o SUPABASE_SERVICE_ROLE_KEY en el backend "
+                   "(requeridas para descargar el audio de Storage en /athos/transcribe)",
+        )
     url = f"{settings.supabase_url}/storage/v1/object/{AUDIO_BUCKET}/{storage_path}"
     headers = {"Authorization": f"Bearer {settings.supabase_service_role_key}"}
     with httpx.Client(timeout=120) as client:

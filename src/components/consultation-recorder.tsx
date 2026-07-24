@@ -42,6 +42,9 @@ export function ConsultationRecorder({
   const chunksRef = useRef<Blob[]>([])
   const streamRef = useRef<MediaStream | null>(null)
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null)
+  // `handleStop` se engancha a rec.onstop al arrancar (cuando seconds=0), así que su closure
+  // veía siempre 0 -> duration_secs quedaba en 0. El ref se lee al detener y está siempre al día.
+  const secondsRef = useRef(0)
 
   // Limpieza: si el componente se desmonta grabando, soltamos el micrófono.
   useEffect(() => {
@@ -73,9 +76,13 @@ export function ConsultationRecorder({
       rec.onstop = () => void handleStop()
       rec.start(1000)
       recorderRef.current = rec
+      secondsRef.current = 0
       setSeconds(0)
       setPhase("recording")
-      timerRef.current = setInterval(() => setSeconds((s) => s + 1), 1000)
+      timerRef.current = setInterval(() => {
+        secondsRef.current += 1
+        setSeconds(secondsRef.current)
+      }, 1000)
     } catch (e) {
       toast.error(
         `No se pudo acceder al micrófono: ${(e as Error).message}. Revisa los permisos del navegador.`,
@@ -94,7 +101,7 @@ export function ConsultationRecorder({
   async function handleStop() {
     setPhase("uploading")
     const blob = new Blob(chunksRef.current, { type: "audio/webm" })
-    const duration = seconds
+    const duration = secondsRef.current
     try {
       const audioId = crypto.randomUUID()
       // La ruta empieza por clinic_id: es lo que usan las policies de Storage para aislar.

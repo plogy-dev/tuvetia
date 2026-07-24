@@ -108,11 +108,24 @@ consulta sin `consents` debe fallar.
 **transcript se conserva**.
 
 **Variables en Railway** (Settings → Variables, se suman a las de §1.4):
+- `SUPABASE_URL` = `https://auxlnexhkmtoedrzfsnz.supabase.co` — **NUEVA en Railway.** Chat y phantom
+  van directo a Postgres (`DATABASE_URL`) y nunca la usaron; `/athos/transcribe` es el **primer**
+  endpoint que baja el audio de Storage por HTTP, así que es el primero que la necesita.
+- `SUPABASE_SERVICE_ROLE_KEY` = la service_role del principal (SECRETA) — **NUEVA en Railway.** Se usa
+  para descargar del bucket privado saltándose RLS. Sin `SUPABASE_URL` **o** sin esta key, la URL de
+  descarga queda sin host y la transcripción muere **antes de llamar a Deepgram** (no vas a ver ni un
+  `GET` en los logs de Storage). Con el arreglo de `transcription.py` el error ahora es explícito:
+  *"faltan SUPABASE_URL y/o SUPABASE_SERVICE_ROLE_KEY…"*.
 - `DEEPGRAM_API_KEY` = la key de console.deepgram.com — **sin ella `/athos/transcribe` devuelve 500**.
 - `STT_MODEL` = `nova-2` (el idioma `es` y `diarize` van fijos en código, no por env var).
 - `CORS_ORIGINS` = **las dos URLs separadas por coma**: `https://<la-url-de-vercel>,http://localhost:3000`.
   La grabación se prueba mucho en local contra el backend desplegado; si solo está la de Vercel, el
   navegador bloquea la llamada desde `localhost`.
+
+> **Síntoma de que faltan estas dos (nos pasó).** El audio sube bien (POST 200 en Storage) y se crea
+> la fila en `consultation_audios`, pero **no aparece ningún transcript nuevo** y la consulta vuelve a
+> `open`. En los logs de Storage se ven los `POST` de subida pero **ningún `GET`** de descarga: el
+> backend nunca llega a pedir el archivo porque la URL no tiene host. No es un problema de Deepgram.
 
 **En Vercel no se agrega nada**: el front solo necesita `NEXT_PUBLIC_ATHOS_URL`, que ya existe.
 Ningún secreto de Deepgram toca el navegador ni el repo (en git solo el nombre, en `.env.example`).
