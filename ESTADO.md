@@ -62,7 +62,8 @@ nuevos; si el flujo del equipo usa el CLI, marcalos como aplicados (`supabase mi
 `0005 phantom_audio_storage` · `0006 appointment_rpcs` · `0007 calendar_integrations` ·
 `0008 calendar_feeds` · `0009 delete_transcript` · `0010 optimize_calendar_rls` ·
 `0011 appointment_fk_indexes` · `0012 audio_storage_path_nullable` · `0013 profiles_onboarded_at` ·
-`0014 hot_path_indexes` · `0015 whatsapp_integrations`.
+`0014 hot_path_indexes` · `0015 whatsapp_integrations` · `0016 invitations_rpcs` ·
+`0017 onboarding_setup`.
 (`0004 clinical_notes_alerts` vino de otra rama.)
 
 ---
@@ -105,6 +106,13 @@ Para activar lo que hoy está **dormido**:
   (los logs NO guardan tokens — **mejora recomendada al equipo Athos: loguear `tokens_in/out` en
   `rag_answer_log`**). Rate limits: hoy solo observabilidad (pico msgs/día por clínica); enforcement
   en backlog.
+
+## Onboarding de vets nuevos (2026-07-24)
+- **Wizard `/bienvenida`** (primer login del creador de clínica; flag `profiles.setup_completed_at`,
+  migración `0017` con backfill): bienvenida → clínica/perfil → primer paciente → **datos de ejemplo**
+  ("Luna (ejemplo)" con transcript + nota draft, borrable) → invitar equipo. Todo saltable.
+- **Checklist "Primeros pasos"** en el dashboard (checks con datos reales; auto-oculta al completar).
+- Los **invitados NO ven el wizard** (`accept_invitation` marca el setup). El tour driver.js convive.
 
 ## Pendientes conocidos
 - Rediseño de la **historia del paciente** (UX confusa).
