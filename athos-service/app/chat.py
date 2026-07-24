@@ -11,7 +11,7 @@ from app.config import get_settings
 from app.generation.allergy_gate import severe_allergies
 from app.generation.generate import _MAX_CHUNK_CHARS
 from app.generation.llm_client import LLMClient
-from app.models import Citation
+from app.models import Citation, PatientContext
 from app.patient_context import load_patient_context
 from app.retrieval.cascade import retrieve
 from app.retrieval.query_builder import build_query
@@ -90,10 +90,11 @@ def _chat_prompt(question: str, literature, patient, severe_allergens) -> str:
 
 def stream_answer(question: str, patient_id: str, clinic_id: str, user_id: str | None = None):
     """Generador de eventos SSE para /athos/chat."""
-    patient = load_patient_context(clinic_id, patient_id)
+    # Consulta general (sin paciente): contexto vacío, no consultamos la ficha.
+    patient = load_patient_context(clinic_id, patient_id) if patient_id else PatientContext(patient_id="")
     query = build_query(question, patient.species)
     chunks, passed = retrieve(query)
-    severe = severe_allergies(clinic_id, patient_id)
+    severe = severe_allergies(clinic_id, patient_id) if patient_id else []
     gate = bool(severe)
 
     # Memoria del hilo: cargar los turnos previos ANTES de loguear la pregunta actual (si no, la
