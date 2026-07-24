@@ -26,12 +26,14 @@ export function ConsultationRecorder({
   consultationId,
   clinicId,
   patientId,
+  ownerId,
   patientName,
   onTranscribed,
 }: {
   consultationId: string
   clinicId: string
   patientId: string
+  ownerId?: string | null
   patientName?: string
   onTranscribed?: () => void
 }) {
@@ -135,29 +137,58 @@ export function ConsultationRecorder({
     }
   }
 
-  // 1) Consentimiento: se registra ANTES de tocar el micrófono.
-  const acceptConsent = useCallback(async () => {
-    const {
-      data: { user },
-    } = await supabase.auth.getUser()
-    if (!user) {
-      toast.error("Sesión no válida")
-      return
+  // Inserta la fila de consentimiento de ESTA consulta (el trigger de BD la exige siempre).
+  // owner_scope=true cuando el titular acepta por primera vez -> cubre sus próximas consultas.
+  const insertConsent = useCallback(
+    async (ownerScope: boolean) => {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser()
+      if (!user) throw new Error("Sesión no válida")
+      const { error } = await supabase.from("consents").insert({
+        clinic_id: clinicId,
+        consultation_id: consultationId,
+        patient_id: patientId,
+        obtained_by: user.id,
+        text_version: CONSENT_TEXT_VERSION,
+        scope: CONSENT_SCOPE,
+        owner_scope: ownerScope,
+      })
+      if (error) throw new Error(error.message)
+    },
+    [supabase, clinicId, consultationId, patientId],
+  )
+
+  // 0) Arranque: si el titular YA dio su consentimiento (vigente, no revocado), no se re-pregunta —
+  // se registra la fila de esta consulta citando ese consentimiento y se graba directo.
+  const beginFlow = useCallback(async () => {
+    if (ownerId) {
+      const { data: standing } = await supabase.rpc("has_owner_consent", { p_owner_id: ownerId })
+      if (standing === true) {
+        try {
+          await insertConsent(false)
+          toast.success("Consentimiento vigente del titular — grabando")
+          await startRecording()
+          return
+        } catch (e) {
+          toast.error(`No se pudo registrar el consentimiento: ${(e as Error).message}`)
+          return
+        }
+      }
     }
-    const { error } = await supabase.from("consents").insert({
-      clinic_id: clinicId,
-      consultation_id: consultationId,
-      patient_id: patientId,
-      obtained_by: user.id,
-      text_version: CONSENT_TEXT_VERSION,
-      scope: CONSENT_SCOPE,
-    })
-    if (error) {
-      toast.error(`No se pudo registrar el consentimiento: ${error.message}`)
+    setPhase("consent")
+  }, [ownerId, supabase, insertConsent]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // 1) Consentimiento (primera vez del titular): se registra ANTES de tocar el micrófono.
+  const acceptConsent = useCallback(async () => {
+    try {
+      await insertConsent(true)
+    } catch (e) {
+      toast.error(`No se pudo registrar el consentimiento: ${(e as Error).message}`)
       return
     }
     await startRecording()
-  }, [supabase, clinicId, consultationId, patientId]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [insertConsent]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // ---------- UI ----------
   if (phase === "consent") {
@@ -169,8 +200,9 @@ export function ConsultationRecorder({
         <p className="mb-3 text-sm text-muted-foreground">
           Vamos a grabar el audio de esta consulta{patientName ? ` de ${patientName}` : ""} para
           transcribirla y redactar la nota clínica. El audio se conserva 4 días y luego se elimina;
-          la transcripción queda en la historia. Necesitamos la autorización del titular antes de
-          empezar (Ley 1581 de 2012).
+          la transcripción queda en la historia. La autorización del titular <b>cubre también las
+          próximas consultas de sus mascotas</b> (no se le volverá a preguntar) y puede revocarla en
+          cualquier momento (Ley 1581 de 2012).
         </p>
         <div className="flex flex-wrap gap-2">
           <Button onClick={acceptConsent}>
@@ -222,7 +254,7 @@ export function ConsultationRecorder({
           transcribe y Athos redacta la nota SOAP; el audio se elimina a los 4 días.
         </HelpTip>
       </div>
-      <Button onClick={() => setPhase("consent")} variant={phase === "done" ? "outline" : "default"}>
+      <Button onClick={beginFlow} variant={phase === "done" ? "outline" : "default"}>
         <Mic className="size-4" /> {phase === "done" ? "Grabar otra vez" : "Iniciar grabación"}
       </Button>
     </div>
