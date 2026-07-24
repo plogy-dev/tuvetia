@@ -53,7 +53,7 @@ const data = {
     },
     {
       title: "Comunicaciones",
-      url: "#",
+      url: "/dashboard/comunicaciones",
       icon: (
         <MessageCircleIcon
         />

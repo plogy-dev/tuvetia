@@ -74,3 +74,35 @@ export async function listPhoneNumbers(): Promise<KapsoPhoneNumber[]> {
   const json = await kapso<{ data: KapsoPhoneNumber[] }>("/phone-numbers")
   return json.data ?? []
 }
+
+// Envía un mensaje de texto por el número de la clínica. Kapso proxya la Cloud API de Meta:
+// POST https://api.kapso.ai/meta/whatsapp/v24.0/{phone_number_id}/messages (X-API-Key, body Meta
+// estándar). Devuelve el wa_message_id (messages[0].id) para registrar el saliente y que el
+// webhook le actualice delivered/read.
+const KAPSO_META_BASE = "https://api.kapso.ai/meta/whatsapp/v24.0"
+
+export async function sendTextMessage(
+  phoneNumberId: string,
+  to: string,
+  body: string,
+): Promise<string> {
+  const res = await fetch(`${KAPSO_META_BASE}/${encodeURIComponent(phoneNumberId)}/messages`, {
+    method: "POST",
+    headers: { "X-API-Key": apiKey(), "Content-Type": "application/json" },
+    body: JSON.stringify({
+      messaging_product: "whatsapp",
+      recipient_type: "individual",
+      to,
+      type: "text",
+      text: { body },
+    }),
+  })
+  if (!res.ok) {
+    const text = await res.text().catch(() => "")
+    throw new Error(`Kapso send → ${res.status}: ${text.slice(0, 200)}`)
+  }
+  const json = (await res.json()) as { messages?: { id: string }[] }
+  const id = json.messages?.[0]?.id
+  if (!id) throw new Error("Kapso no devolvió el id del mensaje")
+  return id
+}

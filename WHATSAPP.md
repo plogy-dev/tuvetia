@@ -6,8 +6,9 @@ como un **customer** de Kapso y conecta **su propio número** desde un **setup l
 mensajes se sincronizan con la Cloud API) o número dedicado. Kapso guarda las credenciales por
 customer, aisladas: nosotros nunca tocamos tokens de Meta.
 
-> **Ownership:** la **base** (conexión + webhook + tablas) está hecha (este doc). La **bandeja/inbox
-> de Comunicaciones** la construye el otro dev encima de esto.
+> **Ownership (actualizado 2026-07-24):** la **base** (conexión + webhook + tablas) Y la **bandeja
+> completa de Comunicaciones** (conversaciones + hilo + envío) ya están construidas. Al otro dev le
+> quedan las extensiones (ver §Extensiones).
 
 ## Qué ya está construido (base)
 
@@ -47,21 +48,30 @@ Sin config todo degrada con gracia: el botón devuelve el error legible y el web
   allowed_connection_types:["coexistence","dedicated"], language:"es"}}` → `data.url` (expira a 30 días).
 - `GET /phone-numbers` → números del proyecto (se filtra por `customer_id` del lado nuestro).
 
-## Lo que le toca al otro dev (bandeja / Comunicaciones)
+## Bandeja de Comunicaciones (CONSTRUIDA, 2026-07-24)
 
-1. **UI de bandeja** en `/dashboard/comunicaciones` sobre `whatsapp_messages` (agrupar por
-   `owner_id`/`wa_phone_from`, orden por `created_at`). El link del sidebar hoy apunta a `#`.
-2. **Enviar mensajes**: Kapso expone envío por su API (`whatsapp-cloud-api` SDK o REST) — usar el
-   número de la clínica; registrar el saliente en `whatsapp_messages` (`direction='outbound'`,
-   `sent_by`) para que los `statuses` del webhook actualicen `delivered_at/read_at`.
-3. **Policy UPDATE** en `whatsapp_messages` (hoy solo SELECT+INSERT) si la bandeja marca leído desde
-   el cliente; alternativa: RPC o route service_role.
-4. **Afinar contra el OpenAPI de Kapso** (`docs.kapso.ai/api/platform/v1/openapi-platform.yaml`):
+- **`/dashboard/comunicaciones`** (`src/components/whatsapp/inbox.tsx`): conversaciones agrupadas
+  por teléfono del contacto (nombre resuelto contra `owners.phone`), hilo con burbujas + ticks
+  (✓ enviado, ✓✓ entregado, ✓✓ azul leído), **composer de envío**, no-leídos con badge, "nueva
+  conversación" con titulares que tienen teléfono, poll cada 15 s. Sin conexión → CTA a Configuración.
+- **Envío**: `POST /api/whatsapp/send` → `sendTextMessage` en `src/lib/kapso.ts` contra el proxy Meta
+  de Kapso (`POST api.kapso.ai/meta/whatsapp/v24.0/{phone_number_id}/messages`, body Cloud API
+  estándar); registra el saliente (`direction='outbound'`, `sent_by`) y el webhook actualiza
+  `delivered_at/read_at` con los statuses.
+- **Migración `0018`**: `whatsapp_integrations.kapso_phone_number_id` (lo guarda `/api/whatsapp/status`
+  al verificar; **necesario para enviar**) + policy UPDATE en `whatsapp_messages` (marcar leído).
+  Semántica de `read_at`: inbound = visto por la clínica; outbound = visto por el titular (webhook).
+
+## Extensiones (para el otro dev / futuro)
+
+1. **Plantillas y media**: el envío hoy es solo texto; templates de Meta (fuera de la ventana de 24 h)
+   y adjuntos (imagen/documento) por el mismo proxy.
+2. **Afinar contra el OpenAPI de Kapso** (`docs.kapso.ai/api/platform/v1/openapi-platform.yaml`):
    confirmar el campo `customer_id` en `GET /phone-numbers` y el mecanismo oficial de firma del
    webhook (hoy: shared secret por query param — subir a firma si Kapso la ofrece).
-5. **Escala**: el match de titular es por últimos 10 dígitos del teléfono; considerar normalizar
-   `owners.phone` a E.164. `agent_mode` (auto/review/paused) ya existe en el esquema para el futuro
-   agente de IA sobre WhatsApp.
+3. **Tiempo real**: el poll de 15 s puede pasar a Supabase Realtime en `whatsapp_messages`.
+4. **Escala**: normalizar `owners.phone` a E.164 (match hoy: últimos 10 dígitos). `agent_mode`
+   (auto/review/paused) ya existe en el esquema para el futuro agente de IA sobre WhatsApp.
 
 ## Por qué Kapso (decisión)
 

@@ -43,6 +43,7 @@ export async function POST() {
       .update({
         status: "connected",
         phone_number: phone,
+        kapso_phone_number_id: mine.id, // necesario para ENVIAR (proxy Meta de Kapso)
         connected_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
       })
