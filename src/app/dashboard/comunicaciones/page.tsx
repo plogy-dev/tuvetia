@@ -32,7 +32,7 @@ export default async function ComunicacionesPage() {
         <h1 className="text-lg font-semibold">WhatsApp no está conectado</h1>
         <p className="text-sm text-muted-foreground">
           Conectá el WhatsApp de tu clínica escaneando un QR — seguís usando tu teléfono como siempre
-          y las conversaciones también llegan acá.
+          y las conversaciones también llegan acá. Requiere la app <b>WhatsApp Business</b> (gratuita).
         </p>
         <Button render={<Link href="/dashboard/settings" />}>Conectar en Configuración</Button>
       </div>

@@ -97,8 +97,9 @@ export default async function SettingsPage() {
         <div className="mb-3 flex items-center gap-2 text-sm font-semibold">
           <MessageCircle className="size-4 text-muted-foreground" /> WhatsApp
           <HelpTip>
-            Cada clínica conecta <b>su propio</b> número de WhatsApp escaneando un QR — sin compartir
-            credenciales. La bandeja de conversaciones llegará en la sección Comunicaciones.
+            Cada clínica conecta <b>su propio</b> número escaneando un QR — sin compartir
+            credenciales. Requiere la app <b>WhatsApp Business</b> (gratuita). Las conversaciones
+            viven en la sección Comunicaciones.
           </HelpTip>
         </div>
         <WhatsappSettings initialStatus={waStatus} initialPhone={waRow?.phone_number ?? null} />
