@@ -12,6 +12,11 @@ export async function ensureClinicForUser(
 
   if (!profile || profile.clinic_id) return
 
+  // Si el usuario tiene una invitación pendiente a otra clínica, NO le creamos una clínica propia:
+  // la página /invitar/[token] lo asignará al aceptar (evita clínicas huérfanas de invitados).
+  const { data: hasInvite } = await supabase.rpc("has_pending_invitation")
+  if (hasInvite === true) return
+
   const meta = user.user_metadata ?? {}
   const clinicName =
     meta.clinic_name ||
