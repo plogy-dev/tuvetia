@@ -26,6 +26,7 @@ Agenda de citas de la clínica. UI con **react-big-calendar** (mes/semana/día, 
   (resuelven `clinic_id` server-side y validan que patient/owner/vet sean de la clínica). Mover/redimensionar
   y borrar van por UPDATE/DELETE directo bajo RLS.
 - `0007_calendar_integrations.sql` — tabla + RLS + revoke/grant de columnas secretas.
+- `0008_calendar_feeds.sql` — tabla `calendar_feeds` (token por clínica) + RPC `ensure_calendar_feed()` para el feed ICS.
   > Nota: la corrección del grant de columnas se aplicó en vivo por `execute_sql`; **el archivo `0007` es la
   > fuente de verdad** (trae ya el `revoke select on table` + `grant select (columnas no-secretas)`), así que
   > un `supabase db push` en otro entorno queda correcto.
@@ -60,6 +61,16 @@ Agenda de citas de la clínica. UI con **react-big-calendar** (mes/semana/día, 
    reautoriza con `prompt=consent` (route `/api/google/calendar/connect`).
 5. Con el calendario vinculado: crear/editar/mover/borrar una cita hace **push** a Google;
    **"Sincronizar"** hace el **pull** incremental (por `syncToken`).
+
+## Feed ICS — fallback de solo lectura (SIN OAuth ni verificación de Google)
+
+Alternativa de mínima fricción para "ver mis citas en Google" sin conectar la cuenta:
+
+- **UI:** Calendario → botón **"Enlace ICS"** → genera la URL secreta de la clínica (RPC `ensure_calendar_feed`) y la muestra para copiar. El vet la pega en Google Calendar → **Otros calendarios → Desde URL**.
+- **Endpoint:** `GET /api/calendar/ics/[token]` (`src/app/api/calendar/ics/[token]/route.ts`) → devuelve `text/calendar` con las citas de la clínica del token. **Sin login ni OAuth**: el `token` es la credencial (bearer en la URL, como los ICS privados de Google). Lee con `service_role` acotando por `clinic_id`.
+- **Generador:** `src/lib/ics.ts` (`buildIcs`, RFC 5545: escaping, CRLF, UTC, folding, STATUS).
+- **Requiere** `SUPABASE_SERVICE_ROLE_KEY` en el server (Vercel) — el mismo que ya usa el sync de Google.
+- **Limitaciones:** una vía (nosotros → Google), **solo lectura**, y Google refresca los ICS externos **lento** (horas). Ideal para "ver la agenda"; para bidireccional en tiempo real, usar la conexión OAuth (v1b/v1c).
 
 ## Verificación
 

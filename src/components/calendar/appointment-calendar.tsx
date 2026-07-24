@@ -40,6 +40,7 @@ import {
   type AppointmentFormInitial,
 } from "./create-appointment-drawer"
 import { GoogleCalendarConnect } from "./google-calendar-connect"
+import { IcsFeedButton } from "./ics-feed-button"
 
 const locales = { es }
 const localizer = dateFnsLocalizer({ format, parse, startOfWeek, getDay, locales })
@@ -248,6 +249,7 @@ export function AppointmentCalendar({
       <div className="flex flex-wrap items-center justify-between gap-2">
         <h1 className="text-lg font-semibold">Calendario</h1>
         <div className="flex flex-wrap items-center gap-2">
+          <IcsFeedButton />
           <GoogleCalendarConnect
             connected={googleConnected}
             onSynced={() => void loadRange(range.start, range.end)}
