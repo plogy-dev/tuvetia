@@ -131,7 +131,7 @@ export default function AsistentePage() {
             <Bot className="size-5" />
           </div>
           <div>
-            <h1 className="text-lg font-semibold tracking-tight">Copiloto clínico</h1>
+            <h1 className="text-lg font-semibold tracking-tight">Athos</h1>
             <p className="text-xs text-muted-foreground">
               Razona con la ficha y literatura veterinaria citada. Lenguaje de posibilidad, tu criterio decide.
             </p>

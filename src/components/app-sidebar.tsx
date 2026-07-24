@@ -80,7 +80,7 @@ const data = {
   ],
   documents: [
     {
-      name: "Copiloto",
+      name: "Athos",
       url: "/dashboard/asistente",
       icon: (
         <BotIcon
@@ -88,7 +88,7 @@ const data = {
       ),
     },
     {
-      name: "Modo fantasma",
+      name: "Phantom",
       url: "/dashboard/consultas",
       icon: (
         <GhostIcon
