@@ -50,7 +50,7 @@ type Consultation = {
   chief_complaint: string | null
   clinic_id: string
   patient_id: string
-  patient: { name: string; species: string } | null
+  patient: { name: string; species: string; owner_id: string | null } | null
 }
 
 const SOAP_FIELDS: { key: keyof Soap; label: string; hint: string }[] = [
@@ -88,7 +88,7 @@ export default function NotaConsultaPage({ params }: { params: Promise<{ id: str
   const load = useCallback(async () => {
     const { data: c, error: cErr } = await supabase
       .from("consultations")
-      .select("id, status, chief_complaint, clinic_id, patient_id, patient:patients(name, species)")
+      .select("id, status, chief_complaint, clinic_id, patient_id, patient:patients(name, species, owner_id)")
       .eq("id", id)
       .single()
     // Si la consulta no carga (RLS, id inexistente, columna renombrada), `consultation` queda null y
@@ -400,6 +400,7 @@ export default function NotaConsultaPage({ params }: { params: Promise<{ id: str
                 consultationId={id}
                 clinicId={consultation.clinic_id}
                 patientId={consultation.patient_id}
+                ownerId={pet?.owner_id}
                 patientName={pet?.name}
                 onTranscribed={load}
               />
