@@ -1,7 +1,9 @@
-import { Building2, User } from "lucide-react"
+import { Building2, MessageCircle, User } from "lucide-react"
 
 import { createClient } from "@/lib/supabase/server"
 import { ProfileSettings } from "@/components/settings/profile-settings"
+import { WhatsappSettings } from "@/components/settings/whatsapp-settings"
+import { HelpTip } from "@/components/help-tip"
 
 const ROLE_LABELS: Record<string, string> = {
   admin: "Administrador",
@@ -31,6 +33,14 @@ export default async function SettingsPage() {
     : null
   const clinicName = (clinic as { name: string } | null)?.name ?? "—"
 
+  // Estado de la conexión de WhatsApp (RLS: solo la fila de la clínica; columnas no sensibles).
+  const { data: wa } = await supabase
+    .from("whatsapp_integrations")
+    .select("status, phone_number")
+    .maybeSingle()
+  const waRow = wa as { status: "pending" | "connected" | "disconnected"; phone_number: string | null } | null
+  const waStatus = waRow?.status === "connected" ? "connected" : waRow ? "pending" : "none"
+
   return (
     <div className="mx-auto flex w-full max-w-2xl flex-col gap-4 px-4 py-4 md:py-6 lg:px-6">
       <h1 className="text-lg font-semibold">Configuración</h1>
@@ -46,6 +56,18 @@ export default async function SettingsPage() {
           <dt className="text-muted-foreground">Tu rol</dt>
           <dd>{p?.role ? (ROLE_LABELS[p.role] ?? p.role) : "—"}</dd>
         </dl>
+      </div>
+
+      {/* WhatsApp de la clínica (Kapso, multi-tenant) */}
+      <div className="rounded-xl border bg-card p-4">
+        <div className="mb-3 flex items-center gap-2 text-sm font-semibold">
+          <MessageCircle className="size-4 text-muted-foreground" /> WhatsApp
+          <HelpTip>
+            Cada clínica conecta <b>su propio</b> número de WhatsApp escaneando un QR — sin compartir
+            credenciales. La bandeja de conversaciones llegará en la sección Comunicaciones.
+          </HelpTip>
+        </div>
+        <WhatsappSettings initialStatus={waStatus} initialPhone={waRow?.phone_number ?? null} />
       </div>
 
       {/* Perfil (editable) */}

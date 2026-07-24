@@ -61,7 +61,8 @@ nuevos; si el flujo del equipo usa el CLI, marcalos como aplicados (`supabase mi
 
 `0005 phantom_audio_storage` · `0006 appointment_rpcs` · `0007 calendar_integrations` ·
 `0008 calendar_feeds` · `0009 delete_transcript` · `0010 optimize_calendar_rls` ·
-`0011 appointment_fk_indexes` · `0012 audio_storage_path_nullable` · `0013 profiles_onboarded_at`.
+`0011 appointment_fk_indexes` · `0012 audio_storage_path_nullable` · `0013 profiles_onboarded_at` ·
+`0014 hot_path_indexes` · `0015 whatsapp_integrations`.
 (`0004 clinical_notes_alerts` vino de otra rama.)
 
 ---
@@ -87,7 +88,10 @@ Para activar lo que hoy está **dormido**:
 ---
 
 ## Ownership / no tocar
-- **Comunicaciones / WhatsApp** (link `#` en el sidebar, tabla `whatsapp_messages`) → **es del otro dev**.
+- **Comunicaciones / WhatsApp**: la **base multi-tenant vía Kapso ya está construida** (conexión por
+  QR en Configuración, webhook, tablas — ver **`WHATSAPP.md`**, migración `0015`). La **bandeja/inbox**
+  (`/dashboard/comunicaciones`, hoy `#` en el sidebar) **es del otro dev** — blueprint en `WHATSAPP.md`.
+  Config externa: `KAPSO_API_KEY` + `KAPSO_WEBHOOK_SECRET` en Vercel + webhook registrado en Kapso.
 - Todo lo de **Athos** (copiloto, corpus, citas, y sus piezas de front) → equipo Plogy (ver
   `athos-service/docs/ATHOS_CONTEXTO_EQUIPO.md`).
 
