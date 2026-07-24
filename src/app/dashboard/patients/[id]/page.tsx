@@ -1,20 +1,12 @@
 import Link from "next/link"
 import { notFound } from "next/navigation"
-import {
-  AlertTriangle,
-  ArrowLeft,
-  AudioLines,
-  CalendarDays,
-  FileText,
-  PawPrint,
-  Pill,
-  Sparkles,
-  Syringe,
-} from "lucide-react"
+import { AlertTriangle, ArrowLeft, CalendarDays, PawPrint, Pill, Syringe } from "lucide-react"
 
 import { createClient } from "@/lib/supabase/server"
-import { parseTranscript } from "@/lib/transcript"
-import { ConsultationAudioPlayer } from "@/components/consultation-audio-player"
+import {
+  PatientConsultationHistory,
+  type ConsultationHistory,
+} from "@/components/patient/patient-consultation-history"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
 
@@ -29,27 +21,6 @@ const SEVERITY_LABELS: Record<string, string> = {
   moderate: "moderada",
   severe: "severa",
 }
-
-const CONSULTATION_STATUS: Record<string, string> = {
-  open: "Abierta",
-  transcribing: "Transcribiendo",
-  generating_note: "Generando nota",
-  review: "En revisión",
-  completed: "Completada",
-}
-
-const NOTE_STATUS: Record<string, { label: string; variant: "default" | "secondary" | "outline" }> = {
-  draft: { label: "Borrador", variant: "secondary" },
-  approved: { label: "Aprobada", variant: "default" },
-  locked: { label: "Bloqueada", variant: "outline" },
-}
-
-const SOAP_FIELDS = [
-  { key: "subjective", label: "Subjetivo" },
-  { key: "objective", label: "Objetivo" },
-  { key: "assessment", label: "Análisis" },
-  { key: "plan", label: "Plan" },
-] as const
 
 type Owner = { full_name: string; phone: string | null } | null
 
@@ -71,28 +42,6 @@ type Patient = {
 type Allergy = { id: string; allergen: string; severity: string; reaction: string | null }
 type Medication = { id: string; drug_name: string; dose: string; frequency: string | null; is_chronic: boolean; end_date: string | null }
 type Vaccine = { id: string; vaccine_name: string; administered_at: string; next_dose_at: string | null }
-
-type Note = {
-  id: string
-  status: string
-  subjective: string | null
-  objective: string | null
-  assessment: string | null
-  plan: string | null
-  ai_model: string | null
-  allergy_gate_triggered: boolean
-}
-type Transcript = { id: string; full_text: string | null; created_at: string }
-type Audio = { id: string; storage_path: string; duration_secs: number | null; created_at: string }
-type Consultation = {
-  id: string
-  status: string
-  chief_complaint: string | null
-  started_at: string
-  transcripts: Transcript[] | null
-  notes: Note[] | null
-  audios: Audio[] | null
-}
 
 const DATE_FMT: Intl.DateTimeFormatOptions = {
   day: "2-digit",
@@ -162,7 +111,7 @@ export default async function PatientHistoryPage({ params }: { params: Promise<{
   const allergies = (allergyData as unknown as Allergy[] | null) ?? []
   const medications = (medData as unknown as Medication[] | null) ?? []
   const vaccines = (vaxData as unknown as Vaccine[] | null) ?? []
-  const consultations = (consultData as unknown as Consultation[] | null) ?? []
+  const consultations = (consultData as unknown as ConsultationHistory[] | null) ?? []
   const severeAllergies = allergies.filter((a) => a.severity === "severe")
 
   const initial = patient.name.charAt(0).toUpperCase()
@@ -278,140 +227,13 @@ export default async function PatientHistoryPage({ params }: { params: Promise<{
         </div>
       </div>
 
-      {/* Línea de tiempo de consultas: transcripción + audio + nota */}
+      {/* Historia de consultas: maestro-detalle (transcripción + audio + nota) */}
       <div className="flex items-center gap-2 pt-1">
         <CalendarDays className="size-5 text-muted-foreground" />
         <h2 className="text-base font-semibold">Historia de consultas ({consultations.length})</h2>
       </div>
 
-      {consultations.length === 0 && (
-        <div className="rounded-xl border bg-card p-8 text-center text-sm text-muted-foreground">
-          Este paciente todavía no tiene consultas registradas.
-        </div>
-      )}
-
-      <div className="flex flex-col gap-4">
-        {consultations.map((c) => {
-          const transcript = [...(c.transcripts ?? [])].sort(
-            (a, b) => +new Date(b.created_at) - +new Date(a.created_at),
-          )[0]
-          const note = [...(c.notes ?? [])][0]
-          const noteMeta = note ? NOTE_STATUS[note.status] : null
-          const turns = parseTranscript(transcript?.full_text ?? "")
-          const audios = c.audios ?? []
-
-          return (
-            <div key={c.id} className="overflow-hidden rounded-xl border bg-card">
-              {/* Cabecera de la consulta */}
-              <div className="flex flex-wrap items-center justify-between gap-2 border-b bg-muted/30 px-4 py-2.5">
-                <div className="flex items-center gap-2 text-sm">
-                  <span className="font-medium">{fmtDate(c.started_at)}</span>
-                  <span className="text-muted-foreground">
-                    · {c.chief_complaint ?? "Consulta"}
-                  </span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <Badge variant="outline" className="text-xs">
-                    {CONSULTATION_STATUS[c.status] ?? c.status}
-                  </Badge>
-                  {noteMeta && <Badge variant={noteMeta.variant} className="text-xs">{noteMeta.label}</Badge>}
-                  <Link
-                    href={`/dashboard/consultas/${c.id}`}
-                    className="text-xs text-primary hover:underline"
-                  >
-                    Abrir
-                  </Link>
-                </div>
-              </div>
-
-              <div className="grid gap-4 p-4 lg:grid-cols-2 lg:items-start">
-                {/* Transcripción + audio */}
-                <div className="flex flex-col gap-3">
-                  <div className="flex items-center gap-2 text-sm font-semibold">
-                    <AudioLines className="size-4 text-muted-foreground" /> Transcripción
-                  </div>
-
-                  {audios.length > 0 && (
-                    <div className="flex flex-col gap-2">
-                      {audios.map((a) => (
-                        <ConsultationAudioPlayer
-                          key={a.id}
-                          storagePath={a.storage_path}
-                          durationSecs={a.duration_secs}
-                        />
-                      ))}
-                    </div>
-                  )}
-
-                  {turns.length === 0 ? (
-                    <p className="text-sm text-muted-foreground">
-                      Esta consulta no tiene transcripción.
-                    </p>
-                  ) : (
-                    <div className="flex max-h-[50vh] flex-col gap-2 overflow-y-auto">
-                      {turns.map((t, i) => (
-                        <div
-                          key={i}
-                          className={t.who === "vet" ? "flex flex-col items-end" : "flex flex-col items-start"}
-                        >
-                          <span className="mb-0.5 px-1 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
-                            {t.who === "vet" ? "Veterinario" : "Titular"}
-                          </span>
-                          <div
-                            className={`max-w-[88%] rounded-2xl px-3 py-2 text-sm ${
-                              t.who === "vet"
-                                ? "rounded-br-sm bg-primary text-primary-foreground"
-                                : "rounded-bl-sm border bg-background"
-                            }`}
-                          >
-                            {t.text}
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-
-                {/* Nota clínica */}
-                <div className="flex flex-col gap-3">
-                  <div className="flex items-center gap-2 text-sm font-semibold">
-                    <FileText className="size-4 text-muted-foreground" /> Nota clínica
-                  </div>
-                  {!note ? (
-                    <p className="text-sm text-muted-foreground">
-                      Sin nota clínica para esta consulta.
-                    </p>
-                  ) : (
-                    <div className="flex flex-col gap-2.5">
-                      {note.allergy_gate_triggered && (
-                        <div className="flex items-start gap-2 rounded-lg border border-destructive/50 bg-destructive/10 px-3 py-2 text-xs text-destructive">
-                          <AlertTriangle className="mt-0.5 size-3.5 shrink-0" />
-                          <span>Gate de alergia severa activado en esta consulta.</span>
-                        </div>
-                      )}
-                      {SOAP_FIELDS.map((f) => {
-                        const value = note[f.key]
-                        if (!value) return null
-                        return (
-                          <div key={f.key}>
-                            <div className="text-xs font-medium text-muted-foreground">{f.label}</div>
-                            <p className="whitespace-pre-wrap text-sm leading-relaxed">{value}</p>
-                          </div>
-                        )
-                      })}
-                      {note.ai_model && (
-                        <p className="flex items-center gap-1 text-xs text-muted-foreground">
-                          <Sparkles className="size-3" /> Redactada por {note.ai_model}
-                        </p>
-                      )}
-                    </div>
-                  )}
-                </div>
-              </div>
-            </div>
-          )
-        })}
-      </div>
+      <PatientConsultationHistory consultations={consultations} />
 
       {patient.notes && (
         <div className="rounded-xl border bg-card p-4">
