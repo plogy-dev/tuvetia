@@ -1,8 +1,13 @@
-import { Building2, MessageCircle, User } from "lucide-react"
+import { Building2, MessageCircle, User, Users } from "lucide-react"
 
 import { createClient } from "@/lib/supabase/server"
 import { ProfileSettings } from "@/components/settings/profile-settings"
 import { WhatsappSettings } from "@/components/settings/whatsapp-settings"
+import {
+  TeamSettings,
+  type PendingInvitation,
+  type TeamMember,
+} from "@/components/settings/team-settings"
 import { HelpTip } from "@/components/help-tip"
 
 const ROLE_LABELS: Record<string, string> = {
@@ -41,6 +46,23 @@ export default async function SettingsPage() {
   const waRow = wa as { status: "pending" | "connected" | "disconnected"; phone_number: string | null } | null
   const waStatus = waRow?.status === "connected" ? "connected" : waRow ? "pending" : "none"
 
+  // Equipo: miembros de la clínica (RLS: profiles de la clínica) + invitaciones pendientes
+  // (RLS: solo el admin las ve; para un vet llega vacío).
+  const isAdmin = p?.role === "admin"
+  const { data: memberRows } = await supabase
+    .from("profiles")
+    .select("id, full_name, role")
+    .not("clinic_id", "is", null)
+    .order("full_name")
+  const { data: inviteRows } = await supabase
+    .from("invitations")
+    .select("id, email, role, expires_at")
+    .is("accepted_at", null)
+    .gt("expires_at", new Date().toISOString())
+    .order("created_at", { ascending: false })
+  const members = (memberRows as TeamMember[] | null) ?? []
+  const pendingInvitations = (inviteRows as PendingInvitation[] | null) ?? []
+
   return (
     <div className="mx-auto flex w-full max-w-2xl flex-col gap-4 px-4 py-4 md:py-6 lg:px-6">
       <h1 className="text-lg font-semibold">Configuración</h1>
@@ -56,6 +78,18 @@ export default async function SettingsPage() {
           <dt className="text-muted-foreground">Tu rol</dt>
           <dd>{p?.role ? (ROLE_LABELS[p.role] ?? p.role) : "—"}</dd>
         </dl>
+      </div>
+
+      {/* Equipo de la clínica */}
+      <div className="rounded-xl border bg-card p-4">
+        <div className="mb-3 flex items-center gap-2 text-sm font-semibold">
+          <Users className="size-4 text-muted-foreground" /> Equipo
+          <HelpTip>
+            Los miembros de tu clínica comparten pacientes, consultas y agenda. Solo un{" "}
+            <b>administrador</b> puede invitar o revocar.
+          </HelpTip>
+        </div>
+        <TeamSettings isAdmin={isAdmin} members={members} invitations={pendingInvitations} />
       </div>
 
       {/* WhatsApp de la clínica (Kapso, multi-tenant) */}

@@ -35,11 +35,13 @@ export function SignupForm({
     setLoading(true)
 
     const supabase = createClient()
+    // Propaga ?next= (p.ej. /invitar/<token>) para volver ahí tras confirmar el magic link.
+    const next = new URLSearchParams(window.location.search).get("next")
     const { error } = await supabase.auth.signInWithOtp({
       email,
       options: {
         shouldCreateUser: true,
-        emailRedirectTo: `${window.location.origin}/auth/confirm`,
+        emailRedirectTo: `${window.location.origin}/auth/confirm${next ? `?next=${encodeURIComponent(next)}` : ""}`,
         data: {
           full_name: fullName,
           clinic_name: clinicName,
@@ -65,7 +67,10 @@ export function SignupForm({
       options: {
         // Registro sin scopes sensibles -> sin pantalla de "app no verificada". El calendario es
         // opt-in aparte (ver login-form). Post-verificación se puede reactivar el scope aquí.
-        redirectTo: `${window.location.origin}/auth/callback`,
+        redirectTo: `${window.location.origin}/auth/callback${(() => {
+          const next = new URLSearchParams(window.location.search).get("next")
+          return next ? `?next=${encodeURIComponent(next)}` : ""
+        })()}`,
       },
     })
     if (error) {

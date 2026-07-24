@@ -32,11 +32,13 @@ export function LoginForm({
     setLoading(true)
 
     const supabase = createClient()
+    // Propaga ?next= (p.ej. /invitar/<token>) para volver ahí tras confirmar el magic link.
+    const next = new URLSearchParams(window.location.search).get("next")
     const { error } = await supabase.auth.signInWithOtp({
       email,
       options: {
         shouldCreateUser: false,
-        emailRedirectTo: `${window.location.origin}/auth/confirm`,
+        emailRedirectTo: `${window.location.origin}/auth/confirm${next ? `?next=${encodeURIComponent(next)}` : ""}`,
       },
     })
 
@@ -63,7 +65,10 @@ export function LoginForm({
         // a Google Calendar es opt-in aparte (botón "Conectar Google Calendar" en el calendario), así
         // solo lo consiente quien lo usa. Cuando la app pase la verificación de Google, se puede volver
         // a pedir el scope aquí para vincular en un clic sin advertencia (el callback ya lo captura).
-        redirectTo: `${window.location.origin}/auth/callback`,
+        redirectTo: `${window.location.origin}/auth/callback${(() => {
+          const next = new URLSearchParams(window.location.search).get("next")
+          return next ? `?next=${encodeURIComponent(next)}` : ""
+        })()}`,
       },
     })
     if (error) {
