@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useRef, useState } from "react"
+import { useEffect, useRef, useState, type ReactNode } from "react"
 import { AlertTriangle, BookText, Bot, Loader2, Send } from "lucide-react"
 import { toast } from "sonner"
 
@@ -35,45 +35,84 @@ type Msg = {
 const POSSIBILITY =
   /(compatible con|sugestivo de|sugerente de|no hay evidencia suficiente|evidencia insuficiente|posiblemente|posible|podría|sugiere|se recomienda valorar)/i
 
-// Renderiza un tramo de texto: enlaza los marcadores [n] a su cita y resalta el lenguaje de
-// posibilidad. Devuelve nodos listos para React.
-function renderRich(text: string, citations: Citation[]) {
-  return text.split(/(\[\d+\])/g).map((part, i) => {
-    const cite = part.match(/^\[(\d+)\]$/)
-    if (cite) {
-      const c = citations[parseInt(cite[1], 10) - 1]
+// Renderiza texto inline: negritas **..**, marcadores de cita [n] enlazados, y resalta el
+// lenguaje de posibilidad. Una sola captura en el split de posibilidad (sin duplicar).
+function renderInline(text: string, citations: Citation[], kp: string): ReactNode[] {
+  const nodes: ReactNode[] = []
+  const pushText = (t: string, base: string) => {
+    t.split(new RegExp(POSSIBILITY.source, "gi")).forEach((p, j) => {
+      if (!p) return
+      nodes.push(
+        POSSIBILITY.test(p) ? (
+          <span
+            key={`${base}-p${j}`}
+            className="font-medium text-foreground underline decoration-dotted decoration-muted-foreground/60 underline-offset-2"
+          >
+            {p}
+          </span>
+        ) : (
+          <span key={`${base}-t${j}`}>{p}</span>
+        ),
+      )
+    })
+  }
+  const regex = /(\[\d+\])|(\*\*[^*]+\*\*)/g
+  let last = 0
+  let m: RegExpExecArray | null
+  let k = 0
+  while ((m = regex.exec(text)) !== null) {
+    if (m.index > last) pushText(text.slice(last, m.index), `${kp}-x${k}`)
+    if (m[1]) {
+      const n = parseInt(m[1].slice(1, -1), 10)
+      const c = citations[n - 1]
       const cls =
-        "mx-px rounded bg-secondary px-1 align-super text-[10px] font-bold text-foreground"
-      return c?.url ? (
-        <a
-          key={i}
-          href={c.url}
-          target="_blank"
-          rel="noopener noreferrer"
-          title={c.title ?? c.source ?? "Ver fuente"}
-          className={`${cls} underline decoration-dotted underline-offset-2 hover:bg-accent`}
-        >
-          [{cite[1]}]
-        </a>
-      ) : (
-        <sup key={i} className={cls}>
-          [{cite[1]}]
-        </sup>
+        "mx-0.5 inline-block rounded border bg-secondary px-1 font-mono text-[11px] font-bold text-foreground underline decoration-dotted underline-offset-2 align-baseline"
+      nodes.push(
+        c?.url ? (
+          <a
+            key={`${kp}-c${k}`}
+            href={c.url}
+            target="_blank"
+            rel="noopener noreferrer"
+            title={c.title ?? c.source ?? "Ver fuente"}
+            className={`${cls} hover:bg-accent`}
+          >
+            [{n}]
+          </a>
+        ) : (
+          <span key={`${kp}-c${k}`} className={cls}>
+            [{n}]
+          </span>
+        ),
+      )
+    } else if (m[2]) {
+      nodes.push(
+        <strong key={`${kp}-b${k}`} className="font-semibold text-foreground">
+          {m[2].slice(2, -2)}
+        </strong>,
       )
     }
-    return part.split(new RegExp(`(${POSSIBILITY.source})`, "gi")).map((p, j) =>
-      POSSIBILITY.test(p) ? (
-        <span
-          key={`${i}-${j}`}
-          className="font-medium text-foreground underline decoration-dotted decoration-muted-foreground/60 underline-offset-2"
-        >
-          {p}
-        </span>
-      ) : (
-        <span key={`${i}-${j}`}>{p}</span>
-      ),
-    )
-  })
+    last = regex.lastIndex
+    k++
+  }
+  if (last < text.length) pushText(text.slice(last), `${kp}-x${k}`)
+  return nodes
+}
+
+// Divide la respuesta en bloques (encabezados, viñetas, párrafos) para un formato limpio y legible.
+function splitBlocks(content: string): { text: string; bullet: boolean; heading: boolean }[] {
+  return content
+    .split(/\n{2,}|\n(?=\s*(?:[-•*]|\d+\.)\s)/)
+    .map((b) => b.trim())
+    .filter(Boolean)
+    .map((b) => {
+      const heading = /^#{1,6}\s/.test(b)
+      const bullet = !heading && /^\s*(?:[-•*]|\d+\.)\s+/.test(b)
+      let text = b
+      if (heading) text = b.replace(/^#{1,6}\s+/, "")
+      else if (bullet) text = b.replace(/^\s*(?:[-•*]|\d+\.)\s+/, "")
+      return { text, bullet, heading }
+    })
 }
 
 export default function AsistentePage() {
@@ -251,15 +290,30 @@ export default function AsistentePage() {
                 )}
 
                 <div className="rounded-2xl rounded-tl-sm border bg-muted/50 px-4 py-1 text-sm leading-relaxed">
-                  {msg.content
-                    .split(/\n{2,}|\n(?=[-•])/)
-                    .map((b) => b.trim())
-                    .filter(Boolean)
-                    .map((b, j) => (
-                      <div key={j} className="border-b border-border/60 py-2.5 last:border-b-0">
-                        {renderRich(b, msg.citations ?? [])}
+                  {splitBlocks(msg.content).map((blk, j) =>
+                    blk.heading ? (
+                      <div key={j} className="pt-3 pb-1 text-[13px] font-semibold tracking-tight">
+                        {renderInline(blk.text, msg.citations ?? [], `h${j}`)}
                       </div>
-                    ))}
+                    ) : blk.bullet ? (
+                      <div
+                        key={j}
+                        className="flex gap-2 border-b border-border/60 py-2 last:border-b-0 last:pb-0"
+                      >
+                        <span className="mt-[7px] size-1.5 shrink-0 rounded-full bg-muted-foreground" />
+                        <div className="min-w-0 flex-1">
+                          {renderInline(blk.text, msg.citations ?? [], `b${j}`)}
+                        </div>
+                      </div>
+                    ) : (
+                      <div
+                        key={j}
+                        className="border-b border-border/60 py-2.5 last:border-b-0 last:pb-0"
+                      >
+                        {renderInline(blk.text, msg.citations ?? [], `p${j}`)}
+                      </div>
+                    ),
+                  )}
                   {msg.streaming && (
                     <div className="py-2.5">
                       <span className="inline-block h-4 w-1.5 animate-pulse bg-foreground align-middle" />
