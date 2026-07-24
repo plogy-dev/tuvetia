@@ -2,7 +2,7 @@
 
 > Todo lo que necesitan saber del microservicio de Athos y cómo se conecta con las demás partes de la plataforma. El detalle interno del RAG está en `tuvetia_rag_documento_final.md` (misma carpeta); las reglas para construirlo, en `../CLAUDE.md`; su montaje, en `../SETUP.md`; entornos y migraciones, en `MIGRACIONES.md`.
 
-## ⚡ Estado actual (2026-07-23) — resumen rápido
+## ⚡ Estado actual (2026-07-24) — resumen rápido
 > Lee esto primero para orientarte; el detalle histórico está en la bitácora (§10).
 
 **EN VIVO:** front `https://tuvetia.vercel.app` + backend `https://athos-service-production.up.railway.app`, **git-connected a `master`** (cada push → auto-deploy: Vercel el front, Railway el backend). Corpus (~67k chunks) en el proyecto **dev**; datos de paciente + trazas en el **principal**.
@@ -11,6 +11,7 @@
 - **Chat (copiloto):** responde con literatura **citada y verificable**, tiene **memoria del hilo** (recuerda la conversación de ese paciente) y las **citas enlazan al artículo** (PubMed). Marcadores `[n]` en el texto ligados a su fuente.
 - **Modo Fantasma:** nota **SOAP citada** + **gate de alergia severa** (duro, desde `allergies`, **ahora bloquea la aprobación**) + **alertas de condición** (p.ej. diabetes) con un panel **"afectaciones en este paciente"** + citas enlazadas. El vet revisa y aprueba (`draft → aprobado`).
 - **Captura de consulta (E5) — EN VIVO:** el vet graba en la app (consentimiento Ley 1581) → audio al bucket `consultation-audios` del **principal** → **transcripción con Deepgram Nova-2** (`/athos/transcribe`, diarización) → la nota del Fantasma parte de ese texto. Flujo **grabar → transcribir → nota** verificado end-to-end.
+- **CRM y datos de demo completos:** Pacientes con métricas/filtros/exportar y botón **Historia**; fichas y titulares realistas (11 pacientes "animal prueba N"); **archivos adjuntos** (exámenes/radiografías) en la ficha con bucket privado por clínica; Notas de consulta agrupadas por paciente con filtros.
 - **Retrieval "mínima IA":** el glosario determinístico (ampliado a ~42 conceptos) resuelve casi toda consulta sin gastar tokens; la distilación con LLM liviano pasó del **100% al ~9%** de las consultas del golden.
 - **Seguridad clínica robusta:** `allergy_transcript_flag` con **backstop determinístico** (una alergia dicha en la consulta no se pierde aunque no esté en `allergies`); "cita o se calla"; lenguaje de posibilidad.
 - **LLM multi-proveedor:** conmutable **Anthropic ↔ DeepSeek** (OpenAI-compatible) por env var, sin dependencia nueva. Golden set: **Sonnet 11/11, DeepSeek 10/11**.
@@ -143,7 +144,7 @@ Filosofía: **gastar la mínima IA**. Un buscador determinístico con un diccion
 - Entornos y migraciones (dev → PR → principal): `MIGRACIONES.md`
 
 ## 10. Bitácora de montaje y decisiones (se actualiza)
-> Registro vivo del progreso del microservicio, para que Santiago y Pipe sigan el avance y las decisiones. Última actualización: **2026-07-23**.
+> Registro vivo del progreso del microservicio, para que Santiago y Pipe sigan el avance y las decisiones. Última actualización: **2026-07-24**.
 
 **2026-07-13 — Entorno local montado y verificado**
 - Herramientas: `uv`, Node 22, Git, Claude Code, **Supabase CLI 2.109.1**.
@@ -276,6 +277,16 @@ Filosofía: **gastar la mínima IA**. Un buscador determinístico con un diccion
 - **Copiloto:** markdown renderizado (negritas/viñetas/encabezados), citas `[n]` como badge enlazado a PubMed (100% de las URLs del corpus resuelven), y **consulta general sin paciente** (selector "Consulta general"; backend `patient_id` opcional → sin ficha/gate/memoria/traza para no mezclar hilos). Fix: `PatientContext` con paciente vacío.
 - **Nota del Phantom (layout del mockup):** nota (izq) + **"Hilo de la consulta"** (der, sticky) = copiloto embebido con memoria del paciente (`ConsultationThread`). **El grabador solo aparece al INICIAR la consulta** (sin transcripción aún); "Grabación y transcripción de la consulta" es panel plegable (plegado si ya hay nota). SOAP aprobado en solo lectura con **citas `[n]` inline**; referencias numeradas `[1][2][3]` con "Abrir artículo".
 - **Backend (generación):** `parse_note_response` **numera las citas del SOAP como `[n]`** (convierte/limpia refs crudas de `chunk_id`, rescata chunks citados inline) y el prompt instruye marcar cada afirmación con su referencia. Verificado EN VIVO: nota MMVD con `[1][2][3]` y sin uuids. Render compartido en `src/components/athos/rich-text.tsx`.
+
+**2026-07-24 (tarde) — 🗂️ Demo lista: datos limpios, CRM de pacientes, archivos adjuntos y organización del Phantom**
+> Sesión de pulido integral de la clínica de prueba + 2 features nuevas de front. Todo desde `master`, builds en verde, verificado en producción con login real. El equipo mergeó PRs #13 (invitaciones), #14 (admin /admin), #15 (onboarding) — reconciliados sin conflictos (monitor de pushes en tiempo real activo).
+- **Datos de demo regenerados con el pipeline nuevo:** se borraron las 19 notas viejas (Sonnet + pruebas) y se regeneraron **12/12 con DeepSeek** (citas `[n]` inline, alerts persistidas ×8, gates de alergia ×2). 2 fallaron durante un redeploy de Railway a mitad de corrida y se reintentaron OK.
+- **Renombrado y orden:** pacientes → **"<Animal> prueba 1..11"** acordes a especie (Tambor conejo, Nala/Luna gatas, etc.); se desempataron los `started_at` sembrados para que la lista ordene estable. Se eliminaron los pacientes falsos sin consultas (Estrella test, Manchitas) y la nota vacía de la "recaída" de Tambor.
+- **Fichas + titulares realistas:** raza/sexo/nacimiento/peso coherentes con cada caso (Rocky Labrador 30kg diabetes, Coco cachorro 4m parvo, Nala Persa 13a hipertiroidismo…) y **11 titulares** con cédula/teléfono/email/dirección (ciudades cálidas donde el caso lo pide, p.ej. leishmaniasis→Barranquilla); pacientes/consultas/citas re-vinculados y titulares genéricos eliminados.
+- **Notas de consulta (Phantom) reorganizadas:** título "Notas de consulta"; **agrupadas por paciente en desplegables** (avatar, especie, #consultas, última fecha); filtros combinables (buscador de paciente, estado de la nota Todas/Borrador/Aprobada/Sin nota, fecha asc/desc); el nombre del paciente enlaza a su **ficha clínica**. Renombres de secciones: **"Athos"** (chat) y **"Phantom"** (sidebar/header).
+- **Pacientes = CRM (guiado por el mockup de la presentación, tokens propios):** 4 métricas reales (activos, citas hoy, en revisión, nuevos del mes), búsqueda por mascota/titular/teléfono, chips por especie, columnas Raza/Edad, **botón "Historia"** por fila, **Exportar CSV** y "Nuevo paciente" en el header (prop aditiva al drawer).
+- **📎 Archivos adjuntos del paciente (feature nueva):** migración **0018** (bucket privado `patient-attachments` + 4 policies por clínica, patrón 0005; **aplicada al principal**) + sección "Archivos y exámenes" en la ficha: subir (≤25MB, ruta `clinic/patient/uuid`), abrir con **signed URL**, eliminar con confirmación. **Verificado como usuario real** (upload 200 / insert 201 / sign 200) y sembrados 2 PDFs de demo (radiografía de Bruno, bioquímica de Rocky).
+- **Gotcha documentado:** el JWT HS256 legacy sirve para la API de Athos (fallback propio) pero **Supabase Storage/PostgREST lo rechazan** (el principal firma asimétrico) → para probar RLS como usuario se obtiene un access_token real vía `admin/generate_link` + `/auth/v1/verify`.
 
 ## 11. Coordinación abierta — 3 decisiones que necesitamos del equipo (antes del PR a main)
 > Todo lo de abajo está **probado en el proyecto dev** (`tuvetia-athos-dev`, ref `ghmpjyuchwkrvnjvdeum`). **Nada se ha tocado en el principal** (ref `auxlnexhkmtoedrzfsnz`). Para llevar las migraciones `0001`/`0002` al principal necesitamos confirmar 3 cosas, porque tocan **tablas generales** y **auth compartida**. El PR incluirá **solo** `supabase/migrations/0001*.sql` y `0002*.sql` (el bootstrap **no** se PR-ea).
