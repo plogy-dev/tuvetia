@@ -53,12 +53,14 @@ Agenda de citas de la clínica. UI con **react-big-calendar** (mes/semana/día, 
 3. **Vercel → Environment Variables** (server, NO `NEXT_PUBLIC_`):
    - `SUPABASE_SERVICE_ROLE_KEY` — service_role del principal (lee refresh_token, escribe google_event_id).
    - `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`.
-4. **Vinculación de un clic (recomendada): en el propio login con Google.** El botón "Continuar con Google"
-   (login y signup) pide el scope `calendar.events` en el **mismo consentimiento** (`access_type=offline`);
-   al volver, `/auth/callback` captura el `provider_refresh_token` y lo guarda (`upsertGoogleIntegration`).
-   Así, un vet que entra con Google queda vinculado sin pasos extra. **Fallback:** para usuarios de
-   magic-link (sin Google) o para forzar un token nuevo, el botón **Calendario → "Conectar Google Calendar"**
-   reautoriza con `prompt=consent` (route `/api/google/calendar/connect`).
+4. **Vinculación opt-in (para no meter fricción en el registro).** El login con Google **NO** pide el
+   scope de calendario → el registro no muestra la pantalla de "app no verificada". El acceso a Google
+   Calendar se pide **solo cuando el vet lo quiere**, con el botón **Calendario → "Conectar Google
+   Calendar"** (`prompt=consent`, route `/api/google/calendar/connect`). Así, solo quien usa el sync ve
+   la advertencia (y en modo Testing la pasa con "Continuar").
+   > **Post-verificación (opcional):** una vez que la app pase la verificación de Google (scope
+   > sensible, ~10 días), se puede volver a pedir el scope en el login (`login-form`/`signup-form`) para
+   > vincular en **un clic sin advertencia** — `/auth/callback` ya captura el token (`upsertGoogleIntegration`).
 5. Con el calendario vinculado: crear/editar/mover/borrar una cita hace **push** a Google;
    **"Sincronizar"** hace el **pull** incremental (por `syncToken`).
 

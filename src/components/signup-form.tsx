@@ -1,6 +1,7 @@
 "use client"
 
 import { useState } from "react"
+import Link from "next/link"
 import { cn } from "@/lib/utils"
 import { createClient } from "@/lib/supabase/client"
 import { Button } from "@/components/ui/button"
@@ -62,11 +63,9 @@ export function SignupForm({
     const { error } = await supabase.auth.signInWithOAuth({
       provider: "google",
       options: {
+        // Registro sin scopes sensibles -> sin pantalla de "app no verificada". El calendario es
+        // opt-in aparte (ver login-form). Post-verificación se puede reactivar el scope aquí.
         redirectTo: `${window.location.origin}/auth/callback`,
-        // Vinculación de calendario de un clic (ver login-form): se pide el acceso a Google Calendar
-        // en el mismo consentimiento y el callback captura el refresh token.
-        scopes: "https://www.googleapis.com/auth/calendar.events",
-        queryParams: { access_type: "offline" },
       },
     })
     if (error) {
@@ -111,7 +110,7 @@ export function SignupForm({
             </a>
             <h1 className="text-xl font-bold">Crea tu cuenta en TuvetIA</h1>
             <FieldDescription>
-              ¿Ya tienes cuenta? <a href="/">Inicia sesión</a>
+              ¿Ya tienes cuenta? <Link href="/">Inicia sesión</Link>
             </FieldDescription>
           </div>
           <Field>

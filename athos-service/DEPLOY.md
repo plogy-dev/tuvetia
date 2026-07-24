@@ -136,8 +136,11 @@ En el plan free de Vercel las funciones cortan a ~60 s → timeout garantizado. 
 de `vercel.json` ya está puesto, pero **requiere plan Pro**. Hasta que se pague, Railway.
 
 **Pendientes (deuda conocida, no bloquea E5):**
-- **Job de purga de audio a 7 días:** `retain_until` ya se setea y el índice existe, pero **falta el
-  cron** que anule `storage_path` y borre el objeto del bucket. Hoy el audio se queda.
+- **Job de purga de audio a 7 días: IMPLEMENTADO.** Route `/api/cron/purge-audio` (front/Vercel): borra
+  del bucket los audios vencidos (`retain_until < now`) y anula `storage_path` (la columna pasó a
+  nullable, migración `0012`). Lo dispara **Vercel Cron** a diario (`vercel.json` raíz, `0 3 * * *`).
+  Requiere en Vercel: `SUPABASE_SERVICE_ROLE_KEY` (ya para el calendario) y **`CRON_SECRET`** (Vercel
+  lo manda como `Authorization: Bearer`). El transcript se conserva.
 - **Transcripción en batch, no en vivo:** se transcribe al detener la grabación, no mientras se habla.
 - **Retención del transcript:** decisión legal **abierta** (ADR-0018). Hoy se conserva indefinidamente.
 - **Roles de hablante por heurística:** Deepgram devuelve índices (0,1,…), no roles; asumimos que el
