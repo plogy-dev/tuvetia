@@ -153,3 +153,34 @@ export async function athosTranscribe(params: {
   }
   return (await res.json()) as TranscribeResponse
 }
+
+export type WhatsappSuggestResponse = {
+  draft: string
+}
+
+// Bandeja de WhatsApp: pide a Athos un BORRADOR de respuesta al titular (el vet edita y aprueba
+// antes de enviar — Athos nunca envía). agent_mode=review.
+export async function athosWhatsappSuggest(params: {
+  clinicId: string
+  ownerName?: string | null
+  messages: { direction: "inbound" | "outbound"; body: string }[]
+}): Promise<WhatsappSuggestResponse> {
+  const res = await fetch(`${ATHOS_URL}/athos/whatsapp/suggest`, {
+    method: "POST",
+    headers: await authHeaders(),
+    body: JSON.stringify({
+      clinic_id: params.clinicId,
+      owner_name: params.ownerName ?? null,
+      messages: params.messages,
+    }),
+  })
+  if (!res.ok) {
+    const detail = await res
+      .clone()
+      .json()
+      .then((b) => (b as { detail?: string })?.detail)
+      .catch(() => null)
+    throw new Error(`Athos respondió ${res.status}${detail ? `: ${detail}` : ""}`)
+  }
+  return (await res.json()) as WhatsappSuggestResponse
+}

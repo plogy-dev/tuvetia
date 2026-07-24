@@ -6,9 +6,10 @@
 // Al abrir una conversación se marcan leídos los entrantes (policy UPDATE, migración 0018).
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
-import { Check, CheckCheck, Loader2, MessageCircle, Plus, Send } from "lucide-react"
+import { Check, CheckCheck, Loader2, MessageCircle, Plus, Send, Sparkles } from "lucide-react"
 import { toast } from "sonner"
 
+import { athosWhatsappSuggest } from "@/lib/athos"
 import { createClient } from "@/lib/supabase/client"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -54,16 +55,19 @@ export function WhatsappInbox({
   initialMessages,
   owners,
   clinicPhone,
+  clinicId,
 }: {
   initialMessages: InboxMessage[]
   owners: InboxOwner[]
   clinicPhone: string
+  clinicId: string
 }) {
   const [supabase] = useState(() => createClient())
   const [messages, setMessages] = useState<InboxMessage[]>(initialMessages)
   const [selected, setSelected] = useState<string | null>(null) // teléfono (dígitos) del contacto
   const [draft, setDraft] = useState("")
   const [sending, setSending] = useState(false)
+  const [suggesting, setSuggesting] = useState(false)
   const [showNew, setShowNew] = useState(false)
   const endRef = useRef<HTMLDivElement | null>(null)
 
@@ -137,6 +141,26 @@ export function WhatsappInbox({
   useEffect(() => {
     endRef.current?.scrollIntoView({ behavior: "instant", block: "end" })
   }, [thread.length, selected])
+
+  // Borrador de Athos (agent_mode=review): llena el composer EDITABLE — el vet aprueba al enviar.
+  async function suggestReply() {
+    if (!selected || suggesting) return
+    setSuggesting(true)
+    try {
+      const owner = ownerByPhone.get(selected.slice(-10))
+      const { draft: suggestion } = await athosWhatsappSuggest({
+        clinicId,
+        ownerName: owner?.full_name ?? null,
+        messages: thread.slice(-15).map((m) => ({ direction: m.direction, body: m.body ?? "" })),
+      })
+      setDraft(suggestion)
+      toast.success("Borrador de Athos listo — revisalo y editalo antes de enviar")
+    } catch (e) {
+      toast.error(`No se pudo generar la sugerencia: ${(e as Error).message}`)
+    } finally {
+      setSuggesting(false)
+    }
+  }
 
   async function send(e: React.FormEvent) {
     e.preventDefault()
@@ -286,10 +310,20 @@ export function WhatsappInbox({
               <div ref={endRef} />
             </div>
             <form onSubmit={send} className="flex items-center gap-2 border-t p-3">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={suggestReply}
+                disabled={suggesting || sending}
+                title="Athos redacta un borrador; vos lo editás y aprobás al enviar"
+              >
+                {suggesting ? <Loader2 className="size-4 animate-spin" /> : <Sparkles className="size-4" />}
+                <span className="hidden sm:inline">Sugerir</span>
+              </Button>
               <Input
                 value={draft}
                 onChange={(e) => setDraft(e.target.value)}
-                placeholder="Escribe un mensaje…"
+                placeholder="Escribe un mensaje…  (o pedile un borrador a Athos)"
                 autoFocus
               />
               <Button type="submit" disabled={sending || !draft.trim()} aria-label="Enviar">

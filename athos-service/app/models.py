@@ -113,3 +113,18 @@ class TranscribeResponse(BaseModel):
     transcript_id: str
     full_text: str
     stt_model: str
+
+
+class WhatsappMessageTurn(BaseModel):
+    direction: str          # inbound (titular) | outbound (clinica)
+    body: str = ""
+
+
+class WhatsappSuggestRequest(BaseModel):
+    clinic_id: str
+    owner_name: str | None = None
+    messages: list[WhatsappMessageTurn] = Field(default_factory=list)
+
+
+class WhatsappSuggestResponse(BaseModel):
+    draft: str
