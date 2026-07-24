@@ -29,7 +29,10 @@ CLINICAL_SYSTEM_PROMPT = (
     "práctica, si el cuadro es reconocible en la literatura, deberías citar al menos una fuente. "
     "Cita SOLO chunk_id presentes en la literatura entregada; nunca inventes fuentes. Deja "
     "`citations` en [] ÚNICAMENTE si NINGÚN chunk se relaciona con el cuadro clínico (hueco real de "
-    "literatura); solo en ese caso indícalo en el assessment.\n\n"
+    "literatura); solo en ese caso indícalo en el assessment.\n"
+    "Además, DENTRO del texto del assessment y del plan, marca cada afirmación respaldada con su "
+    "referencia entre corchetes [chunk_id] inmediatamente después de la afirmación (el sistema la "
+    "convertirá en numeración [n] para el veterinario).\n\n"
     "Devuelve EXCLUSIVAMENTE un objeto JSON válido (sin texto adicional, sin ```), con esta forma:\n"
     '{"soap": {"subjective": "", "objective": "", "assessment": "", "plan": ""}, '
     '"citations": [{"chunk_id": "", "doc_id": "", "locator": "", "source": ""}], '
