@@ -2,7 +2,7 @@
 
 // Historia de consultas del paciente — vista maestro-detalle: lista de consultas a la izquierda,
 // detalle (audio + transcripción + nota) a la derecha. Permite eliminar la transcripción (RPC
-// delete_transcript; borra solo el texto, el audio queda y se purga a los 7 días).
+// delete_transcript; borra solo el texto, el audio queda y se purga a los 4 días).
 
 import { useState } from "react"
 import Link from "next/link"
@@ -183,7 +183,7 @@ export function PatientConsultationHistory({
                 <AudioLines className="size-4 text-muted-foreground" /> Transcripción
                 <HelpTip>
                   Lo hablado en la consulta, transcrito automáticamente. El <b>audio</b> se elimina
-                  solo a los 7 días; <b>Eliminar</b> borra el texto de la transcripción (la nota
+                  solo a los 4 días; <b>Eliminar</b> borra el texto de la transcripción (la nota
                   clínica aprobada no se toca).
                 </HelpTip>
               </div>

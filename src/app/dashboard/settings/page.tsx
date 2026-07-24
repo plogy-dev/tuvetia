@@ -1,4 +1,5 @@
-import { Building2, MessageCircle, User, Users } from "lucide-react"
+import { Building2, Download, MessageCircle, User, Users } from "lucide-react"
+import { Button } from "@/components/ui/button"
 
 import { createClient } from "@/lib/supabase/server"
 import { ProfileSettings } from "@/components/settings/profile-settings"
@@ -114,6 +115,23 @@ export default async function SettingsPage() {
           {user?.email ?? "—"}
         </p>
         {user && <ProfileSettings userId={user.id} initialName={p?.full_name ?? ""} />}
+      </div>
+
+      {/* Tus datos (export abierto — sin lock-in) */}
+      <div className="rounded-xl border bg-card p-4">
+        <div className="mb-2 flex items-center gap-2 text-sm font-semibold">
+          <Download className="size-4 text-muted-foreground" /> Tus datos
+          <HelpTip>
+            Tus datos son tuyos: descargá en cualquier momento un archivo JSON (formato abierto) con
+            pacientes, titulares, consultas, transcripciones, notas, citas y mensajes de tu clínica.
+          </HelpTip>
+        </div>
+        <p className="mb-3 text-sm text-muted-foreground">
+          Exportá toda la información de tu clínica en formato abierto, cuando quieras.
+        </p>
+        <Button variant="outline" render={<a href="/api/export" download />}>
+          <Download className="size-4" /> Exportar datos de la clínica
+        </Button>
       </div>
     </div>
   )

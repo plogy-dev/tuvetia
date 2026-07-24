@@ -168,7 +168,7 @@ export function ConsultationRecorder({
         </div>
         <p className="mb-3 text-sm text-muted-foreground">
           Vamos a grabar el audio de esta consulta{patientName ? ` de ${patientName}` : ""} para
-          transcribirla y redactar la nota clínica. El audio se conserva 7 días y luego se elimina;
+          transcribirla y redactar la nota clínica. El audio se conserva 4 días y luego se elimina;
           la transcripción queda en la historia. Necesitamos la autorización del titular antes de
           empezar (Ley 1581 de 2012).
         </p>
@@ -219,7 +219,7 @@ export function ConsultationRecorder({
         </span>
         <HelpTip>
           Antes de grabar se pide el <b>consentimiento del titular</b> (Ley 1581). El audio se
-          transcribe y Athos redacta la nota SOAP; el audio se elimina a los 7 días.
+          transcribe y Athos redacta la nota SOAP; el audio se elimina a los 4 días.
         </HelpTip>
       </div>
       <Button onClick={() => setPhase("consent")} variant={phase === "done" ? "outline" : "default"}>

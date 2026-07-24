@@ -104,7 +104,7 @@ depender de que el front se porte bien. Prueba de regresión: intentar insertar 
 consulta sin `consents` debe fallar.
 
 **Retención.** `consultation_audios.retain_until` tiene default `now() + 7 days` + índice
-`consultation_audios_retention_idx` para el job de purga. El **audio** se borra a los 7 días; el
+`consultation_audios_retention_idx` para el job de purga. El **audio** se borra a los 4 días; el
 **transcript se conserva**.
 
 **Variables en Railway** (Settings → Variables, se suman a las de §1.4):
@@ -136,7 +136,7 @@ En el plan free de Vercel las funciones cortan a ~60 s → timeout garantizado. 
 de `vercel.json` ya está puesto, pero **requiere plan Pro**. Hasta que se pague, Railway.
 
 **Pendientes (deuda conocida, no bloquea E5):**
-- **Job de purga de audio a 7 días: IMPLEMENTADO.** Route `/api/cron/purge-audio` (front/Vercel): borra
+- **Job de purga de audio a 4 días: IMPLEMENTADO.** Route `/api/cron/purge-audio` (front/Vercel): borra
   del bucket los audios vencidos (`retain_until < now`) y anula `storage_path` (la columna pasó a
   nullable, migración `0012`). Lo dispara **Vercel Cron** a diario (`vercel.json` raíz, `0 3 * * *`).
   Requiere en Vercel: `SUPABASE_SERVICE_ROLE_KEY` (ya para el calendario) y **`CRON_SECRET`** (Vercel

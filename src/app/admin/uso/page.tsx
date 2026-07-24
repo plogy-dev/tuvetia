@@ -65,7 +65,7 @@ export default async function AdminUsoPage() {
         <Stat label="Generaciones LLM" value={answers30.length} hint={`${m.answers.length} históricas`} />
         <Stat label="Retrievals" value={retrievals30.length} hint={`${m.retrievals.length} históricos`} />
         <Stat label="Minutos Deepgram" value={minutes30} hint={`${m.audios.length} audios totales`} />
-        <Stat label="Storage de audio" value={`${storageMb} MB`} hint="se purga a 7 días" />
+        <Stat label="Storage de audio" value={`${storageMb} MB`} hint="se purga a 4 días" />
       </div>
 
       <div className="grid gap-4 lg:grid-cols-2">
