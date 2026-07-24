@@ -1,5 +1,5 @@
 -- ============================================================
--- 0018_patient_attachments_storage.sql
+-- 0019_patient_attachments_storage.sql
 -- Archivos adjuntos del paciente (exámenes, radiografías, etc.)
 --
 -- La tabla public.patient_attachments YA existe (000_base_schema.sql) con RLS
