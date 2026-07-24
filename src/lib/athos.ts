@@ -41,7 +41,8 @@ export type ChatHandlers = {
 
 // Consume el stream SSE de /athos/chat y despacha eventos {warning, token, done}.
 export async function athosChat(
-  params: { question: string; patientId: string; clinicId: string },
+  // patientId vacío/omitido = consulta general (sin paciente): el backend responde sin ficha ni memoria.
+  params: { question: string; patientId?: string | null; clinicId: string },
   handlers: ChatHandlers,
   signal?: AbortSignal,
 ): Promise<void> {
@@ -51,7 +52,7 @@ export async function athosChat(
       headers: await authHeaders(),
       body: JSON.stringify({
         question: params.question,
-        patient_id: params.patientId,
+        patient_id: params.patientId || null,
         clinic_id: params.clinicId,
       }),
       signal,

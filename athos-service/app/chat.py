@@ -98,11 +98,14 @@ def stream_answer(question: str, patient_id: str, clinic_id: str, user_id: str |
 
     # Memoria del hilo: cargar los turnos previos ANTES de loguear la pregunta actual (si no, la
     # pregunta de este turno entraría duplicada en el historial y en el prompt del turno).
-    history = _thread_history(load_thread(clinic_id, patient_id, CHAT_HISTORY_MSGS))
-    log_message(clinic_id, user_id, patient_id, "user", question)
-    log_retrieval(clinic_id, "chat", (query.raw or "")[:1000], list(query.concepts),
-                  [c.chunk_id for c in chunks], max((c.score for c in chunks), default=0.0), passed,
-                  user_id=user_id, patient_id=patient_id)
+    # Consulta GENERAL (sin paciente): es SIN estado — ni memoria ni traza por paciente (evita mezclar
+    # consultas no relacionadas bajo un "hilo" de patient_id NULL).
+    history = _thread_history(load_thread(clinic_id, patient_id, CHAT_HISTORY_MSGS)) if patient_id else []
+    if patient_id:
+        log_message(clinic_id, user_id, patient_id, "user", question)
+        log_retrieval(clinic_id, "chat", (query.raw or "")[:1000], list(query.concepts),
+                      [c.chunk_id for c in chunks], max((c.score for c in chunks), default=0.0), passed,
+                      user_id=user_id, patient_id=patient_id)
 
     if gate:
         yield _sse({"type": "warning",
@@ -113,7 +116,8 @@ def stream_answer(question: str, patient_id: str, clinic_id: str, user_id: str |
         msg = ("No hay evidencia suficiente en la literatura disponible para responder esta "
                "consulta con seguridad.")
         yield _sse({"type": "token", "text": msg})
-        log_message(clinic_id, None, patient_id, "assistant", msg)
+        if patient_id:
+            log_message(clinic_id, None, patient_id, "assistant", msg)
         yield _sse({"type": "done", "citations": [], "allergy_gate_triggered": gate,
                     "insufficient_evidence": True, "ai_model": get_settings().llm_model})
         return
@@ -129,7 +133,8 @@ def stream_answer(question: str, patient_id: str, clinic_id: str, user_id: str |
         yield _sse({"type": "token", "text": tok})
     answer = "".join(parts)
     citations = _cited_from_answer(answer, literature)
-    log_message(clinic_id, None, patient_id, "assistant", answer)
+    if patient_id:
+        log_message(clinic_id, None, patient_id, "assistant", answer)
     yield _sse({"type": "done", "citations": [c.model_dump() for c in citations],
                 "allergy_gate_triggered": gate, "insufficient_evidence": False,
                 "ai_model": get_settings().llm_model})

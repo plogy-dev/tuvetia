@@ -20,6 +20,8 @@ import {
 
 type Patient = { id: string; name: string; species: string }
 
+const GENERAL = "__general__" // valor del selector para "Consulta general (sin paciente)"
+
 // Un turno del hilo. El backend mantiene la memoria por (clinica, paciente); aquí acumulamos la
 // conversación para que el vet la vea completa (antes era de un solo turno).
 type Msg = {
@@ -118,7 +120,7 @@ function splitBlocks(content: string): { text: string; bullet: boolean; heading:
 export default function AsistentePage() {
   const [clinicId, setClinicId] = useState<string>("")
   const [patients, setPatients] = useState<Patient[]>([])
-  const [patientId, setPatientId] = useState<string>("")
+  const [patientId, setPatientId] = useState<string>(GENERAL)
   const [question, setQuestion] = useState<string>("")
   const [loading, setLoading] = useState(false)
   const [messages, setMessages] = useState<Msg[]>([])
@@ -153,6 +155,7 @@ export default function AsistentePage() {
   }, [messages])
 
   const patient = patients.find((p) => p.id === patientId)
+  const isGeneral = !patient // consulta general: sin ficha ni memoria de paciente
 
   // Actualiza el último mensaje (el del asistente en curso) sin recrear el resto del hilo.
   const patchLast = (fn: (m: Msg) => Msg) =>
@@ -164,8 +167,8 @@ export default function AsistentePage() {
 
   async function ask() {
     const q = question.trim()
-    if (!q || !patientId || !clinicId) {
-      toast.error("Elige un paciente y escribe una pregunta.")
+    if (!q || !clinicId) {
+      toast.error("Escribe una pregunta.")
       return
     }
     setLoading(true)
@@ -176,7 +179,7 @@ export default function AsistentePage() {
       { role: "assistant", content: "", streaming: true },
     ])
     await athosChat(
-      { question: q, patientId, clinicId },
+      { question: q, patientId: isGeneral ? "" : patientId, clinicId },
       {
         onWarning: (t) => patchLast((m) => ({ ...m, warning: t })),
         onToken: (t) => patchLast((m) => ({ ...m, content: m.content + t })),
@@ -218,23 +221,29 @@ export default function AsistentePage() {
           </div>
         </div>
         <div className="flex items-center gap-2">
-          {patient && <Badge variant="secondary">Contexto · {patient.name}</Badge>}
+          {patient ? (
+            <Badge variant="secondary">Contexto · {patient.name}</Badge>
+          ) : (
+            <Badge variant="outline">Consulta general</Badge>
+          )}
           <Select
             value={patientId}
             onValueChange={(v) => {
-              setPatientId(v ?? "")
-              setMessages([]) // nuevo paciente = hilo nuevo en pantalla
+              const nv = v ?? GENERAL
+              if (nv === patientId) return // re-seleccionar lo mismo no borra el hilo
+              setPatientId(nv)
+              setMessages([]) // cambiar de contexto = hilo nuevo en pantalla
             }}
-            items={patients.map((p) => ({
-              label: `${p.name} · ${p.species}`,
-              value: p.id,
-            }))}
-            disabled={patients.length === 0}
+            items={[
+              { label: "Consulta general (sin paciente)", value: GENERAL },
+              ...patients.map((p) => ({ label: `${p.name} · ${p.species}`, value: p.id })),
+            ]}
           >
-            <SelectTrigger size="sm" className="min-w-40">
-              <SelectValue placeholder={patients.length === 0 ? "Sin pacientes" : "Paciente"} />
+            <SelectTrigger size="sm" className="min-w-52">
+              <SelectValue placeholder="Contexto" />
             </SelectTrigger>
             <SelectContent>
+              <SelectItem value={GENERAL}>Consulta general (sin paciente)</SelectItem>
               {patients.map((p) => (
                 <SelectItem key={p.id} value={p.id}>
                   {p.name} · {p.species}
@@ -245,16 +254,21 @@ export default function AsistentePage() {
         </div>
       </div>
 
-      {/* Aviso de memoria del hilo */}
-      {patient && (
-        <div className="flex items-center gap-2 rounded-lg border bg-secondary px-3 py-2 text-xs text-muted-foreground">
-          <span className="size-1.5 shrink-0 animate-pulse rounded-full bg-foreground" />
+      {/* Aviso de contexto: memoria del hilo (con paciente) o consulta general */}
+      <div className="flex items-center gap-2 rounded-lg border bg-secondary px-3 py-2 text-xs text-muted-foreground">
+        <span className="size-1.5 shrink-0 animate-pulse rounded-full bg-foreground" />
+        {patient ? (
           <span>
             <strong className="font-semibold text-foreground">Hilo con memoria</strong> — recuerdo el
             contexto de {patient.name} y las respuestas anteriores de esta conversación.
           </span>
-        </div>
-      )}
+        ) : (
+          <span>
+            <strong className="font-semibold text-foreground">Consulta general</strong> — respondo dudas
+            médicas con literatura veterinaria citada, sin ficha de un paciente. (Sin memoria del hilo.)
+          </span>
+        )}
+      </div>
 
       {/* Hilo de conversación (con memoria) */}
       <div
@@ -264,8 +278,9 @@ export default function AsistentePage() {
         {messages.length === 0 && (
           <div className="m-auto max-w-sm text-center text-sm text-muted-foreground">
             <Bot className="mx-auto mb-2 size-6 opacity-50" />
-            Pregúntame sobre un caso. Recuerdo el hilo de este paciente y respondo con literatura
-            citada y verificable — nunca un diagnóstico cerrado.
+            {patient
+              ? `Pregúntame sobre ${patient.name} o una duda médica general. Recuerdo el hilo de este paciente y respondo con literatura citada y verificable — nunca un diagnóstico cerrado.`
+              : "Pregúntame una duda médica general, o elige un paciente arriba para razonar con su ficha. Respondo con literatura citada y verificable — nunca un diagnóstico cerrado."}
           </div>
         )}
 

@@ -71,7 +71,7 @@ class PatientContext(BaseModel):
 # ---- Contratos de API ----
 class ChatRequest(BaseModel):
     question: str
-    patient_id: str
+    patient_id: str | None = None  # None = consulta general (sin paciente): sin ficha, memoria ni gate
     clinic_id: str
 
 
