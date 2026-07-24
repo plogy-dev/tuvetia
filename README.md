@@ -1,5 +1,12 @@
 This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
 
+## 📌 Empezá por acá (devs)
+
+- **[`ESTADO.md`](ESTADO.md)** — estado y handoff del proyecto (qué está hecho, qué falta, config pendiente). **Leelo primero.**
+- **[`AGENTS.md`](AGENTS.md)** / **[`CLAUDE.md`](CLAUDE.md)** — reglas del repo.
+- **[`CALENDARIO.md`](CALENDARIO.md)** — calendario + sync Google + ICS.
+- **[`DATABASE.md`](DATABASE.md)** — Supabase, RLS, Storage. · **[`athos-service/`](athos-service/)** — backend Athos (su propio `CLAUDE.md` y `DEPLOY.md`).
+
 ## Getting Started
 
 First, run the development server:
