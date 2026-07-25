@@ -3,16 +3,28 @@ import { createClient } from "@/lib/supabase/server"
 import { ensureClinicForUser } from "@/lib/supabase/ensure-clinic"
 import { upsertGoogleIntegration } from "@/lib/google-calendar"
 
+// Solo permite paths internos como destino (evita open redirect vía ?next=//evil.com).
+function safeNext(raw: string | null): string {
+  return raw && raw.startsWith("/") && !raw.startsWith("//") ? raw : "/dashboard"
+}
+
 export async function GET(request: NextRequest) {
   const { searchParams, origin } = new URL(request.url)
   const code = searchParams.get("code")
-  const next = searchParams.get("next") ?? "/dashboard"
+  const next = safeNext(searchParams.get("next"))
 
   if (code) {
     const supabase = await createClient()
     const { data, error } = await supabase.auth.exchangeCodeForSession(code)
     if (!error && data.user) {
-      await ensureClinicForUser(supabase, data.user)
+      // El aprovisionamiento de clínica NO debe bloquear el login: si falla, igual entramos (el
+      // layout redirige a /bienvenida si falta setup). Antes, un error aquí devolvía 500 con el
+      // code ya consumido -> el usuario no podía reintentar.
+      try {
+        await ensureClinicForUser(supabase, data.user)
+      } catch (e) {
+        console.error("ensureClinicForUser falló (no bloquea el login):", e)
+      }
 
       // Vinculación de calendario de un clic: si el login con Google trajo un refresh token (porque el
       // usuario concedió el scope calendar.events en el mismo consentimiento), lo guardamos. Best-effort:
