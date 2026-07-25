@@ -50,11 +50,14 @@ export default async function SettingsPage() {
   // Equipo: miembros de la clínica (RLS: profiles de la clínica) + invitaciones pendientes
   // (RLS: solo el admin las ve; para un vet llega vacío).
   const isAdmin = p?.role === "admin"
-  const { data: memberRows } = await supabase
-    .from("profiles")
-    .select("id, full_name, role")
-    .not("clinic_id", "is", null)
-    .order("full_name")
+  // clinic_id explícito (defensa en profundidad, no solo RLS): jamás listar perfiles ajenos.
+  const { data: memberRows } = p?.clinic_id
+    ? await supabase
+        .from("profiles")
+        .select("id, full_name, role")
+        .eq("clinic_id", p.clinic_id)
+        .order("full_name")
+    : { data: null }
   const { data: inviteRows } = await supabase
     .from("invitations")
     .select("id, email, role, expires_at")

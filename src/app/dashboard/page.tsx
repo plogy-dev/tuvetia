@@ -3,6 +3,7 @@ import { es } from "date-fns/locale"
 import { CalendarClock, FileClock, PawPrint, Stethoscope } from "lucide-react"
 
 import { createClient } from "@/lib/supabase/server"
+import { DataError } from "@/components/data-error"
 import { SectionCards } from "@/components/section-cards"
 import { ConsultationsChart } from "@/components/dashboard/consultations-chart"
 import { OnboardingChecklist } from "@/components/dashboard/onboarding-checklist"
@@ -50,7 +51,8 @@ export default async function DashboardPage() {
         .select("*", { count: "exact", head: true })
         .gte("starts_at", now.toISOString())
         .lte("starts_at", weekAhead.toISOString())
-        .neq("status", "canceled"),
+        // Solo estados realmente pendientes: una cita futura marcada completed/no_show no es "próxima".
+        .in("status", ["scheduled", "confirmed", "in_progress"]),
       supabase.from("clinical_notes").select("*", { count: "exact", head: true }).eq("status", "draft"),
       supabase
         .from("consultations")
@@ -60,7 +62,7 @@ export default async function DashboardPage() {
         .from("appointments")
         .select("id, title, starts_at, status, patient:patients(name)")
         .gte("starts_at", now.toISOString())
-        .neq("status", "canceled")
+        .in("status", ["scheduled", "confirmed", "in_progress"])
         .order("starts_at", { ascending: true })
         .limit(8),
       // Checklist de primeros pasos (datos reales de la clínica)
@@ -71,6 +73,11 @@ export default async function DashboardPage() {
         .select("*", { count: "exact", head: true })
         .eq("full_name", "Ejemplo — TuvetIA"),
     ])
+
+  // Un fallo de query no debe verse como "clínica en ceros": banner de error visible.
+  const loadError = [consultasMes, pacientes, citas7d, notasRevisar, chartData, upcomingData].some(
+    (r) => r.error,
+  )
 
   const metrics = [
     {
@@ -107,6 +114,13 @@ export default async function DashboardPage() {
 
   return (
     <div className="flex flex-col gap-4 py-4 md:gap-6 md:py-6">
+      {loadError && (
+        <div className="px-4 lg:px-6">
+          <DataError>
+            Algunas métricas no se pudieron cargar y pueden verse en cero. Recargá la página.
+          </DataError>
+        </div>
+      )}
       <OnboardingChecklist
         hasPatient={(pacientes.count ?? 0) > 0}
         hasRecording={(audiosCount.count ?? 0) > 0}

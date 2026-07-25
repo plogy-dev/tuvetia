@@ -84,8 +84,12 @@ export default function AsistentePage() {
 
   async function ask() {
     const q = question.trim()
-    if (!q || !clinicId) {
+    if (!q) {
       toast.error("Escribe una pregunta.")
+      return
+    }
+    if (!clinicId) {
+      toast.error("No se pudo cargar tu clínica. Recargá la página e intentá de nuevo.")
       return
     }
     setLoading(true)
@@ -287,7 +291,7 @@ export default function AsistentePage() {
           placeholder="Escribe tu consulta clínica…  (Ctrl/⌘ + Enter para enviar)"
           className="max-h-40 min-h-9 flex-1 resize-none border-0 bg-transparent px-2 py-1.5 shadow-none focus-visible:ring-0 dark:bg-transparent"
         />
-        <Button size="icon" onClick={ask} disabled={loading} aria-label="Enviar">
+        <Button size="icon" onClick={ask} disabled={loading || !clinicId} aria-label="Enviar">
           {loading ? <Loader2 className="size-4 animate-spin" /> : <Send className="size-4" />}
         </Button>
       </div>

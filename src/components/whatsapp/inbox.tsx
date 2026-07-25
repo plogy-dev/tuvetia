@@ -39,6 +39,10 @@ export type InboxOwner = { id: string; full_name: string; phone: string | null }
 
 const digits = (s: string) => s.replace(/\D/g, "")
 
+// Los optimistas usan id "tmp-…" y created_at del RELOJ DEL CLIENTE: no sirven como cursor del
+// poll (un reloj adelantado dejaría fuera entrantes reales) y deben reemplazarse al llegar la fila real.
+const isTmp = (m: InboxMessage) => m.id.startsWith("tmp-")
+
 function contactOf(m: InboxMessage): string {
   return digits(m.direction === "inbound" ? m.wa_phone_from : m.wa_phone_to)
 }
@@ -104,22 +108,47 @@ export function WhatsappInbox({
     [messages, selected],
   )
 
-  // Poll de mensajes nuevos cada 15 s (RLS: solo la clínica).
+  // Poll de mensajes nuevos cada 15 s (RLS: solo la clínica). Lee `messages` por ref para no
+  // recrear el interval en cada actualización.
+  const messagesRef = useRef(messages)
+  useEffect(() => {
+    messagesRef.current = messages
+  }, [messages])
   useEffect(() => {
     const t = setInterval(() => {
       void (async () => {
-        const latest = messages.at(-1)?.created_at ?? new Date(0).toISOString()
+        // Cursor: máximo created_at de filas REALES (los tmp llevan reloj del cliente).
+        const latest = messagesRef.current.reduce(
+          (max, m) => (!isTmp(m) && m.created_at > max ? m.created_at : max),
+          new Date(0).toISOString(),
+        )
         const { data } = await supabase
           .from("whatsapp_messages")
           .select("id, owner_id, wa_message_id, wa_phone_from, wa_phone_to, direction, body, media_type, read_at, delivered_at, created_at")
           .gt("created_at", latest)
           .order("created_at", { ascending: true })
         const fresh = (data as InboxMessage[] | null) ?? []
-        if (fresh.length) setMessages((prev) => [...prev, ...fresh.filter((f) => !prev.some((p) => p.id === f.id))])
+        if (!fresh.length) return
+        setMessages((prev) => {
+          const nuevos = fresh.filter((f) => !prev.some((p) => p.id === f.id))
+          if (!nuevos.length) return prev
+          const next = [...prev]
+          for (const f of nuevos) {
+            if (f.direction === "outbound") {
+              // La fila real reemplaza a su optimista (mismo contacto y cuerpo) — sin duplicado.
+              const i = next.findIndex(
+                (p) => isTmp(p) && contactOf(p) === contactOf(f) && (p.body ?? "") === (f.body ?? ""),
+              )
+              if (i !== -1) next.splice(i, 1)
+            }
+            next.push(f)
+          }
+          return next
+        })
       })()
     }, 15000)
     return () => clearInterval(t)
-  }, [supabase, messages])
+  }, [supabase])
 
   // Al abrir una conversación: marcar leídos los entrantes.
   const openConversation = useCallback(
@@ -175,7 +204,7 @@ export function WhatsappInbox({
       })
       const j = (await res.json().catch(() => ({}))) as { error?: string }
       if (!res.ok) throw new Error(j.error ?? `HTTP ${res.status}`)
-      // Optimista: el poll lo reemplaza con la fila real (dedupe por id).
+      // Optimista: el poll lo reconcilia con la fila real (mismo contacto y cuerpo).
       setMessages((prev) => [
         ...prev,
         {

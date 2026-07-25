@@ -2,6 +2,7 @@ import { endOfWeek, startOfWeek } from "date-fns"
 
 import { createClient } from "@/lib/supabase/server"
 import { AppointmentCalendar } from "@/components/calendar/appointment-calendar"
+import { DataError } from "@/components/data-error"
 import { APPOINTMENT_SELECT, type AppointmentRow, type SelectOption } from "@/lib/appointments"
 
 export default async function CalendarioPage() {
@@ -16,7 +17,14 @@ export default async function CalendarioPage() {
     data: { user },
   } = await supabase.auth.getUser()
 
-  const [{ data: appts }, { data: pts }, { data: owns }, { data: profs }, { data: integ }] =
+  // clinic_id explícito para el selector de vets (defensa en profundidad, no solo RLS).
+  const clinicId = user
+    ? ((await supabase.from("profiles").select("clinic_id").eq("id", user.id).single()).data as
+        | { clinic_id: string | null }
+        | null)?.clinic_id ?? null
+    : null
+
+  const [{ data: appts, error: apptsError }, { data: pts }, { data: owns }, { data: profs }, { data: integ }] =
     await Promise.all([
       supabase
         .from("appointments")
@@ -26,7 +34,9 @@ export default async function CalendarioPage() {
         .order("starts_at", { ascending: true }),
       supabase.from("patients").select("id, name").order("name"),
       supabase.from("owners").select("id, full_name").order("full_name"),
-      supabase.from("profiles").select("id, full_name"),
+      clinicId
+        ? supabase.from("profiles").select("id, full_name").eq("clinic_id", clinicId)
+        : Promise.resolve({ data: null }),
       // Solo columnas no-secretas (refresh_token/sync_token están revocadas al cliente).
       user
         ? supabase
@@ -54,6 +64,13 @@ export default async function CalendarioPage() {
 
   return (
     <div className="px-4 py-4 md:py-6 lg:px-6">
+      {apptsError && (
+        <div className="mb-3">
+          <DataError>
+            No se pudieron cargar las citas; el calendario puede verse vacío. Recargá la página.
+          </DataError>
+        </div>
+      )}
       <AppointmentCalendar
         initialAppointments={(appts as unknown as AppointmentRow[] | null) ?? []}
         initialRange={{ start: rangeStart.toISOString(), end: rangeEnd.toISOString() }}

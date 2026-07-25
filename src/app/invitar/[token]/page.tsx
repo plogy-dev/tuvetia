@@ -89,6 +89,24 @@ export default async function InvitarPage({ params }: { params: Promise<{ token:
     )
   }
 
+  // La invitación es nominal: si la sesión activa es de OTRO email, no ofrecer aceptar
+  // (aceptar movería la cuenta equivocada a la clínica).
+  if (invitedEmail && user.email?.toLowerCase() !== invitedEmail.toLowerCase()) {
+    const next = encodeURIComponent(`/invitar/${token}`)
+    return shell(
+      <>
+        <h1 className="text-xl font-bold">Esta invitación es para {invitedEmail}</h1>
+        <p className="text-sm text-muted-foreground">
+          Tu sesión actual es <b>{user.email}</b>. Cerrá sesión e ingresá con el correo invitado
+          para aceptar.
+        </p>
+        <Button variant="outline" render={<Link href={`/?next=${next}`} />}>
+          Cambiar de cuenta
+        </Button>
+      </>,
+    )
+  }
+
   // Con sesión: ¿ya pertenece a otra clínica? (aceptar lo MUEVE de clínica — advertir)
   const { data: prof } = await supabase
     .from("profiles")

@@ -39,7 +39,7 @@ export default async function OwnersPage({
   }
 
   // Guarda de escala: listado acotado; con más titulares se busca por nombre (paginación real: backlog).
-  const { data: owners } = await query.order("full_name").limit(200)
+  const { data: owners, error: listError } = await query.order("full_name").limit(200)
 
   // Titulares con consentimiento de grabación vigente (owner_scope, no revocado) -> muestran "Revocar".
   const { data: consentRows } = await supabase
@@ -108,9 +108,11 @@ export default async function OwnersPage({
                   colSpan={6}
                   className="h-24 text-center text-muted-foreground"
                 >
-                  {q
-                    ? "No se encontraron titulares."
-                    : "Todavía no hay titulares registrados."}
+                  {listError
+                    ? "No se pudieron cargar los titulares. Recargá la página para reintentar."
+                    : q
+                      ? "No se encontraron titulares."
+                      : "Todavía no hay titulares registrados."}
                 </TableCell>
               </TableRow>
             )}

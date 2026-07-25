@@ -2,6 +2,7 @@ import Link from "next/link"
 import { MessageCircle } from "lucide-react"
 
 import { createClient } from "@/lib/supabase/server"
+import { DataError } from "@/components/data-error"
 import { WhatsappInbox, type InboxMessage, type InboxOwner } from "@/components/whatsapp/inbox"
 import { Button } from "@/components/ui/button"
 
@@ -19,7 +20,7 @@ export default async function ComunicacionesPage() {
     : { data: null }
   const clinicId = (prof as { clinic_id: string | null } | null)?.clinic_id ?? ""
 
-  const [{ data: integ }, { data: msgs }, { data: owners }] = await Promise.all([
+  const [{ data: integ }, { data: msgs, error: msgsError }, { data: owners }] = await Promise.all([
     supabase.from("whatsapp_integrations").select("status, phone_number").maybeSingle(),
     supabase
       .from("whatsapp_messages")
@@ -47,11 +48,20 @@ export default async function ComunicacionesPage() {
   }
 
   return (
-    <WhatsappInbox
-      initialMessages={((msgs as InboxMessage[] | null) ?? []).slice().reverse()}
-      owners={(owners as InboxOwner[] | null) ?? []}
-      clinicPhone={integration?.phone_number ?? ""}
-      clinicId={clinicId}
-    />
+    <>
+      {msgsError && (
+        <div className="px-4 pt-4 lg:px-6">
+          <DataError>
+            No se pudieron cargar los mensajes; la bandeja puede verse vacía. Recargá la página.
+          </DataError>
+        </div>
+      )}
+      <WhatsappInbox
+        initialMessages={((msgs as InboxMessage[] | null) ?? []).slice().reverse()}
+        owners={(owners as InboxOwner[] | null) ?? []}
+        clinicPhone={integration?.phone_number ?? ""}
+        clinicId={clinicId}
+      />
+    </>
   )
 }

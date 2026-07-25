@@ -74,6 +74,7 @@ export default function NotaConsultaPage({ params }: { params: Promise<{ id: str
   const [supabase] = useState(() => createClient())
 
   const [loading, setLoading] = useState(true)
+  const [loadError, setLoadError] = useState(false)
   const [generating, setGenerating] = useState(false)
   const [saving, setSaving] = useState(false)
   const [approving, setApproving] = useState(false)
@@ -91,9 +92,14 @@ export default function NotaConsultaPage({ params }: { params: Promise<{ id: str
       .select("id, status, chief_complaint, clinic_id, patient_id, patient:patients(name, species, owner_id)")
       .eq("id", id)
       .single()
-    // Si la consulta no carga (RLS, id inexistente, columna renombrada), `consultation` queda null y
-    // no se monta el grabador ni nada que dependa de ella. Sin esto, el fallo es silencioso.
-    if (cErr) console.error("No se pudo cargar la consulta:", cErr)
+    if (cErr || !c) {
+      // RLS, id inexistente o fallo de red: estado de error visible, no una pantalla a medias.
+      console.error("No se pudo cargar la consulta:", cErr)
+      setLoadError(true)
+      setLoading(false)
+      return
+    }
+    setLoadError(false)
     setConsultation(c as unknown as Consultation | null)
 
     const { data: t } = await supabase
@@ -105,17 +111,19 @@ export default function NotaConsultaPage({ params }: { params: Promise<{ id: str
       .maybeSingle()
     setTranscript((t as { full_text: string | null } | null)?.full_text ?? "")
 
+    // `alerts` (migración 0004, ya aplicada al principal) viaja en el MISMO select de la nota:
+    // antes era un 5º round-trip aparte a la misma fila.
     const { data: n } = await supabase
       .from("clinical_notes")
       .select(
-        "id, status, subjective, objective, assessment, plan, allergy_gate_triggered, citations, ai_model, ai_generated_at",
+        "id, status, subjective, objective, assessment, plan, allergy_gate_triggered, citations, ai_model, ai_generated_at, alerts",
       )
       .eq("consultation_id", id)
       .order("created_at", { ascending: false })
       .limit(1)
       .maybeSingle()
     if (n) {
-      const parsed = n as unknown as Note
+      const parsed = n as unknown as Note & { alerts?: ConditionAlert[] }
       setNote(parsed)
       setSoap({
         subjective: parsed.subjective ?? "",
@@ -123,15 +131,7 @@ export default function NotaConsultaPage({ params }: { params: Promise<{ id: str
         assessment: parsed.assessment ?? "",
         plan: parsed.plan ?? "",
       })
-      // Alertas de condición persistidas (migración 0004). Tolerante: si la columna aún no existe,
-      // la query falla y conservamos lo que haya (p.ej. las del último suggest); no rompe la carga.
-      const { data: al, error: alErr } = await supabase
-        .from("clinical_notes")
-        .select("alerts")
-        .eq("id", parsed.id)
-        .maybeSingle()
-      const persisted = (al as { alerts?: ConditionAlert[] } | null)?.alerts
-      if (!alErr && Array.isArray(persisted)) setAlerts(persisted)
+      if (Array.isArray(parsed.alerts)) setAlerts(parsed.alerts)
     }
     // Con nota ya generada, el foco es la nota: el panel de grabación/transcripción arranca plegado.
     setCaptureOpen(!n)
@@ -222,6 +222,25 @@ export default function NotaConsultaPage({ params }: { params: Promise<{ id: str
     return (
       <div className="flex items-center justify-center gap-2 px-4 py-16 text-muted-foreground">
         <Loader2 className="size-4 animate-spin" /> Cargando consulta…
+      </div>
+    )
+  }
+
+  if (loadError || !consultation) {
+    return (
+      <div className="mx-auto flex w-full max-w-lg flex-col items-center gap-3 px-4 py-16 text-center">
+        <p className="text-sm font-medium">No se pudo cargar la consulta.</p>
+        <p className="text-sm text-muted-foreground">
+          Puede que no exista, que no tengas acceso o que haya un problema de conexión.
+        </p>
+        <div className="flex gap-2">
+          <Button variant="outline" onClick={() => { setLoading(true); void load() }}>
+            Reintentar
+          </Button>
+          <Button variant="ghost" render={<Link href="/dashboard/consultas" />}>
+            Volver a consultas
+          </Button>
+        </div>
       </div>
     )
   }

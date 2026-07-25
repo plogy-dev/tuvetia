@@ -4,6 +4,7 @@ import { ChevronDownIcon, ChevronRightIcon, GhostIcon, SearchIcon } from "lucide
 import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
 import { createClient } from "@/lib/supabase/server"
+import { DataError } from "@/components/data-error"
 import { NewConsultationDrawer } from "@/components/new-consultation-drawer"
 
 const CONSULTATION_STATUS: Record<string, string> = {
@@ -79,12 +80,15 @@ export default async function ConsultasPage({
   const filtering = Boolean(query || notaF)
 
   const supabase = await createClient()
-  const { data } = await supabase
+  const { data, error: listError } = await supabase
     .from("consultations")
     .select(
       "id, status, chief_complaint, started_at, patient:patients(id, name, species), notes:clinical_notes(id, status)"
     )
     .order("started_at", { ascending: false })
+    // notes[0] debe ser la nota MÁS RECIENTE: sin esto, PostgREST no garantiza orden y una
+    // consulta con nota vieja draft + nueva aprobada podría mostrarse como "Borrador".
+    .order("created_at", { referencedTable: "notes", ascending: false })
     .limit(200)
   const all = (data as unknown as ConsultationRow[] | null) ?? []
 
@@ -199,7 +203,8 @@ export default async function ConsultasPage({
         </div>
       </div>
 
-      {ordered.length === 0 && (
+      {listError && <DataError />}
+      {!listError && ordered.length === 0 && (
         <div className="rounded-xl border bg-card py-12 text-center text-sm text-muted-foreground">
           {filtering
             ? "Sin resultados con esos filtros."

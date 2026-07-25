@@ -16,6 +16,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
+import { fmtAgeShort } from "@/lib/age"
 import { createClient } from "@/lib/supabase/server"
 
 const SEX_LABELS: Record<string, string> = {
@@ -49,15 +50,6 @@ function especieBucket(species: string): string {
   if (s.startsWith("perr")) return "perros"
   if (s.startsWith("gat")) return "gatos"
   return "otros"
-}
-
-function fmtEdad(birth: string | null): string {
-  if (!birth) return "—"
-  const months =
-    (Date.now() - new Date(birth).getTime()) / (1000 * 60 * 60 * 24 * 30.44)
-  if (months < 1) return "< 1 m"
-  if (months < 12) return `${Math.floor(months)} m`
-  return `${Math.floor(months / 12)} a`
 }
 
 // Límites del día y del mes en hora de Colombia (UTC-5, sin DST) para las métricas.
@@ -98,7 +90,7 @@ export default async function PatientsPage({
   const { dayStart, dayEnd, monthStart } = bogotaBounds()
 
   // Guarda de escala: listado acotado; con más pacientes se busca por nombre (paginación real: backlog).
-  const [{ data }, activos, citasHoy, enRevision, nuevosMes] = await Promise.all([
+  const [{ data, error: listError }, activos, citasHoy, enRevision, nuevosMes] = await Promise.all([
     supabase
       .from("patients")
       .select(
@@ -170,7 +162,7 @@ export default async function PatientsPage({
               p.species,
               p.breed ?? "",
               SEX_LABELS[p.sex] ?? p.sex,
-              fmtEdad(p.birth_date),
+              fmtAgeShort(p.birth_date),
               p.owner?.full_name ?? "",
               p.owner?.phone ?? "",
             ])}
@@ -261,7 +253,7 @@ export default async function PatientsPage({
                     {patient.breed ?? "—"}
                   </TableCell>
                   <TableCell>{SEX_LABELS[patient.sex] ?? patient.sex}</TableCell>
-                  <TableCell className="font-mono text-xs">{fmtEdad(patient.birth_date)}</TableCell>
+                  <TableCell className="font-mono text-xs">{fmtAgeShort(patient.birth_date)}</TableCell>
                   <TableCell className="hidden sm:table-cell">
                     {patient.owner?.full_name ?? "—"}
                   </TableCell>
@@ -282,9 +274,11 @@ export default async function PatientsPage({
             ) : (
               <TableRow>
                 <TableCell colSpan={8} className="h-24 text-center text-muted-foreground">
-                  {query || especieF
-                    ? "No se encontraron pacientes con esos filtros."
-                    : "Todavía no hay pacientes registrados."}
+                  {listError
+                    ? "No se pudieron cargar los pacientes. Recargá la página para reintentar."
+                    : query || especieF
+                      ? "No se encontraron pacientes con esos filtros."
+                      : "Todavía no hay pacientes registrados."}
                 </TableCell>
               </TableRow>
             )}

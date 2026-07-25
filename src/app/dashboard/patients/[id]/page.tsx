@@ -2,6 +2,7 @@ import Link from "next/link"
 import { notFound } from "next/navigation"
 import { AlertTriangle, ArrowLeft, CalendarDays, PawPrint, Pill, Syringe } from "lucide-react"
 
+import { fmtAgeLong } from "@/lib/age"
 import { createClient } from "@/lib/supabase/server"
 import {
   PatientAttachments,
@@ -60,19 +61,6 @@ function fmtDate(iso: string | null): string {
   return new Date(iso).toLocaleString("es-CO", DATE_FMT)
 }
 
-function fmtAge(birth: string | null): string | null {
-  if (!birth) return null
-  const b = new Date(birth)
-  const now = new Date()
-  let months = (now.getFullYear() - b.getFullYear()) * 12 + (now.getMonth() - b.getMonth())
-  if (now.getDate() < b.getDate()) months -= 1
-  if (months < 0) return null
-  const years = Math.floor(months / 12)
-  const rem = months % 12
-  if (years === 0) return `${rem} ${rem === 1 ? "mes" : "meses"}`
-  if (rem === 0) return `${years} ${years === 1 ? "año" : "años"}`
-  return `${years} a ${rem} m`
-}
 
 export default async function PatientHistoryPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
@@ -115,7 +103,9 @@ export default async function PatientHistoryPage({ params }: { params: Promise<{
             "audios:consultation_audios(id, storage_path, duration_secs, created_at)",
         )
         .eq("patient_id", id)
-        .order("started_at", { ascending: false }),
+        .order("started_at", { ascending: false })
+        // notes[0] = la más reciente (sin esto PostgREST no garantiza orden del embed)
+        .order("created_at", { referencedTable: "notes", ascending: false }),
       supabase
         .from("patient_attachments")
         .select("id, label, file_url, file_type, file_size, created_at")
@@ -131,7 +121,7 @@ export default async function PatientHistoryPage({ params }: { params: Promise<{
   const severeAllergies = allergies.filter((a) => a.severity === "severe")
 
   const initial = patient.name.charAt(0).toUpperCase()
-  const age = fmtAge(patient.birth_date)
+  const age = fmtAgeLong(patient.birth_date)
   const meta = [
     patient.species,
     patient.breed,
