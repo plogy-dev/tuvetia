@@ -30,13 +30,33 @@ async function kapso<T>(path: string, init?: RequestInit): Promise<T> {
   return (await res.json()) as T
 }
 
-// Crea el customer de Kapso para una clínica. external_customer_id = clinic_id (nuestro tenant).
+type KapsoCustomer = { id: string; external_customer_id?: string | null }
+
+// Busca el customer de Kapso por nuestro tenant id (external_customer_id = clinic_id).
+async function findKapsoCustomer(clinicId: string): Promise<string | null> {
+  const json = await kapso<{ data: KapsoCustomer[] }>("/customers")
+  const hit = (json.data ?? []).find((c) => c.external_customer_id === clinicId)
+  return hit?.id ?? null
+}
+
+// Crea (o RECUPERA) el customer de Kapso para una clínica. external_customer_id = clinic_id.
+// Idempotente: si un intento anterior lo creó pero no llegó a persistirse en nuestra BD, Kapso
+// responde 422 "External customer has already been taken" -> lo buscamos y reutilizamos.
 export async function createKapsoCustomer(clinicId: string, clinicName: string): Promise<string> {
-  const json = await kapso<{ data: { id: string } }>("/customers", {
-    method: "POST",
-    body: JSON.stringify({ customer: { name: clinicName, external_customer_id: clinicId } }),
-  })
-  return json.data.id
+  try {
+    const json = await kapso<{ data: { id: string } }>("/customers", {
+      method: "POST",
+      body: JSON.stringify({ customer: { name: clinicName, external_customer_id: clinicId } }),
+    })
+    return json.data.id
+  } catch (e) {
+    const msg = (e as Error).message
+    if (msg.includes("422") || msg.toLowerCase().includes("already been taken")) {
+      const existing = await findKapsoCustomer(clinicId)
+      if (existing) return existing
+    }
+    throw e
+  }
 }
 
 // Genera el setup link hosteado donde el vet conecta su WhatsApp (ahí vive el QR de coexistence).

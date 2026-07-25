@@ -46,21 +46,27 @@ export async function POST(req: Request) {
         .maybeSingle()
       const clinicName = (clinic as { name: string } | null)?.name ?? "Clínica"
       kapsoCustomerId = await createKapsoCustomer(clinicId, clinicName)
+      // Persistir el customer APENAS se obtiene: si el setup link fallara después, el reintento lo
+      // reutiliza desde la BD (evita el estado huérfano "existe en Kapso pero no acá").
+      const { error: upErr } = await admin.from("whatsapp_integrations").upsert(
+        {
+          clinic_id: clinicId,
+          kapso_customer_id: kapsoCustomerId,
+          status: "pending",
+          updated_at: new Date().toISOString(),
+        },
+        { onConflict: "clinic_id" },
+      )
+      if (upErr) throw new Error(`No se pudo guardar la integración: ${upErr.message}`)
     }
 
     const origin = new URL(req.url).origin
     const setupUrl = await createSetupLink(kapsoCustomerId, `${origin}/dashboard/settings?whatsapp=connected`)
 
-    await admin.from("whatsapp_integrations").upsert(
-      {
-        clinic_id: clinicId,
-        kapso_customer_id: kapsoCustomerId,
-        setup_link_url: setupUrl,
-        status: "pending",
-        updated_at: new Date().toISOString(),
-      },
-      { onConflict: "clinic_id" },
-    )
+    await admin
+      .from("whatsapp_integrations")
+      .update({ setup_link_url: setupUrl, updated_at: new Date().toISOString() })
+      .eq("clinic_id", clinicId)
 
     return NextResponse.json({ setup_url: setupUrl })
   } catch (e) {
