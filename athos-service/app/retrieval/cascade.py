@@ -20,6 +20,8 @@ TIER1_MESH_BASE = 0.6   # el chunk trae un MeSH/concepto de la consulta: evidenc
 TIER1_LEX_BASE = 0.4    # match de full-text (léxico)
 TIER1_LIMIT = 40        # candidatos que trae el Tier 1
 TIER2_LIMIT = 40        # candidatos que trae el Tier 2 (vector)
+QUERY_EMBED_TIMEOUT_S = 6.0  # tope al embed de la consulta: si Cohere está lento (p.ej. key
+                             # saturada por la ingesta), degradamos a Tier 1 en ~6s, no 60s
 WEAK_MIN_RESULTS = 3    # menos candidatos que esto (o no pasar umbral) dispara el Tier 2
 
 # Composición del set final (acota el costo de la generación y GARANTIZA representación de ambas
@@ -153,10 +155,12 @@ def _vector_search(vector: list[float], limit: int) -> list[RetrievedChunk]:
 
 
 def tier2_vector_fallback(query: StructuredQuery, filters: dict) -> list[RetrievedChunk]:
-    """Vector de respaldo: embeddiza la consulta (Cohere, input_type=search_query) y busca sobre
-    el corpus. Solo se llama si el Tier 1 es débil (hueco del glosario). Requiere Cohere."""
+    """Complemento semántico: embeddiza la consulta (Cohere, input_type=search_query) y busca sobre
+    el corpus. Timeout corto: si Cohere no responde en QUERY_EMBED_TIMEOUT_S, EmbeddingUnavailable
+    sube y retrieve() se queda con el Tier 1 (el chat nunca espera un embed lento)."""
     from app.embeddings import EmbeddingClient
-    vector = EmbeddingClient().embed([query.raw], input_type="search_query")[0]
+    client = EmbeddingClient(timeout_s=QUERY_EMBED_TIMEOUT_S)
+    vector = client.embed([query.raw], input_type="search_query")[0]
     return _vector_search(vector, TIER2_LIMIT)
 
 

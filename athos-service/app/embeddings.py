@@ -18,8 +18,11 @@ from app.config import get_settings
 # Antes, ante 429 de Cohere, 3 intentos × sleep(20s) = hasta 40s BLOQUEANTES por request (agotaba el
 # threadpool de FastAPI y frenaba todo el servicio). Ahora degrada a Tier 1 en ~2s. La INGESTA batch
 # trae su propio reintento con backoff largo por encima (wrapper), así que no pierde robustez.
+# Un Cohere LENTO (sin 429, p.ej. key saturada por la ingesta) se acota con `timeout_s`: el path de
+# consulta pasa un tope corto y degrada a Tier 1; la ingesta conserva el tope largo por defecto.
 _MAX_429_RETRIES = 2
 _RETRY_SLEEP_S = 2
+_DEFAULT_TIMEOUT_S = 60.0
 
 
 class EmbeddingError(Exception):
@@ -32,6 +35,10 @@ class EmbeddingQuotaExceeded(EmbeddingError):
 
 class EmbeddingAuthError(EmbeddingError):
     """Credencial inválida/insuficiente (401/403)."""
+
+
+class EmbeddingUnavailable(EmbeddingError):
+    """Cohere no respondió (timeout o fallo de red): tratar como 'sin Cohere' y degradar."""
 
 
 @lru_cache
@@ -47,12 +54,13 @@ def _tls_context() -> ssl.SSLContext:
 
 
 class EmbeddingClient:
-    def __init__(self):
+    def __init__(self, timeout_s: float = _DEFAULT_TIMEOUT_S):
         s = get_settings()
         self.provider = getattr(s, "embedding_provider", "cohere")
         self.model = s.embedding_model
         self.dim = s.embedding_dim
         self.api_key = s.embedding_api_key
+        self.timeout_s = timeout_s
         self._client = None
         self.total_billed_tokens = 0  # acumulado real (para el guard de presupuesto)
 
@@ -61,7 +69,7 @@ class EmbeddingClient:
             import cohere
             self._client = cohere.ClientV2(
                 api_key=self.api_key,
-                httpx_client=httpx.Client(verify=_tls_context(), timeout=60.0),
+                httpx_client=httpx.Client(verify=_tls_context(), timeout=self.timeout_s),
             )
         return self._client
 
@@ -91,6 +99,9 @@ class EmbeddingClient:
                 return [list(v) for v in floats]
             except Exception as e:  # noqa: BLE001
                 last = e
+                if isinstance(e, httpx.TransportError):
+                    # Timeout/red: sin reintento (fail-fast). El path de consulta degrada a Tier 1.
+                    raise EmbeddingUnavailable(f"Cohere no respondió (timeout/red): {e}") from e
                 status = getattr(e, "status_code", None)
                 msg = str(e).lower()
                 if status in (401, 403):

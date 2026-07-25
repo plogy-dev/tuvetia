@@ -131,3 +131,22 @@ def test_retrieve_degrada_si_tier2_falla(monkeypatch):
     chunks, passed = csc.retrieve(StructuredQuery(concepts=["x"], mesh=["x"], raw="x"))
     assert chunks == []
     assert passed is False
+
+
+def test_retrieve_degrada_si_cohere_esta_lento(monkeypatch):
+    """Cohere LENTO (timeout, p.ej. key saturada por la ingesta) tampoco rompe: el Tier 1 fuerte
+    se sirve solo, sin esperar el embed. El chat responde con retrieval léxico."""
+    import app.retrieval.cascade as csc
+    from app.embeddings import EmbeddingUnavailable
+    tier1 = [_chunk(f"t1_{i}", "gato", ["Cats", "Hyperthyroidism"], 0.9) for i in range(5)]
+    monkeypatch.setattr(csc, "tier1_lexical_glossary", lambda q, f: tier1)
+
+    def _timeout(q, f):
+        raise EmbeddingUnavailable("Cohere no respondió (timeout/red)")
+
+    monkeypatch.setattr(csc, "tier2_vector_fallback", _timeout)
+    q = StructuredQuery(concepts=["Hyperthyroidism"], mesh=["Hyperthyroidism"], species="gato",
+                        raw="hipertiroidismo gato")
+    chunks, passed = csc.retrieve(q)
+    assert [c.chunk_id for c in chunks] == [c.chunk_id for c in tier1]  # se queda con el Tier 1
+    assert passed is True
