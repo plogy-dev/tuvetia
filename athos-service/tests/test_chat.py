@@ -81,7 +81,6 @@ def test_stream_answer_inyecta_memoria_y_loguea_ambos_roles(monkeypatch):
                         lambda q, s: StructuredQuery(raw=q, concepts=["Vomiting"], species=s))
     chunk = RetrievedChunk(chunk_id="c1", doc_id="D1", content="feline gastritis ...", score=0.9)
     monkeypatch.setattr(chat, "retrieve", lambda q: ([chunk], True))
-    monkeypatch.setattr(chat, "severe_allergies", lambda c, p: [])
     monkeypatch.setattr(chat, "load_thread", lambda c, p, n=8: [
         {"role": "user", "content": "pregunta previa"},
         {"role": "assistant", "content": "respuesta previa [1]"}])

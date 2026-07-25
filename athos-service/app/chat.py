@@ -9,7 +9,6 @@ import logging
 import re
 
 from app.config import get_settings
-from app.generation.allergy_gate import severe_allergies
 from app.generation.generate import _MAX_CHUNK_CHARS
 from app.generation.llm_client import LLMClient
 from app.models import Citation, PatientContext
@@ -100,7 +99,9 @@ def stream_answer(question: str, patient_id: str, clinic_id: str, user_id: str |
     patient = load_patient_context(clinic_id, patient_id) if patient_id else PatientContext(patient_id="")
     query = build_query(question, patient.species)
     chunks, passed = retrieve(query)
-    severe = severe_allergies(clinic_id, patient_id) if patient_id else []
+    # Reusa las alergias severas que load_patient_context YA cargó (evita una 2ª query/conexión a
+    # `allergies` por el mismo dato). En consulta general el contexto es vacío -> lista vacía.
+    severe = patient.severe_allergies
     gate = bool(severe)
 
     # Memoria del hilo: cargar los turnos previos ANTES de loguear la pregunta actual (si no, la

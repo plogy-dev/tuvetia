@@ -14,8 +14,12 @@ import httpx
 
 from app.config import get_settings
 
-_MAX_429_RETRIES = 3
-_RETRY_SLEEP_S = 20
+# Fail-fast en el path de CONSULTA: los modelos v4 razonan y el retrieval corre en cada request.
+# Antes, ante 429 de Cohere, 3 intentos × sleep(20s) = hasta 40s BLOQUEANTES por request (agotaba el
+# threadpool de FastAPI y frenaba todo el servicio). Ahora degrada a Tier 1 en ~2s. La INGESTA batch
+# trae su propio reintento con backoff largo por encima (wrapper), así que no pierde robustez.
+_MAX_429_RETRIES = 2
+_RETRY_SLEEP_S = 2
 
 
 class EmbeddingError(Exception):
