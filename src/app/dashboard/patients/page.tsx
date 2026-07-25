@@ -1,56 +1,11 @@
 import Link from "next/link"
-import { FileTextIcon, PawPrintIcon, PlusIcon, UploadIcon } from "lucide-react"
+import { PlusIcon, UploadIcon } from "lucide-react"
 
 import { CreatePatientDrawer } from "@/components/create-patient-drawer"
-import { ExportCsvButton } from "@/components/export-csv-button"
 import { HelpTip } from "@/components/help-tip"
-import { SearchBar } from "@/components/search-bar"
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
-import { Badge } from "@/components/ui/badge"
+import { PatientsExplorer, type PatientRow } from "@/components/patients-explorer"
 import { Button } from "@/components/ui/button"
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table"
-import { fmtAgeShort } from "@/lib/age"
 import { createClient } from "@/lib/supabase/server"
-
-const SEX_LABELS: Record<string, string> = {
-  male: "Macho",
-  female: "Hembra",
-  unknown: "—",
-}
-
-const ESPECIE_FILTERS: { value: string; label: string }[] = [
-  { value: "", label: "Todos" },
-  { value: "perros", label: "Perros" },
-  { value: "gatos", label: "Gatos" },
-  { value: "otros", label: "Otros" },
-]
-
-type PatientRow = {
-  id: string
-  name: string
-  species: string
-  breed: string | null
-  sex: string
-  birth_date: string | null
-  photo_url: string | null
-  // PostgREST devuelve el embed to-one (owner_id -> owners.id) como objeto,
-  // pero el query builder no tipado lo infiere como arreglo.
-  owner: { full_name: string; phone: string | null } | null
-}
-
-function especieBucket(species: string): string {
-  const s = (species || "").trim().toLowerCase()
-  if (s.startsWith("perr")) return "perros"
-  if (s.startsWith("gat")) return "gatos"
-  return "otros"
-}
 
 // Límites del día y del mes en hora de Colombia (UTC-5, sin DST) para las métricas.
 function bogotaBounds() {
@@ -66,30 +21,14 @@ function bogotaBounds() {
   }
 }
 
-function hrefWith(p: { q?: string; especie?: string }): string {
-  const sp = new URLSearchParams()
-  if (p.q) sp.set("q", p.q)
-  if (p.especie) sp.set("especie", p.especie)
-  const s = sp.toString()
-  return "/dashboard/patients" + (s ? `?${s}` : "")
-}
-
-export default async function PatientsPage({
-  searchParams,
-}: {
-  searchParams: Promise<{ q?: string; especie?: string }>
-}) {
-  const { q, especie } = await searchParams
-  const query = (q ?? "").trim().toLowerCase()
-  const especieF = ESPECIE_FILTERS.some((f) => f.value === (especie ?? ""))
-    ? (especie ?? "")
-    : ""
-
+export default async function PatientsPage() {
   const supabase = await createClient()
 
   const { dayStart, dayEnd, monthStart } = bogotaBounds()
 
   // Guarda de escala: listado acotado; con más pacientes se busca por nombre (paginación real: backlog).
+  // La búsqueda y el filtro por especie son client-side (PatientsExplorer): estas queries corren UNA
+  // vez por visita, no una vez por tecla.
   const [{ data, error: listError }, activos, citasHoy, enRevision, nuevosMes] = await Promise.all([
     supabase
       .from("patients")
@@ -114,17 +53,6 @@ export default async function PatientsPage({
       .gte("created_at", monthStart.toISOString()),
   ])
   const all = (data as unknown as PatientRow[] | null) ?? []
-
-  // Búsqueda por mascota, titular o teléfono + filtro por especie (sobre el listado acotado).
-  const patients = all.filter((p) => {
-    if (especieF && especieBucket(p.species) !== especieF) return false
-    if (!query) return true
-    return (
-      p.name.toLowerCase().includes(query) ||
-      (p.owner?.full_name ?? "").toLowerCase().includes(query) ||
-      (p.owner?.phone ?? "").toLowerCase().includes(query)
-    )
-  })
 
   const metrics = [
     { n: activos.count ?? 0, l: "Pacientes activos" },
@@ -154,19 +82,6 @@ export default async function PatientsPage({
           <Button variant="outline" size="sm" render={<Link href="/dashboard/patients/import" />}>
             <UploadIcon className="size-4" /> Importar
           </Button>
-          <ExportCsvButton
-            filename="pacientes.csv"
-            headers={["Mascota", "Especie", "Raza", "Sexo", "Edad", "Titular", "Teléfono"]}
-            rows={patients.map((p) => [
-              p.name,
-              p.species,
-              p.breed ?? "",
-              SEX_LABELS[p.sex] ?? p.sex,
-              fmtAgeShort(p.birth_date),
-              p.owner?.full_name ?? "",
-              p.owner?.phone ?? "",
-            ])}
-          />
           <CreatePatientDrawer
             label="Nuevo paciente"
             trigger={
@@ -188,103 +103,7 @@ export default async function PatientsPage({
         ))}
       </div>
 
-      {/* Búsqueda + filtro por especie */}
-      <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
-        <SearchBar
-          defaultValue={q ?? ""}
-          placeholder="Buscar por mascota, titular o teléfono…"
-        />
-        <div className="flex items-center gap-1.5">
-          {ESPECIE_FILTERS.map((f) => (
-            <Link
-              key={f.value || "todos"}
-              href={hrefWith({ q, especie: f.value })}
-              className={`rounded-md border px-2.5 py-1 text-xs font-medium transition-colors ${
-                especieF === f.value
-                  ? "border-transparent bg-primary text-primary-foreground"
-                  : "bg-background text-muted-foreground hover:bg-secondary"
-              }`}
-            >
-              {f.label}
-            </Link>
-          ))}
-        </div>
-      </div>
-
-      {/* Tabla de pacientes */}
-      <div className="overflow-hidden rounded-lg border">
-        <Table>
-          <TableHeader className="bg-muted">
-            <TableRow>
-              <TableHead>Mascota</TableHead>
-              <TableHead>Especie</TableHead>
-              <TableHead className="hidden md:table-cell">Raza</TableHead>
-              <TableHead>Sexo</TableHead>
-              <TableHead>Edad</TableHead>
-              <TableHead className="hidden sm:table-cell">Titular</TableHead>
-              <TableHead className="hidden lg:table-cell">Teléfono</TableHead>
-              <TableHead className="w-28 text-right">Historia</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {patients.length ? (
-              patients.map((patient) => (
-                <TableRow key={patient.id}>
-                  <TableCell className="font-medium">
-                    <Link
-                      href={`/dashboard/patients/${patient.id}`}
-                      className="flex items-center gap-3 hover:underline"
-                    >
-                      <Avatar className="size-9">
-                        <AvatarImage src={patient.photo_url ?? undefined} alt={patient.name} />
-                        <AvatarFallback>
-                          <PawPrintIcon className="size-4" />
-                        </AvatarFallback>
-                      </Avatar>
-                      {patient.name}
-                    </Link>
-                  </TableCell>
-                  <TableCell>
-                    <Badge variant="secondary" className="text-xs">
-                      {patient.species}
-                    </Badge>
-                  </TableCell>
-                  <TableCell className="hidden text-muted-foreground md:table-cell">
-                    {patient.breed ?? "—"}
-                  </TableCell>
-                  <TableCell>{SEX_LABELS[patient.sex] ?? patient.sex}</TableCell>
-                  <TableCell className="font-mono text-xs">{fmtAgeShort(patient.birth_date)}</TableCell>
-                  <TableCell className="hidden sm:table-cell">
-                    {patient.owner?.full_name ?? "—"}
-                  </TableCell>
-                  <TableCell className="hidden text-muted-foreground lg:table-cell">
-                    {patient.owner?.phone ?? "—"}
-                  </TableCell>
-                  <TableCell className="text-right">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      render={<Link href={`/dashboard/patients/${patient.id}`} />}
-                    >
-                      <FileTextIcon className="size-3.5" /> Historia
-                    </Button>
-                  </TableCell>
-                </TableRow>
-              ))
-            ) : (
-              <TableRow>
-                <TableCell colSpan={8} className="h-24 text-center text-muted-foreground">
-                  {listError
-                    ? "No se pudieron cargar los pacientes. Recargá la página para reintentar."
-                    : query || especieF
-                      ? "No se encontraron pacientes con esos filtros."
-                      : "Todavía no hay pacientes registrados."}
-                </TableCell>
-              </TableRow>
-            )}
-          </TableBody>
-        </Table>
-      </div>
+      <PatientsExplorer rows={all} listError={Boolean(listError)} />
     </div>
   )
 }

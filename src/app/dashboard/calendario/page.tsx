@@ -1,7 +1,7 @@
 import { endOfWeek, startOfWeek } from "date-fns"
 
 import { createClient } from "@/lib/supabase/server"
-import { AppointmentCalendar } from "@/components/calendar/appointment-calendar"
+import { AppointmentCalendarLazy as AppointmentCalendar } from "@/components/calendar/appointment-calendar-lazy"
 import { DataError } from "@/components/data-error"
 import { APPOINTMENT_SELECT, type AppointmentRow, type SelectOption } from "@/lib/appointments"
 
@@ -32,8 +32,9 @@ export default async function CalendarioPage() {
         .lte("starts_at", rangeEnd.toISOString())
         .gte("ends_at", rangeStart.toISOString())
         .order("starts_at", { ascending: true }),
-      supabase.from("patients").select("id, name").order("name"),
-      supabase.from("owners").select("id, full_name").order("full_name"),
+      // Guarda de escala: opciones de los selects del drawer acotadas (búsqueda tipada: backlog).
+      supabase.from("patients").select("id, name").order("name").limit(1000),
+      supabase.from("owners").select("id, full_name").order("full_name").limit(1000),
       clinicId
         ? supabase.from("profiles").select("id, full_name").eq("clinic_id", clinicId)
         : Promise.resolve({ data: null }),

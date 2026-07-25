@@ -5,7 +5,7 @@ import { CalendarClock, FileClock, PawPrint, Stethoscope } from "lucide-react"
 import { createClient } from "@/lib/supabase/server"
 import { DataError } from "@/components/data-error"
 import { SectionCards } from "@/components/section-cards"
-import { ConsultationsChart } from "@/components/dashboard/consultations-chart"
+import { ConsultationsChartLazy as ConsultationsChart } from "@/components/dashboard/consultations-chart-lazy"
 import { OnboardingChecklist } from "@/components/dashboard/onboarding-checklist"
 import {
   UpcomingAppointments,

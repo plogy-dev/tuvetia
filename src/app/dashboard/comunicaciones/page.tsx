@@ -25,8 +25,10 @@ export default async function ComunicacionesPage() {
     supabase
       .from("whatsapp_messages")
       .select("id, owner_id, wa_message_id, wa_phone_from, wa_phone_to, direction, body, media_type, read_at, delivered_at, created_at")
+      // Payload inicial acotado: las conversaciones viejas salen del historial reciente; el poll
+      // trae lo nuevo. (Paginación hacia atrás: backlog.)
       .order("created_at", { ascending: false })
-      .limit(500),
+      .limit(100),
     supabase.from("owners").select("id, full_name, phone").not("phone", "is", null).order("full_name"),
   ])
 

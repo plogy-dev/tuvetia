@@ -4,7 +4,7 @@
 // detalle (audio + transcripción + nota) a la derecha. Permite eliminar la transcripción (RPC
 // delete_transcript; borra solo el texto, el audio queda y se purga a los 4 días).
 
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { AlertTriangle, AudioLines, ExternalLink, FileText, Loader2, Sparkles, Trash2 } from "lucide-react"
@@ -27,7 +27,9 @@ type NoteH = {
   ai_model: string | null
   allergy_gate_triggered: boolean
 }
-type TranscriptH = { id: string; full_text: string | null; created_at: string }
+// full_text es opcional: el server ya solo manda metadata (id, created_at) y el texto se trae
+// on-demand al seleccionar la consulta — pacientes con historia larga bajaban TODOS los textos.
+type TranscriptH = { id: string; created_at: string; full_text?: string | null }
 type AudioH = { id: string; storage_path: string; duration_secs: number | null; created_at: string }
 export type ConsultationHistory = {
   id: string
@@ -85,7 +87,34 @@ export function PatientConsultationHistory({
   const [confirming, setConfirming] = useState(false)
   const [deleting, setDeleting] = useState(false)
 
-  if (consultations.length === 0) {
+  const selected = consultations.find((c) => c.id === selectedId) ?? consultations[0] ?? null
+  const transcript = selected ? latestTranscript(selected) : undefined
+
+  // Texto de la transcripción on-demand (cache por id). undefined = aún cargando.
+  const [texts, setTexts] = useState<Record<string, string | null>>({})
+  useEffect(() => {
+    if (!transcript || transcript.full_text !== undefined || texts[transcript.id] !== undefined)
+      return
+    const id = transcript.id
+    let cancelled = false
+    void supabase
+      .from("transcripts")
+      .select("full_text")
+      .eq("id", id)
+      .maybeSingle()
+      .then(({ data }) => {
+        if (cancelled) return
+        setTexts((prev) => ({
+          ...prev,
+          [id]: (data as { full_text: string | null } | null)?.full_text ?? null,
+        }))
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [supabase, transcript, texts])
+
+  if (consultations.length === 0 || !selected) {
     return (
       <div className="rounded-xl border bg-card p-8 text-center text-sm text-muted-foreground">
         Este paciente todavía no tiene consultas registradas.
@@ -93,11 +122,15 @@ export function PatientConsultationHistory({
     )
   }
 
-  const selected = consultations.find((c) => c.id === selectedId) ?? consultations[0]
-  const transcript = latestTranscript(selected)
+  const fullText = transcript
+    ? transcript.full_text !== undefined
+      ? transcript.full_text
+      : texts[transcript.id]
+    : null
+  const transcriptLoading = Boolean(transcript) && fullText === undefined
   const note = selected.notes?.[0]
   const noteMeta = note ? NOTE_STATUS[note.status] : null
-  const turns = parseTranscript(transcript?.full_text ?? "")
+  const turns = parseTranscript(fullText ?? "")
   const audios = selected.audios ?? []
 
   async function handleDelete() {
@@ -228,7 +261,11 @@ export function PatientConsultationHistory({
                 </div>
               )}
 
-              {turns.length === 0 ? (
+              {transcriptLoading ? (
+                <p className="flex items-center gap-2 text-sm text-muted-foreground">
+                  <Loader2 className="size-3.5 animate-spin" /> Cargando transcripción…
+                </p>
+              ) : turns.length === 0 ? (
                 <p className="text-sm text-muted-foreground">Esta consulta no tiene transcripción.</p>
               ) : (
                 <div className="flex max-h-[50vh] flex-col gap-2 overflow-y-auto">
