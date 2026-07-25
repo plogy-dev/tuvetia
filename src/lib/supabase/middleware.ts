@@ -28,25 +28,34 @@ export async function updateSession(request: NextRequest) {
     }
   )
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
+  let user = null
+  try {
+    const result = await supabase.auth.getUser()
+    user = result.data.user
+  } catch (e) {
+    // Hipo transitorio de Supabase Auth (red/timeout): NO tratarlo como "no autenticado" ni romper
+    // toda la app con un 500. Dejamos pasar; la página valida de nuevo. Evita rebotes falsos a "/".
+    console.error("updateSession: getUser falló, se deja pasar la request:", e)
+    return supabaseResponse
+  }
 
   const { pathname } = request.nextUrl
   const isProtected = PROTECTED_PREFIXES.some((p) => pathname.startsWith(p))
   const isAuthPage = AUTH_PREFIXES.includes(pathname)
 
-  if (!user && isProtected) {
+  // Redirige PRESERVANDO las cookies de sesión que getUser pudo refrescar. Sin esto, el navegador
+  // sigue el redirect con las cookies viejas ya invalidadas (rotación de refresh token) -> queda
+  // deslogueado o en loop / ↔ /dashboard. Es el footgun canónico de @supabase/ssr.
+  const redirectPreservingSession = (pathnameTo: string) => {
     const url = request.nextUrl.clone()
-    url.pathname = "/"
-    return NextResponse.redirect(url)
+    url.pathname = pathnameTo
+    const res = NextResponse.redirect(url)
+    supabaseResponse.cookies.getAll().forEach((cookie) => res.cookies.set(cookie))
+    return res
   }
 
-  if (user && isAuthPage) {
-    const url = request.nextUrl.clone()
-    url.pathname = "/dashboard"
-    return NextResponse.redirect(url)
-  }
+  if (!user && isProtected) return redirectPreservingSession("/")
+  if (user && isAuthPage) return redirectPreservingSession("/dashboard")
 
   return supabaseResponse
 }
