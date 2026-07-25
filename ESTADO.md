@@ -1,4 +1,4 @@
-# Estado del proyecto — Handoff (2026-07-24)
+# Estado del proyecto — Handoff (2026-07-25)
 
 Doc vivo para que cualquier dev que abra el repo esté al día. Front (Next.js, raíz) + backend Athos
 (`athos-service/`, FastAPI). DB: Supabase (proyecto principal `auxlnexhkmtoedrzfsnz`). Deploy: front en
@@ -6,6 +6,38 @@ Vercel, backend en Railway (auto-deploy en cada push a `master`).
 
 > **Reglas del repo:** leé `AGENTS.md` / `CLAUDE.md` (raíz) y `athos-service/CLAUDE.md`. Docs de apoyo:
 > `DATABASE.md`, `CALENDARIO.md`, `athos-service/DEPLOY.md`.
+
+---
+
+## Tanda de rendimiento y bugs — auditoría E2E (2026-07-24/25, en `master`)
+
+Se auditó la plataforma completa con 4 revisiones (rendimiento back/front, funcionalidad, auth) y
+se aplicó todo lo accionable:
+
+- **Login estabilizado** (`1601ec0` + `85ca919`): el middleware ya NO pierde las cookies
+  refrescadas en los redirects (causa raíz de los deslogueos/loops); `ensureClinicForUser` y
+  `getUser` ya no rompen el login; los fallos de `/auth/*` **se muestran** en el formulario con
+  su motivo (antes `?error=auth` se tragaba en silencio).
+- **Backend rápido** (`0806f9a` + `4e82032` + `f14a032`): pool de conexiones (psycopg_pool),
+  fail-fast de Cohere (429 en ~2s y **timeout de 6s** al embed de consulta → degrada a Tier 1),
+  **Tier 1 ∥ Tier 2 en paralelo**, caché del glosario (TTL 5 min) y del embedding de consulta
+  (LRU), panel de condiciones con `LLM_LIGHT_MODEL`, traza del chat en background. Índices
+  hot-path en migración `0020` (aplicada al principal por MCP, ver §Migraciones).
+- **Frontend fluido** (`8028dbc`–`5136a0c`): `loading.tsx` por ruta, react-big-calendar/recharts/
+  driver.js/xlsx diferidos, búsqueda de pacientes client-side (antes 5 queries por tecla),
+  Asistente servidorizado, ficha del paciente sin sobre-traer transcripciones.
+- **Bugs**: WhatsApp ya no duplica el enviado ni pierde entrantes (cursor del poll); `notes[0]`
+  ordenado (nota aprobada ya no aparece como "Borrador"); citas "próximas" solo con estados
+  pendientes; edad unificada lista/ficha (`src/lib/age.ts`); import "6m" = 6 meses; invitación
+  nominal (verifica el email de la sesión); `profiles` con `clinic_id` explícito; errores de
+  query visibles en todos los listados (`DataError`), ya no parecen "sin datos".
+
+**Ingesta del corpus (61.546 docs → proyecto PRINCIPAL):** corre local con wrapper paralelo
+(4×96 a Cohere, idempotente por `content_hash`, budget 650M tokens). Un corte de luz la dejó en
+~49% la noche del 24; reanudada el 25 — al momento de este update va por ~73% y subiendo. OJO:
+el corpus vivo está en el **principal** (el `.env` local apunta `CORPUS_DATABASE_URL` a dev, el
+wrapper lo overridea). Mientras corre puede saturar la key de Cohere: producción degrada sola a
+Tier 1 (timeout 6s) y se recupera sola.
 
 ---
 
@@ -63,7 +95,7 @@ nuevos; si el flujo del equipo usa el CLI, marcalos como aplicados (`supabase mi
 `0008 calendar_feeds` · `0009 delete_transcript` · `0010 optimize_calendar_rls` ·
 `0011 appointment_fk_indexes` · `0012 audio_storage_path_nullable` · `0013 profiles_onboarded_at` ·
 `0014 hot_path_indexes` · `0015 whatsapp_integrations` · `0016 invitations_rpcs` ·
-`0017 onboarding_setup`.
+`0017 onboarding_setup` · `0020 hot_path_indexes_2` (índices de la auditoría E2E, 2026-07-24).
 (`0004 clinical_notes_alerts` vino de otra rama.)
 
 ---
@@ -116,7 +148,14 @@ Para activar lo que hoy está **dormido**:
 - Los **invitados NO ven el wizard** (`accept_invitation` marca el setup). El tour driver.js convive.
 
 ## Pendientes conocidos
+- ⚠️ **Template de email "Magic Link" en Supabase** (config, no código): debe emitir
+  `{{ .SiteURL }}/auth/confirm?token_hash={{ .TokenHash }}&type=email&next=/dashboard`. Si sigue
+  con `{{ .ConfirmationURL }}` (PKCE `?code=`), el magic link puede "no hacer nada" al abrirse en
+  otro dispositivo. Verificar en Auth → Email Templates (coordinar con Santiago).
+- (Opcional) **2ª key de Cohere** para aislar la ingesta de producción del todo — hoy el timeout
+  de 6s ya protege el chat mientras ingesta.
 - Rediseño de la **historia del paciente** (UX confusa).
 - **Verificación de Google** para el scope de calendario (si se abre al público).
 - **Texto legal** definitivo (hoy las páginas legales son placeholder honesto).
-- Deuda menor: transcripción en batch (no en vivo), retención del transcript (decisión legal abierta).
+- Deuda menor: transcripción en batch (no en vivo), retención del transcript (decisión legal
+  abierta), paginación real en listados (hoy guardas de escala con `limit`).
