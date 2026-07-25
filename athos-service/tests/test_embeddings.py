@@ -36,6 +36,7 @@ def test_tier2_usa_timeout_corto(monkeypatch):
     """El embed de la consulta (Tier 2) se construye con QUERY_EMBED_TIMEOUT_S (~6s), no con el
     tope largo de la ingesta: producción nunca espera un embed lento."""
     import app.retrieval.cascade as csc
+    csc._query_vector_cached.cache_clear()  # el LRU no debe servir un vector de otro test
     capturado = {}
 
     class FakeClient:

@@ -4,6 +4,9 @@ Tier 0 filtros/boosts -> Tier 1 léxico+glosario -> (Tier 2 vector solo si Tier 
 umbral -> fusión de contexto. El corpus es global; el contexto del paciente va por su propio
 camino (RLS por clinic_id) y se fusiona EN MEMORIA. Nunca JOIN entre zonas.
 """
+from concurrent.futures import ThreadPoolExecutor
+from functools import lru_cache
+
 from app.db import fetch_all_corpus
 from app.embeddings import EmbeddingError
 from app.models import PatientContext, RetrievedChunk, StructuredQuery
@@ -154,13 +157,20 @@ def _vector_search(vector: list[float], limit: int) -> list[RetrievedChunk]:
     return [_to_chunk(r, float(r["sim"])) for r in rows]
 
 
+@lru_cache(maxsize=256)
+def _query_vector_cached(text: str) -> tuple[float, ...]:
+    """Vector search_query de la consulta, con caché LRU: reintentos del vet y preguntas
+    frecuentes idénticas no pagan Cohere (latencia + costo) otra vez. Los errores NO se cachean."""
+    from app.embeddings import EmbeddingClient
+    client = EmbeddingClient(timeout_s=QUERY_EMBED_TIMEOUT_S)
+    return tuple(client.embed([text], input_type="search_query")[0])
+
+
 def tier2_vector_fallback(query: StructuredQuery, filters: dict) -> list[RetrievedChunk]:
     """Complemento semántico: embeddiza la consulta (Cohere, input_type=search_query) y busca sobre
     el corpus. Timeout corto: si Cohere no responde en QUERY_EMBED_TIMEOUT_S, EmbeddingUnavailable
     sube y retrieve() se queda con el Tier 1 (el chat nunca espera un embed lento)."""
-    from app.embeddings import EmbeddingClient
-    client = EmbeddingClient(timeout_s=QUERY_EMBED_TIMEOUT_S)
-    vector = client.embed([query.raw], input_type="search_query")[0]
+    vector = list(_query_vector_cached(query.raw.strip() or query.raw))
     return _vector_search(vector, TIER2_LIMIT)
 
 
@@ -189,19 +199,25 @@ def _merge_unique(primary: list[RetrievedChunk], extra: list[RetrievedChunk]) ->
 def retrieve(query: StructuredQuery) -> tuple[list[RetrievedChunk], bool]:
     """Orquesta Tier 0/1/(2), rankea y evalúa el umbral. Devuelve (chunks, passed_threshold).
 
-    El Tier 2 (vector) se dispara si el Tier 1 es débil O si el A->B distiló (hueco de glosario). Al
-    fusionar, se conserva un tope de CADA modalidad (léxico + semántico) para que los buenos matches
-    semánticos no queden sepultados por matches léxicos/MeSH incidentales. Si Cohere no está
-    disponible, degrada con gracia al Tier 1 (no rompe el camino determinístico)."""
+    Tier 1 (query al corpus) y Tier 2 (embed de Cohere + query vectorial) corren EN PARALELO:
+    antes iban encadenados y la latencia de Cohere se SUMABA a la del Tier 1 en cada request;
+    ahora se paga solo el mayor de los dos. Al fusionar, se conserva un tope de CADA modalidad
+    (léxico + semántico) para que los buenos matches semánticos no queden sepultados por matches
+    léxicos/MeSH incidentales. Si Cohere no está disponible o está lento (timeout corto), degrada
+    con gracia al Tier 1 (no rompe el camino determinístico)."""
     filters = tier0_filters(query)
-    tier1 = rank_chunks(tier1_lexical_glossary(query, filters), filters)
-    if _should_run_tier2(query, tier1):
+    with ThreadPoolExecutor(max_workers=2) as ex:
+        f_tier1 = ex.submit(lambda: rank_chunks(tier1_lexical_glossary(query, filters), filters))
+        f_tier2 = ex.submit(lambda: rank_chunks(tier2_vector_fallback(query, filters), filters))
+        tier1 = f_tier1.result()
+        tier2: list[RetrievedChunk] | None
         try:
-            tier2 = rank_chunks(tier2_vector_fallback(query, filters), filters)
-            chunks = rank_chunks(_merge_unique(tier1[:TIER1_KEEP], tier2[:TIER2_KEEP]), filters)
-            return chunks, passes_threshold(chunks)
+            tier2 = f_tier2.result()
         except EmbeddingError:
-            pass  # sin Cohere: nos quedamos con el Tier 1
+            tier2 = None  # sin Cohere (o lento): nos quedamos con el Tier 1
+    if tier2 is not None and _should_run_tier2(query, tier1):
+        chunks = rank_chunks(_merge_unique(tier1[:TIER1_KEEP], tier2[:TIER2_KEEP]), filters)
+        return chunks, passes_threshold(chunks)
     return tier1[:MAX_LITERATURE_CHUNKS], passes_threshold(tier1)
 
 

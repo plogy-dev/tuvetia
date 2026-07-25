@@ -1,9 +1,21 @@
 """Resolución de conceptos: el corazón del puente ES->EN (parte determinística del paso A->B)."""
 import re
+import time
 import unicodedata
 
 from app.db import fetch_all_corpus
 from app.models import StructuredQuery
+
+# Caché del glosario (global, cambia rara vez): antes se recargaba y normalizaba ENTERO de la DB
+# en cada chat/phantom, en la ruta crítica del retrieval. TTL corto para que el seed se refleje
+# solo sin redeploy; `clear_synonym_cache()` para invalidación explícita.
+_SYN_TTL_S = 300.0
+_syn_cache: tuple[float, list[dict]] | None = None
+
+
+def clear_synonym_cache() -> None:
+    global _syn_cache
+    _syn_cache = None
 
 
 def _normalize(text: str) -> str:
@@ -37,16 +49,22 @@ def match_concepts(text: str, species: str | None, synonyms: list[dict]) -> Stru
 
 
 def _load_approved_synonyms() -> list[dict]:
-    """Carga los sinónimos `approved` del glosario (join con su término)."""
+    """Carga los sinónimos `approved` del glosario (join con su término), con caché TTL."""
+    global _syn_cache
+    now = time.monotonic()
+    if _syn_cache is not None and now - _syn_cache[0] < _SYN_TTL_S:
+        return _syn_cache[1]
     rows = fetch_all_corpus(
         "select s.text syn, t.canonical_en, coalesce(t.mesh_id, t.canonical_en) mesh "
         "from public.glossary_synonym s join public.glossary_term t on t.id = s.term_id "
         "where s.review_status = 'approved'"
     )
-    return [
+    data = [
         {"syn": _normalize(r["syn"]), "canonical_en": r["canonical_en"], "mesh": r["mesh"]}
         for r in rows
     ]
+    _syn_cache = (now, data)
+    return data
 
 
 def resolve_concepts(text: str, species: str | None) -> StructuredQuery:

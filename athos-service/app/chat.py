@@ -7,6 +7,7 @@ pasa el umbral, responde una plantilla SIN LLM ("cita o se calla"). Emite evento
 import json
 import logging
 import re
+import threading
 
 from app.config import get_settings
 from app.generation.generate import _MAX_CHUNK_CHARS
@@ -110,10 +111,19 @@ def stream_answer(question: str, patient_id: str, clinic_id: str, user_id: str |
     # consultas no relacionadas bajo un "hilo" de patient_id NULL).
     history = _thread_history(load_thread(clinic_id, patient_id, CHAT_HISTORY_MSGS)) if patient_id else []
     if patient_id:
-        log_message(clinic_id, user_id, patient_id, "user", question)
-        log_retrieval(clinic_id, "chat", (query.raw or "")[:1000], list(query.concepts),
-                      [c.chunk_id for c in chunks], max((c.score for c in chunks), default=0.0), passed,
-                      user_id=user_id, patient_id=patient_id)
+        # Traza en background: estos 2 inserts corrían ANTES de arrancar el stream — el vet
+        # esperaba 2 escrituras para ver el primer token. Best-effort: la traza nunca rompe el chat.
+        def _trace_background() -> None:
+            try:
+                log_message(clinic_id, user_id, patient_id, "user", question)
+                log_retrieval(clinic_id, "chat", (query.raw or "")[:1000], list(query.concepts),
+                              [c.chunk_id for c in chunks],
+                              max((c.score for c in chunks), default=0.0), passed,
+                              user_id=user_id, patient_id=patient_id)
+            except Exception as e:  # noqa: BLE001
+                log.warning("chat: falló la traza en background: %s", e)
+
+        threading.Thread(target=_trace_background, daemon=True).start()
 
     if gate:
         yield _sse({"type": "warning",

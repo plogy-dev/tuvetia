@@ -5,6 +5,7 @@ clínica), corre la cascada, aplica el gate DURO de alergia (desde `allergies`, 
 genera la nota en UNA sola llamada, verifica citas, inserta `clinical_notes` (draft) y la
 trazabilidad, y devuelve el payload. `clinic_id` siempre explícito (service_role se salta RLS).
 """
+import time
 from datetime import datetime, timezone
 
 from fastapi import HTTPException
@@ -40,13 +41,27 @@ def _load_transcript(clinic_id: str, consultation_id: str) -> dict | None:
     return rows[0] if rows else None
 
 
+# TTL del sondeo de la columna `alerts`: True se cachea PARA SIEMPRE (una columna aplicada no
+# desaparece); False caduca a los 5 min -> la migración se auto-detecta sin redeploy, pero la
+# query de catálogo ya no se paga en cada phantom.
+_HAS_ALERTS_TTL_S = 300.0
+_has_alerts_cache: tuple[float, bool] | None = None
+
+
 def _clinical_notes_has_alerts() -> bool:
     """¿Existe ya la columna `alerts` en clinical_notes (migración 0004)? Permite desplegar el código
-    ANTES de aplicar la migración al principal sin romper el insert (degrada a NO persistir alertas).
-    Sin caché: en cuanto la migración se aplique, se persiste sin necesidad de redeploy."""
-    return bool(fetch_all(
+    ANTES de aplicar la migración al principal sin romper el insert (degrada a NO persistir alertas)."""
+    global _has_alerts_cache
+    now = time.monotonic()
+    if _has_alerts_cache is not None:
+        ts, val = _has_alerts_cache
+        if val or now - ts < _HAS_ALERTS_TTL_S:
+            return val
+    val = bool(fetch_all(
         "select 1 from information_schema.columns where table_schema = 'public' "
         "and table_name = 'clinical_notes' and column_name = 'alerts' limit 1"))
+    _has_alerts_cache = (now, val)
+    return val
 
 
 def _insert_note(clinic_id, consultation_id, transcript_id, soap, citations,

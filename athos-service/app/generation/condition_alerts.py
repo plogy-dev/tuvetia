@@ -96,6 +96,7 @@ def explain_conditions(alerts: list[ConditionAlert], patient: PatientContext | N
     """
     if not alerts or not literature:
         return alerts
+    from app.config import get_settings
     from app.generation.generate import _format_literature
     from app.generation.llm_client import LLMClient
 
@@ -106,7 +107,9 @@ def explain_conditions(alerts: list[ConditionAlert], patient: PatientContext | N
     user = (f"FICHA DEL PACIENTE: {ficha}\n\nCONDICIONES A EXPLICAR:\n{conds}\n\n"
             f"LITERATURA:\n{_format_literature(literature)}")
     try:
-        raw = LLMClient().complete(_EXPLAIN_SYSTEM, user, max_tokens=800)
+        # Modelo LIVIANO: es texto explicativo breve y va EN SERIE tras la nota SOAP (el modelo
+        # pesado duplicaba el tiempo total del phantom sin ganancia medible en esta pieza).
+        raw = LLMClient(model=get_settings().llm_light_model).complete(_EXPLAIN_SYSTEM, user, max_tokens=800)
         detalles = _extract_json(raw).get("detalles") or {}
         for a in alerts:
             d = detalles.get(a.condition)
