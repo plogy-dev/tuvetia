@@ -5,9 +5,6 @@
 // no vuelve a aparecer. Para usuarios no técnicos: complementa los marcadores "?" (HelpTip).
 
 import { useEffect } from "react"
-import { driver } from "driver.js"
-
-import "driver.js/dist/driver.css"
 
 import { createClient } from "@/lib/supabase/client"
 
@@ -28,12 +25,22 @@ export function OnboardingTour({ onboarded }: { onboarded: boolean }) {
     // Marca ANTES de arrancar -> a lo sumo un tour por navegador, pase lo que pase con el montaje.
     localStorage.setItem(SEEN_KEY, "1")
 
-    const supabase = createClient()
-    const markOnboarded = () => {
-      void supabase.rpc("mark_onboarded")
-    }
+    // driver.js (+CSS) se carga recién acá: el tour corre UNA vez por navegador, pero el import
+    // estático metía su bundle en el JS compartido de todo /dashboard para siempre.
+    let cancelled = false
+    void (async () => {
+      const [{ driver }] = await Promise.all([
+        import("driver.js"),
+        import("driver.js/dist/driver.css"),
+      ])
+      if (cancelled) return
 
-    const tour = driver({
+      const supabase = createClient()
+      const markOnboarded = () => {
+        void supabase.rpc("mark_onboarded")
+      }
+
+      const tour = driver({
       showProgress: true,
       allowClose: true,
       overlayColor: "rgba(0,0,0,0.6)",
@@ -89,10 +96,14 @@ export function OnboardingTour({ onboarded }: { onboarded: boolean }) {
           },
         },
       ],
-      onDestroyed: markOnboarded,
-    })
+        onDestroyed: markOnboarded,
+      })
 
-    tour.drive()
+      tour.drive()
+    })()
+    return () => {
+      cancelled = true
+    }
   }, [onboarded])
 
   return null

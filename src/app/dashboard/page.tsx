@@ -1,5 +1,5 @@
 import { addWeeks, format, startOfWeek } from "date-fns"
-import { es } from "date-fns/locale"
+import { es } from "date-fns/locale/es"
 import { CalendarClock, FileClock, PawPrint, Stethoscope } from "lucide-react"
 
 import { createClient } from "@/lib/supabase/server"

@@ -18,7 +18,7 @@ import withDragAndDrop, {
   type EventInteractionArgs,
 } from "react-big-calendar/lib/addons/dragAndDrop"
 import { format, getDay, parse, startOfWeek } from "date-fns"
-import { es } from "date-fns/locale"
+import { es } from "date-fns/locale/es"
 import { PlusIcon } from "lucide-react"
 import { toast } from "sonner"
 

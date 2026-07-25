@@ -1,6 +1,6 @@
 import { Activity, AudioLines, Building2, MessageCircle, PawPrint, Stethoscope, Users } from "lucide-react"
 import { addWeeks, format, startOfWeek } from "date-fns"
-import { es } from "date-fns/locale"
+import { es } from "date-fns/locale/es"
 
 import { loadPlatformMetrics, daysAgo, since } from "@/lib/admin/metrics"
 import { SectionCards } from "@/components/section-cards"

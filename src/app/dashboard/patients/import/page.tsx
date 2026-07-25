@@ -8,7 +8,6 @@
 import { useCallback, useMemo, useRef, useState } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
-import * as XLSX from "xlsx"
 import { ArrowLeft, CheckCircle2, FileSpreadsheet, Loader2, UploadCloud } from "lucide-react"
 import { toast } from "sonner"
 
@@ -119,6 +118,9 @@ export default function ImportPatientsPage() {
   const parseFile = useCallback(async (file: File) => {
     setSummary(null)
     try {
+      // SheetJS (~1 MB) se carga recién acá, cuando el usuario ya eligió un archivo — no al
+      // entrar a la página.
+      const XLSX = await import("xlsx")
       // CSV/TSV/TXT: leer como TEXTO (UTF-8) — si se lee como binario, SheetJS no detecta el
       // codepage y destroza los acentos (Michifú -> MichifÃº). Los binarios (xlsx/xls/ods) sí van
       // por arrayBuffer.
