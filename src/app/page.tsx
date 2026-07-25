@@ -9,15 +9,16 @@ import { LoginForm } from "@/components/login-form"
 export default async function Home({
   searchParams,
 }: {
-  searchParams: Promise<{ code?: string; error?: string }>
+  searchParams: Promise<{ code?: string; error?: string; reason?: string }>
 }) {
-  const { code } = await searchParams
+  const { code, error, reason } = await searchParams
   if (code) redirect(`/auth/callback?code=${encodeURIComponent(code)}`)
 
   return (
     <div className="flex min-h-svh flex-col items-center justify-center gap-6 bg-background p-6 md:p-10">
       <div className="w-full max-w-sm">
-        <LoginForm />
+        {/* Sin esto, los fallos de /auth/callback|confirm volvían acá EN SILENCIO. */}
+        <LoginForm authError={error ?? null} authReason={reason ?? null} />
       </div>
     </div>
   )

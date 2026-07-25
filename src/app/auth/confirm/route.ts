@@ -27,7 +27,9 @@ export async function GET(request: NextRequest) {
       }
       redirect(next)
     }
+    // Motivo real al login (otp_expired, etc.) para que el usuario sepa qué pasó.
+    redirect(`/?error=auth&reason=${encodeURIComponent(error?.code ?? "verify_failed")}`)
   }
 
-  redirect("/?error=auth")
+  redirect("/?error=auth&reason=missing_params")
 }

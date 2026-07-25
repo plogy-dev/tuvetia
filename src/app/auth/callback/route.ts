@@ -13,9 +13,11 @@ export async function GET(request: NextRequest) {
   const code = searchParams.get("code")
   const next = safeNext(searchParams.get("next"))
 
+  let reason = "missing_code"
   if (code) {
     const supabase = await createClient()
     const { data, error } = await supabase.auth.exchangeCodeForSession(code)
+    reason = error?.code ?? "exchange_failed"
     if (!error && data.user) {
       // El aprovisionamiento de clínica NO debe bloquear el login: si falla, igual entramos (el
       // layout redirige a /bienvenida si falta setup). Antes, un error aquí devolvía 500 con el
@@ -48,5 +50,6 @@ export async function GET(request: NextRequest) {
     }
   }
 
-  return NextResponse.redirect(`${origin}/?error=auth`)
+  // Motivo real al login (bad_code_verifier, etc.) para que el usuario sepa qué pasó.
+  return NextResponse.redirect(`${origin}/?error=auth&reason=${encodeURIComponent(reason)}`)
 }

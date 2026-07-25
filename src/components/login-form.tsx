@@ -16,14 +16,27 @@ import {
 import { Input } from "@/components/ui/input"
 import { GalleryVerticalEndIcon, Loader2Icon } from "lucide-react"
 
+// Mensaje legible para los fallos que los handlers de /auth/* devuelven vía ?error=auth&reason=…
+function authFailureMessage(reason: string | null): string {
+  if (reason === "otp_expired")
+    return "El enlace de acceso expiró o ya fue usado. Pedí uno nuevo con tu email."
+  if (reason === "bad_code_verifier")
+    return "El enlace debe abrirse en el mismo navegador donde lo pediste. Pedí uno nuevo acá."
+  return "No pudimos completar el inicio de sesión. El enlace pudo expirar — probá de nuevo."
+}
+
 export function LoginForm({
   className,
+  authError = null,
+  authReason = null,
   ...props
-}: React.ComponentProps<"div">) {
+}: React.ComponentProps<"div"> & { authError?: string | null; authReason?: string | null }) {
   const [email, setEmail] = useState("")
   const [loading, setLoading] = useState(false)
   const [googleLoading, setGoogleLoading] = useState(false)
-  const [error, setError] = useState<string | null>(null)
+  const [error, setError] = useState<string | null>(
+    authError ? authFailureMessage(authReason) : null,
+  )
   const [sent, setSent] = useState(false)
 
   async function handleSubmit(e: React.FormEvent) {
@@ -44,11 +57,16 @@ export function LoginForm({
 
     setLoading(false)
     if (error) {
-      setError(
-        error.code === "otp_disabled" || error.status === 400
-          ? "No encontramos una cuenta con ese email. ¿Ya te registraste?"
-          : error.message
-      )
+      // Mapeo por code (no un 400 genérico: enmascaraba validaciones y rate-limit).
+      if (error.code === "otp_disabled" || error.code === "user_not_found") {
+        setError("No encontramos una cuenta con ese email. ¿Ya te registraste?")
+      } else if (error.status === 429 || error.code === "over_email_send_rate_limit") {
+        setError("Demasiados intentos. Esperá un minuto y volvé a probar.")
+      } else if (error.code === "validation_failed") {
+        setError("Ese email no parece válido. Revisalo e intentá de nuevo.")
+      } else {
+        setError(error.message)
+      }
       return
     }
     setSent(true)
