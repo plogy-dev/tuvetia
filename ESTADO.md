@@ -32,12 +32,13 @@ se aplicó todo lo accionable:
   nominal (verifica el email de la sesión); `profiles` con `clinic_id` explícito; errores de
   query visibles en todos los listados (`DataError`), ya no parecen "sin datos".
 
-**Ingesta del corpus (61.546 docs → proyecto PRINCIPAL):** corre local con wrapper paralelo
-(4×96 a Cohere, idempotente por `content_hash`, budget 650M tokens). Un corte de luz la dejó en
-~49% la noche del 24; reanudada el 25 — al momento de este update va por ~73% y subiendo. OJO:
-el corpus vivo está en el **principal** (el `.env` local apunta `CORPUS_DATABASE_URL` a dev, el
-wrapper lo overridea). Mientras corre puede saturar la key de Cohere: producción degrada sola a
-Tier 1 (timeout 6s) y se recupera sola.
+**Ingesta del corpus → PRINCIPAL: ✅ COMPLETA (2026-07-26).** El principal tiene
+**61.544 docs / 519.999 chunks**, todos con embedding (corrida final: 31.266 docs nuevos, ~297M
+tokens ≈ US$35, cero duplicados). **Producción todavía lee el corpus de dev** — el switch va por
+fases: **C** índices en el principal (HNSW + GIN + ANALYZE; en curso — ojo: el pooler ignora
+`options` del startup, el `set statement_timeout=0` va como statement) → **D** gate de calidad
+(golden set `--retrieval-only` contra el principal, exigir 11/11) → **E** switch de
+`CORPUS_DATABASE_URL` en Railway al principal + verificación e2e. Rollback = revertir la variable.
 
 ---
 
