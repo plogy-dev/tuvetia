@@ -46,7 +46,12 @@ Tres hipótesis medidas, dos muertas:
 |---|---|---|---|
 | score determinístico | 1.701 | 1.700 | imposible: idénticos |
 | score del reranker | 0.532 | 0.499 | cortar silencia tantos buenos como malos atrapa |
+| nº de citas verificadas | 6,0 | 6,0 | inútil: el modelo cita igual sin cobertura |
 | juez semántico (LLM liviano) | 7,0 | 5,0 | **separa**; cuesta ~1,8s |
+
+El resultado de las citas es el más grave: la verificación confirma que cada `[n]` mapea a un chunk
+recuperado, pero no puede saber que ese chunk **no responde la pregunta**. Produce apariencia de
+fundamento. "Cita o se calla" está roto por partida doble.
 
 ```bash
 python scripts/calidad/abstencion_roc.py     # compara scores determinístico y de rerank

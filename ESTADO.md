@@ -77,9 +77,12 @@ de terreno al corpus: 146 casos positivos + 42 negativos de control.
    un solo chunk de la condición. `TIER1_MESH_BASE`=0.6 y `TIER1_LEX_BASE`=0.4 ya superan
    `THRESHOLD`=0.35, y el MeSH de especie ("Dogs", en 43k chunks) cuenta como evidencia temática.
    Medido: ningún umbral sobre el score determinístico puede separar (mediana **1.701 vs 1.700**),
-   ni sobre el del reranker (0.532 vs 0.499). El juez semántico con el LLM liviano sí separa
-   (7,0 vs 5,0) a ~1,8s. **Diseño propuesto: banda en vez de binario** — abstención dura solo en lo
-   clarísimo, banda intermedia que responde declarando evidencia limitada, resto normal.
+   ni sobre el del reranker (0.532 vs 0.499). **Y las citas tampoco: mediana 6,0 en ambos grupos —
+   el modelo cita con la misma soltura cuando la literatura no cubre la consulta**, así que la
+   verificación de citas produce apariencia de fundamento (confirma que cada `[n]` existe, no que
+   responda la pregunta). El juez semántico con el LLM liviano sí separa (7,0 vs 5,0) a ~1,8s.
+   **Diseño propuesto: banda en vez de binario** — abstención dura solo en lo clarísimo, banda
+   intermedia que responde declarando evidencia limitada, resto normal.
 2. **Recall ciego**: condiciones con literatura abundante que el retrieval NUNCA trae — `Distemper`
    (1.338 chunks), `Lymphoma`, `Tick Infestations`, `Coccidiosis`, `Toxocariasis`. No es culpa del
    rerank (ya faltaban antes). Sin diagnosticar.
