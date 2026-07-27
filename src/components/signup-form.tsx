@@ -22,7 +22,6 @@ export function SignupForm({
 }: React.ComponentProps<"div">) {
   const [fullName, setFullName] = useState("")
   const [email, setEmail] = useState("")
-  const [clinicName, setClinicName] = useState("")
   const [phone, setPhone] = useState("")
   const [loading, setLoading] = useState(false)
   const [googleLoading, setGoogleLoading] = useState(false)
@@ -44,7 +43,6 @@ export function SignupForm({
         emailRedirectTo: `${window.location.origin}/auth/confirm${next ? `?next=${encodeURIComponent(next)}` : ""}`,
         data: {
           full_name: fullName,
-          clinic_name: clinicName,
           phone,
         },
       },
@@ -89,7 +87,7 @@ export function SignupForm({
           <h1 className="text-xl font-bold">Revisa tu correo</h1>
           <FieldDescription>
             Te enviamos un link de acceso a <strong>{email}</strong>. Ábrelo
-            para activar tu cuenta y la clínica &quot;{clinicName}&quot;.
+            para activar tu cuenta y configurar tu clínica.
           </FieldDescription>
         </div>
         <Button variant="outline" onClick={() => setSent(false)}>
@@ -136,16 +134,6 @@ export function SignupForm({
               placeholder="m@example.com"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              required
-            />
-          </Field>
-          <Field>
-            <FieldLabel htmlFor="clinic_name">Nombre de la clínica</FieldLabel>
-            <Input
-              id="clinic_name"
-              placeholder="Clínica Veterinaria San Roque"
-              value={clinicName}
-              onChange={(e) => setClinicName(e.target.value)}
               required
             />
           </Field>

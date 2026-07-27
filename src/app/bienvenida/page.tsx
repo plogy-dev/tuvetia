@@ -1,12 +1,13 @@
 import { redirect } from "next/navigation"
 
 import { createClient } from "@/lib/supabase/server"
-import { WelcomeWizard } from "@/components/onboarding/welcome-wizard"
+import { WorkspaceSetup } from "@/components/onboarding/workspace-setup"
 
-export const metadata = { title: "Bienvenida · TuvetIA" }
+export const metadata = { title: "Configura tu clínica · TuvetIA" }
 
-// Wizard de configuración inicial para el vet que CREA su clínica (los invitados y los usuarios
-// preexistentes tienen setup_completed_at y nunca llegan acá). Todo saltable.
+// Onboarding: pantalla única para personalizar la clínica (logo + nombre) que el trigger de BD
+// on_auth_user_confirmed ya creó con un nombre placeholder. Los invitados y usuarios preexistentes
+// tienen setup_completed_at y nunca llegan acá.
 export default async function BienvenidaPage() {
   const supabase = await createClient()
   const {
@@ -16,32 +17,26 @@ export default async function BienvenidaPage() {
 
   const { data: prof } = await supabase
     .from("profiles")
-    .select("full_name, role, clinic_id, setup_completed_at")
+    .select("clinic_id, setup_completed_at")
     .eq("id", user.id)
     .maybeSingle()
-  const p = prof as {
-    full_name: string | null
-    role: string | null
-    clinic_id: string | null
-    setup_completed_at: string | null
-  } | null
+  const p = prof as { clinic_id: string | null; setup_completed_at: string | null } | null
 
   // Ya completado (o sin clínica todavía) -> al dashboard.
   if (!p?.clinic_id || p.setup_completed_at) redirect("/dashboard")
 
   const { data: clinic } = await supabase
     .from("clinics")
-    .select("name")
+    .select("name, logo_url")
     .eq("id", p.clinic_id)
     .maybeSingle()
+  const c = clinic as { name: string; logo_url: string | null } | null
 
   return (
-    <WelcomeWizard
-      userId={user.id}
+    <WorkspaceSetup
       clinicId={p.clinic_id}
-      initialClinicName={(clinic as { name: string } | null)?.name ?? ""}
-      initialFullName={p.full_name ?? ""}
-      isAdmin={p.role === "admin"}
+      initialClinicName={c?.name ?? ""}
+      initialLogoUrl={c?.logo_url ?? null}
     />
   )
 }
