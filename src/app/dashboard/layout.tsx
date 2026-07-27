@@ -36,11 +36,17 @@ export default async function DashboardLayout({
   } | null
   if (p?.clinic_id && !p.setup_completed_at) redirect("/bienvenida")
 
+  const { data: clinic } = p?.clinic_id
+    ? await supabase.from("clinics").select("name, logo_url").eq("id", p.clinic_id).maybeSingle()
+    : { data: null }
+  const c = clinic as { name: string; logo_url: string | null } | null
+
   const sidebarUser = {
     name: profile?.full_name || user?.email || "Usuario",
     email: user?.email ?? "",
     avatar: "",
   }
+  const sidebarClinic = { name: c?.name ?? "TuvetIA", logoUrl: c?.logo_url ?? null }
 
   return (
     <SidebarProvider
@@ -51,7 +57,7 @@ export default async function DashboardLayout({
         } as React.CSSProperties
       }
     >
-      <AppSidebar variant="inset" user={sidebarUser} />
+      <AppSidebar variant="inset" user={sidebarUser} clinic={sidebarClinic} />
       <OnboardingTour onboarded={Boolean((profile as { onboarded_at?: string | null } | null)?.onboarded_at)} />
       <SidebarInset>
         <SiteHeader />

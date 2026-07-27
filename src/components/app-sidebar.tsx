@@ -2,6 +2,7 @@
 
 import * as React from "react"
 
+import { NavClinic } from "@/components/nav-clinic"
 import { NavDocuments } from "@/components/nav-documents"
 import { NavMain } from "@/components/nav-main"
 import { NavSecondary } from "@/components/nav-secondary"
@@ -99,9 +100,11 @@ const data = {
 }
 export function AppSidebar({
   user,
+  clinic,
   ...props
 }: React.ComponentProps<typeof Sidebar> & {
   user: { name: string; email: string; avatar: string }
+  clinic: { name: string; logoUrl: string | null }
 }) {
   return (
     <Sidebar collapsible="icon" {...props}>
@@ -119,6 +122,7 @@ export function AppSidebar({
         </SidebarMenu>
       </SidebarHeader>
       <SidebarContent>
+        <NavClinic name={clinic.name} logoUrl={clinic.logoUrl} />
         <NavMain items={data.navMain} />
         <NavDocuments items={data.documents} />
         <NavSecondary items={data.navSecondary} className="mt-auto" />
