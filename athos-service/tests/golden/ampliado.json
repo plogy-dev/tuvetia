@@ -1,0 +1,1024 @@
+[
+ {
+  "id": "dirofilariasis",
+  "mesh_target": "Dirofilariasis",
+  "especie": "perro",
+  "query": "Veterinario: Buen día, ¿qué le pasa a su perro? Dueño: Hola, doctor. Tiene como una tos rara, seca, y se cansa muy rápido cuando lo saco a pasear. Antes era re activo. Veterinario: ¿Notó si tiene mucha sed o ha perdido peso? Dueño: Sí, toma más agua que antes y está más flaco, a pesar de que come bien. Veterinario: Voy a revisarlo. (lo ausculta) ¿Hace cuánto tiene estos síntomas? Dueño: Como un mes, cada vez peor. Veterinario: Tiene el pecho con ruidos anormales, el corazón parece más grande de lo normal y el pulso es débil. Esto es sugestivo de una enfermedad parasitaria que afecta el corazón y los pulmones, compatible con lo que se conoce como gusano del corazón. Dueño: ¿Y tiene cura? Veterinario: Hay tratamiento, pero primero hay que confirmar con análisis de sangre. Es importante tratar cuanto antes porque puede empeorar. ¿De dónde vino o viajaron últimamente? Dueño: Nunca salió de la ciudad, pero hay muchos mosquitos acá.",
+  "chunks_corpus": 1678
+ },
+ {
+  "id": "leishmaniasis",
+  "mesh_target": "Leishmaniasis",
+  "especie": "perro",
+  "query": "Veterinario: Hola, ¿qué le pasa a este precioso? \nDueño: Hola, doctor. Lola viene hace como dos semanas que está medio decaída, come poco y le noté que se le están cayendo unos pelitos alrededor de los ojos y en las orejas. \nVeterinario: Claro, déjeme revisarla. ¿Notó si tiene alguna herida que no cicatrice o sangrado? \nDueño: Sí, tiene una heridita en la pata que no se cura desde hace unos días. Además, vi que últimamente tiene más sueño de lo normal. \nVeterinario: (examinando) Veo que tiene los ganglios un poco inflamados, el pelaje opaco y las uñas un poquito largas de más. Esto, sumado a las lesiones en piel y esa decaimiento, es sugestivo de una enfermedad parasitaria que se transmite por mosquitos. \nDueño: ¿Algo grave, doctor? \nVeterinario: Puede ser, es compatible con un cuadro de leishmaniasis. Vamos a hacerle unos análisis de sangre y de la lesión para confirmarlo. Es tratable, pero requiere seguimiento. \nDueño: Ah, qué susto. Dale, hagamos los estudios.",
+  "chunks_corpus": 1475
+ },
+ {
+  "id": "tick-infestations",
+  "mesh_target": "Tick Infestations",
+  "especie": "perro",
+  "query": "Veterinario: Hola, ¿cómo va? ¿Qué le pasa a este bichito?\nDueño: Hola, doctor. La verdad que Nota, mi perra, no para de rascarse desde hace unos días. Se pasa todo el día mordiéndose las patas y la panza.\nVeterinario: Claro, debe estar incómoda. ¿Notaste algo en la piel o en el pelo cuando la acariciás?\nDueño: Sí, el otro día le vi como unos puntitos negros en el lomo, pero pensé que era tierra. Y también tiene como costritas chiquitas.\nVeterinario: Bueno, vamos a revisarla bien. (La examina) Acá en la zona del cuello y las orejas se ven varias garrapatas, algunas ya infladas, como del tamaño de una lenteja. Y la piel tiene zonas enrojecidas por el rascado.\nDueño: ¡Ay, no! ¿Y son peligrosas? ¿Pueden contagiarle algo?\nVeterinario: Sí, las garrapatas pueden transmitir enfermedades. Por ahora el cuadro es sugestivo de una infestación por garrapatas, que le están causando dermatitis por la picadura. Es compatible con lo que vos describís.\nDueño: Uf, qué susto. ¿Qué hacemos para sacárselas y prevenir que vuelvan?\nVeterinario: Vamos a aplicar un antiparasitario externo que mata garrapatas en pocas horas. También te voy a dar un tratamiento para la comezón. Y después mantené la pipeta mensual. En unos días debería estar mucho más tranquila.",
+  "chunks_corpus": 1435
+ },
+ {
+  "id": "distemper",
+  "mesh_target": "Distemper",
+  "especie": "perro",
+  "query": "Veterinario: Hola, ¿qué le pasa a su perro? Dueño: Hace unos días empezó con una tos seca, como si tuviera algo atorado, y ahora tiene los ojos con legañas. Veterinario: ¿Ha tenido fiebre o ha dejado de comer? Dueño: Sí, ayer no quiso comer y lo noté muy decaído, como sin ganas de moverse. Veterinario: Veamos… al examinarlo, tiene secreción ocular y nasal espesa, y al auscultar los pulmones se escuchan ruidos. ¿Ha tenido vómitos o diarrea? Dueño: Sí, ayer vomitó una vez y hoy hizo como diarrea, pero no muy líquida. Veterinario: También noto que tiene las almohadillas de las patas más duras de lo normal. Todo esto, sumado a la tos y la fiebre que probablemente tuvo, es sugestivo de un cuadro viral, compatible con moquillo. Dueño: ¿Es grave? ¿Se puede curar? Veterinario: Es una enfermedad seria, pero con tratamiento de soporte y cuidados intensivos algunos perros se recuperan. Vamos a hacer un análisis para confirmarlo.",
+  "chunks_corpus": 1338
+ },
+ {
+  "id": "mammary-neoplasms-animal",
+  "mesh_target": "Mammary Neoplasms, Animal",
+  "especie": "perro",
+  "query": "Veterinario: Hola, ¿qué le pasa a la nena?\nDueño: Hola, doctor. Noté que tiene unas bolitas en la pancita, cerca de las tetillas. Hace como una semana que las siento.\nVeterinario: ¿Cuántas bolitas son? ¿Le duelen cuando las toca?\nDueño: Son dos o tres, como del tamaño de una arveja. No parece que le duelan, pero ella se lame ahí seguido.\nVeterinario: Bien, voy a palparlas. ¿Ella está castrada?\nDueño: No, nunca la operé. Tiene 8 años y nunca tuvo cachorros.\nVeterinario: Al palpar, siento nódulos firmes, chicos, en la cadena mamaria. No hay enrojecimiento ni fiebre. Esto es sugestivo de tumores mamarios, que son comunes en perras enteras de su edad.\nDueño: ¿Y es grave? ¿Hay que operar?\nVeterinario: Por el tamaño y que no está ulcerado, es compatible con un cuadro temprano. Recomiendo una citología por punción para saber si es benigno o maligno, y en base a eso planear una cirugía. Lo importante es actuar pronto.",
+  "chunks_corpus": 1015
+ },
+ {
+  "id": "flea-infestations",
+  "mesh_target": "Flea Infestations",
+  "especie": "perro",
+  "query": "Veterinario: Hola, ¿qué le pasa a Firulais? Dueño: No para de rascarse, se pasa el día mordiendo la cola y los costados. Y anoche lo vi como si tuviera cositas negras moviéndose en el lomo. Veterinario: Claro, déjeme revisarlo... tiene enrojecimiento en la zona lumbar y la base de la cola. ¿Notó si se lame mucho ahí? Dueño: Sí, todo el tiempo. Y tiene como una costra, pensé que era suci nomás. Veterinario: Al separar el pelo veo puntos negros en la piel. Lo que usted vio son pulgas, y esas cositas negras son sus heces. En el examen también tiene puntitos de dermatitis alérgica. Es un cuadro sugestivo de infestación por pulgas. Dueño: ¿Y eso es grave? Veterinario: No suele serlo si lo tratamos ahora. Le voy a recetar un antipulgas oral y champú especial. También hay que desparasitar el ambiente donde duerme. Dueño: Perfecto, lo hago ya. Gracias.",
+  "chunks_corpus": 968
+ },
+ {
+  "id": "babesiosis",
+  "mesh_target": "Babesiosis",
+  "especie": "perro",
+  "query": "Veterinario: Hola, ¿cómo va? ¿Qué le pasa a este border collie? Dueño: Hola, doctor. Tiene como fiebre y está muy decaído desde ayer. No quiere comer ni mover mucho. Veterinario: ¿Notó algo en la orina o en el color de las encías? Dueño: Sí, la orina está como más oscura, tirando a marrón, y las encías las tiene un poco pálidas. Veterinario: ¿Ha tenido contacto con garrapatas? Dueño: Y sí, siempre sale al campo, seguro agarró alguna. Veterinario: Al revisarlo, veo que tiene las mucosas pálidas y un leve tinte ictérico, el abdomen está blando pero el bazo parece levemente aumentado. Esto es sugestivo de un cuadro infeccioso transmitido por garrapatas. Dueño: ¿Qué puede ser, doctor? Veterinario: Por los signos clínicos y lo que usted me cuenta, es compatible con babesiosis, una enfermedad parasitaria que destruye los glóbulos rojos. Dueño: Ah, claro. ¿Es grave? Veterinario: Puede serlo si no se trata a tiempo, pero se puede manejar con medicamentos específicos y soporte. Le voy a tomar una muestra de sangre para confirmarlo y empezar el tratamiento hoy mismo.",
+  "chunks_corpus": 848
+ },
+ {
+  "id": "ehrlichiosis",
+  "mesh_target": "Ehrlichiosis",
+  "especie": "perro",
+  "query": "Veterinario: Hola, ¿qué le pasó a este hermoso perro? Dueño: Hola, doctor. Desde hace unos días, Coco está muy decaído, no quiere comer y tiene las encías como pálidas. Veterinario: Veo que está un poco apagado. ¿Ha tenido fiebre o sangrados en algún lado? Dueño: Sí, anoche noté que le salió un poquito de sangre de la nariz. Además, tiene moretones en la panza. Veterinario: Claro. Al palparlo, noto ganglios inflamados y le duele un poco cuando toco las articulaciones. Su temperatura es de 39,8°C. Dueño: ¿Será algo grave? Estaba caminando normal hasta hace cuatro días. Veterinario: Es un cuadro sugestivo de una enfermedad transmitida por garrapatas. Podría ser compatible con erliquiosis. Le haré un análisis de sangre para confirmarlo. Dueño: Ah, sí, por el campo donde lo llevamos hay muchas garrapatas. ¿Tiene cura? Veterinario: Sí, con tratamiento antibiótico específico suele mejorar, pero hay que empezar pronto. Le recetaré medicación y un antigarrapaticida para casa. Dueño: Gracias, doctor. Empezamos hoy.",
+  "chunks_corpus": 806
+ },
+ {
+  "id": "osteosarcoma",
+  "mesh_target": "Osteosarcoma",
+  "especie": "perro",
+  "query": "Veterinario: Buen día, ¿qué le pasa a Toby?\nDueño: Hola doctor, tiene como una bultito en la pata delantera, cerca del hombro. No para de lamerlo y cojea un poco.\nVeterinario: ¿Desde cuándo nota ese bulto?\nDueño: Hará un mes, pero en los últimos días creció bastante, y hoy no quiere apoyar la pata.\nVeterinario: ¿Le duele cuando se lo toco?\nDueño: Sí, gruñe si me acerco, antes no era tan sensible.\nVeterinario: Al palpar, se siente una masa firme, adherida al hueso, y la zona está caliente. En la radiografía veo una lesión lítica y productiva en la metáfisis del húmero, muy sugestiva de un tumor óseo agresivo, compatible con osteosarcoma. Es una condición grave y dolorosa.\nDueño: ¿Y qué se puede hacer? ¿Hay chances?\nVeterinario: Vamos a hacer una biopsia para confirmar y evaluar si hay metástasis en tórax. El tratamiento puede incluir amputación y quimioterapia, pero hablemos de las opciones con calma.",
+  "chunks_corpus": 744
+ },
+ {
+  "id": "epilepsy",
+  "mesh_target": "Epilepsy",
+  "especie": "perro",
+  "query": "Veterinario: Hola, ¿qué le pasa a este chico? \nDueño: Hola, doctor. Mire, a Pipo, mi perro, le dio como un ataque. Estaba normal, jugando, y de repente se cayó de costado, empezó a mover las patas como si estuviera corriendo, y tenía la boca espumosa. Duró como un minuto, después quedó medio desorientado, caminando en círculos. Esto pasó ayer, y hoy otra vez.\nVeterinario: Claro, ¿cuántos años tiene Pipo? \nDueño: Tiene 3 años, es un golden retriever.\nVeterinario: ¿En algún momento entre los episodios se nota raro? ¿Temblores, mirada fija, o como que no responde?\nDueño: No, entre uno y otro está normal, juega y come bien. Pero cuando le da, me asusta mucho.\nVeterinario: Al revisarlo ahora, el examen físico está bien, los reflejos son normales, no hay rigidez ni dolor al palparle la columna. Lo que describe es muy sugestivo de episodios convulsivos, compatible con epilepsia primaria. Es común en perros jóvenes de esta raza. Vamos a hacer un chequeo básico de sangre para descartar otras causas, y ver después si empezamos con medicación para controlar las crisis.",
+  "chunks_corpus": 726
+ },
+ {
+  "id": "osteoarthritis",
+  "mesh_target": "Osteoarthritis",
+  "especie": "perro",
+  "query": "Veterinario: Hola, ¿cómo anda? Cuénteme qué le pasa a Toby.\nDueño: Hola, doctor. Noto que últimamente está como más lento, le cuesta levantarse de la cucha y a veces renquea un poco de la pata trasera.\nVeterinario: Entiendo. ¿Desde hace cuánto tiempo viene notando eso?\nDueño: Y... unas tres semanas. Al principio era muy de vez en cuando, pero ahora todas las mañanas cuesta que se pare.\nVeterinario: Bien. Voy a revisarlo. Al palparle las articulaciones de las patas traseras, noto cierta rigidez y un leve crujido al mover la cadera. Toby también manifestó dolor cuando le extendí la pata.\nDueño: ¡Ay, pobre! ¿Es grave, doctor?\nVeterinario: Mire, el cuadro es sugestivo de cambios degenerativos en las articulaciones, lo que conocemos como artrosis. Es compatible con la edad que tiene Toby, ya es un perrito grande. No es de gravedad inmediata, pero hay que manejarlo para que no avance.\nDueño: ¿Y qué puedo hacer? Porque lo veo sufrir.\nVeterinario: Podemos empezar con antiinflamatorios suaves y un suplemento articular. También es clave controlar el peso y hacerle ejercicios de bajo impacto, como caminatas cortas. En unos días debería sentirse mejor. ¿Le parece?",
+  "chunks_corpus": 638
+ },
+ {
+  "id": "renal-insufficiency-chronic",
+  "mesh_target": "Renal Insufficiency, Chronic",
+  "especie": "perro",
+  "query": "Veterinario: Hola, ¿qué le pasa a Toby? Dueño: Hola, doctor. Hace como dos semanas que lo veo más decaído, toma mucha agua y hace pis todo el tiempo, a veces hasta en la cama. Veterinario: ¿Notaste si ha perdido apetito o ha vomitado? Dueño: Sí, come menos y una vez vomitó un líquido amarillo. También tiene el pelaje medio opaco. Veterinario: Déjame examinarlo… Tiene las encías un poco pálidas y el aliento con olor a orina, y al palparle el abdomen siento los riñones chicos y duros. Dueño: ¿Es grave, doctor? Veterinario: Por los signos que me contás y lo que encuentro en el examen, es sugestivo de insuficiencia renal crónica. Los riñones están perdiendo capacidad de filtrar. Necesitamos hacer un análisis de sangre y orina para confirmar el grado y armar un tratamiento de soporte. Dueño: ¿Se va a poner bien? Veterinario: Es una condición que no tiene cura, pero con cambios en la dieta y medicación podemos mejorar su calidad de vida. Vamos paso a paso.",
+  "chunks_corpus": 633
+ },
+ {
+  "id": "bone-neoplasms",
+  "mesh_target": "Bone Neoplasms",
+  "especie": "perro",
+  "query": "Veterinario: Hola, ¿qué le pasa a Firulais? Dueño: Hola, doctor. Lo noto rengo de la pata delantera derecha, como que no quiere apoyarla. A veces chilla cuando lo toco ahí. Veterinario: ¿Hace cuánto le pasa? Dueño: Hará un mes más o menos, al principio era de vez en cuando, pero ahora casi siempre, y esa pata tiene una bulla, como hinchada. Veterinario: Ya veo. Le voy a palpar esa zona. Firulais, tranquilo... (palpa) Sí, se nota un aumento de volumen firme, como duro, a nivel de la diáfisis del húmero. Dueño: ¿Será un golpe? Se cayó de la cama una vez. Veterinario: Puede ser, pero por lo localizado y lo duro que es, es más sugestivo de una neoformación ósea. Dueño: ¿Un tumor? ¿Es grave? Veterinario: Es compatible con una neoplasia. Para confirmar, habría que hacer una radiografía y quizás una biopsia. Dueño: ¿Y duele mucho? Veterinario: Sí, suele ser doloroso. Por eso él no apoya. Vamos a hacer las placas para ver bien el hueso y de ahí decidir pasos. Dueño: Dale, hagamos eso. Gracias, doctor.",
+  "chunks_corpus": 616
+ },
+ {
+  "id": "skin-neoplasms",
+  "mesh_target": "Skin Neoplasms",
+  "especie": "perro",
+  "query": "Veterinario: Hola, ¿cómo andan? ¿Qué le pasa a este hermoso?\nDueño: Hola, doctor. Noté que en la pata trasera tiene como una bolita, una especie de verruga oscura, y me preocupa.\nVeterinario: Ah, ya veo. ¿Hace cuánto que la tiene?\nDueño: Como un mes, más o menos. Pero no parece que le duela, solo le lame a veces.\nVeterinario: Bueno, al palparla tiene una consistencia firme, no se mueve mucho, y la piel está un poco enrojecida alrededor. Es sugestivo de que podría ser algo como un tumor de piel, quizás un mastocitoma o un lipoma, pero habría que ver si es benigno o no.\nDueño: ¿Y es grave? ¿Se puede operar?\nVeterinario: Es compatible con una neoplasia cutánea, pero la conducta dependerá del tipo. Te recomiendo tomar una muestra para citología o biopsia para confirmar. Si es benigno, quizás no requiera cirugía urgente; si no, podemos planear su extracción. ¿Notaste si creció rápido?\nDueño: Sí, me parece que sí, un poco más grande que antes.\nVeterinario: Eso es un dato importante. Vamos a hacer ese estudio para salir de dudas y ver el mejor tratamiento.",
+  "chunks_corpus": 596
+ },
+ {
+  "id": "echinococcosis",
+  "mesh_target": "Echinococcosis",
+  "especie": "perro",
+  "query": "Veterinario: Hola, ¿en qué puedo ayudarte con tu perro?\nDueño: Hola, doctor. Noté que mi perro tiene el vientre muy hinchado y como que ha perdido el apetito. También lo veo más flaco de lo normal.\nVeterinario: Entiendo. ¿Ha tenido vómitos o diarrea últimamente?\nDueño: Sí, hace unos días vomitó una vez y ahora tiene diarrea, pero no muy seguido.\nVeterinario: Bien, voy a palparle el abdomen. Tiene bastante distensión y se siente como una masa. También noto que está un poco débil y las mucosas están algo pálidas. Estos signos podrían ser compatibles con una parasitosis hepática, como la hidatidosis, que a veces se ve en perros que comen vísceras crudas. ¿Tu perro tiene acceso a carne o desechos de faena?\nDueño: Mmm, sí, vive en el campo y a veces agarra restos de ovejas que faenan.\nVeterinario: Eso es clave. El cuadro es sugestivo de una infección por quistes hidatídicos en el hígado o el abdomen. Vamos a hacerle una ecografía para confirmar.",
+  "chunks_corpus": 596
+ },
+ {
+  "id": "parvoviridae-infections",
+  "mesh_target": "Parvoviridae Infections",
+  "especie": "perro",
+  "query": "Veterinario: Hola, ¿cómo andamos? ¿Qué le pasa a este hermoso? \nDueño: Hola, doctor. La verdad que vengo preocupado. Tobby desde ayer está muy decaído, no quiere comer nada y hoy empezó a vomitar todo el tiempo. \nVeterinario: Ah, pobre. ¿El vómito es de comida o amarillento? ¿Ha tenido diarrea? \nDueño: Sí, esta mañana hizo como una diarrea gris y medio sanguinolenta, un olor horrible. Además, antes estaba alegre y ahora no se mueve. \nVeterinario: Bueno, dejame revisarlo. (Lo palpa, toma temperatura) Tiene bastante fiebre y está un poco deshidratado. Los ganglios los noto inflamados. El cuadro es sugestivo de una infección viral intestinal, compatible con parvovirus, que es muy común en cachorros no vacunados. \nDueño: ¿Parvo? ¡Dios mío! ¿Es grave? El tiene dos meses y no le dimos todas las vacunas todavía. \nVeterinario: Es una situación seria, pero no todo está perdido. El tratamiento es de soporte: fluidos para la deshidratación, antibióticos para prevenir infecciones secundarias y medicación para las náuseas. Se va a quedar internado para monitoreo. \nDueño: ¿Hay chances de que se salve? \nVeterinario: Con atención intensiva, muchos perros se recuperan, sobre todo si se detecta temprano. Vamos a hacer todo lo posible. ¿Tiene otros perros en casa? \nDueño: Sí, su hermanito. \nVeterinario: Bueno, hay que aislarlo y desinfectar todo, porque el virus es muy contagioso. Mañana vamos a ver la evolución.",
+  "chunks_corpus": 583
+ },
+ {
+  "id": "covid-19",
+  "mesh_target": "COVID-19",
+  "especie": "gato",
+  "query": "Veterinario: Hola, ¿cómo está? Cuénteme qué le pasa a Michi.\nDueño: Hola, doctor. Michi desde hace unos días está como decaído, no quiere comer y estornuda un montón. También tiene los ojos un poco llorosos.\nVeterinario: Ya veo. ¿Ha tenido fiebre? ¿Lo notó más caliente de lo normal?\nDueño: Sí, lo toqué y estaba como caliente. Además, respira un poco más rápido de lo habitual.\nVeterinario: Bien, voy a revisarlo. Al palparlo, tiene los ganglios del cuello un poco inflamados y la temperatura está elevada, 39.5°C. ¿Ha tenido contacto con otros gatos o personas resfriadas?\nDueño: No, solo vive adentro, pero mi hijo estuvo con gripe hace unos días y lo acarició.\nVeterinario: Entiendo. Por los signos clínicos que presenta, esto es compatible con una infección respiratoria viral. Es sugestivo de algo como el coronavirus felino, que es una enfermedad que puede dar estos síntomas. No se alarme, es común y manejable en muchos casos.\nDueño: ¿Es grave? ¿Qué podemos hacer?\nVeterinario: Generalmente es leve y se maneja con cuidados de soporte. Le recetaré antiinflamatorios y un jarabe para la tos, y debe mantenerlo hidratado y en reposo. Si empeora la respiración, vuelva urgente.",
+  "chunks_corpus": 529
+ },
+ {
+  "id": "anaplasmosis",
+  "mesh_target": "Anaplasmosis",
+  "especie": "perro",
+  "query": "Veterinario: Hola, ¿cómo va? ¿Qué le pasa a este amigo?\nDueño: Hola, doctor. Bruno no tiene ganas de comer desde hace dos días, está como apagado y ayer le vi unas manchitas rojas en la panza.\nVeterinario: Mmm, entiendo. ¿Ha tenido fiebre? ¿Lo notás más decaído de lo normal?\nDueño: Sí, la verdad que está muy decaído, apenas se mueve. Y a veces tiembla, como si tuviera frío.\nVeterinario: Bueno, lo voy a revisar. Observo que tiene las mucosas un poco pálidas y los ganglios del cuello un poco inflamados. También noto que tiene las encías un poco amarillentas.\nDueño: Ah, ¿eso es grave? ¿Qué puede ser?\nVeterinario: Por los síntomas que comentás y lo que veo, esto es sugestivo de una infección transmitida por garrapatas, como la anaplasmosis. Es compatible con fiebre, decaimiento y esos temblores. Le voy a tomar una muestra de sangre para confirmar.\nDueño: Uy, doctor, sí, le saqué una garrapata la semana pasada. ¿Tiene tratamiento?\nVeterinario: Sí, tiene tratamiento con antibióticos. Empezamos hoy mismo. También es importante que le hagamos un análisis para ver cómo están sus plaquetas. ¿Le puedo sacar sangre ahora?",
+  "chunks_corpus": 526
+ },
+ {
+  "id": "inflammation",
+  "mesh_target": "Inflammation",
+  "especie": "perro",
+  "query": "Veterinario: Hola, ¿en qué puedo ayudarlo? ¿Qué le pasa a su perro?\nDueño: Hola, doctor. Es que mi perro, Bruno, tiene una patita hinchada y no para de lamerse. También está como decaído.\nVeterinario: Ya veo. ¿Hace cuánto le notó eso? ¿Tuvo alguna pelea o se lastimó?\nDueño: Como desde ayer a la noche. No lo vi pelearse, pero a veces salta mucho del sillón.\nVeterinario: Perfecto. Voy a revisarlo. Al palpar la pata, está caliente, más hinchada que la otra y duele. Tiene fiebre, 39.5°C. ¿Le duele al caminar?\nDueño: Sí, renguea bastante. Lo noto que no quiere apoyar esa pata.\nVeterinario: Esto es sugestivo de una inflamación, probablemente una artritis o una infección local. Podría ser compatible con una reacción a una picadura o un golpe. ¿Notó alguna herida o enrojecimiento?\nDueño: No, no vi heridas. Pero tiene el pelito un poco pegajoso ahí.\nVeterinario: Bien. Para calmarlo, le voy a recetar un antiinflamatorio y un antibiótico por si hay infección. También reposo en casa. Si no mejora en dos días, vuelvan para hacer una ecografía.",
+  "chunks_corpus": 521
+ },
+ {
+  "id": "staphylococcal-infections",
+  "mesh_target": "Staphylococcal Infections",
+  "especie": "perro",
+  "query": "Dueño: Hola doctor, vengo porque mi perra tiene unas ronchas rojas en la panza y se lame todo el tiempo. Veterinario: Buen día. Veamos... tiene pápulas con pus, algunas costras, y la piel enrojecida. ¿Notó si también tiene mal olor o se rasca mucho? Dueño: Sí, huele un poco feo y se rasca contra los muebles. Veterinario: Esto es sugestivo de una infección bacteriana superficial, compatible con estafilococos. Puede haber empezado por una alergia o humedad. Le voy a hacer un raspaje de piel para confirmar. Dueño: ¿Y qué le damos? Veterinario: Le receto un antibiótico por 10 días y un champú especial. También revise si hay parásitos o alergias de fondo, porque la bacteria suele aprovechar una piel dañada.",
+  "chunks_corpus": 514
+ },
+ {
+  "id": "melanoma",
+  "mesh_target": "Melanoma",
+  "especie": "perro",
+  "query": "Veterinario: Buenas, ¿qué le pasa a este muchacho? Dueño: Hola, doctor. Noté que tiene una especie de bultito oscuro en la encía, cerca de un diente, como una verruguita negra que antes no tenía. Veterinario: Déjeme ver... Sí, acá hay una masa pigmentada, oscura, de unos 8 milímetros, en la encía superior. ¿Notó si le molesta al comer? Dueño: Sí, a veces deja la comida, como si le doliera de ese lado. Y tiene un poco de mal aliento. Veterinario: Claro, al palpar la zona, está un poco firme, no se mueve fácilmente. ¿Notó si sangra? Dueño: Una vez, cuando le limpié los dientes, sangró un poquito. Pero pensé que era normal. Veterinario: Bien, la apariencia de esta lesión, oscura y firme, es sugestiva de un melanoma oral. Es un tipo de tumor que puede ser agresivo, así que vamos a tomar una muestra para confirmar.",
+  "chunks_corpus": 507
+ },
+ {
+  "id": "dermatitis-atopic",
+  "mesh_target": "Dermatitis, Atopic",
+  "especie": "perro",
+  "query": "Veterinario: Hola, ¿cómo va? ¿Qué le pasa a este hermoso perrito?\nDueño: Hola, doctor. Vengo porque Fido se la pasa rascándose todo el tiempo, sobre todo las orejas, las patas y la panza. A veces se lame tanto que se le pone la piel colorada.\nVeterinario: Claro, veamos. ¿Notaste si se rasca más en alguna época del año, como en primavera o cuando hay mucho polen?\nDueño: Ahora que lo dice, sí, empeoró hace un par de meses, con la llegada del calor y las flores. Antes no era tan seguido.\nVeterinario: Perfecto. Déjame revisarlo. (Examina) Acá en las orejas veo enrojecimiento y un poco de engrosamiento de la piel. En las patas, entre los dedos, tiene zonas sin pelo y con costras. También tiene un poco de caspa. Todo esto es muy sugestivo de una dermatitis atópica, que es como una alergia a cosas del ambiente, como pólenes, ácaros o mohos.\nDueño: ¿Y es grave? ¿Tiene cura?\nVeterinario: No es grave, pero sí crónica. No se cura del todo, pero se controla bien. Vamos a descartar otras causas como parásitos o alergia alimentaria con algunos análisis. Por ahora, podemos empezar con un shampoo especial, algo para calmar la picazón y tal vez un suplemento de ácidos grasos. También te recomendaría evitar que esté mucho en el pasto.\nDueño: Bueno, doctor. ¿Le hago algún cambio en la comida?\nVeterinario: Podemos probar una dieta hipoalergénica por un tiempo, para ver si mejora. Pero lo primero es controlar el rascado y ver cómo responde. Lo voy a ir viendo cada mes.\nDueño: Perfecto, gracias, doctor.",
+  "chunks_corpus": 499
+ },
+ {
+  "id": "diarrhea",
+  "mesh_target": "Diarrhea",
+  "especie": "perro",
+  "query": "Veterinario: Buenas, ¿qué le pasa a este pestilente? Dueño: Hola, doctor. Tiene diarrea desde hace dos días, como agua, y anoche vomitó una vez. Veterinario: ¿Come algo raro, como basura o huesos? Dueño: Sí, el miércoles se escapó y revolvió la basura. Veterinario: Ya veo. Al palparle el abdomen está un poco tenso y los ruidos intestinales están aumentados. Es sugestivo de una gastroenteritis aguda, compatible con una indigestión por algo que comió. Dueño: ¿Es grave? Veterinario: Por ahora no, pero hay que hidratarlo bien y darle una dieta blanda. Si no mejora en 24 horas, vuelvan.",
+  "chunks_corpus": 485
+ },
+ {
+  "id": "pain",
+  "mesh_target": "Pain",
+  "especie": "perro",
+  "query": "Veterinario: Buen día, ¿qué le pasa a este paciente?\nDueño: Hola, doctor. Mi perro, Max, está raro, no quiere moverse mucho y cuando lo toco, llora.\nVeterinario: ¿Desde cuándo lo notó así?\nDueño: Desde ayer a la tarde. Antes era muy activo, pero ahora se queda quieto y no quiere comer.\nVeterinario: Entiendo. Al revisarlo, noté que tiene los músculos tensos y reacciona con dolor cuando palpo la zona lumbar. Esto es sugestivo de un dolor de origen musculoesquelético, quizás una contractura o una lesión en la columna. ¿Ha tenido algún golpe o caída?\nDueño: No que yo sepa, pero vivimos en un departamento con escaleras, y él a veces salta de los muebles.\nVeterinario: Claro, eso puede generar dolor. Los signos son compatibles con un cuadro de dolor agudo en la región lumbar. Le voy a indicar antiinflamatorios y reposo absoluto, y veremos cómo evoluciona en los próximos días.",
+  "chunks_corpus": 410
+ },
+ {
+  "id": "intervertebral-disc-displacement",
+  "mesh_target": "Intervertebral Disc Displacement",
+  "especie": "perro",
+  "query": "Veterinario: ¿Qué le pasa a tu perro?\nDueño: Desde ayer no quiere caminar, arrastra las patas de atrás y a veces llora cuando lo toco.\nVeterinario: ¿Tiene alguna raza en particular?\nDueño: Sí, es un teckel, tiene 6 años.\nVeterinario: Claro, al revisarlo noto que tiene dolor en la columna, sobre todo en la zona lumbar, y las patas traseras están débiles. Esto es sugestivo de un problema de disco intervertebral.\nDueño: ¿Y es grave? ¿Qué podemos hacer?\nVeterinario: Es compatible con una compresión de la médula espinal por un disco desplazado. Vamos a necesitar radiografías o una tomografía para confirmar el grado. Dependiendo de eso, puede requerir cirugía o tratamiento médico.\nDueño: Ah, entiendo. ¿Y hay chances de que vuelva a caminar bien?\nVeterinario: Sí, las chances son buenas si lo tratamos a tiempo. Pero es urgente empezar con reposo estricto y antiinflamatorios mientras decidimos los estudios.",
+  "chunks_corpus": 395
+ },
+ {
+  "id": "inflammatory-bowel-diseases",
+  "mesh_target": "Inflammatory Bowel Diseases",
+  "especie": "perro",
+  "query": "Veterinario: Buen día, ¿en qué la puedo ayudar con Rocky?\nDueño: Hola, vengo porque desde hace unas semanas tiene diarrea casi todos los días, a veces con moco y un poco de sangre. Además, ha perdido peso, come pero no engorda.\nVeterinario: Claro, entiendo. ¿Ha tenido vómitos también o algún cambio en el apetito?\nDueño: Sí, vomita cada tanto, como espuma blanca o comida sin digerir. Pero sigue con hambre.\nVeterinario: Al palparle el abdomen, Rocky muestra algo de dolor y noto los intestinos más gruesos de lo normal. ¿Le han hecho análisis de heces o de sangre?\nDueño: No, solo le cambié la comida a una hipoalergénica hace un mes, pero no mejoró.\nVeterinario: Esa falta de respuesta a la dieta puede orientar a un proceso inflamatorio crónico en el intestino. Los signos de Rocky son sugestivos de una enfermedad inflamatoria intestinal. Para confirmarlo, haría falta una ecografía y quizás una biopsia intestinal, pero mientras tanto podemos probar con corticoides y una dieta especial.",
+  "chunks_corpus": 391
+ },
+ {
+  "id": "strongylida-infections",
+  "mesh_target": "Strongylida Infections",
+  "especie": "perro",
+  "query": "Veterinario: Hola, ¿qué le pasa a tu perro? Dueño: Hace como un mes que está decaído, no come bien y tiene la panza hinchada. Veterinario: ¿Ha tenido diarrea o vómitos? Dueño: Sí, diarrea líquida, a veces con sangre. Y tose un poco, como si tuviera algo en la garganta. Veterinario: Al palpar el abdomen se siente distendido y doloroso. Los ganglios están un poco inflamados. Por los síntomas que me contás, esto es sugestivo de una infección por parásitos del tipo gusanos redondos, como los estróngilos. Suelen afectar los pulmones y el intestino. Dueño: ¿Es grave? Veterinario: Puede serlo si no se trata. Te voy a pedir una muestra de materia fecal para buscar huevos de parásitos y confirmarlo. Mientras, evitá que chupe objetos del piso. Dueño: ¿Se contagia a los niños? Veterinario: Algunos parásitos pueden pasar a humanos, así que lavate bien las manos. Con medicación antiparasitaria, suele mejorar.",
+  "chunks_corpus": 384
+ },
+ {
+  "id": "leptospirosis",
+  "mesh_target": "Leptospirosis",
+  "especie": "perro",
+  "query": "Veterinario: Hola, ¿en qué puedo ayudarlo hoy con este perro?\nDueño: Hola, doctor. Vengo porque mi perro, Tobi, está muy decaído desde hace unos días. No quiere comer casi nada y está todo el tiempo acostado.\nVeterinario: Ya veo. ¿Ha tenido vómitos o diarrea?\nDueño: Sí, vomitó un par de veces ayer, y la verdad que miro sus ojos y están como amarillentos.\nVeterinario: ¿Notó si orina más o menos de lo normal?\nDueño: Sí, está orinando más seguido, pero parece que le cuesta y el color es más oscuro.\nVeterinario: Al revisarlo, tiene las mucosas pálidas y un poco ictéricas, y al palpar el abdomen se queja. También tiene fiebre. Esto es sugestivo de una infección que afecta el hígado y los riñones.\nDueño: ¿Algo como una bacteria?\nVeterinario: Exacto, compatible con leptospirosis, que se transmite por orina de animales como ratas. Es importante hacer análisis de sangre y orina para confirmar y empezar tratamiento con antibióticos y fluidos.",
+  "chunks_corpus": 383
+ },
+ {
+  "id": "lymphoma",
+  "mesh_target": "Lymphoma",
+  "especie": "perro",
+  "query": "Veterinario: Hola, ¿cómo va? ¿Qué le pasa a este muchacho?\nDueño: Hola, doctor. Lo traigo porque hace como dos semanas que está medio decaído, no quiere comer bien y noté que tiene unos bultitos en el cuello y atrás de las patas.\nVeterinario: Ah, ok. ¿Vomita o tiene diarrea?\nDueño: No, nada de eso. Pero respira un poco más rápido de lo normal y como que se cansa rápido cuando sale a pasear.\nVeterinario: Bien. Déjeme revisarlo. (Palpa) Sí, acá en los ganglios submandibulares y poplíteos se palpan aumentados de tamaño, firmes y no dolorosos. También tiene las amígdalas un poco más grandes de lo normal. A la auscultación, el ritmo cardíaco está bien, pero la respiración es un poquito más superficial.\nDueño: ¿Y qué puede ser, doctor? ¿Algo malo?\nVeterinario: Mire, por los ganglios inflamados sin signos de infección clara, la falta de apetito y el decaimiento, el cuadro es sugestivo de un proceso linfoproliferativo, compatible con un linfoma. No es algo común en perros jóvenes como el suyo, pero puede verse. Para confirmarlo, lo ideal sería hacer una punción de esos ganglios y mandar a analizar.\nDueño: ¿Punción? ¿Duele mucho? ¿Y después hay tratamiento?\nVeterinario: No, es como un pinchazo chiquito, no duele casi. Con eso sacamos una muestra para ver si hay células anormales. Si se confirma, el tratamiento es con quimioterapia, que hoy en día es muy bien tolerada y puede darle buena calidad de vida por un tiempo largo. ¿Le parece que hagamos eso?\nDueño: Sí, dale, vamos a hacerlo para saber bien qué es.",
+  "chunks_corpus": 383
+ },
+ {
+  "id": "heart-valve-diseases",
+  "mesh_target": "Heart Valve Diseases",
+  "especie": "perro",
+  "query": "Veterinario: Hola, ¿qué le pasa a Toby? Dueño: Tiene como tos, sobre todo a la noche, y se cansa mucho cuando lo paseo. Veterinario: ¿Come bien? Dueño: Sí, pero a veces respira más rápido de lo normal. Veterinario: Al escucharle el pecho noto un soplo cardíaco, un ruido extra entre los latidos. Dueño: ¿Eso es grave? Veterinario: Es sugestivo de una valvulopatía, una enfermedad de las válvulas del corazón. Dueño: ¿Y se queda así? Veterinario: Podemos hacer una ecografía para confirmar, pero es compatible con insuficiencia mitral. Le voy a recetar medicación para ayudar al corazón a bombear mejor.",
+  "chunks_corpus": 382
+ },
+ {
+  "id": "bird-diseases",
+  "mesh_target": "Bird Diseases",
+  "especie": "ave",
+  "query": "Veterinario: Buenas, ¿qué le pasó a este lorito?\nDueño: Doctor, mi loro está raro, no quiere comer ni moverse, tiene las plumas todas erizadas.\nVeterinario: ¿Desde cuándo? ¿Hace deposiciones normales?\nDueño: Como tres días, no caga mucho, y lo que saca es medio líquido y verdoso.\nVeterinario: ¿Respira bien? ¿Hace algún ruido o abre el pico?\nDueño: Sí, a veces respira con la boca abierta y se le ve la cola que se mueve mucho.\nVeterinario: En el examen veo que tiene la mucosa nasal con un poco de secreción, y al auscultar el pecho se escuchan ruidos húmedos en los sacos aéreos. Esto es sugestivo de una enfermedad respiratoria en aves, compatible con alguna infección.\nDueño: ¿Y qué puede ser, doctor?\nVeterinario: Puede ser una infección bacteriana o fúngica. Habría que hacer análisis para descartar también lo viral. Por ahora es importante mantenerlo calentito y empezar un tratamiento de soporte.",
+  "chunks_corpus": 372
+ },
+ {
+  "id": "orthomyxoviridae-infections",
+  "mesh_target": "Orthomyxoviridae Infections",
+  "especie": "ave",
+  "query": "Veterinario: Hola, ¿qué le pasa a tu gallina? Dueño: Hola, doctor, la noté muy decaída, no quiere comer y tiene los ojos medio hinchados. Veterinario: ¿Viste si respira con dificultad o si estornuda? Dueño: Sí, estornuda bastante y a veces hace un ruido raro al respirar, como si tuviera mocos. Veterinario: ¿Hace cuánto que está así? Dueño: Unos dos o tres días, y ahora también una compañera del gallinero empezó igual. Veterinario: Claro, voy a revisarla. Veo que tiene secreción nasal y ocular, las plumas erizadas y la cresta un poco azulada. Al auscultar, se escuchan ruidos respiratorios anormales. Esto es sugestivo de una infección respiratoria viral. Dueño: ¿Es grave? ¿Se contagia rápido? Veterinario: Sí, es compatible con virus influenza aviar, una infección por orthomyxovirus. Se propaga muy fácil entre las aves. Necesitamos tomar muestras para confirmar y aislar a las enfermas. Dueño: Ay, doctor, qué miedo. ¿Se pueden curar? Veterinario: Depende de la cepa, pero debemos actuar rápido. Te voy a dar indicaciones de bioseguridad y un tratamiento de soporte mientras esperamos los resultados.",
+  "chunks_corpus": 365
+ },
+ {
+  "id": "obesity",
+  "mesh_target": "Obesity",
+  "especie": "perro",
+  "query": "Veterinario: ¡Hola! ¿Qué le pasa a este gordito?\nDueño: Hola, doctor. Vengo porque cada vez está más panzón. Antes se movía más, pero ahora se queda tirado todo el día.\nVeterinario: Sí, se nota que tiene bastante sobrepeso. ¿Ha cambiado la alimentación o le da muchas golosinas?\nDueño: Le damos lo de siempre, pero sí, le damos más premios cuando nos pide. Y antes salía a pasear, ahora se cansa rápido.\nVeterinario: Claro, el sobrepeso le dificulta la movilidad. Al palparle la panza siento mucha grasa, y al escucharle el pecho, el corazón trabaja un poco forzado. Es un cuadro compatible con obesidad, sugestivo de que necesita un cambio en la dieta y más ejercicio.\nDueño: ¿Y es grave? ¿Puede tener algo más?\nVeterinario: La obesidad le genera riesgo de problemas articulares, cardiacos y hasta diabetes. Por lo pronto, lo más probable es que esto sea por el exceso de comida y falta de movimiento. ¿Hace cuánto que no se pesa?\nDueño: No lo pesamos hace meses. Él siempre fue grande, pero ahora se nota más redondo.\nVeterinario: Justamente, vamos a pesarlo y armar un plan de bajada de peso. Lo importante es que no coma entre comidas ni reciba golosinas. También hay que retomar paseos cortos, e ir aumentando de a poco.\nDueño: Bueno, doctor, haré lo que me diga. ¿Y hay que venir a controles?\nVeterinario: Sí, idealmente cada 15 días para ver cómo responde y ajustar la dieta. Con paciencia y constancia, él va a estar mucho mejor.",
+  "chunks_corpus": 357
+ },
+ {
+  "id": "craniosynostoses",
+  "mesh_target": "Craniosynostoses",
+  "especie": "perro",
+  "query": "Veterinario: Hola, ¿cómo va? ¿Qué le pasa a este cachorrito?\nDueño: Hola, doctor. Vengo porque noto que la cabeza de mi perro, un bulldog francés de cinco meses, tiene como una forma rara, más puntiaguda de lo normal.\nVeterinario: Entiendo. ¿Desde cuándo notó eso?\nDueño: Desde que lo compré, pero parece que se está notando más. También a veces se frota la cabeza contra el piso y tiene como lagrimeo.\nVeterinario: Bien. Déjeme revisarlo. Al palpar el cráneo, siento que los huesos del techo están unidos antes de tiempo, falta la fontanela normal. También noto que los ojos están un poco saltones. Esto es sugestivo de un cierre prematuro de las suturas del cráneo.\nDueño: ¿Y qué significa eso? ¿Es grave?\nVeterinario: Puede comprimir el cerebro. Es compatible con una craneosinostosis. Recomiendo una tomografía para confirmar y ver si requiere cirugía.\nDueño: Ay, qué susto. ¿Se puede operar acá?\nVeterinario: Sí, pero en centros especializados. Por ahora, evite que se golpee la cabeza.",
+  "chunks_corpus": 355
+ },
+ {
+  "id": "lyme-disease",
+  "mesh_target": "Lyme Disease",
+  "especie": "perro",
+  "query": "Veterinario: Hola, ¿qué le pasa a tu perro?\nDueño: Hola, doctor. La semana pasada lo llevé al campo y ahora está muy decaído, no quiere comer y cojea de una pata.\nVeterinario: ¿Qué pata es la que cojea?\nDueño: La trasera derecha. Parece que le duele al caminar, y a veces se queda quieto como si no quisiera apoyarla.\nVeterinario: Veo que tiene las articulaciones un poco inflamadas, especialmente esa rodilla. Tiene fiebre leve y los ganglios del cuello están un poco grandes. ¿Viste alguna garrapata en él?\nDueño: Sí, justo después del campo le saqué una garrapata que estaba bien hinchada.\nVeterinario: Con ese antecedente, el cuadro es sugestivo de una enfermedad transmitida por garrapatas. Es compatible con una infección bacteriana que afecta las articulaciones y el estado general. Te recomiendo hacer análisis de sangre para confirmar y empezar tratamiento con antibióticos.",
+  "chunks_corpus": 355
+ },
+ {
+  "id": "hip-dysplasia-canine",
+  "mesh_target": "Hip Dysplasia, Canine",
+  "especie": "perro",
+  "query": "Veterinario: Buenas, ¿qué le pasa a este hermoso labrador? Dueño: Hola, doc. Tiene como un mes que se levanta medio renco de atrás, sobre todo después de dormir. Veterinario: ¿Cojea de alguna pata en especial? Dueño: No, parece que le duele mover las dos de atrás. A veces se sienta raro, con las patas estiradas para adelante. Veterinario: ¿Notaste que le cueste subir escaleras o saltar al auto? Dueño: Sí, eso justo. Ya no quiere subir al sillón. Antes se tiraba, ahora primero se sienta y piensa. Veterinario: Entiendo. Al revisarlo, se queja cuando le abro las caderas, y tiene pérdida de masa muscular en los muslos. El movimiento de las caderas es flojo, como que tiene mucho juego. Dueño: ¿Puede ser artrosis? Es joven, tiene dos años. Veterinario: Es sugestivo de displasia de cadera canina, que es un mal desarrollo de la articulación. Con el tiempo puede generar artrosis, pero ahora estamos a tiempo de manejarlo. Dueño: ¿Y eso tiene cura? Veterinario: No hay cura, pero con control de peso, ejercicios suaves y a veces cirugía se puede mejorar mucho su calidad de vida. Vamos a sacar radiografías para confirmar.",
+  "chunks_corpus": 333
+ },
+ {
+  "id": "hemangiosarcoma",
+  "mesh_target": "Hemangiosarcoma",
+  "especie": "perro",
+  "query": "Veterinario: Buen día, ¿qué le pasa a este hermoso perrito? Dueño: Hola, doctor. Tiene como unos días muy decaído, no quiere comer nada y hoy lo vi muy pálido. Veterinario: ¿Notaste si alguna vez se desmayó o si le cuesta respirar? Dueño: Sí, justo anoche como que se cayó y se quedó tirado unos segundos, después se levantó como si nada. Pero hoy está muy apagado. Veterinario: Al palparle el abdomen, siento que está un poco distendido y tenso. Las mucosas las tiene muy pálidas. Dueño: ¿Será algo grave, doctor? Él es muy activo siempre. Veterinario: Por los signos, es sugestivo de que podría tener un sangrado interno, compatible con un tumor en el bazo. Dueño: ¿Un tumor? ¿Eso se opera? Veterinario: Sí, habría que hacer una ecografía para confirmarlo. El cuadro es compatible con un hemangiosarcoma, que es un tumor agresivo que sangra. Dueño: ¿Y qué chances tiene? Veterinario: Depende de la etapa. Primero tenemos que estabilizarlo y hacer los estudios. Es un cuadro de riesgo. Dueño: Bueno, hagamos lo que haya que hacer.",
+  "chunks_corpus": 314
+ },
+ {
+  "id": "disease-progression",
+  "mesh_target": "Disease Progression",
+  "especie": "perro",
+  "query": "Veterinario: Hola, ¿qué le pasa a Rocky?\nDueño: Es que antes subía las escaleras solo, pero ahora se queda mirando y no puede. También noto que duerme mucho más.\nVeterinario: Entiendo. Al examen, tiene los músculos de las patas traseras más flacos y le cuesta levantarse. ¿Hace cuánto que empezó?\nDueño: Como hace dos meses, pero se fue poniendo peor de a poco.\nVeterinario: Esto es sugestivo de una enfermedad degenerativa de las articulaciones, como osteoartritis, con avance progresivo.\nDueño: ¿Y se puede hacer algo?\nVeterinario: Sí, podemos manejar el dolor y la inflamación, pero es esperable cierta progresión con el tiempo.",
+  "chunks_corpus": 313
+ },
+ {
+  "id": "heart-failure",
+  "mesh_target": "Heart Failure",
+  "especie": "perro",
+  "query": "Veterinario: Hola, ¿cómo va? ¿Qué le pasa a este paciente?\nDueño: Bueno, la verdad que está medio decaído. No tiene ganas de salir a pasear, se cansa enseguida.\nVeterinario: ¿Notaste si tose más de lo normal, sobre todo a la noche o cuando está acostado?\nDueño: Sí, ahora que lo dice, hace unos días lo escucho toser como si algo se le hubiera atragantado, especialmente a la noche.\nVeterinario: Claro. Revisemos: al auscultarlo le escucho un soplo cardíaco y crepitaciones en los pulmones. Las mucosas están un poco azuladas.\nDueño: ¿Y eso qué significa? ¿Es grave?\nVeterinario: Todo esto es compatible con una falla en el corazón, sugestivo de insuficiencia cardíaca. El corazón no bombea bien y se le está acumulando líquido en los pulmones. Vamos a necesitar una ecografía y una placa de tórax para confirmar y empezar el tratamiento.",
+  "chunks_corpus": 299
+ },
+ {
+  "id": "coccidiosis",
+  "mesh_target": "Coccidiosis",
+  "especie": "conejo",
+  "query": "Veterinario: Hola, ¿cómo está tu conejo?\nDueño: Le noté hace unos días que está más decaído, y hoy vi que la caca es como líquida y más oscura.\nVeterinario: ¿Cuánto tiempo lleva así?\nDueño: Como tres días, pero anoche empezó a tener como manchitas blancas en la popó.\nVeterinario: Voy a revisarlo. ¿Ha comido menos?\nDueño: Sí, casi no quiere comer, y está como encorvado.\nVeterinario: Al palpar el abdomen se siente sensible, y tiene fiebre. Las heces con esas motas blancas son sugestivas de coccidiosis, compatible con una infección parasitaria intestinal.\nDueño: ¿Es grave? ¿Qué le puedo dar?\nVeterinario: Se trata con antiparasitarios específicos y hay que asegurar hidratación. Su pronóstico es bueno si se inicia el tratamiento temprano, pero evitemos que se deshidrate.",
+  "chunks_corpus": 294
+ },
+ {
+  "id": "carcinoma",
+  "mesh_target": "Carcinoma",
+  "especie": "perro",
+  "query": "Veterinario: Hola, ¿qué le pasa a Tobby? Dueño: Doctor, hace unas semanas le noté una bolita en el cuello, como una pelotita dura. No le duele cuando la toco, pero creció un poco. Además, está más cansado, duerme mucho y ha adelgazado un poco, aunque come normal. Veterinario: Veo que tiene un nódulo firme en la zona de los ganglios mandibulares. Al palparlo no parece doloroso sí está fijo a los tejidos. También noto que tiene las encías un poco pálidas. Dueño: Sí, él siempre fue activo, pero ahora no quiere jugar ni salir a pasear. ¿Será algo grave? Veterinario: Por las características del nódulo, es sugestivo de un proceso neoplásico. Podría tratarse de un carcinoma, que es un tipo de tumor maligno. Vamos a tomar una muestra con una aguja fina para analizarla y confirmarlo con certeza. Dueño: ¿Y eso es curable? Veterinario: Dependerá del tipo específico y si se ha diseminado. Con los resultados podremos armar un plan, que puede incluir cirugía, quimioterapia o radioterapia. Vamos paso a paso, primero el diagnóstico.",
+  "chunks_corpus": 290
+ },
+ {
+  "id": "mitral-valve-insufficiency",
+  "mesh_target": "Mitral Valve Insufficiency",
+  "especie": "perro",
+  "query": "Veterinario: Hola, ¿qué le pasa a este lomito? Dueño: Tiene como tos, sobre todo a la noche o cuando se emociona. Veterinario: ¿De día también? ¿Se cansa más al pasear? Dueño: Sí, antes caminaba mucho y ahora se para, jadea fuerte. Veterinario: Perfecto. Voy a escucharle el pecho con el fonendo… Se escucha un soplo fuerte del lado izquierdo. Dueño: ¿Eso es grave? Veterinario: Es sugestivo de que la válvula del corazón no cierra bien, compatible con insuficiencia de la válvula mitral. Dueño: ¿Y eso se cura? Veterinario: No se cura, pero se puede manejar con medicación para que esté mejor. Le haré una radiografía y un eco para ver el tamaño del corazón.",
+  "chunks_corpus": 279
+ },
+ {
+  "id": "seizures",
+  "mesh_target": "Seizures",
+  "especie": "perro",
+  "query": "Veterinario: ¡Hola! Decime, ¿qué le pasa a Tobi? Dueño: Hola, doctor. La verdad, nos asustamos mucho. Ayer, mientras dormía, de repente empezó a temblar todo, como si tuviera un ataque. Movía las patas sin control y espumeaba un poco de la boca. Duró como un minuto, y después quedó como desorientado. Veterinario: Entiendo, debe haber sido impactante. ¿Notaste si perdió el control de la vejiga o de los intestinos? Dueño: Sí, creo que sí. El colchón quedó mojado. Veterinario: ¿Y antes de eso había tenido algún golpe, o comió algo raro? Dueño: No, nada. Es un perro sano, de 4 años. Solo juega y come su balanceado. Veterinario: Bien. Al revisarlo ahora, está alerta, pero noto el cuello un poco rígido. También veo que tiene un temblor fino en los músculos de la cara. ¿Te acordás si el ataque fue de todo el cuerpo o solo de un lado? Dueño: Parecía de todo el cuerpo, se sacudía entero. Veterinario: De acuerdo. Lo que describís es muy sugestivo de una convulsión generalizada. Podría ser compatible con epilepsia primaria, dada su edad, o también con algo tóxico o metabólico. Para descartar otras causas, vamos a hacerle unos análisis de sangre y, según los resultados, ver si necesitamos un electroencefalograma. Dueño: Bueno, lo que sea necesario. Gracias, doctor.",
+  "chunks_corpus": 277
+ },
+ {
+  "id": "bacterial-infections",
+  "mesh_target": "Bacterial Infections",
+  "especie": "perro",
+  "query": "Veterinario: Hola, ¿cómo está? ¿Qué le pasa a Firulais?\nDueño: Hola doctor, vengo porque tiene fiebre y no quiere comer desde ayer. Está muy decaído.\nVeterinario: Veo que tiene los ojos un poquito hundidos y las encías pegajosas. ¿Ha tenido vómitos o diarrea?\nDueño: Sí, vomitó dos veces anoche y hoy tuvo una diarrea con un poquito de sangre.\nVeterinario: Al palparle el abdomen se queja, y tiene los ganglios del cuello inflamados. La fiebre es de 39.8°C. Esto es sugestivo de una infección bacteriana.\nDueño: ¿Algo grave? ¿Necesita antibióticos?\nVeterinario: Podemos hacer un análisis de sangre para ver los glóbulos blancos, pero por el cuadro completo es compatible con una infección bacteriana intestinal o generalizada. Le voy a recetar un antibiótico de amplio espectro y suero para rehidratarlo.\nDueño: Perfecto, ¿cuándo debería mejorar?\nVeterinario: En 48 horas debería notar mejoría. Si no, vuelva para un cultivo bacteriano. También hay que tenerlo en ayuno 12 horas y luego ofrecerle una dieta blanda.",
+  "chunks_corpus": 273
+ },
+ {
+  "id": "proteinuria",
+  "mesh_target": "Proteinuria",
+  "especie": "perro",
+  "query": "Veterinario: Hola, ¿cómo anda? ¿Qué le pasa a Lola?\nDueño: Hola, doctor. La verdad que la noto medio apagada. No tiene la misma energía, come menos y anoche se le escapó la orina en la cama, cosa que nunca pasa.\nVeterinario: ¿Vio si esa orina tenía un color raro o si orina más seguido?\nDueño: Sí, ahora está pidiendo salir a cada rato, pero hace poca cantidad. Y el pis es más clarito que antes, como aguado.\nVeterinario: Bien, la voy a revisar. Noto las encías un poco pálidas y al palparla en la zona de los riñones ella se queja. Voy a tomarle una muestra de orina y un análisis de sangre.\nDueño: ¿Cree que puede ser algo malo de los riñones?\nVeterinario: Podría ser una inflamación o una pérdida de proteínas por el riñón. En el análisis de orina vi que tiene proteínas, lo que es compatible con un daño renal. Vamos a ver los valores de sangre para confirmar y definir el tratamiento.",
+  "chunks_corpus": 268
+ },
+ {
+  "id": "chagas-disease",
+  "mesh_target": "Chagas Disease",
+  "especie": "perro",
+  "query": "Veterinario: Hola, ¿qué le pasa a Panchito? Dueño: Doctor, está decaído, no quiere comer y tiene la panza hinchada. Veterinario: Veo que tiene los ojos un poco amarillentos y las encías pálidas. ¿Ha tenido fiebre o vómitos? Dueño: Sí, a veces vomita y parece que le cuesta respirar. Veterinario: Al palparle el abdomen siento el hígado agrandado. ¿Vive en zona rural o está expuesto a vinchucas? Dueño: Vivimos en el campo y sí, hay muchas vinchucas. Veterinario: Con esos signos y la exposición, es sugestivo de una infección parasitaria que afecta el corazón, compatible con la enfermedad de Chagas. Vamos a hacerle análisis de sangre y un electrocardiograma para confirmarlo.",
+  "chunks_corpus": 267
+ },
+ {
+  "id": "intervertebral-disc-degeneration",
+  "mesh_target": "Intervertebral Disc Degeneration",
+  "especie": "perro",
+  "query": "Veterinario: ¡Hola! Contame, ¿qué le pasa a tu perrito?\nDueño: Buenas, doctor. Desde ayer, mi perro salchicha, Tito, no quiere subir las escaleras y se arrastra un poco con las patas de atrás.\nVeterinario: Ya veo. ¿Notaste si tiene dolor en la espalda o si se queja cuando lo tocás?\nDueño: Sí, cuando le toco la columna, como que se encoge y a veces llora.\nVeterinario: Y el apetito y la vejiga, ¿cómo están? ¿Hace pis normal?\nDueño: Come bien, pero ayer hizo pis dos veces en la cama, cosa que nunca hace.\nVeterinario: Bueno, al examinarlo, veo que tiene la espalda arqueada y rigidez en el cuello. La sensibilidad en las patas traseras está disminuida. Esto es compatible con una degeneración de los discos intervertebrales, que suele verse en perros de lomo largo como el tuyo. Es probable que un disco se esté abombando y comprimiendo la médula.\nDueño: ¿Qué hacemos ahora? ¿Es grave?\nVeterinario: Vamos a hacer una radiografía para confirmar y evaluar el grado. Por ahora, reposo estricto, antiinflamatorios y ver si necesita cirugía. Traelo mañana temprano.",
+  "chunks_corpus": 265
+ },
+ {
+  "id": "mouth-neoplasms",
+  "mesh_target": "Mouth Neoplasms",
+  "especie": "perro",
+  "query": "Veterinario: Hola, ¿qué le pasa a tu perro? Dueño: Hace unos días noté que tiene como una hinchazón en el costado de la boca, y a veces babea más de lo normal. Veterinario: ¿Afecta eso cuando come o abre la boca? Dueño: Sí, parece que mastica despacio y a veces deja caer la comida. Veterinario: Vamos a revisarlo. Al abrirle la boca, se ve una masa firme en la encía del molar superior, del lado derecho. Dueño: ¿Eso puede ser grave? Veterinario: Bueno, podría ser algo como un crecimiento benigno o, a veces, sugestivo de un tumor. Es compatible con una neoplasia oral. Habría que hacer una biopsia para saber con certeza. Dueño: ¿Y cómo se trata? Veterinario: Depende del tipo. Si es algo más simple, con cirugía se puede sacar; si no, puede requerir otros pasos. De paso, revisemos ganglios y haremos análisis.",
+  "chunks_corpus": 264
+ },
+ {
+  "id": "sporotrichosis",
+  "mesh_target": "Sporotrichosis",
+  "especie": "gato",
+  "query": "Veterinario: Hola, ¿qué le pasa a Michi hoy? Dueño: Vino con unas lastimaduras que no se curan, en la cara y en una pata. Tiene como bultitos que supuran. Veterinario: Hace cuánto que le salieron? Dueño: Como dos semanas, al principio pensé que era una pelea, pero no mejora con la pomada que le puse. Veterinario: Veo que tiene varias lesiones nodulares y ulceradas en el hocico y en la extremidad. También noto que los ganglios de la zona están aumentados de tamaño. Esto es sugestivo de una infección micótica, como esporotricosis. Es importante descartar otras causas, pero el cuadro clínico es compatible. Dueño: ¿Es grave? ¿Se contagia? Veterinario: Sí, puede ser crónico si no se trata, y sí, se contagia a otros animales y a las personas por contacto con las lesiones. Habría que hacer un raspado o una biopsia para confirmar. Lo ideal es empezar un tratamiento antifúngico específico. Dueño: Bueno, hagamos lo que haya que hacer. Veterinario: Perfecto, tomamos una muestra y mientras tanto le recetamos algo para controlar las bacterias secundarias. Tenga cuidado al manejarlo, use guantes.",
+  "chunks_corpus": 260
+ },
+ {
+  "id": "cardiomyopathy-hypertrophic",
+  "mesh_target": "Cardiomyopathy, Hypertrophic",
+  "especie": "gato",
+  "query": "Dueño: Hace unos días que mi gato está raro, respira como con la boca abierta, como si hubiera corrido, pero está quieto. También noto que se cansa más rápido.\nVeterinario: Bueno, lo estoy revisando. El ritmo cardíaco está acelerado y al palpar el pecho se siente un poco de vibración. ¿Notaste si tose o tiene problemas para saltar a la cama?\nDueño: Ahora que lo dice, sí, últimamente no salta a la mesa como antes. Y ayer lo vi respirando con la panza, como si hiciera fuerza.\nVeterinario: Claro. Al auscultar, tiene un soplo cardíaco y los pulmones están congestionados, como si hubiera líquido. Esto es sugestivo de un problema en el músculo del corazón, compatible con una condición llamada miocardiopatía hipertrófica, que engrosa las paredes del corazón.\nDueño: ¿Es grave? ¿Se puede tratar?\nVeterinario: Sí, es seria pero manejable. Le voy a tomar una ecografía para confirmar el diagnóstico y empezar con medicación para aliviar el líquido en pulmones y ayudar al corazón a bombear mejor. ¿Tuvo algún episodio de desmayo?\nDueño: No, de desmayo no. Pero respira así desde antier. ¿Tiene que quedarse internado?\nVeterinario: Lo ideal sería que hoy se quede en observación con oxígeno y diuréticos para estabilizarlo. Luego, en casa, deberá tomar pastillas de por vida y controlarse con ecografías periódicas.",
+  "chunks_corpus": 254
+ },
+ {
+  "id": "communicable-diseases-emerging",
+  "mesh_target": "Communicable Diseases, Emerging",
+  "especie": "perro",
+  "query": "Veterinario: Hola, ¿qué le pasa a Tobi? Dueño: Vino re decaído, no quiere jugar y tiene fiebre. Ayer empezó con vómitos y diarrea, como líquida. Veterinario: Dejame revisarlo. Tiene temperatura 39.5, las encías un poco pálidas y los ganglios del cuello inflamados. ¿Estuvo en contacto con otros perros? Dueño: Sí, lo llevé al parque el fin de semana y jugó con varios. Veterinario: El cuadro es sugestivo de una enfermedad infecciosa emergente, compatible con algo que se está viendo mucho en la zona. Dueño: ¿Es grave? ¿Se contagia rápido? Veterinario: Puede serlo. Es importante aislarlo de otros animales. Vamos a hacer análisis de sangre y de heces para confirmar, y arrancar con tratamiento de soporte.",
+  "chunks_corpus": 252
+ },
+ {
+  "id": "diabetes-mellitus",
+  "mesh_target": "Diabetes Mellitus",
+  "especie": "perro",
+  "query": "Veterinario: Hola, ¿cómo va? ¿Qué le está pasando a tu perro?\\nDueño: Hola, doctor. Es que vengo muy preocupado con Toby. Noto que está tomando mucha agua, como nunca. Y hace pis a cada rato, hasta se le escapa en casa. Además, come un montón, pero está flaco.\\nVeterinario: Claro, eso me llama la atención. ¿Cuántos años tiene Toby?\\nDueño: Tiene ocho años.\\nVeterinario: Bien. Al examinarlo, está un poco flaco, tiene el pelaje opaco y parece deshidratado. ¿Vomita o tiene diarrea?\\nDueño: No, no. Solo eso de tomar agua y orinar mucho. También parece más decaído.\\nVeterinario: Perfecto. Con esos signos de sed excesiva, orina abundante, pérdida de peso a pesar de buen apetito, en un perro de mediana edad, es muy sugestivo de un problema metabólico como la diabetes. Vamos a confirmarlo con un análisis de sangre y orina. ¿Está castrado?\\nDueño: Sí, lo castramos hace unos años.\\nVeterinario: Justamente, los perros castrados son más propensos. Empecemos con los análisis para confirmar el diagnóstico.",
+  "chunks_corpus": 249
+ },
+ {
+  "id": "pancreatitis",
+  "mesh_target": "Pancreatitis",
+  "especie": "perro",
+  "query": "Veterinario: ¡Hola! ¿Qué le pasa a Coco?\nDueño: Hola, doctor. Desde ayer no quiere comer nada y está todo el día echado. Ayer vomitó una vez, pero hoy no.\nVeterinario: ¿Ha tenido diarrea o ha tomado agua?\nDueño: No, diarrea no. Agua toma poquito, pero enseguida se echa de nuevo.\nVeterinario: Déjeme revisarlo. Al palparle el abdomen, está tenso y parece dolerle acá adelante. También tiene un poquito de fiebre.\nDueño: ¿Puede ser algo grave? Se ve muy decaído.\nVeterinario: Por los signos, es sugestivo de una inflamación del páncreas, lo que llamamos pancreatitis. Es compatible con los vómitos y el dolor abdominal que presenta.\nDueño: ¿Y eso se cura? ¿Qué hay que hacer?\nVeterinario: Sí, con tratamiento suele mejorar, pero necesita ayuno, medicación para el dolor y protección gástrica. Le sugiero hacerle un análisis de sangre para confirmar.",
+  "chunks_corpus": 243
+ },
+ {
+  "id": "urinary-tract-infections",
+  "mesh_target": "Urinary Tract Infections",
+  "especie": "perro",
+  "query": "Veterinario: Hola, ¿qué le pasa a Fido? Dueño: Hace dos días que orina todo el tiempo, poquito cada vez y en cualquier lado, hasta en mi cama. También llora cuando se agacha a mear. Veterinario: ¿Notaste si la orina tiene sangre o es turbia? Dueño: Sí, tiene gotas de sangre al final, como si fuera rosada. Veterinario: Te voy a revisar. Siente, tiene el abdomen un poco tenso. La vejiga se siente pequeña y vacía, pero él claramente siente dolor cuando la toco. Dueño: ¿Y puede ser grave? Veterinario: Es sugestivo de una infección urinaria baja, probablemente una cistitis bacteriana. Es común en perras viejas como ella, pero en machos hay que descartar también cálculos. Dueño: ¿Y se cura con pastillas? Veterinario: Vamos a tomar una muestra de orina por punción directa de la vejiga para confirmar el diagnóstico e identificar la bacteria. Mientras, podemos arrancar con antibiótico y un antiinflamatorio, los resultados nos guiarán. Dueño: Dale, hagamos eso. Veterinario: Perfecto. También te recomiendo darle más agua fresca y que no aguante las ganas de orinar. Cualquier cambio nos avisas.",
+  "chunks_corpus": 241
+ },
+ {
+  "id": "recurrence",
+  "mesh_target": "Recurrence",
+  "especie": "perro",
+  "query": "Veterinario: Hola, ¿cómo viene la gatita? Hace tiempo que no la veíamos.\nDueño: Sí, doctor, la verdad que estábamos contentos porque parecía curada, pero volvió a lo mismo. Otra vez tiene esa cosa en la piel.\nVeterinario: Ah, ¿la lesión en el lomo que habíamos tratado? Cuénteme cómo empezó.\nDueño: Exacto. Apareció un bultito como una verruga, después se puso rojo y se fue agrandando. La primera vez con la crema se fue, pero ahora está igual o peor.\nVeterinario: Al tacto se siente una masa firme, de bordes irregulares y está un poco ulcerada en el centro. Esto es sugestivo de lo que vimos antes: podría ser un proceso tumoral cutáneo que tiende a recurrir.\nDueño: ¿Otra vez? ¿No se va a curar nunca?\nVeterinario: Es compatible con un tumor que a veces vuelve a aparecer después del tratamiento. Para saber si es el mismo tipo, lo mejor sería tomar una muestra con aguja fina para analizar las células y confirmar. ¿Le parece?\nDueño: Sí, lo que usted diga. Pero ¿y si vuelve otra vez?\nVeterinario: Si la citología confirma que es recurrente, podemos evaluar opciones como cirugía más amplia o tratamientos complementarios para reducir las chances de que se repita. Vamos paso a paso.",
+  "chunks_corpus": 241
+ },
+ {
+  "id": "toxocariasis",
+  "mesh_target": "Toxocariasis",
+  "especie": "perro",
+  "query": "Veterinario: Hola, ¿cómo andan? ¿Qué le pasa a este cachorrito tan panzón?\nDueño: Buenas, sí, es que hace unos días que está medio apagado, come pero no tanto como antes, y hoy vomitó una pasta medio rara, como con hilos de fideos.\nVeterinario: Claro, ¿viste algún gusano en la caca o en el vómito?\nDueño: Sí, en el vómito había unos bichitos blancos como si fueran fideos finitos.\nVeterinario: Perfecto. Noto que está un poquito deshidratado y el pelaje opaco. La panza está distendida, más hinchada de lo normal para un perro de su edad. ¿Hace cuánto que no lo desparasitan?\nDueño: La verdad, nunca lo desparasitamos. Lo adoptamos de la calle hace dos meses y no llevamos al veterinario todavía.\nVeterinario: Entiendo. Por el cuadro, la panza hinchada y los parásitos blancos que viste, es muy compatible con una infección por áscaris. Esos gusanitos redondos son muy comunes en cachorros y se transmiten de la mamá o del ambiente. ¿Tiene diarrea o ha perdido peso?\nDueño: Sí, ha tenido diarrea líquida los últimos dos días, y se le marcan las costillas.\nVeterinario: Bueno, vamos a hacer un análisis de materia fecal para confirmar, pero por lo que contás y lo que veo en el examen es sugestivo de una parasitosis. Le voy a recetar un antiparasitario y además hay que hidratarlo. También es importante desparasitar al resto de los animales de la casa y a las personas, porque estos parásitos pueden contagiarse a los humanos.",
+  "chunks_corpus": 240
+ },
+ {
+  "id": "giardiasis",
+  "mesh_target": "Giardiasis",
+  "especie": "perro",
+  "query": "Veterinario: ¿Qué le pasa a tu perro?\nDueño: Hace unos días empezó con diarrea, como pasta, muy mal olor, y a veces tiene moco.\nVeterinario: ¿Vomita o tiene fiebre?\nDueño: No, come bien y está activo, pero va al baño muchas veces.\nVeterinario: Al palpar el abdomen está un poco sensible. ¿Le diste algo nuevo de comer?\nDueño: No, solo su alimento, pero quizás tomó agua de un charco en el parque.\nVeterinario: Por los síntomas, es compatible con una infección intestinal, sugestivo de parásitos como giardia.\nDueño: ¿Es grave?\nVeterinario: En general no, pero hay que tratarlo. Te recomiendo traer una muestra de materia fecal para confirmar.",
+  "chunks_corpus": 239
+ },
+ {
+  "id": "anterior-cruciate-ligament-injuries",
+  "mesh_target": "Anterior Cruciate Ligament Injuries",
+  "especie": "perro",
+  "query": "Veterinario: Hola, ¿qué le pasa a Firulais? Dueño: Doctor, desde hace unos días viene rengueando de la pata trasera derecha. A veces no apoya nada el pie. Veterinario: ¿Notó si fue de repente o fue empeorando de a poco? Dueño: Fue de golpe. Estaba jugando en el parque, giró rápido y empezó a cojear. Veterinario: Claro, es común. Al examinarlo, la rodilla tiene un poco de inflamación y al moverla se siente un ruido como de resorte. Dueño: ¿Será que se lastimó un ligamento? Veterinario: Exacto, el cuadro es sugestivo de una rotura del ligamento cruzado anterior. Es una lesión frecuente en perros y compatible con lo que usted describe. Dueño: ¿Qué hacemos, doctor? Veterinario: Primero confirmamos con radiografías y luego evaluamos si necesita cirugía o manejo conservador.",
+  "chunks_corpus": 232
+ },
+ {
+  "id": "airway-obstruction",
+  "mesh_target": "Airway Obstruction",
+  "especie": "gato",
+  "query": "Veterinario: Hola, ¿qué le pasa a Michi? Dueño: Hace un par de horas empezó a respirar re raro, como con la boca abierta y haciendo fuerza. Veterinario: ¿Notaste si tose o si le sale algo por la nariz? Dueño: No, no tose, pero parece que se ahoga. Además está como inquieto y no para de lamerse los labios. Veterinario: Te voy a revisar. Al escuchar el pecho, los sonidos respiratorios son muy ruidosos, como un silbido en la tráquea. ¿Le habrá comido algo como un juguete o un hilo? Dueño: La semana pasada encontré un pedacito de plástico mordisqueado, pero no vi que se lo tragara. Veterinario: Esto es sugestivo de una obstrucción en las vías respiratorias. Podría ser un cuerpo extraño atorado en la tráquea o un estrechamiento. ¿Puede abrir la boca suave para ver? Dueño: Sí, pero tiene mucho babeo y no se deja mucho. Veterinario: Veo la lengua con un tono azulado, lo que indica falta de oxígeno. Es urgente hacer una radiografía y probablemente sedarlo para explorar. ¿Le parece si lo internamos ya? Dueño: Dale, lo que sea para que mejore.",
+  "chunks_corpus": 230
+ },
+ {
+  "id": "kidney-diseases",
+  "mesh_target": "Kidney Diseases",
+  "especie": "perro",
+  "query": "Veterinario: Hola, ¿qué le pasa a Firulais?\nDueño: Hola, doctor. Vengo porque hace una semana que come menos y toma mucha agua. También orina mucho más de lo normal.\nVeterinario: Entiendo. ¿Notaste si tiene vómitos o si perdió peso?\nDueño: Sí, vomitó dos veces esta semana, y se le notan las costillas más marcadas.\nVeterinario: Bien, dejame revisarlo. Veo que está algo deshidratado, las encías están pálidas y al palparle los riñones se sienten más chicos de lo normal. Voy a tomar una muestra de sangre para ver cómo están los valores renales.\nDueño: ¿Es grave? ¿Tiene los riñones mal?\nVeterinario: Los signos que me contás y lo que veo en el examen sugieren que podría haber una enfermedad renal. Es compatible con un proceso crónico. Vamos a esperar los análisis para confirmar el diagnóstico y armar un plan.\nDueño: Bueno, doctor, hagan lo necesario.",
+  "chunks_corpus": 221
+ },
+ {
+  "id": "brain-neoplasms",
+  "mesh_target": "Brain Neoplasms",
+  "especie": "perro",
+  "query": "Veterinario: Hola, ¿cómo anda? ¿Qué le pasa a este hermoso? Dueño: Hola, doctor. La verdad que Nota viene raro hace una semana. Como que da vueltas en círculos, se choca con las paredes. Veterinario: Ya veo. ¿Notó si tiene convulsiones o como si perdiera el conocimiento? Dueño: No, eso no. Pero a veces se queda como ido, mirando para un lado fijo. Y también como que no ve bien, choca con los muebles. Veterinario: Ajá. ¿Come y toma agua normal? Dueño: Sí, pero con las ganas de siempre. Eso no cambió. Veterinario: Bien, déjeme revisarlo. Al examen físico, veo que tiene reflejos pupilares lentos en el ojo izquierdo y cierta debilidad en las patas derechas. Esto es sugestivo de un problema dentro del cráneo, compatible con una masa. Dueño: ¿Masa? ¿Como un tumor? Veterinario: Correcto, podría tratarse de una neoplasia cerebral. Para confirmarlo, recomendaría una resonancia. Dueño: ¿Y hay tratamiento? Veterinario: Depende del tipo y ubicación. A veces se puede operar o tratar con radioterapia. Vamos a hacer los estudios para saber más.",
+  "chunks_corpus": 220
+ },
+ {
+  "id": "retinal-degeneration",
+  "mesh_target": "Retinal Degeneration",
+  "especie": "perro",
+  "query": "Veterinario: Hola, ¿cómo va? Decime qué le pasa a tu perro.\nDueño: Buenas, doctor. La verdad, está chocando con todo. Sobre todo de noche, como si no viera bien. También se tropieza con las escaleras.\nVeterinario: Ya veo. ¿Notaste si tiene los ojos muy brillosos o como si se le hubieran puesto medio nublados?\nDueño: Ahora que lo dice, sí... tiene como un brillo raro, verdoso, en el fondo del ojo.\nVeterinario: Bueno, vamos a revisarlo. Al iluminarle los ojos con esta linterna, veo que tiene un reflejo muy fuerte, casi metálico, en la retina. Además, en el fondo de ojo se ven unos vasos muy finitos y como retraídos.\nDueño: ¿Es grave? ¿Se va a quedar ciego?\nVeterinario: Mirá, el cuadro es compatible con una degeneración retinal progresiva. Es una enfermedad hereditaria donde las células de la retina se van deteriorando. Puede llevar a ceguera total, pero no duele y los perros se adaptan muy bien.\nDueño: Ah, qué triste... ¿No hay tratamiento?\nVeterinario: Lamentablemente no hay cura. Pero podemos ayudarlo con suplementos antioxidantes y adaptar la casa para que no se golpee. También es importante descartar otras causas como presión ocular alta. Te sugiero que vayamos haciendo un seguimiento.",
+  "chunks_corpus": 218
+ },
+ {
+  "id": "breast-neoplasms",
+  "mesh_target": "Breast Neoplasms",
+  "especie": "perro",
+  "query": "Veterinario: Hola, ¿qué le pasa a Lola?\nDueño: Hola, doctor. Noté que tiene una bolita en la panza, cerca de la cadena de mamas. Pensé que era un granito, pero no se va.\nVeterinario: ¿Cuándo la vio por primera vez?\nDueño: Hará un mes, más o menos. No le duele cuando la toco, pero creció un poco.\nVeterinario: Bueno, voy a palpar. ¿Se mueve o está pegada?\nDueño: Se mueve un poco, como que no está firme.\nVeterinario: (palpa) Sí, es una masa firme, móvil, de unos dos centímetros, en la mama inguinal derecha. No hay ganglios inflamados. Esto es sugestivo de un tumor mamario. Es compatible con un neoplasma, puede ser benigno o maligno. Vamos a hacer una citología para orientarnos.\nDueño: ¿Es grave, doctor?\nVeterinario: Todavía no sabemos. Si es benigno, con cirugía se soluciona. Pero si es maligno, puede haber riesgo de metástasis. Por eso es clave estudiarlo. Recomiendo radiografía de tórax y ecografía abdominal para ver si hay diseminación.",
+  "chunks_corpus": 211
+ },
+ {
+  "id": "escherichia-coli-infections",
+  "mesh_target": "Escherichia coli Infections",
+  "especie": "perro",
+  "query": "Veterinario: Hola, ¿qué le pasa a este pequeño?\nDueño: Doctor, mi perrito tiene mucha diarrea desde ayer, es como agua y muy seguido, y hoy empezó a vomitar.\nVeterinario: Entiendo. ¿Tiene fiebre? ¿Lo notás decaído?\nDueño: Sí, tiene mucho calor y no quiere comer nada, solo se queda echado.\nVeterinario: Bueno, al palparle el abdomen se nota dolor, y tiene los ojos un poco hundidos, signos de deshidratación. Estos síntomas son compatibles con una infección intestinal aguda.\nDueño: ¿Puede ser algo grave?\nVeterinario: Podría ser una infección bacteriana, sugestivo de una colitis por Escherichia coli, que suele dar cuadros diarreicos severos. Vamos a hacer un análisis de materia fecal para confirmar.\nDueño: Ah, menos mal que lo traje. ¿Qué hacemos mientras?\nVeterinario: Le vamos a dar fluidos para hidratarlo y un tratamiento para controlar los vómitos y la diarrea. Es importante que no tome agua sola para no empeorar la diarrea.",
+  "chunks_corpus": 210
+ },
+ {
+  "id": "periodontal-diseases",
+  "mesh_target": "Periodontal Diseases",
+  "especie": "perro",
+  "query": "Veterinario: ¡Hola! ¿Qué le pasa a este amiguito?\nDueño: Hola, doctor. La verdad que noto que tiene mal aliento, como un olor fuerte, y a veces se le cae la comida cuando come.\nVeterinario: Veamos. Al revisarle la boca, las encías están muy rojas e inflamadas, y hay bastante sarro acumulado en los dientes. Cuando presiono acá parece que le duele.\nDueño: Sí, a veces se queja si le toco la boca. También noté que babea más de lo normal.\nVeterinario: Es un cuadro compatible con enfermedad periodontal. Las encías están retraídas y los dientes tienen movilidad. Esto es sugestivo de una infección que puede afectar no solo la boca, sino también órganos como el corazón o el riñón si no se trata.\nDueño: ¿Y qué se puede hacer? ¿Es grave?\nVeterinario: Necesita una limpieza dental profesional bajo anestesia, y quizás extraer algunas piezas que estén muy sueltas. Con cuidados en casa, como cepillado dental y dieta especial, se puede controlar.\nDueño: Bueno, hagamos eso. ¿Duele mucho el procedimiento?\nVeterinario: No se preocupe, se hace con anestesia general y analgésicos, no va a sentir dolor. Después de la limpieza, vamos a indicarle un plan de mantenimiento en casa.",
+  "chunks_corpus": 210
+ },
+ {
+  "id": "pyometra",
+  "mesh_target": "Pyometra",
+  "especie": "perro",
+  "query": "Veterinario: Hola, ¿qué le pasa a esta perra?\nDueño: Tiene como una secreción rara por la vulva, y está toda apagada, no come bien hace dos días.\nVeterinario: ¿Cuándo fue su último celo?\nDueño: Hace como un mes y medio, más o menos. Es que no la castramos.\nVeterinario: Ya veo. Al palparle el abdomen, se nota el útero aumentado de tamaño y ella reacciona con dolor. La fiebre que tiene es compatible con una infección uterina.\nDueño: ¿Y eso es grave?\nVeterinario: Sí, esto es sugestivo de una acumulación de pus en el útero. Es una emergencia que requiere cirugía para extirparlo.\nDueño: ¿No se puede tratar con antibióticos nomás?\nVeterinario: Los antibióticos solos no resuelven el problema; el útero lleno de pus hay que sacarlo para salvarle la vida.",
+  "chunks_corpus": 207
+ },
+ {
+  "id": "lymphoma-b-cell",
+  "mesh_target": "Lymphoma, B-Cell",
+  "especie": "perro",
+  "query": "Veterinario: Hola, ¿qué le pasa a tu perro?\nDueño: Tiene unos bultos en el cuello que le aparecieron hace como un mes. Al principio eran chiquitos, pero ahora crecieron. También está más decaído, come menos y perdió peso.\nVeterinario: Veo que tiene los ganglios del cuello muy aumentados de tamaño, y al palparlos son firmes y no duelen. También noto que tiene las encías pálidas. ¿Ha tenido fiebre o problemas para respirar?\nDueño: No, fiebre no. Pero a veces respira un poco agitado cuando se acuesta, como si le costara.\nVeterinario: Bien. Por lo que veo, esto es sugestivo de un proceso linfoproliferativo, como un linfoma. O sea, un tipo de cáncer que afecta los ganglios. Para confirmarlo, recomiendo hacer una punción de los ganglios y analizar las células bajo el microscopio.\nDueño: ¿Y eso es grave? ¿Se puede tratar?\nVeterinario: Es un cuadro serio, pero con quimioterapia se puede lograr remisión. Primero necesitamos el diagnóstico. Si es compatible con linfoma, podemos empezar el tratamiento.",
+  "chunks_corpus": 206
+ },
+ {
+  "id": "hypertension-pulmonary",
+  "mesh_target": "Hypertension, Pulmonary",
+  "especie": "perro",
+  "query": "Veterinario: Buenas, ¿qué le pasa a Lola? Dueño: La noto cansada todo el día, se acuesta y respira raro, como si le costara. A veces tose después de caminar un poco. Veterinario: ¿Cuándo empezó eso? Dueño: Hará unos dos meses, pero ahora está peor. Ayer se desmayó un ratito en el patio. Veterinario: Entiendo. Déjeme revisarla. [... auscultación] [...] Tiene el corazón acelerado y un soplo fuerte del lado derecho. Las mucosas están un poco azuladas. Dueño: ¿Y eso es grave? Veterinario: Puede ser un cuadro de presión alta en los pulmones, lo que llamamos hipertensión pulmonar. Es compatible con que al corazón le cueste bombear sangre a los pulmones. Dueño: ¿Y se puede tratar? Veterinario: Sí, con medicación para bajar esa presión y ayudar al corazón. Pero primero hay que confirmar con una ecografía cardíaca. Dueño: Dale, hagamos lo que haga falta.",
+  "chunks_corpus": 200
+ },
+ {
+  "id": "intestinal-diseases",
+  "mesh_target": "Intestinal Diseases",
+  "especie": "perro",
+  "query": "Veterinario: Hola, ¿qué le pasa a este perrito? Dueño: Buenas, vengo porque desde hace dos días no quiere comer y está muy decaído. Veterinario: ¿Ha tenido vómitos o diarrea? Dueño: Sí, anoche vomitó dos veces y hoy hizo unas heces muy blandas, como pastosas, con un poco de moco. Veterinario: Entiendo. Al palparle la panza lo siento un poco tenso y parece tener cierta molestia en la zona del intestino. Dueño: Sí, se queja cuando le toco ahí. Veterinario: El cuadro es sugestivo de una inflamación intestinal, compatible con una enteritis. Podría ser por un cambio de alimento, infección o algo que agarró. Dueño: ¿Es grave? Veterinario: En general se resuelve fácil, pero vamos a hacerle un análisis de sangre y un estudio de las heces para descartar parásitos o infección. Dueño: Está bien, ¿qué le doy mientras? Veterinario: Te voy a indicar un protector gástrico y una dieta blanda; ayuno por 12 horas y después arroz hervido con pollo sin piel. Dueño: Gracias, doctor.",
+  "chunks_corpus": 200
+ },
+ {
+  "id": "carcinoma-transitional-cell",
+  "mesh_target": "Carcinoma, Transitional Cell",
+  "especie": "perro",
+  "query": "Dueño: Vengo porque mi perro, un bichón de 11 años, hace como una semana que se esfuerza mucho para hacer pis y solo larga gotitas. A veces tiene sangre al final.\nVeterinario: ¿Notaste si bebe más agua de lo normal o si ha perdido peso?\nDueño: Sí, toma más agua desde hace un mes, y está más flaco, aunque come bien.\nVeterinario: Al palparle el abdomen siento la vejiga muy distendida y dura, y al tacto rectal la uretra está engrosada. Esto es sugestivo de un proceso infiltrativo en la vejiga y uretra, posiblemente un tumor de células de transición.\nDueño: ¿Es cáncer? ¿Qué se puede hacer?\nVeterinario: Es compatible con un carcinoma de células de transición. Recomiendo una ecografía abdominal y una citología de orina o biopsia para confirmar.\nDueño: ¿Es algo que duele? Porque él gime cuando se agacha para hacer pis.\nVeterinario: Sí, puede causar dolor y obstrucción parcial. Hay opciones como antiinflamatorios, y si es operable, cirugía o quimioterapia local.\nDueño: ¿Y cuánto tiempo le queda?\nVeterinario: Depende del estadio. Si está avanzado, el pronóstico es reservado, pero con tratamiento se puede mejorar su calidad de vida.",
+  "chunks_corpus": 199
+ },
+ {
+  "id": "pruritus",
+  "mesh_target": "Pruritus",
+  "especie": "perro",
+  "query": "Dueño: Vengo porque mi perro no para de rascarse y lamerse, sobre todo en las patas y el lomo, y se está pelando. Veterinario: Claro, veo que tiene zonas con caída de pelo y enrojecimiento, ¿notaste si hay pulgas o algo en el ambiente? Dueño: No vi pulgas, pero en casa hay otro perro y también se rasca un poco. Veterinario: ¿Y cambió la alimentación o usaron algo nuevo en la cama? Dueño: No, nada nuevo; solo que hace calor y lo bañé con un champú que tenía en casa. Veterinario: Bien, al examinarlo veo lesiones por rascado, costras y un poco de seborrea; el cuadro es sugestivo de prurito compatible con dermatitis alérgica o por ectoparásitos. Dueño: ¿Es grave? Veterinario: No es grave, pero hay que tratarlo; haremos un raspado de piel para descartar sarna y podríamos hacer pruebas de alergia si no mejora. Dueño: ¿Qué puedo hacer mientras tanto? Veterinario: Evitar baños con productos fuertes y usar un antipruriginoso suave; si es alérgico, habrá que controlar el ambiente o la dieta.",
+  "chunks_corpus": 198
+ },
+ {
+  "id": "histiocytic-sarcoma",
+  "mesh_target": "Histiocytic Sarcoma",
+  "especie": "perro",
+  "query": "Veterinario: Buen día, ¿qué le pasa a su perro? Dueño: Hola, doctor. Noto que tiene como unos bultos en el lomo y en las patas, y está más decaído de lo normal. Veterinario: ¿Hace cuánto tiempo aparecieron esos bultos? Dueño: Como hace un mes más o menos, y no se van. Además, está perdiendo peso, aunque come igual. Veterinario: Entiendo. Al palparlo, siento que esos nódulos son firmes y están algo adheridos a los tejidos. También tiene los ganglios linfáticos del cuello y la ingle agrandados. Dueño: ¿Puede ser algo grave? Veterinario: Por los hallazgos, esto es sugestivo de un sarcoma histiocítico, que es un tipo de tumor del sistema inmunitario. Es compatible con lo que vemos: nódulos múltiples y ganglios inflamados. Dueño: ¿Y tiene tratamiento? Veterinario: Podemos hacer una biopsia para confirmar. A veces responde a quimioterapia, pero depende de la etapa. Es importante actuar pronto. Dueño: Bueno, hagamos eso. Gracias, doctor.",
+  "chunks_corpus": 196
+ },
+ {
+  "id": "lymphoma-t-cell",
+  "mesh_target": "Lymphoma, T-Cell",
+  "especie": "gato",
+  "query": "Dueño: Vino porque noto que el gato tiene unas bolitas en el cuello y en las axilas, como si fueran pelotitas. También está más flaco y come menos.\nVeterinario: Claro, al palpar esas zonas se sienten ganglios muy aumentados de tamaño, firmes y no dolorosos. ¿Notaste si tiene fiebre o respira diferente?\nDueño: No, fiebre no le tomé, pero a veces respira como más rápido, como si le costara.\nVeterinario: En el examen también se palpa el bazo grande y hay un soplo leve al auscultar. Por los ganglios generalizados y el compromiso sistémico, el cuadro es sugestivo de un linfoma, posiblemente de células T, que es común en gatos.\nDueño: ¿Es grave? ¿Qué se puede hacer?\nVeterinario: Es una enfermedad que requiere tratamiento, como quimioterapia, y se puede controlar por un tiempo, pero no es curable. Sugiero hacer una citología de los ganglios para confirmar.\nDueño: Entiendo. Bueno, quiero intentarlo.\nVeterinario: Perfecto, arrancamos con los estudios y después vemos el plan.",
+  "chunks_corpus": 196
+ },
+ {
+  "id": "brucellosis",
+  "mesh_target": "Brucellosis",
+  "especie": "perro",
+  "query": "Veterinario: Hola, ¿qué le pasa a este perrito? Dueño: Hola, doctor. Vengo porque hace como una semana que está medio decaído, no quiere comer casi y le noto las patas traseras como tiesas al caminar. Veterinario: Ya veo. ¿Notó alguna hinchazón en los testículos o en las articulaciones? Dueño: Sí, los testículos los tiene más grandes de lo normal y como duros. También tiene un bulto en el codo. Veterinario: Bien, vamos a revisarlo. Al palpar, tiene los testículos aumentados de tamaño y firmes, y el codo con una leve inflamación y calor. Además, tiene los ganglios inguinales un poco grandes. Dueño: ¿Será algo grave, doctor? Veterinario: Por ahora, el cuadro es sugestivo de una infección que puede afectar los órganos reproductores y las articulaciones. Es compatible con una enfermedad que se llama brucelosis, que es una bacteria. Para confirmarlo, le voy a tomar una muestra de sangre. Dueño: ¿Y cómo se contagió? Veterinario: Generalmente es por contacto con fluidos de otros perros infectados, como al montarse o por morder. Es importante que no tenga contacto con otros animales hasta tener el resultado. Dueño: Bue, está bien. ¿Y tiene tratamiento? Veterinario: Sí, se puede tratar con antibióticos, pero es largo y a veces complicado. Vamos primero a esperar el análisis para confirmarlo.",
+  "chunks_corpus": 194
+ },
+ {
+  "id": "otitis-externa",
+  "mesh_target": "Otitis Externa",
+  "especie": "perro",
+  "query": "Veterinario: Hola, ¿cómo va? ¿Qué le pasa a este hermoso? Dueño: Hola, doctor. Viene hace unos días sacudiendo la cabeza como loco, y se rasca la oreja derecha con la pata. A veces llora un poco cuando lo hace. Veterinario: Veo que tiene la oreja un poco enrojecida y con más cerumen de lo normal. Al tocarle la base de la oreja, él se queja un poco. Dueño: Sí, no se deja ni tocar ahí. Además, huele un poquito fuerte, como a levadura. Veterinario: Muy bien. Con el otoscopio veo el conducto inflamado y con bastante secreción marrón oscura. Esto es sugestivo de una otitis externa compatible con una infección por hongos o bacterias. Dueño: ¿Y qué le habrá causado eso? Él nunca tuvo problemas de oídos. Veterinario: Puede ser por humedad, alergias, o a veces por cuerpos extraños como semillas. Le voy a tomar una muestra del cerumen para analizarlo, y mientras tanto empezamos con un tratamiento con limpiadores y gotas antiinflamatorias. Dueño: Bueno, ojalá se mejore rápido, porque no para de rascarse. Veterinario: Tranquilo, en unos días va a estar mucho mejor, pero es importante no dejar que se rasque mucho porque se puede lastimar el pabellón auricular.",
+  "chunks_corpus": 193
+ },
+ {
+  "id": "urinary-bladder-neoplasms",
+  "mesh_target": "Urinary Bladder Neoplasms",
+  "especie": "perro",
+  "query": "Veterinario: Hola, ¿cómo va? ¿Qué le pasa a Lola? Dueño: Hola, doctor. Desde hace unos días la noto media rara. Hace pis con esfuerzo, como si le costara, y a veces son gotitas nada más. Veterinario: ¿Aumentó la frecuencia con la que pide salir para hacer pis? Dueño: Sí, todo el tiempo quiere salir, pero hace muy poco. Y ayer vi que tenía un poquito de sangre en el pis. Veterinario: Entiendo. ¿Ha tenido infecciones urinarias antes? Dueño: Sí, una vez hace un año, y con antibiótico se le fue. Pero esta vez parece distinto. Veterinario: Bien, vamos a revisarla. Al palparle la vejiga, la siento más firme de lo normal. Lola está vieja, tiene 11 años, y estos signos me hacen sospechar que podría haber algo más que una infección. Dueño: ¿Algo como qué? Veterinario: Es posible que tenga un tumor en la vejiga. Es sugestivo de un crecimiento anormal cuando la vejiga se siente dura y tiene sangre sin infección activa. Dueño: ¿Y eso es grave? Veterinario: Puede serlo, pero primero tenemos que confirmarlo con una ecografía. Los tumores de vejiga son compatibles con los signos que describís, y no siempre son malignos. Dueño: Bueno, hagamos los estudios que sean necesarios. Gracias, doctor. Veterinario: Perfecto, no te preocupes que vamos a trabajar juntos para ayudarla.",
+  "chunks_corpus": 191
+ },
+ {
+  "id": "cardiomyopathy-dilated",
+  "mesh_target": "Cardiomyopathy, Dilated",
+  "especie": "perro",
+  "query": "Veterinario: Buen día, ¿qué le pasa a este perrito?\nDueño: Hola, doctor. Tiene como tos, sobre todo a la noche, y se cansa mucho cuando lo saco a pasear.\nVeterinario: ¿Cuánto hace que notó eso?\nDueño: Como un mes, pero los últimos días además respira más rápido estando quieto.\nVeterinario: ¿Ha perdido peso o tiene menos apetito?\nDueño: Sí, ha perdido peso, come menos y a veces parece que tiene la panza más hinchada.\nVeterinario: Al palparlo noto el abdomen un poco tenso y soplo cardíaco. Al escuchar el pecho hay campos pulmonares congestionados, y el latido cardíaco se siente desplazado. El cuadro es sugestivo de una miocardiopatía dilatada, que es una enfermedad del músculo del corazón que lo debilita y agranda.\nDueño: ¿Es grave? ¿Qué podemos hacer?\nVeterinario: Es una condición seria, pero con medicación y reposo se puede mejorar su calidad de vida. Vamos a hacer una ecografía cardíaca para confirmarlo.",
+  "chunks_corpus": 190
+ },
+ {
+  "id": "sarcoma",
+  "mesh_target": "Sarcoma",
+  "especie": "perro",
+  "query": "Veterinario: ¿Qué le pasa a Loki? El dueño: Tiene una pelota como en la pata trasera, hace como una semana que le salió y no para de crecer. Veterinario: ¿Le duele cuando se la tocás? El dueño: No parece, pero cojea un poquito. Veterinario: Voy a palparla... Sí, es una masa firme, como de unos 3 cm, adherida a los planos profundos. El dueño: ¿Será un tumor? Veterinario: Es sugestivo de una neoplasia de partes blandas, compatible con un sarcoma. Habría que tomar una muestra para saberlo con certeza.",
+  "chunks_corpus": 189
+ },
+ {
+  "id": "protozoan-infections-animal",
+  "mesh_target": "Protozoan Infections, Animal",
+  "especie": "perro",
+  "query": "Veterinario: Hola, ¿cómo va? ¿Qué le pasa a este hermoso perrito?\nDueño: Hola, doctor. La verdad que hace unos días que Tito está medio raro. No tiene ganas de jugar, duerme mucho y a veces se queda mirando la pared. También empezó a tener diarrea, como pastosa y con un olor fuerte, a veces con un poquito de sangre.\nVeterinario: Entiendo. ¿Notaste si ha perdido peso o si come menos?\nDueño: Sí, come menos de lo normal. Y sí, está más flaquito que antes, pero eso me preocupó recién la semana pasada.\nVeterinario: Bien. Ahora lo voy a revisar. (Pausa) Tito tiene las mucosas un poco pálidas, el abdomen sensible al tacto y se nota cierto grado de deshidratación. Al tacto rectal, la materia tiene un aspecto como gelatinoso. Además, está con fiebre baja.\nDueño: ¿Qué puede ser, doctor? ¿Algo grave?\nVeterinario: Por los síntomas que tiene —la diarrea con sangre, la pérdida de peso, el abdomen doloroso y el decaimiento— es sugestivo de una infección intestinal por parásitos microscópicos, algo que llamamos protozoos. Es compatible con que Tito haya ingerido algo contaminado, como agua sucia o heces de otro animal.\nDueño: Ay, ¿eso se cura, no? ¿Qué le van a dar?\nVeterinario: Sí, tiene tratamiento. Lo ideal sería tomar una muestra de materia fecal para confirmar el diagnóstico. Por lo pronto, le vamos a recetar un antiparasitario específico y un protector intestinal. También es importante mantenerlo hidratado y ofrecerle una dieta blanda.",
+  "chunks_corpus": 186
+ },
+ {
+  "id": "toxoplasmosis-animal",
+  "mesh_target": "Toxoplasmosis, Animal",
+  "especie": "gato",
+  "query": "Veterinario: Hola, ¿qué le pasa a Michi?\nDueño: Está muy decaído, no quiere comer casi nada y tiene como fiebre.\nVeterinario: Voy a revisarlo. Tiene temperatura un poco alta y las encías están un poco pálidas. ¿Notó algo en los ojos?\nDueño: Sí, el ojo derecho lo tiene medio nublado, como si tuviera una telita.\nVeterinario: También tiene los ganglios del cuello un poco inflamados. Esto es compatible con un cuadro infeccioso, sugestivo de toxoplasmosis, que es un parásito que pueden agarrar los gatos.\nDueño: ¿Y eso es grave? ¿Se contagia a nosotros?\nVeterinario: No es grave si se trata a tiempo, pero hay que darle antibiótico y cuidarlo. Con humanos no es contagioso directo, solo si no se lavan las manos con suciedad de caja de arena. Le voy a recetar un medicamento y que vuelva en una semana para control.",
+  "chunks_corpus": 185
+ },
+ {
+  "id": "meningoencephalitis",
+  "mesh_target": "Meningoencephalitis",
+  "especie": "perro",
+  "query": "Veterinario: Buenas, ¿qué le pasa a este hermoso perrito?\nDueño: Hola, doctor. Desde hace tres días está raro, como mareado, da vueltas en círculos y choca contra los muebles.\nVeterinario: ¿Cuándo empezó eso?\nDueño: Justo después de que lo bañamos. Pensamos que era por el frío, pero no se le pasa.\nVeterinario: ¿Ha tenido fiebre, temblores o vómitos?\nDueño: Sí, anoche temblaba mucho y hoy no quiere comer. También babea un montón.\nVeterinario: Veamos… Al revisarlo, tiene rigidez en el cuello y las pupilas no reaccionan bien. Esto es sugestivo de una inflamación en el cerebro o en las meninges.\nDueño: ¿Es grave, doctor? ¿Qué puede ser?\nVeterinario: Podría ser una meningoencefalitis. Es un cuadro serio, compatible con infecciones o causas autoinmunes. Vamos a hacer análisis de sangre y quizás un cultivo para saber más.",
+  "chunks_corpus": 183
+ },
+ {
+  "id": "disease-susceptibility",
+  "mesh_target": "Disease Susceptibility",
+  "especie": "perro",
+  "query": "Veterinario: Hola, ¿cómo va? ¿Qué le pasa a este precioso?\\nDueño: Buenas, doctor. Vengo porque mi perra, Lola, de dos años, está muy decaída. Además, le dio una diarrea que no para.\\nVeterinario: Claro, cuénteme bien. ¿Desde cuándo empezó todo?\\nDueño: Hace tres días. También tiene como mucho moco en los ojos y estornuda. Y no come casi nada.\\nVeterinario: Ya veo. Revísemosla. Tiene las mucosas un poco pálidas y los ganglios del cuello un poquito inflamados. Le voy a tomar la temperatura... 39.5 °C, tiene fiebre.\\nDueño: ¿Y eso es grave?\\nVeterinario: Mire, por los síntomas como diarrea, mucosidad, fiebre y el decaimiento, esto puede ser un cuadro viral. Es compatible con algo como moquillo o parvovirus, pero el cuadro completo me hace pensar más en una susceptibilidad a infecciones. Su perra parece no haber desarrollado bien sus defensas, quizá por mala vacunación o porque genéticamente es más propensa. Le voy a tomar una muestra de sangre y hacer un test rápido para descartar virus.\\nDueño: Ah, entiendo. ¿Y eso se cura?\\nVeterinario: Depende de la causa. Si es por susceptibilidad, podemos darle tratamiento de soporte y reforzar su sistema inmune. De momento, le voy a dejar antibiótico y probióticos para el intestino, y la voy a hidratar. Pero es importante saber si está vacunada al día.\\nDueño: No, la verdad que no la vacuné desde cachorra.\\nVeterinario: Claro, eso explica la susceptibilidad. Con el resultado de los análisis ajustamos el tratamiento. Por ahora, reposo, agua fresca y dieta blanda. En unos días la veo de nuevo.",
+  "chunks_corpus": 182
+ },
+ {
+  "id": "lung-neoplasms",
+  "mesh_target": "Lung Neoplasms",
+  "especie": "perro",
+  "query": "Veterinario: Buenas, ¿qué le pasa a su perro? \nDueño: Hola, doctor. Tiene como una tos seca, como si quisiera aclararse la garganta, hace como dos semanas. \nVeterinario: ¿Notó si tose más después de correr o de acostarse? \nDueño: Sí, sobre todo cuando se despierta y cuando sale a pasear. \nVeterinario: ¿Ha bajado de peso, come bien, o le cuesta respirar? \nDueño: Come normal, pero está más flaco, sí. Y a veces respira como rápido, con la boca abierta. \nVeterinario: Al escuchar los pulmones, se oyen ruidos apagados en un lado y el sonido de la percusión es más sordo. En la radiografía se ve una masa en el lóbulo craneal del pulmón derecho. El cuadro es sugestivo de una neoplasia pulmonar primaria. \nDueño: ¿Eso es grave? \nVeterinario: Es un tumor en el pulmón. Habría que tomar una muestra con aguja fina para confirmar. \nDueño: Ya, entiendo. ¿Y qué hacemos ahora? \nVeterinario: Depende del tipo. Si es operable y no hay metástasis, se puede sacar el lóbulo afectado. Sino, hay opciones paliativas.",
+  "chunks_corpus": 181
+ },
+ {
+  "id": "rickettsia-infections",
+  "mesh_target": "Rickettsia Infections",
+  "especie": "perro",
+  "query": "Veterinario: Hola, ¿qué le pasa a Toby? Dueño: Buenas, doctor. Lo noto muy decaído desde hace dos días, casi no quiere moverse. Y ayer le empezó a sangrar la encía cuando intentó comer. Veterinario: Claro, déjeme revisarlo. ¿Ha tenido fiebre? Dueño: Sí, parece que tiene mucha temperatura. También le están apareciendo unas manchas rojas en la panza. Veterinario: Veo que tiene hemorragias en la mucosa oral y esas petequias en la piel. Los ganglios están un poco inflamados. El cuadro es sugestivo de una infección bacteriana transmitida por garrapatas, compatible con rickettsiosis. Dueño: ¿Eso es grave? Veterinario: Puede serlo si no tratamos rápido. Le sugiero hacer un análisis de sangre para confirmar y empezar con antibióticos específicos. Dueño: Sí, por favor. Que no sufra más.",
+  "chunks_corpus": 180
+ },
+ {
+  "id": "joint-diseases",
+  "mesh_target": "Joint Diseases",
+  "especie": "perro",
+  "query": "Veterinario: Hola, ¿cómo está Roco? ¿Qué le notó?\nDueño: Doctor, lo veo medio raro al caminar, como que renguea de la pata trasera. Además se levanta con trabajo a la mañana.\nVeterinario: Bien, lo voy a revisar. ¿Hace cuánto que lo nota así?\nDueño: Y, hará como una semana. Antes era más activo, ahora no quiere salir a pasear.\nVeterinario: Al palparle la cadera, Roco muestra dolor cuando le estiro la pata hacia atrás. También siento cierta rigidez al mover la articulación. El cuadro es sugestivo de una enfermedad articular degenerativa, compatible con displasia de cadera o artrosis.\nDueño: ¿Y eso es grave? ¿Se va a quedar así?\nVeterinario: No es grave si lo tratamos a tiempo. Podemos hacer una radiografía para confirmar. Por ahora, le voy a recetar un antiinflamatorio y un protector articular. Es importante que no salte ni suba escaleras.\nDueño: Bueno, gracias doctor. ¿Y tiene que tomar el remedio todos los días?\nVeterinario: Por un tiempo sí, hasta que veamos cómo evoluciona. También le recomiendo bajarle un poco de peso, eso ayuda a las articulaciones.",
+  "chunks_corpus": 180
+ },
+ {
+  "id": "acute-kidney-injury",
+  "mesh_target": "Acute Kidney Injury",
+  "especie": "perro",
+  "query": "Dueño: Doctor, hace dos días que mi perro no quiere comer y está muy decaído. También bebe mucha agua pero después vomita. Veterinario: Entiendo. ¿Ha notado si orina menos de lo normal? Dueño: Sí, casi no orina, y cuando lo hace es poquito y muy oscuro. Veterinario: En el examen veo que tiene las encías pegajosas y el pulso débil. ¿Le ha dado algún medicamento o algo fuera de lo común? Dueño: Le di un ibuprofeno para el dolor de una patita, hace tres días. Veterinario: Esto es sugestivo de una lesión renal aguda, compatible con el antecedente de un antiinflamatorio. Le haré análisis de sangre y orina para confirmarlo.",
+  "chunks_corpus": 179
+ },
+ {
+  "id": "syndrome",
+  "mesh_target": "Syndrome",
+  "especie": "perro",
+  "query": "Veterinario: Hola, ¿cómo va? ¿Qué le pasa a Toby?\nDueño: Buen día, doctor. Toby no tiene ganas de hacer nada, duerme todo el día. Y cuando lo llamo, se queda medio mirando, como si no entendiera.\nVeterinario: Ya veo. ¿Notó algo en sus ojos o en cómo camina?\nDueño: Sí, como que campea, choca contra las patas de la mesa. Y una vez se cayó de la cama, cosa que antes nunca pasaba.\nVeterinario: (examina al perro) Al revisarlo, veo que tiene las pupilas un poco desiguales y un temblor leve en la cabeza. La presión ocular está alta en ambos ojos.\nDueño: ¿Qué significa eso, doctor?\nVeterinario: Lo que veo en Toby es sugestivo de un síndrome vestibular. Es un cuadro que afecta el equilibrio y la orientación, compatible con una inflamación o un problema en el oído interno.\nDueño: Ah, ¿y es grave? ¿Se va a curar?\nVeterinario: Depende de la causa. Puede ser algo pasajero, como una otitis, o algo más serio. Vamos a hacerle un análisis de sangre y una placa de cráneo para descartar otras cosas. Por ahora, le damos antiinflamatorios y calmantes.",
+  "chunks_corpus": 177
+ },
+ {
+  "id": "coronavirus-infections",
+  "mesh_target": "Coronavirus Infections",
+  "especie": "gato",
+  "query": "Veterinario: Hola, ¿qué le pasa a Michi? Dueño: No quiere comer desde ayer y está muy decaído. También noté que tiene un poco de diarrea y ha vomitado una vez. Veterinario: Veo que tiene un poco de fiebre al tocarlo, las encías están un poco pálidas y al palpar el abdomen parece sensible. ¿Ha estado en contacto con otros gatos? Dueño: Sí, vive con otros gatos en casa y uno de ellos también tuvo síntomas similares hace unos días. Veterinario: Con estos signos, que incluyen decaimiento, falta de apetito, fiebre y síntomas digestivos, es sugestivo de una infección viral común en gatos, compatible con lo que vemos. Dueño: ¿Es grave? ¿Se puede contagiar a las personas? Veterinario: No es contagioso para humanos. Puede ser leve, pero en algunos casos puede complicarse, así que vamos a hacer análisis para confirmar y darle tratamiento de soporte. Dueño: ¿Qué tengo que hacer mientras tanto? Veterinario: Mantenerlo hidratado, ofrecerle comida suave y aislarlo de los otros gatos por prevención. Traelo mañana para los resultados.",
+  "chunks_corpus": 173
+ },
+ {
+  "id": "acute-disease",
+  "mesh_target": "Acute Disease",
+  "especie": "perro",
+  "query": "Veterinario: Hola, ¿cómo va? Contame qué le pasa a tu perro.\nDueño: Hola, doctor. Empezó ayer de repente con mucha diarrea y vómitos, no para. Tiene mucho malestar.\nVeterinario: ¿Cuándo empezó exactamente? ¿Hace menos de 24 horas?\nDueño: Sí, anoche a la noche empezó a vomitar y hoy a la mañana lo encontré con diarrea líquida. También está decaído, no quiere comer.\nVeterinario: Bien. Al revisarlo, lo noto con las mucosas un poco secas y el tiempo de llenado capilar un poco aumentado, lo que es sugestivo de deshidratación leve. El abdomen está un poco tenso. ¿Ha comido algo fuera de lo normal?\nDueño: No que yo sepa, pero a veces agarra cosas del piso cuando lo paseo. Pienso que pudo ser alguna basura.\nVeterinario: Claro, es compatible con una gastroenteritis aguda por ingesta de algo en mal estado o alguna intoxicación leve. Por lo pronto, vamos a hacerle un análisis de sangre y un ultrasonido para descartar una obstrucción, pero el cuadro es agudo y parece estar relacionado con algo que comió.\nDueño: Sí, eso me preocupa. ¿Hay que internarlo?\nVeterinario: Por ahora, con el cuadro agudo que presenta, sugiero dejarle suero por unas horas y medicación para controlar los vómitos. Si no mejora en 12 horas, evaluamos internación. Pero el pronóstico es bueno si se trata rápido.",
+  "chunks_corpus": 172
+ },
+ {
+  "id": "neoplasm-recurrence-local",
+  "mesh_target": "Neoplasm Recurrence, Local",
+  "especie": "perro",
+  "query": "Veterinario: Hola, ¿cómo va? ¿Qué les pasa con Firulais?\nDueño: Buenas. La verdad que lo notamos medio raro. El año pasado le sacaron un tumorcito en la pata, pero ahora en el mismo lugar se le formó un bultito otra vez.\nVeterinario: Claro, entiendo. ¿Desde cuándo lo vieron? ¿Es del mismo tamaño que antes o más chico?\nDueño: Hará cosa de un mes. Es más chico que el otro, pero está ahí, firme. A veces se lame mucho ese sitio.\nVeterinario: Bien, déjeme palparlo. (lo examina) Mire, el bulto está justo sobre la cicatriz de la cirugía anterior. Es firme, no duele al tacto, pero está adherido a los planos profundos. Es sugestivo de una recurrencia local del tumor que habíamos sacado.\nDueño: ¿Y eso qué quiere decir? ¿Es malo? Pensamos que con la operación ya se había ido.\nVeterinario: En algunos casos, por más que se saque bien, quedan células microscópicas que pueden volver a crecer en el mismo lugar. Es compatible con una recidiva. Habría que evaluar con una ecografía o una citología para estar seguros y definir el próximo paso.\nDueño: Ah, ¿y hay que volver a operar?\nVeterinario: Depende del resultado. A veces se puede hacer una nueva cirugía más amplia, combinada con quimioterapia o radioterapia. Pero primero confirmemos el diagnóstico. Agendamos unos estudios y vemos.",
+  "chunks_corpus": 169
+ },
+ {
+  "id": "ectoparasitic-infestations",
+  "mesh_target": "Ectoparasitic Infestations",
+  "especie": "perro",
+  "query": "Veterinario: Hola, ¿qué le pasa a tu perro? Dueño: Se rasca mucho, sobre todo en la base de la cola y el lomo. Y tiene como caspa oscura. Veterinario: ¿Hace cuánto? ¿Notaste que pierde pelo en esas zonas? Dueño: Hará como dos semanas. Sí, en la cola y los muslos se le ve pelado. Veterinario: Bien. Voy a revisarlo… La piel está enrojecida y hay descamación, y al pasar el peine aparecen puntitos negros. Dueño: ¿Eso es pulga? Veterinario: Los puntitos negros son heces de pulga. Además veo algunas pulgas adultas en el lomo. Esto es muy sugestivo de una infestación de pulgas. Dueño: ¿Es grave? Veterinario: No es grave si se trata a tiempo, pero puede generar alergia y empeorar. Te voy a dar un desparasitante externo para aplicarle mensual, y hay que tratar el ambiente porque las pulgas viven en la casa. Dueño: ¿En el pasto también? Veterinario: Principalmente en alfombras y muebles. Vamos a hacer un plan completo para eliminar la infestación.",
+  "chunks_corpus": 168
+ },
+ {
+  "id": "gastrointestinal-diseases",
+  "mesh_target": "Gastrointestinal Diseases",
+  "especie": "perro",
+  "query": "Veterinario: Hola, ¿qué le pasa a este perrito? Dueño: Hola, doctor. Tiene como una semana que no quiere comer y ha vomitado varias veces. A veces es como espuma blanca, otras como un líquido amarillo. Veterinario: ¿Hace deposiciones? Dueño: Sí, pero son muy blandas, como diarrea, y el otro día vi un poco de sangre. También lo noto más apagado, con la panza hinchada. Veterinario: Bueno, voy a revisarlo. Al palpar el abdomen se siente tenso, un poco doloroso. Las mucosas están pálidas y tiene un poquito de fiebre. ¿Le diste algo? Dueño: No, solo lo dejé en ayunas como me dijeron una vez, pero no mejoró. Veterinario: Esto es sugestivo de una enfermedad gastrointestinal, compatible con una gastroenteritis o quizás una obstrucción parcial. Vamos a hacer unas placas de abdomen y un análisis de sangre para orientarnos mejor.",
+  "chunks_corpus": 168
+ },
+ {
+  "id": "mite-infestations",
+  "mesh_target": "Mite Infestations",
+  "especie": "perro",
+  "query": "Veterinario: ¡Hola! ¿Qué le pasa a este hermoso perro? Dueño: Hola, doctor. Vengo porque Tomy no para de rascarse desde hace una semana y se está pelando en algunas partes. Veterinario: Veo que tiene zonas sin pelo, sobre todo en los codos y las orejas. ¿Ha notado costras o algo de mal olor? Dueño: Sí, tiene como caspa y un olor raro, como a grasa. También se frota contra los muebles. Veterinario: Al examen físico, veo enrojecimiento y pequeñas costras. Sospecho que esto es sugestivo de una infestación por ácaros, lo que llamamos sarna. Dueño: ¿Sarna? ¿Es contagiosa para nosotros? Veterinario: Algunos tipos sí, pero no preocuparse, se trata fácil. Voy a hacer un raspado de piel para confirmar. Mientras tanto, evite el contacto directo con otros animales. Dueño: Muchas gracias, doctor. ¿Es grave? Veterinario: Con tratamiento tópico y pastillas, compatible con una buena recuperación en pocas semanas.",
+  "chunks_corpus": 167
+ },
+ {
+  "id": "vector-borne-diseases",
+  "mesh_target": "Vector Borne Diseases",
+  "especie": "perro",
+  "query": "Veterinario: ¡Hola! ¿Cómo andan? ¿Qué le pasa a este chico?\nDueño: Buenas, doctor. Vengo porque el perro está medio decaído hace unos días, no quiere comer y tiene las encías pálidas.\nVeterinario: Vamos a revisarlo. ¿Notaste si tiene moretones o sangra por algún lado?\nDueño: Sí, ayer le vi un moretón en la panza, como si se hubiera golpeado, pero no se chocó contra nada.\nVeterinario: Claro. También tiene los ganglios del cuello un poco inflamados. ¿Le diste algún antiparasitario últimamente?\nDueño: Le pongo las pipetas cada tres meses, pero la última fue hace dos.\nVeterinario: Bien. El cuadro es sugestivo de una enfermedad transmitida por vectores, como la causada por garrapatas. Vamos a hacerle un análisis de sangre para confirmar.\nDueño: ¿Es grave? ¿Se puede curar?\nVeterinario: Con el tratamiento adecuado, muchos mejoran, pero hay que empezar pronto. Por ahora, lo más compatible es que sea algo como ehrlichiosis o anaplasmosis. Vamos a tratarlo con antibióticos y darle soporte, y esperamos el resultado.\nDueño: Bueno, doctor, hagamos eso. Gracias.",
+  "chunks_corpus": 166
+ },
+ {
+  "id": "bartonella-infections",
+  "mesh_target": "Bartonella Infections",
+  "especie": "gato",
+  "query": "Veterinario: Hola, ¿qué le pasa a Michi? Dueño: Mirá, estos días está medio raro, no quiere comer bien y tiene como fiebre. Dueño: También lo noto más quieto de lo normal, duerme todo el día y antes era re inquieto. Veterinario: Dejame que lo revise. Tiene las encías un poco inflamadas y le duele un poco cuando le toco la panza. Dueño: Sí, no lo puedo tocar ahí porque se queja. ¿Será algo grave? Veterinario: Venía tomando algún antibiótico o tuvo contacto con otros gatos? Dueño: No, está solo en casa, pero sale al patio. Y hace unos días le saqué una garrapata. Veterinario: Ah, eso puede ser clave. El cuadro es sugestivo de una infección por bacterias que transmiten las pulgas y garrapatas, compatible con bartonelosis. Dueño: ¿Eso se cura? ¿Qué tengo que hacer? Veterinario: Sí, con antibióticos y tratamiento antiparasitario suele mejorar. Pero vamos a confirmar con análisis de sangre.",
+  "chunks_corpus": 165
+ },
+ {
+  "id": "influenza-human",
+  "mesh_target": "Influenza, Human",
+  "especie": "ave",
+  "query": "Veterinario: Hola, ¿qué le pasa a tu loro?\nDueño: Desde ayer está muy apagado, no quiere comer y respira con la boca abierta. También tiene los ojos medio llorosos.\nVeterinario: Veo que tiene secreción nasal y los ojos inflamados, y al auscultarlo se escuchan ruidos en los pulmones. ¿Ha tenido contacto con otros loros o aves silvestres?\nDueño: Sí, hace unos días lo llevé a una plaza donde hay muchas palomas.\nVeterinario: Esto es sugestivo de una infección respiratoria aguda, compatible con algo viral. Podría ser influenza aviar. Vamos a hacer cultivos y pruebas rápidas para confirmar.",
+  "chunks_corpus": 164
+ },
+ {
+  "id": "syringomyelia",
+  "mesh_target": "Syringomyelia",
+  "especie": "perro",
+  "query": "Veterinario: Hola, ¿qué le pasa a este hermoso Cavalier?\nDueño: Hola, doctor. Tiene como un picor en el cuello, se rasca todo el tiempo pero no tiene pulgas.\nVeterinario: Ya veo. ¿Notaste si se queja o llora cuando lo tocás de ese lado?\nDueño: Sí, justo. A veces cuando lo acaricio, pega un grito chiquito y si se mueve rápido también.\nVeterinario: Claro. ¿Camina normal o lo ves tembloroso, o arrastra alguna patita?\nDueño: A veces como que se tambalea un poco, y se frota la cabeza contra el sillón.\nVeterinario: Al examinarlo, noto que siente dolor al moverle el cuello, y tiene una postura con la cabeza un poco bajita. Esto es sugestivo de una condición llamada siringomielia, que es como un 'quiste' dentro de la médula que puede estar comprimiendo y causando esos signos.\nDueño: ¿Y es grave? ¿Se puede tratar?\nVeterinario: Es un cuadro compatible con su raza. Se maneja con analgésicos y protectores neurológicos. Te recomiendo una resonancia magnética para confirmarlo.\nDueño: Bueno, vamos a hacer lo que diga, gracias doctor.",
+  "chunks_corpus": 161
+ },
+ {
+  "id": "carcinoma-squamous-cell",
+  "mesh_target": "Carcinoma, Squamous Cell",
+  "especie": "gato",
+  "query": "Veterinario: Hola, ¿cómo va? ¿Qué le pasa a Michi?\nDueño: Hola, doctor. Mire, hace como dos semanas que tiene una lastimadita en la oreja que no se cura. Al principio pensé que era un rasguño, pero sigue igual y parece que le duele cuando le toco ahí.\nVeterinario: Ya veo. ¿Se la lame mucho o se rasca?\nDueño: Sí, se rasca bastante, y a veces sacude la cabeza. También le noté como una costra medio fea.\nVeterinario: Bueno, voy a revisarlo. Al palpar la oreja, tiene una lesión como una úlcera, con bordes levantados y un poco de sangrado. No es típico de una herida común. Esto es sugestivo de algo más serio, como una proliferación de células.\nDueño: ¿Células? ¿Qué quiere decir?\nVeterinario: Que podría ser un tumor en la piel. En gatos blancos o de orejas claras, a veces aparece un tipo llamado carcinoma de células escamosas, relacionado con el sol. Es una posibilidad, pero necesito hacer una citología o biopsia para confirmarlo.\nDueño: ¿Y es grave? ¿Se puede operar?\nVeterinario: Depende del tamaño y si se extendió. Por ahora parece localizado, así que es posible tratarlo. Vamos a agendar una muestra y de paso revisamos el resto del cuerpo.",
+  "chunks_corpus": 158
+ },
+ {
+  "id": "liver-neoplasms",
+  "mesh_target": "Liver Neoplasms",
+  "especie": "perro",
+  "query": "Veterinario: Hola, ¿qué le pasa a Rufus? Dueño: Hola, doctor. Lo noto decaído, no quiere comer, y ha perdido peso. Veterinario: ¿Ha vomitado o tenido diarrea? Dueño: Sí, vomitó un par de veces y las heces son más claras. Veterinario: Déjeme palparle el abdomen... Siento el hígado agrandado. ¿Notó si tiene el vientre hinchado o algún color amarillento en ojos o encías? Dueño: Sí, los ojos los tiene medio amarillos, y el vientre está un poco abultado. Veterinario: Bien. Esto es sugestivo de un problema hepático, como una neoplasia hepática. Dueño: ¿Qué es eso? Veterinario: Es un tumor en el hígado. Vamos a hacer ecografía y análisis de sangre para confirmar. Dueño: ¿Tiene solución? Veterinario: Depende del tipo y tamaño; si está localizado, podemos operar. Pero primero hay que ver los estudios. Dueño: Bueno, hagamos eso.",
+  "chunks_corpus": 157
+ },
+ {
+  "id": "mycoplasma-infections",
+  "mesh_target": "Mycoplasma Infections",
+  "especie": "gato",
+  "query": "Veterinario: Hola, ¿qué le pasa a Michi? Dueño: Hace unos días que está como decaído, estornuda mucho y tiene los ojos medio llorosos. Veterinario: ¿Notaste si tiene fiebre o respira raro? Dueño: Sí, parece que tiene más calor de lo normal, y a veces respira como si tuviera la nariz tapada. Veterinario: Al revisarlo, veo conjuntivitis y descarga nasal clara; los ganglios del cuello están un poco inflamados. Dueño: ¿Podría ser un resfrío común? Veterinario: Es posible, pero por los signos oculares y respiratorios, es compatible con una infección por micoplasma, que es un microorganismo que causa estos cuadros. Dueño: ¿Se contagia a otros gatos? Veterinario: Sí, es contagioso entre gatos, así que si tenés más, habría que aislarlo. Dueño: ¿Se cura con antibióticos? Veterinario: Generalmente sí, hay tratamientos específicos, pero primero haría un hisopado para confirmar. Dueño: Bueno, hagamos eso, quiero que mejore pronto.",
+  "chunks_corpus": 157
+ },
+ {
+  "id": "leishmaniasis-cutaneous",
+  "mesh_target": "Leishmaniasis, Cutaneous",
+  "especie": "perro",
+  "query": "Veterinario: Hola, ¿qué le pasa a Charly? ¿Hace cuánto notó algo raro?\nDueño: Y, doctor, hace como un mes le vi unas peladuras en las orejas y en el hocico. Al principio pensé que era por rascarse, pero no se le van.\nVeterinario: ¿Se rasca mucho? ¿Ha tenido fiebre o decaimiento?\nDueño: No, come bien, juega, pero esas zonas se le ponen como escamosas, medio costrosas, y en la punta de una oreja parece que se le está como descascarando el borde.\nVeterinario: Veo que tiene alopecia, descamación y úlceras pequeñas en pabellón auricular y alrededor de los ojos. También los ganglios del cuello los palpo un poco aumentados. ¿Convive con más perros?\nDueño: Sí, vive con otros dos, y en el barrio hay muchos perros sueltos y algunos que se ven muy flacos.\nVeterinario: Por el tipo de lesiones en la cara y las orejas, sumado a los ganglios inflamados, esto es sugestivo de leishmaniasis cutánea. Es compatible con un cuadro que vemos en zonas donde hay flebótomos. Vamos a tomar muestras de piel y una gotita de sangre para confirmarlo.\nDueño: ¿Es grave? ¿Se contagia rápido a los otros?\nVeterinario: No se contagia directamente de perro a perro, necesita al mosquito. Pero es tratable, aunque requiere controles. Por eso es mejor hacer el diagnóstico ahora.\nDueño: Bueno, hágale los estudios entonces, y arrancamos con lo que sea.",
+  "chunks_corpus": 157
+ },
+ {
+  "id": "cryptosporidiosis",
+  "mesh_target": "Cryptosporidiosis",
+  "especie": "gato",
+  "query": "Veterinario: Hola, ¿qué le pasa a Michi?\nDueño: Hola, doctor. Viene con diarrea hace como tres días, es líquida y a veces tiene un poco de moco. Además está medio decaído, no quiere comer.\nVeterinario: Entiendo. ¿Ha tenido vómitos también?\nDueño: Sí, ayer vomitó una vez, pero lo que más me preocupa es la diarrea. Es un gatito joven, de seis meses.\nVeterinario: Bien, lo voy a revisar. Al palparle el abdomen se siente un poco distendido y sensible. Su estado general es regular, las mucosas están normales. Por los signos, podría ser algo compatible con una infección intestinal por un parásito llamado Cryptosporidium. ¿Convive con otros animales?\nDueño: Sí, con otro gato, pero está bien. ¿Es grave?\nVeterinario: No suele ser grave en adultos, pero en cachorros puede deshidratarse. Es sugestivo de criptosporidiosis, que se confirma con una muestra de materia fecal. Le recomiendo traer una muestra para analizar y mientras tanto, mantenerlo hidratado y con una dieta suave. ¿Tiene alguna otra duda?\nDueño: No, doctor. Traigo la muestra mañana. Gracias.\nVeterinario: De nada, que mejore Michi.",
+  "chunks_corpus": 155
+ },
+ {
+  "id": "newcastle-disease",
+  "mesh_target": "Newcastle Disease",
+  "especie": "ave",
+  "query": "Veterinario: Buen día, ¿qué le pasa a este gallo? Dueño: Hola, doctor. El otro día lo vi medio decaído, come menos y ahora tiene como una diarrea verdosa. Veterinario: ¿Notó algún problema para respirar o sonidos raros? Dueño: Sí, a veces abre el pico y hace un ruido como si le costara. Además hoy lo vi torcido del cuello, como si mirara para arriba. Veterinario: Al examinarlo, tiene las plumas erizadas, fiebre y una conjuntivitis leve. Los signos neurológicos y respiratorios son sugestivos de una enfermedad viral seria. Dueño: ¿Es contagioso para los otros? Veterinario: Sí, es altamente contagioso y compatible con un paramixovirus. Sugiero aislarlo de inmediato. Dueño: ¿Puedo darle algo? Veterinario: No hay tratamiento específico; hay que notificarlo a las autoridades sanitarias. Similar al Newcastle.",
+  "chunks_corpus": 154
+ },
+ {
+  "id": "lymphoma-large-b-cell-diffuse",
+  "mesh_target": "Lymphoma, Large B-Cell, Diffuse",
+  "especie": "perro",
+  "query": "Veterinario: Buenas, ¿qué le pasa a este hermoso golden?\nDueño: Hola, doctor. Noté que hace como dos semanas tiene unos bultos en el cuello, como pelotitas, y está más decaído.\nVeterinario: ¿Y cómo está de apetito? ¿Ha perdido peso?\nDueño: Sí, come menos y bajó un poco, aunque le damos lo mismo de siempre.\nVeterinario: Al palpar esos nódulos, son firmes, no duelen y se sienten como si estuvieran fusionados. También noto que tiene las encías algo pálidas.\nDueño: ¿Podría ser algo malo? Lo veo con menos ganas de jugar.\nVeterinario: Por los ganglios agrandados y el decaimiento, esto es sugestivo de un linfoma. Vamos a hacer una punción para confirmar.\nDueño: ¿Y es grave? ¿Se puede tratar?\nVeterinario: Es un tipo de cáncer de los ganglios, pero es tratable con quimioterapia. Primero hay que ver de qué tipo exacto es, pero el cuadro es compatible con un linfoma de células grandes.",
+  "chunks_corpus": 152
+ },
+ {
+  "id": "anemia-hemolytic-autoimmune",
+  "mesh_target": "Anemia, Hemolytic, Autoimmune",
+  "especie": "perro",
+  "query": "Veterinario: Hola, ¿cómo está? ¿Qué le pasa a este perrito? Dueño: Doctor, vengo porque mi perra Coco está muy decaída. Desde hace unos días no quiere comer y está como pálida, hasta las encías las tiene blancas. Veterinario: Claro. ¿Ha notado si tiene la orina oscura, como color té o coca cola? Dueño: Sí, sí, justo. Ayer hizo pis bien oscuro, casi marrón. Veterinario: Bueno. Déjeme revisarla. Las mucosas están muy pálidas, casi blancas, y el corazón late muy rápido. Voy a palparle el abdomen… tiene el bazo un poco grande. Dueño: ¿Qué puede ser? ¿Es algo grave? Veterinario: Por los síntomas que tiene —decaimiento, mucosas pálidas, orina oscura y ese bazo aumentado— esto es sugestivo de una destrucción de glóbulos rojos por el propio sistema de defensa, algo que llamamos anemia autoinmune. Es compatible con un proceso en que el cuerpo ataca a sus propios glóbulos rojos. Dueño: Uy, ¿y eso tiene cura? Veterinario: Se puede tratar con corticoides y a veces otros inmunosupresores, pero es importante hacer análisis de sangre para confirmarlo y descartar infecciones como babesiosis o ehrlichiosis. Le sugiero que internemos a Coco para hacer los estudios y empezar el tratamiento.",
+  "chunks_corpus": 151
+ },
+ {
+  "id": "thrombocytopenia",
+  "mesh_target": "Thrombocytopenia",
+  "especie": "perro",
+  "query": "Veterinario: Hola, ¿qué le pasa a este gran danés?\nDueño: Doctor, hace dos días que no quiere comer y hoy le vi unos moretones raros en la panza.\nVeterinario: Déjeme revisarlo... ¿Notó sangrado de encías o en la orina?\nDueño: Sí, ayer se le manchó la cucha con sangre y las encías las tiene como más pálidas.\nVeterinario: Voy a tomarle una muestra de sangre. Al palparlo, noto que tiene las mucosas muy pálidas y petequias en la piel, como puntitos rojos.\nDueño: ¿Qué puede ser, doctor? Estoy muy preocupado.\nVeterinario: El cuadro es sugestivo de una disminución de plaquetas, que son las células que ayudan a coagular la sangre. Es compatible con una trombocitopenia, que puede deberse a varias causas. Necesito el hemograma para confirmarlo.\nDueño: ¿Es grave? ¿Se cura?\nVeterinario: Depende de la causa. Puede ser por una infección o una reacción a algo. Lo importante es tratarlo a tiempo. Cuando tenga los resultados le explico mejor el plan.",
+  "chunks_corpus": 151
+ },
+ {
+  "id": "helminthiasis-animal",
+  "mesh_target": "Helminthiasis, Animal",
+  "especie": "perro",
+  "query": "Veterinario: Hola, ¿qué le pasa a este loquito? ¿Hace cuánto que no desparasita?\nDueño: La verdad, no me acuerdo. Desde que era cachorro, creo. Lo noto medio decaído, y a veces como que arrastra el culo por el piso.\nVeterinario: Ah, claro. Eso que hace es signo de picazón anal. Vamos a revisarlo bien. ¿Tiene el vientre hinchado o come mucho y no engorda?\nDueño: Sí, el otro día justo mi mamá dijo que parecía que se había comido un globo. Y come un montón pero está flaco.\nVeterinario: (palpando el abdomen) Sí, tiene el abdomen distendido y al palpar se sienten asas intestinales engrosadas. Además las encías están un poco pálidas. ¿Vio alguna vez lombrices en la caca?\nDueño: Una vez vi como unos fideos blancos y chiquitos en el piso. Pensé que era un gusano, pero no estaba seguro.\nVeterinario: Justamente, eso son parásitos. El cuadro clínico es sugestivo de una helmintiasis intestinal. Por la palidez de mucosas puede haber anemia asociada. Le voy a tomar una muestra de materia fecal para confirmar qué tipo de parásito es, y empezamos un tratamiento desparasitante. Además hay que repetirlo en dos semanas.",
+  "chunks_corpus": 150
+ },
+ {
+  "id": "enteritis",
+  "mesh_target": "Enteritis",
+  "especie": "perro",
+  "query": "Veterinario: Hola, ¿qué le pasa a este chico? Hace un rato que lo veo inquieto.\nDueño: Sí, doctor, ayer empezó con mucha diarrea, como aguada, y hoy no quiere comer nada. También lo noto medio apagado.\nVeterinario: Entiendo. ¿Hace cuánto tiene la diarrea? ¿Ha tenido vómitos también?\nDueño: Desde ayer a la tarde. Hoy a la mañana vomitó una vez, amarillo. Y cuando hace fuerza para hacer caca, como que le duele.\nVeterinario: Bien. Revisémoslo. Está un poco deshidratado, tiene el abdomen sensible a la palpación y ruidos intestinales más rápidos de lo normal. No tiene fiebre.\nDueño: ¿Es algo grave? ¿Puede ser por lo que comió?\nVeterinario: Por los signos que presenta, es sugestivo de enteritis, una inflamación del intestino. Podría ser por un cambio de alimento, algo que comió en la calle o una infección. Por ahora es compatible con un cuadro leve a moderado, pero hay que tratar de que no se deshidrate más.\nDueño: ¿Qué hacemos entonces?\nVeterinario: Le voy a dar medicación para calmar el intestino y un protector gástrico, y le recomiendo ayuno por 12 horas y luego dieta blanda. Si no mejora en 24 horas, vuelvan para hacer análisis.",
+  "chunks_corpus": 148
+ },
+ {
+  "id": "hypertension",
+  "mesh_target": "Hypertension",
+  "especie": "gato",
+  "query": "Veterinario: Hola, ¿qué le pasa a Mishi?\nDueño: Hace unos días que está medio rara, casi no come y a veces la veo como atontada, se choca con los muebles. También veo que orina mucho más de lo normal.\nVeterinario: Ya veo. ¿Notaste si tiene temblores o si le cuesta moverse?\nDueño: Sí, como que tiene las patitas un poco temblorosas a veces.\nVeterinario: Bueno, le voy a tomar la presión y revisar el fondo de ojo. Mientras tanto, ¿sabés si tiene problemas de riñón o tiroides?\nDueño: No, siempre estuvo sana, pero el año pasado le hicieron análisis y el veterinario dijo que los riñones estaban un poco justos.\nVeterinario: De acuerdo. Acabo de medirle la presión y está alta, más de 180 mmHg. Además veo en el ojo algunos vasos sanguíneos alterados. Esto es sugestivo de hipertensión arterial sistémica, compatible con enfermedad renal crónica. Podría estar causando estos signos.\nDueño: ¿Y eso es grave? ¿Se puede tratar?\nVeterinario: Sí, se maneja con medicación para bajar la presión y tratar la causa de base. Le recomiendo hacer análisis de sangre y orina para confirmar.",
+  "chunks_corpus": 147
+ },
+ {
+  "id": "dermatitis",
+  "mesh_target": "Dermatitis",
+  "especie": "perro",
+  "query": "Veterinario: Hola, ¿cómo va? Contame qué le pasa a Firulais. Dueño: Hola, doctor. Viene rascándose mucho la panza y las patas, y tiene como granitos rojos, se lame todo el tiempo. Veterinario: Veo, tiene la piel enrojecida y algunas zonas con costras. ¿Notaste si se rasca más después de comer algo o de estar en el pasto? Dueño: Se rasca siempre, pero sí, parece que cuando vuelve del parque se pone peor. Le dimos un nuevo premio la semana pasada. Veterinario: Claro. Al examen, tiene zonas alopécicas y enrojecimiento compatible con dermatitis alérgica. Podría ser por el premio nuevo o por algo del ambiente. Dueño: ¿Es grave? ¿Qué hacemos? Veterinario: No es grave, pero hay que tratarlo. Vamos a pautar un antialérgico y un shampoo suave. Si no mejora, haremos pruebas para descartar parásitos o alergias alimentarias.",
+  "chunks_corpus": 146
+ },
+ {
+  "id": "postoperative-pain",
+  "mesh_target": "Postoperative Pain",
+  "especie": "perro",
+  "query": "Veterinario: Hola, ¿qué le pasa a este paciente? Dueño: Vino de una cirugía de rodilla hace dos días y está muy decaído, no quiere moverse. Veterinario: Ajá, ¿ha comido o tomado agua? Dueño: Casi nada, y cuando lo intenta levantar llora bajito. Veterinario: Veamos… al palpar la zona de la incisión está caliente y sensible. La herida se ve limpia, pero él está con los músculos tensos y el pelaje erizado. Dueño: ¿Será que se lastimó? Veterinario: No necesariamente. El cuadro es sugestivo de dolor postoperatorio. Es normal que duela, pero este nivel de dolor es moderado a severo. Dueño: ¿Qué se le puede dar? Veterinario: Podemos ajustar los analgésicos que tiene en casa con un antiinflamatorio y un opioide suave. Le voy a dejar una receta. Dueño: ¿Cuándo debería mejorar? Veterinario: Con la medicación, en 24 a 48 horas debería empezar a comer y a caminar mejor. Si no, vuelvan a consulta.",
+  "chunks_corpus": 146
+ },
+ {
+  "id": "sepsis",
+  "mesh_target": "Sepsis",
+  "especie": "perro",
+  "query": "Veterinario: ¿Qué le pasó a Toby que lo veo tan decaído? Dueño: Hace dos días que no quiere comer, está como apático, y ayer empezó a vomitar y tener diarrea. Dueño: Además, notamos que tiene la encía un poco más roja de lo normal y respira más rápido. Veterinario: Al revisarlo, tiene fiebre de 39.5°C, las mucosas están congestivas, el pulso es débil y rápido, y al palpar el abdomen se queja. Dueño: Sí, a veces se queja cuando lo tocamos. Puede ser algo grave, doctor? Veterinario: Por los signos que veo, parece que tiene una infección generalizada, compatible con un cuadro séptico. Necesitamos hacer análisis de sangre y tal vez una ecografía para confirmar la fuente. Dueño: ¿Y qué tratamiento necesita? Veterinario: Vamos a empezar con antibióticos intravenosos y fluidos, y si encontramos la causa, tratarla específicamente. Dueño: ¿Se va a salvar? Veterinario: Depende de qué tan rápido responda y de la fuente. Por ahora, es un cuadro sugestivo de sepsis, así que hay que actuar rápido.",
+  "chunks_corpus": 144
+ },
+ {
+  "id": "hypothyroidism",
+  "mesh_target": "Hypothyroidism",
+  "especie": "perro",
+  "query": "Veterinario: Hola, ¿qué le pasa a Toby? Dueño: Doctor, está muy raro. Se duerme todo el día, no juega como antes y está engordando un montón, a pesar de que come menos que siempre. Además, tiene el pelo súper opaco y se le cae a mechones. Veterinario: Ya veo. ¿Notaste alguna otra cosa, como que se canse rápido al caminar o que tenga la piel seca? Dueño: ¡Sí! El otro día subió la escalera y parecía que le faltaba el aire. Y la piel la tiene como con caspa, muy seca. Veterinario: Déjame revisarlo. Voy a tomarle el pulso… está más lento de lo normal. También al palparle el cuello, noto las tiroides chiquitas pero firmes. Por los síntomas que me describís (falta de energía, aumento de peso, problemas de piel y pelaje), todo es muy sugestivo de hipotiroidismo, que es cuando la glándula tiroides no produce suficiente hormona. Dueño: ¿Es grave? ¿Cómo se trata? Veterinario: No es grave si se detecta a tiempo. Es compatible con un hipotiroidismo primario, bastante común en perros de raza como Toby. Vamos a hacer un análisis de sangre para medir la T4 total y estimular la TSH. Si se confirma, el tratamiento es con una medicación diaria de por vida, levotiroxina, y suele mejorar en semanas. Dueño: Ah, menos mal. Y aparte de la pastilla, ¿tengo que cambiarle algo? Veterinario: Sí, conviene mantenerlo en un peso saludable con dieta baja en grasas y paseos suaves. También cepillarlo seguido para estimular el pelo. Vamos a repetir los análisis cada unos meses para ajustar la dosis. Dueño: Perfecto, doctor. Empecemos cuanto antes.}",
+  "chunks_corpus": 143
+ },
+ {
+  "id": "neoplasm-metastasis",
+  "mesh_target": "Neoplasm Metastasis",
+  "especie": "perro",
+  "query": "Veterinario: Hola, ¿cómo va? Contame qué le pasa a Firulais.\nDueño: Buenas, doctor. Lo noto muy decaído hace como dos semanas. Come poco, duerme mucho y como que respira con esfuerzo, como si le costara.\nVeterinario: Claro. ¿Notaste si tose o si se cansa rápido cuando sale a pasear?\nDueño: Sí, doctor. Antes corría un montón, ahora a los dos minutos se para y respira con la boca abierta. Y a veces tose, como si tuviera algo atragantado.\nVeterinario: Bien, a ver... dejame que lo revise. Tiene las encías pálidas, los ganglios del cuello un poco aumentados de tamaño y al auscultar el pecho se escuchan ruidos húmedos. ¿Hace cuánto no le hacés análisis o radiografías?\nDueño: Hará más de un año. Nunca tuvo problemas. ¿Es grave?\nVeterinario: Mirá, por lo que veo y escucho, esto es sugestivo de un proceso que puede haber empezado en algún lado y se haya diseminado al pulmón y a los ganglios. Es compatible con una enfermedad metastásica. Para confirmarlo habría que hacer radiografías de tórax y una ecografía abdominal, y quizás tomar muestras de esos ganglios.\nDueño: ¿Metastásica? ¿Como cáncer? ¿Él tiene cáncer?\nVeterinario: Así es. Por los signos, lo más probable es que haya un tumor primario en algún órgano y que ya haya hecho metástasis en pulmón y ganglios. No podemos asegurarlo sin estudios, pero el cuadro es muy compatible. Te recomiendo hacerlos cuanto antes para saber el origen y el alcance.\nDueño: Bueno, doctor, voy a hacerle los estudios. Gracias por la sinceridad.",
+  "chunks_corpus": 140
+ },
+ {
+  "id": "heart-diseases",
+  "mesh_target": "Heart Diseases",
+  "especie": "perro",
+  "query": "Veterinario: Hola, ¿qué le pasa a Toby?\nDueño: Doctor, está como decaído, se cansa mucho al pasear. Antes daba vueltas a la manzana, ahora se queda sentado a los doscientos metros.\nVeterinario: Ya veo. ¿Notó si tose o respira más rápido cuando está en reposo?\nDueño: Sí, a veces tose como si tuviera algo atorado, sobre todo de noche. Y respira un poco agitado.\nVeterinario: ¿Perdió el apetito o le cuesta echarse?\nDueño: Come normal, pero le cuesta acomodarse para dormir, se da vuelta varias veces.\nVeterinario: Al examinarlo, tiene las mucosas un poco pálidas y al auscultar el pecho se escucha un soplo cardíaco. El pulso está débil.\nDueño: ¿Es grave?\nVeterinario: Lo que presenta es compatible con una enfermedad cardíaca. Para confirmarlo y ver el grado, necesitamos una placa de tórax y un ecocardiograma.",
+  "chunks_corpus": 138
+ },
+ {
+  "id": "liver-diseases",
+  "mesh_target": "Liver Diseases",
+  "especie": "perro",
+  "query": "Veterinario: Hola, ¿cómo andás? Contame qué le pasa a tu perro.\nDueño: Hola, doctor. La verdad que vengo preocupado porque noto que mi perro está medio decaído, no quiere comer bien y a veces vomita.\nVeterinario: Entiendo. ¿Notaste algún cambio en su color, como si estuviera más amarillito en las encías o en los ojos?\nDueño: Sí, ahora que lo dice, los ojos los tiene como un poco amarillos, y la orina es muy oscura.\nVeterinario: Claro. Al palparle el abdomen, se siente el hígado un poco más grande de lo normal. ¿Ha tenido algún otro síntoma como sed excesiva o pérdida de peso?\nDueño: Sí, toma más agua de lo común y ha bajado un poco de peso.\nVeterinario: Bien. Por los signos que me contás y lo que encuentro en el examen físico, esto es sugestivo de un problema hepático. Podría ser una hepatitis o una enfermedad del hígado. Vamos a hacer análisis de sangre y una ecografía para confirmar.\nDueño: ¿Es grave? ¿Se puede tratar?\nVeterinario: Depende de la causa. Si es tratable, con medicación y dieta especial podemos manejarlo. Vamos a tomar muestras y en base a los resultados vemos el mejor plan.",
+  "chunks_corpus": 137
+ },
+ {
+  "id": "protein-losing-enteropathies",
+  "mesh_target": "Protein-Losing Enteropathies",
+  "especie": "perro",
+  "query": "Veterinario: Buenas, ¿qué le pasa a Tobi? \nDueño: Doctor, hace como dos semanas que no para de adelgazar, pero come lo mismo de siempre. Además, tuvo mucha diarrea, a veces con un poco de sangre.\nVeterinario: ¿Notaste si tiene mucho líquido en la panza o se le hincharon las patas?\nDueño: Sí, el otro día cuando lo bañé vi que tenía la panza un poco dura y las patas de atrás como hinchadas. También está más decaído.\nVeterinario: Déjame revisarlo... Tiene un poco de líquido en el abdomen y las encías están pálidas. El pelaje está opaco. Esto es muy sugestivo de un problema en el intestino que está perdiendo proteínas.\nDueño: ¿Y eso es grave? ¿Qué se le puede hacer?\nVeterinario: Es un cuadro complejo, compatible con una enteropatía con pérdida de proteínas. Vamos a hacer análisis de sangre y ecografía para confirmar, y arrancar con tratamiento para bajar la inflamación intestinal.",
+  "chunks_corpus": 137
+ },
+ {
+  "id": "dysbiosis",
+  "mesh_target": "Dysbiosis",
+  "especie": "perro",
+  "query": "Dueño: Hola, doctor. Vengo porque mi perro, Toby, hace días que tiene diarrea, no es líquida pero sí muy pastosa, y a veces con moco. También tira muchos pedos y le rezonga la panza.\nVeterinario: Claro. ¿Hace cuánto que le pasa? ¿Come lo mismo de siempre?\nDueño: Como una semana. No le dimos nada nuevo, solo su balanceado. Pero a veces le robamos algo de la mesa.\nVeterinario: Entiendo. Al palparle el abdomen se lo siente un poco distendido y sensible, y el ano está algo irritado. Su temperatura y mucosas están normales.\nDueño: ¿Puede ser algo grave? Le veo las ganas de comer igual.\nVeterinario: Por cómo se presenta, es sugestivo de un desbalance en la flora intestinal, lo que se llama disbiosis. Es frecuente cuando hay cambios en la alimentación o estrés digestivo.\nDueño: ¿Y eso se cura? ¿Qué le tengo que dar?\nVeterinario: Por lo general responde bien a una dieta blanda y probióticos. Le voy a recetar un suplemento para ayudar a restablecer las bacterias buenas y un protector de mucosa. Si en dos días no mejora, vuelvan para hacer análisis.",
+  "chunks_corpus": 136
+ },
+ {
+  "id": "spinal-cord-diseases",
+  "mesh_target": "Spinal Cord Diseases",
+  "especie": "perro",
+  "query": "Veterinario: Hola, ¿cómo anda? Contame qué le pasa a Firulais.\nDueño: Hola doctor. Firulais empezó como arrastrando las patitas de atrás, como si no las sintiera bien. También se tropieza seguido cuando camina.\nVeterinario: Ya veo. ¿Cuándo empezó eso? ¿Fue de golpe o de a poco?\nDueño: Fue de a poco, hace unos días. Pero hoy ya casi no quiere levantarse. Se orinó sin querer en la cucha.\nVeterinario: Entiendo. Al revisarlo, noto que tiene muy poca fuerza en las patas traseras y cuando le pellizco entre los dedos no reacciona bien. Todo esto es sugestivo de un problema en la médula espinal, como una compresión o una hernia discal.\nDueño: ¿Es grave, doctor? ¿Se va a recuperar?\nVeterinario: Depende la causa. Podemos hacer placas y quizás una resonancia para ver qué está pasando. El cuadro es compatible con una enfermedad de la médula. Por ahora lo vamos a medicar para bajar la inflamación y ver cómo responde.",
+  "chunks_corpus": 135
+ },
+ {
+  "id": "adenocarcinoma",
+  "mesh_target": "Adenocarcinoma",
+  "especie": "perro",
+  "query": "Veterinario: Buenas, ¿qué le pasa a Lola?\nDueño: Hace como dos semanas que come menos y está medio decaída. También noté que bebe mucha agua y hace pis más seguido.\nVeterinario: Veo que tiene un poco de panza hinchada. ¿Vomitó o tuvo diarrea?\nDueño: No, nada de eso. Pero a veces respira como más rápido, sobre todo cuando se acuesta.\nVeterinario: Al palparle el abdomen siento una masa firme en la zona del hígado. Los ganglios del cuello también están un poco grandes.\nDueño: ¿Podría ser algo grave? Se ve triste.\nVeterinario: Por los signos, esto es sugestivo de un tumor abdominal, posiblemente un adenocarcinoma. Recomiendo hacer una ecografía y una punción para confirmar.",
+  "chunks_corpus": 133
+ },
+ {
+  "id": "gastroenteritis",
+  "mesh_target": "Gastroenteritis",
+  "especie": "perro",
+  "query": "Veterinario: Hola, ¿qué le pasa a tu perro? Dueño: Hola, doctor. Tiene vómitos y diarrea desde ayer. No quiere comer nada. Veterinario: ¿Y cómo son las heces? ¿Tiene sangre o mucosidad? Dueño: Sí, un poco de moco y algunas vetas rojas. También está muy decaído. Veterinario: Entiendo. Voy a revisarlo. Al palpar el abdomen se nota sensible y los ruidos intestinales están aumentados. ¿Ha tenido acceso a basura o comida en mal estado? Dueño: Sí, creo que revolvió la basura anteayer. Veterinario: El cuadro es sugestivo de una gastroenteritis aguda, compatible con una intoxicación alimentaria. Le voy a indicar ayuno por 12 horas, dieta blanda y un protector gástrico. Si no mejora en 48 horas, volvé para hacer análisis.",
+  "chunks_corpus": 131
+ },
+ {
+  "id": "overweight",
+  "mesh_target": "Overweight",
+  "especie": "perro",
+  "query": "Veterinario: Hola, ¿cómo está? ¿Qué le pasa a este gordito precioso? Dueño: Hola, doctor. La verdad, vengo preocupada porque noto que últimamente se cansa mucho. Antes daba la vuelta a la manzana entera, y ahora a los dos metros ya se sienta y jadea. Además, tiene como más rollos. Veterinario: Claro. Vamos a verlo. Mientras lo palpo, noto que tiene una capa de grasa bastante importante en el pecho, el abdomen y la base de la cola. No se le sienten bien las costillas, ni apretando un poquito. ¿Come mucho o come cosas de la mesa? Dueño: Sí, reconozco que le damos sobras de la comida, y a veces le damos galletitas cuando nos pide. Es que es tan pícaro... Veterinario: Entiendo. Al pesarlo, está un 30% por encima de su peso ideal, y al auscultarlo el corazón suena un poquito apagado. Todo esto es muy compatible con sobrepeso u obesidad. Dueño: ¿Y es grave? ¿Puede ser por eso que se cansa tanto? Veterinario: Sí, seguramente. El sobrepeso es sugestivo de que el corazón y los pulmones tienen que trabajar más. Además predispone a problemas de articulaciones, diabetes y hasta pancreatitis. Lo importante es que lo podemos tratar. Dueño: Uf, qué alivio. ¿Y qué hacemos? Veterinario: Primero, un análisis de sangre para descartar algo de tiroides. Después, armar un plan de alimentación hipocalórica y ejercicios de a poco, como caminatas cortas varias veces al día. Y nada de comida de la mesa, ¿eh? Dueño: Le voy a tener que decir que no... pero bueno, por su salud. Veterinario: Así es. Ahora le receto un alimento balanceado para descenso de peso y nos vemos en un mes para control.",
+  "chunks_corpus": 131
+ },
+ {
+  "id": "ancylostomiasis",
+  "mesh_target": "Ancylostomiasis",
+  "especie": "perro",
+  "query": "Veterinario: ¡Hola! Contame, ¿qué le pasa a tu perro?\nDueño: Mirá, tiene como una diarrea con sangre y está muy decaído. Además, como que no quiere comer mucho.\nVeterinario: ¿Cuándo empezó esto? ¿Vos notaste si tiene mocos o tos?\nDueño: Empezó hace unos tres días. Tos no, pero a veces como que se queda con la boca abierta, como si le faltara el aire.\nVeterinario: Bien, déjame revisarlo. Noto que las mucosas están muy pálidas, casi blancas, y el abdomen está un poco distendido. ¿Viste si tiene parásitos en las heces o si se rasca mucho el trasero?\nDueño: La verdad que no vi bichos, pero sí se arrastra por el piso con la cola.\nVeterinario: Por lo que me contás y lo que veo, esto es sugestivo de una infección por un parásito que chupa sangre, compatible con anquilostomas. Vamos a hacer un análisis de materia fecal para confirmarlo.\nDueño: Ah, ¿y es grave? ¿Qué hacemos mientras?\nVeterinario: Es tratable, pero hay que actuar rápido. Te voy a recetar un antiparasitario y soporte con hierro y vitaminas. También es importante mantenerlo bien hidratado. En unos días debería mejorar.",
+  "chunks_corpus": 130
+ },
+ {
+  "id": "cadaver",
+  "mesh_target": "Cadaver",
+  "especie": "perro",
+  "query": "Veterinario: Buenas tardes, pasen. ¿Qué les trae por acá? Dueño: Hola, doctor... es que encontramos a nuestro perro, Toby, en el patio. No se mueve. Creemos que está muerto. Veterinario: Lamento mucho escuchar eso. ¿Cuándo lo vieron con vida por última vez? Dueño: Anoche estaba bien, jugó y comió. Esta mañana lo encontramos acostado, tieso. Veterinario: Voy a examinarlo. (Pausa) Al palparlo, no tiene pulso, no se escuchan latidos ni respiración. Las pupilas están fijas y dilatadas. No hay reflejo corneal. Dueño: ¿Entonces ya no hay nada que hacer? Veterinario: Lamentablemente, todos los signos son compatibles con un deceso. El cuerpo empieza a presentar rigidez, lo que es sugestivo de que llevaría varias horas sin vida. Dueño: No sabemos qué pasó... ¿Pudo ser algo que comió? Veterinario: Es una posibilidad. Para intentar determinar la causa, podríamos considerar una necropsia, que es como una autopsia para animales. Dueño: ¿Y eso cómo se hace? Veterinario: Se realiza un examen minucioso del cuerpo, incluyendo órganos y tejidos, para buscar lesiones, intoxicaciones o enfermedades. Dueño: Bueno, pensémoslo. Gracias por la franqueza.",
+  "chunks_corpus": 129
+ },
+ {
+  "id": "surgical-wound-infection",
+  "mesh_target": "Surgical Wound Infection",
+  "especie": "perro",
+  "query": "Veterinario: Hola, ¿cómo va? Cuénteme cómo está el paciente después de la cirugía.\nDueño: Y, la verdad que la perra está medio rara. Hace dos días que no quiere comer y anda muy decaída. Además, noté que la herida de la castración está roja y tiene como un líquido que le sale.\nVeterinario: Ya veo. Permítame revisarla. Mire, tiene un poco de hinchazón alrededor de la herida y al tacto se siente caliente. ¿Vio si hay algún olor distinto?\nDueño: Sí, sí, tiene un olor medio feo, como a podrido. Y ayer le vi que se lamía mucho ahí, aunque le compré el collar isabelino.\nVeterinario: Claro. Voy a tomarle la temperatura... tiene unas décimas de fiebre. Esto es muy sugestivo de una infección de la herida quirúrgica. ¿Notó si sale pus o es amarillo?\nDueño: Sí, sale amarillento y espeso. Yo pensé que era normal que se inflame un poco después de la operación.\nVeterinario: Se puede inflamar, pero el enrojecimiento, el calor, el dolor y esa secreción no son normales. Todo esto es compatible con una infección local. Le voy a tomar una muestra para cultivo y empezar un antibiótico. ¿Usaron el antibiótico que les receté?\nDueño: Sí, se lo dimos los primeros tres días, pero después se nos terminó y no compramos más.\nVeterinario: Ahí está parte del problema. Es clave completar todo el tratamiento. Vamos a limpiar bien la herida y empezar con una nueva tanda de antibióticos. También le voy a recetar un antiinflamatorio.",
+  "chunks_corpus": 129
+ },
+ {
+  "id": "influenza-in-birds",
+  "mesh_target": "Influenza in Birds",
+  "especie": "ave",
+  "query": "Veterinario: Buenas, ¿qué le pasa a su loro?\nDueño: Hola, doctor. No quiere comer, está todo esponjado y como que se duerme mucho.\nVeterinario: Ya veo. ¿Notó si estornuda o le sale algo de los ojos o la nariz?\nDueño: Sí, tiene los ojos medio llorosos, y hoy vi que le cuesta respirar, como que abre el pico.\nVeterinario: ¿Lo sacó afuera o estuvo en contacto con otras aves hace poco?\nDueño: Sí, lo saqué al patio, y vienen palomas al comedero, calculo que ahí pescó algo.",
+  "chunks_corpus": 125
+ },
+ {
+  "id": "mastocytoma",
+  "mesh_target": "Mastocytoma",
+  "especie": "perro",
+  "query": "Veterinario: Hola, ¿cómo anda? ¿Qué le pasa a este hermoso?\nDueño: Hola, doctor. Vengo porque Nota tiene un bultito acá en la panza, como una pelotita, y cuando lo toco él se queja.\nVeterinario: Ah, claro. ¿Hace cuánto lo notó?\nDueño: Hará como dos semanas, pero no creció mucho. A veces se lame ahí.\nVeterinario: Bueno, déjeme palparlo... Sí, se siente una masa firme, como adherida a la piel, de unos dos centímetros. No se mueve mucho. ¿Notó enrojecimiento o que se ponga más rojo?\nDueño: Sí, a veces está como colorado, y un par de veces parecía que largaba un poquito de sangre.\nVeterinario: De acuerdo. Por las características que veo, esto es sugestivo de un mastocitoma, que es un tumor de unas células de la piel. No es algo normal, pero no necesariamente es malo. Lo que vamos a hacer es una punción con aguja fina para sacar una muestra y mandarla al laboratorio, y de paso revisar si hay algún ganglio inflamado.\nDueño: ¿Y si es eso, hay que operarlo?\nVeterinario: Probablemente sí, pero primero necesitamos el resultado de la citología para ver el grado y planear el tratamiento. Mientras tanto, evite que se lama, podemos ponerle un collar isabelino.",
+  "chunks_corpus": 124
+ },
+ {
+  "id": "venereal-tumors-veterinary",
+  "mesh_target": "Venereal Tumors, Veterinary",
+  "especie": "perro",
+  "query": "Veterinario: Hola, ¿en qué los puedo ayudar? ¿Qué le pasa a este machito?\nDueño: Buenas, vengo porque Nota, mi perro, tiene una cosa rara en el pene. Le vi como una masita roja, como una frambuesa, y sangra un poco.\nVeterinario: Ah, entiendo. ¿Notaste si le duele al orinar o si lame mucho la zona?\nDueño: Sí, lame mucho, y a veces se queda como incómodo, pero no sé si le duele. También vi que le gotea sangre a veces.\nVeterinario: Bien, voy a revisarlo. (lo examina) Acá veo una masa bien definida, rojiza, de unos 2 centímetros, en la base del pene. Al tacto es friable, sangra fácil. No se ve inflamado en otra parte.\nDueño: ¿Y eso es malo? ¿Puede ser cáncer?\nVeterinario: Por el aspecto y la ubicación, es muy sugestivo de un tumor venéreo transmisible, que es común en perros callejeros o que tienen contacto con otros. Es contagioso entre perros, pero tratable. Vamos a confirmarlo con una citología.\nDueño: Uf, qué alivio que tenga tratamiento. ¿Se contagia a otros perros o a mí?\nVeterinario: Solo a otros perros, no a humanos. Recomiendo mantenerlo alejado de otros perros hasta que terminemos el tratamiento con quimioterapia local o inyecciones. ¿Hace cuánto que lo tiene?\nDueño: Como una semana, más o menos. Y sí, sale a la calle y se cruza con otros perros. Bueno, empezamos hoy.",
+  "chunks_corpus": 121
+ },
+ {
+  "id": "adrenocortical-hyperfunction",
+  "mesh_target": "Adrenocortical Hyperfunction",
+  "especie": "perro",
+  "query": "Veterinario: Hola, ¿cómo va? ¿Qué le pasa a este peludo? Dueño: Hola, doctor. La verdad, estoy preocupado. Mi perra, Nina, de repente empezó a tomar mucha agua y a hacer pis todo el tiempo. Antes se aguantaba, pero ahora se orina en casa. Veterinario: Claro, ¿notaste algún otro cambio en ella? Dueño: Sí, tiene mucha más hambre que antes, pero está perdiendo peso. Y la panza se le hinchó como si estuviera hinchada de líquido, pero no tiene muchas ganas de moverse. Veterinario: Entiendo. Al revisarla, veo que tiene el abdomen distendido, como péndulo, y perdida de masa muscular. También la piel se ve fina, con algunos puntos negros. Dueño: ¿Es algo grave? Veterinario: Es un cuadro que puede ser sugestivo de un problema hormonal, como el exceso de cortisol. Es compatible con algunas enfermedades de las glándulas suprarrenales. Habría que hacer análisis de sangre y una ecografía para confirmar.",
+  "chunks_corpus": 120
+ },
+ {
+  "id": "nematode-infections",
+  "mesh_target": "Nematode Infections",
+  "especie": "perro",
+  "query": "Veterinario: Hola, ¿en qué puedo ayudarlo con su perro?\nDueño: Hola, doctor. Es que mi perro está muy decaído, no tiene ganas de comer y he visto que tiene la pancita un poco hinchada.\nVeterinario: Claro, vamos a revisarlo. ¿Ha notado algo en sus heces? ¿Alguna vez ha visto gusanos blancos como fideos?\nDueño: Sí, la verdad que sí, el otro día vi unos gusanitos blancos en sus heces. También lo veo más flaco de lo normal.\nVeterinario: Bien, al palparle el abdomen se siente un poco distendido y al revisar las mucosas están pálidas. Esto es sugestivo de una carga importante de parásitos intestinales.\nDueño: ¿Es grave? ¿Qué tengo que hacer?\nVeterinario: Es un cuadro compatible con una infección por nematodos, esos gusanos que usted vio. Le vamos a tomar una muestra de heces para confirmar y le recetaré un antiparasitario. Además, es importante desparasitarlo regularmente.\nDueño: Ah, entiendo. ¿Y se va a poner bien?\nVeterinario: Con el tratamiento adecuado y siguiendo las pautas de desparasitación, suele haber una buena evolución. También le recomiendo una limpieza profunda del ambiente donde vive para evitar reinfecciones.",
+  "chunks_corpus": 119
+ },
+ {
+  "id": "circoviridae-infections",
+  "mesh_target": "Circoviridae Infections",
+  "especie": "ave",
+  "query": "Veterinario: Buen día, ¿qué le pasa a este loro que lo veo medio apagado?\nDueño: Sí, doctor, hace unos días que no quiere comer y está muy quieto. También noté que tiene las plumas erizadas y como que se queda en el fondo de la jaula, casi no se mueve.\nVeterinario: Entiendo. ¿Ha vomitado o tenido diarrea? ¿Notó algo raro en sus heces?\nDueño: Sí, ayer vi que la caca era más líquida de lo normal y tenía como un olor fuerte. También parece que está más delgado, se le marca el hueso del pecho.\nVeterinario: Al examinarlo, veo que tiene el buche un poco distendido y las mucosas pálidas. Esto puede ser compatible con una infección viral que afecta a las aves.\nDueño: ¿Es grave? ¿Qué puede ser? Porque nunca lo vi tan decaído.\nVeterinario: Por los signos que presenta —debilidad, plumas erizadas y problemas digestivos— es sugestivo de una infección por un circovirus, que suele dar este cuadro. Necesitamos hacer análisis para confirmar.\nDueño: ¿Y tiene tratamiento? ¿Se puede salvar?\nVeterinario: Depende de la etapa. Si se confirma, el manejo es de soporte: fluidos, nutrientes y mantenerlo tibio. Pero es importante aislarlo de otras aves.",
+  "chunks_corpus": 116
+ },
+ {
+  "id": "cushing-syndrome",
+  "mesh_target": "Cushing Syndrome",
+  "especie": "perro",
+  "query": "Veterinario: Hola, ¿qué le pasa a este hermoso perro? Dueño: Doctor, hace como dos meses que toma mucha agua, todo el día bebe. Y come más de lo normal, pero no engorda, al contrario, como que se le cae la pancita. Veterinario: Ya veo. ¿Notaste si orina más seguido también? Dueño: Sí, se despierta a la noche para hacer pis, y a veces se hace adentro. Y tiene menos pelo en los costados, como si se le hubiera caído. Veterinario: Perfecto. Al examinarlo veo que tiene el abdomen caído, la piel finita y algunas manchas negras en la panza. También tiene más sed de lo normal. Dueño: Sí, eso mismo. ¿Será algo malo? Veterinario: Todo esto es compatible con un cuadro hormonal, sugestivo de síndrome de Cushing. Necesito hacerle análisis de sangre para confirmarlo.",
+  "chunks_corpus": 115
+ },
+ {
+  "id": "snake-bites",
+  "mesh_target": "Snake Bites",
+  "especie": "perro",
+  "query": "Veterinario: Hola, ¿qué le pasa a Rocky?\nDueño: Doctor, lo mordió una serpiente ayer en el campo, tiene la pata muy hinchada y no quiere caminar.\nVeterinario: Veo que tiene hinchazón y un hematoma en la zona. ¿Notaste algún otro signo como salivación excesiva o dificultad para respirar?\nDueño: Sí, estuvo babeando mucho y como que se tambaleaba al caminar.\nVeterinario: Al examinarlo, la zona de la mordedura muestra dos puntitos y hay edema marcado. El cuadro es sugestivo de una mordedura de serpiente venenosa, compatible con envenenamiento.\nDueño: ¿Es grave? ¿Qué hacemos?\nVeterinario: Sí, es grave. Necesita internación, suero antiofídico y control de coagulación. ¿Sabés qué tipo de serpiente era?\nDueño: No vi bien, era marrón y chica. ¿Se va a poner bien?\nVeterinario: Con tratamiento rápido, hay buenas chances. Ahora le voy a colocar un acceso venoso y empezar el suero.",
+  "chunks_corpus": 115
+ },
+ {
+  "id": "spinal-cord-injuries",
+  "mesh_target": "Spinal Cord Injuries",
+  "especie": "perro",
+  "query": "Veterinario: Hola, ¿qué le pasa a Firulais? Dueño: Doctor, desde ayer no puede mover las patas de atrás. Se arrastra y parece que no siente nada. Veterinario: ¿Hubo algún golpe o caída? ¿Saltó de algún lado? Dueño: Sí, ayer se cayó de la cama, pero no pensé que fuera grave. Veterinario: Al revisarlo, no hay reflejo en la cola ni en las patas traseras. La sensibilidad profunda parece disminuida. Dueño: ¿Qué significa eso? ¿Va a quedar así? Veterinario: Es un cuadro sugestivo de una lesión en la médula espinal, compatible con una hernia de disco o un traumatismo. Habrá que hacer radiografías para ver el daño exacto.",
+  "chunks_corpus": 113
+ },
+ {
+  "id": "spinal-cord-compression",
+  "mesh_target": "Spinal Cord Compression",
+  "especie": "perro",
+  "query": "Veterinario: Hola, ¿cómo anda? ¿Qué le pasa a este precioso? Dueño: Hola, doctor. Es que Rocky viene arrastrando las patas de atrás desde ayer. No quiere caminar y se cae. Veterinario: Ya veo. ¿Tuvo algún golpe o salto brusco? Dueño: No que yo sepa, pero es re saltarín, se tira del sillón. Veterinario: Bien. Al examinarlo, noto que tiene reflejos disminuidos en las patas traseras y parece sentir dolor cuando le toco la columna a la altura de la cintura. Dueño: ¿Y eso qué significa? ¿Se va a quedar así? Veterinario: Mire, lo que veo es sugestivo de una compresión de la médula espinal, como si algo estuviera apretando el cable de los nervios. Dueño: ¿Algo como un disco? Veterinario: Exacto, es compatible con una hernia de disco o una fractura. Para confirmarlo y ver qué tan grave está, necesitaríamos una radiografía o una tomografía. Dueño: ¿Y se puede operar? Veterinario: Sí, si es una compresión, la cirugía suele dar buenos resultados, pero primero tenemos que ver bien qué lo está causando. Dueño: Bueno, hagamos lo que haya que hacer. Gracias, doctor.",
+  "chunks_corpus": 113
+ },
+ {
+  "id": "cestode-infections",
+  "mesh_target": "Cestode Infections",
+  "especie": "perro",
+  "query": "Veterinario: Buen día, ¿qué le pasa a este perrito?\nDueño: Hola, doctor. Vengo porque noté que mi perro tiene como granitos de arroz en la cola y alrededor del culo. Además, está muy flaco, come mucho pero no engorda.\nVeterinario: Entiendo, eso que describe son segmentos planos que se ven como arroz, ¿no? Déjeme revisarlo. Al examinarlo, veo el pelaje un poco opaco y seco, y en la zona perianal hay efectivamente esos proglótides. También al palpar el abdomen no se siente dolor, pero el paciente está por debajo de su peso ideal. Esto es muy sugestivo de una infección parasitaria por cestodes, que son lombrices planas que viven en el intestino. ¿Le notó alguna otra cosa, como vómitos o diarrea?\nDueño: Sí, una vez vomitó, y a veces tiene diarrea, pero no seguido. Y hace unos meses le dimos un antiparasitario de esos que venden en la farmacia, pero no mejoró mucho.\nVeterinario: Claro, esos parásitos a veces no se eliminan con los antiparasitarios comunes. El cuadro es compatible con una teniasis, podría ser Dipylidium caninum si su perro tiene pulgas. ¿Convive con otros animales o ha tenido pulgas?\nDueño: Sí, tiene una pulguera impresionante, no se le van con nada. Y convive con otro perro.\nVeterinario: Perfecto, eso cierra el diagnóstico. Vamos a tomar una muestra de materia fecal para confirmar, y le vamos a recetar un antiparasitario específico que ataca estos gusanos planos, junto con un tratamiento estricto contra las pulgas. También deberá desparasitar al otro perro, porque es probable que esté contagiado. ¿Alguna otra duda?",
+  "chunks_corpus": 112
+ },
+ {
+  "id": "west-nile-fever",
+  "mesh_target": "West Nile Fever",
+  "especie": "ave",
+  "query": "Veterinario: Buenas, ¿qué le pasa a su loro? \nDueño: Hola, doctor. Lo noté decaído, no quiere comer y tiene las plumas erizadas. \nVeterinario: ¿Notó algo en sus ojos o en su cabeza? \nDueño: Sí, tiene como un temblor en la cabeza y un ojo medio cerrado. \nVeterinario: Déjeme revisarlo... La cabeza está ladeada y hay signos de incoordinación. El cuadro es sugestivo de una infección viral, compatible con lo que llamamos fiebre del Nilo. \nDueño: ¿Es grave? ¿Se puede contagiar a nosotros? \nVeterinario: Es una enfermedad seria que afecta el sistema nervioso. No hay transmisión directa a personas por contacto, pero se contagia por mosquitos. Vamos a hacer análisis para confirmar y darle soporte.",
+  "chunks_corpus": 111
+ },
+ {
+  "id": "urinary-incontinence",
+  "mesh_target": "Urinary Incontinence",
+  "especie": "perro",
+  "query": "Veterinario: Hola, ¿qué le pasa a este hermoso perro? Dueño: Hola, doctor. Es que Nota, mi perra de 8 años, desde hace unas semanas se hace pis en la cama mientras duerme. Veterinario: Ah, claro. ¿Notaste si está bebiendo más agua de lo normal o si orina con más frecuencia? Dueño: No, toma agua normal. Pero cuando se pone contenta o salta, a veces gotea un poco, como sin querer. Veterinario: Entiendo. Al palparle el abdomen, la vejiga se siente un poco distendida, y al presionar suavemente, noto que pierde orina. Esos hallazgos son sugestivos de una pérdida del tono del esfínter uretral. Dueño: ¿Y eso es grave? ¿Tiene cura? Veterinario: Es un cuadro compatible con incontinencia urinaria hormonal, común en hembras castradas a esta edad. Se maneja bien con medicación para mejorar el control de la vejiga. Dueño: Ah, menos mal. ¿Y tengo que hacerle algún estudio? Veterinario: Sí, sería ideal un análisis de orina y una ecografía para descartar infección o cálculos. Pero por ahora, el cuadro es muy típico. Dueño: Dale, entonces empecemos con eso. Gracias, doctor.",
+  "chunks_corpus": 111
+ },
+ {
+  "id": "prostatic-neoplasms",
+  "mesh_target": "Prostatic Neoplasms",
+  "especie": "perro",
+  "query": "Veterinario: Hola, ¿qué le pasa a tu perro?\nDueño: Buenas tardes, doctor. Noté que últimamente hace mucha fuerza para hacer pis, y a veces le gotea sangre al final.\nVeterinario: Entiendo. ¿Cuántos años tiene?\nDueño: Tiene 9 años, es un labrador macho entero.\nVeterinario: Bien. En el examen, su próstata está aumentada de tamaño y asimétrica al tacto rectal. ¿Ha tenido problemas para defecar?\nDueño: Sí, hace un par de semanas hace fuerza para defecar y las heces son como finitas, como una cinta.\nVeterinario: Eso es sugestivo de un problema prostático importante. Por los signos y la edad, es compatible con una neoplasia prostática. Recomiendo ecografía y biopsia para confirmar.\nDueño: ¿Podría ser cáncer? ¿Tiene tratamiento?\nVeterinario: Es una posibilidad. Depende del tipo y extensión. Si es maligno, el manejo es paliativo. Pero primero debemos diagnosticarlo.\nDueño: Está bien, entiendo. Vamos a hacer esos estudios.",
+  "chunks_corpus": 111
+ },
+ {
+  "id": "cardiomyopathies",
+  "mesh_target": "Cardiomyopathies",
+  "especie": "gato",
+  "query": "Veterinario: Hola, ¿cómo va? Contame qué le pasa a Michi.\nDueño: Hola, doctor. Últimamente está como más decaído, duerme mucho y respira raro, como con la boca abierta a veces.\nVeterinario: ¿Cuánto tiempo hace que lo notás así?\nDueño: Hará como una semana. También dejó de comer casi, solo toma agua.\nVeterinario: Bueno, voy a revisarlo. (Lo examina) Al palparle el pecho siento que el latido está un poco apagado y rápido. Además, tiene las mucosas un poco pálidas.\nDueño: ¿Es grave? Le vi que tose a veces, como si se ahogara.\nVeterinario: Podría ser algo del corazón, sugestivo de una miocardiopatía, que es cuando el músculo del corazón no bombea bien. También puede haber líquido en los pulmones. Para confirmarlo necesitamos una ecografía cardíaca.\nDueño: ¿Y qué se le puede hacer?\nVeterinario: Primero, estabilizarlo con oxígeno y diuréticos para sacarle el líquido. Luego, según el tipo, hay medicación de por vida. Es un cuadro serio, pero tratable.\nDueño: Bueno, hagamos lo que haya que hacer.",
+  "chunks_corpus": 110
+ },
+ {
+  "id": "lung-diseases",
+  "mesh_target": "Lung Diseases",
+  "especie": "perro",
+  "query": "Veterinario: Hola, ¿qué le pasa a Pipo? Dueño: Hola, doctor. Lo veo como medio decaído y hace un par de días que tose, como si tuviera algo atragantado. Veterinario: ¿Tuvo fiebre o perdió el apetito? Dueño: Sí, come menos y está más quieto de lo normal. Anoche respiró rápido, como si forcejeara. Veterinario: Bien, déjeme auscultarlo. (Escucha) Escucho unos sonidos como burbujas en los pulmones, sugestivos de líquido o inflamación. ¿Le nota secreción nasal o los ojos llorosos? Dueño: Sí, tiene un poquito de moco claro por la nariz. Veterinario: Esto es compatible con una enfermedad pulmonar, quizás bronconeumonía. Habría que hacerle una radiografía de tórax y análisis de sangre para confirmar. Dueño: ¿Es grave? Veterinario: Depende, pero por ahora es tratable con antibióticos y reposo. No se alarme, lo vamos a controlar.",
+  "chunks_corpus": 108
+ },
+ {
+  "id": "parasitemia",
+  "mesh_target": "Parasitemia",
+  "especie": "perro",
+  "query": "Veterinario: ¡Hola! ¿Qué le pasa a este precioso perro?\nDueño: Hola, doctor. Es que hace unos días que Pocho está muy decaído, no quiere comer y tiene como unas fiebres que van y vienen.\nVeterinario: Ya veo. ¿Notó si tiene las encías pálidas o si orina muy oscuro?\nDueño: Sí, las encías las tiene como blancas, y la orina parece más oscura de lo normal. También como que tiembla a veces.\nVeterinario: Bueno, al revisarlo veo que tiene las mucosas muy pálidas y un poco de agrandamiento del bazo. Esto, junto con los temblores y la fiebre intermitente, es muy sugestivo de una parasitemia. Podría ser algo como hemoparásitos transmitidos por garrapatas.\nDueño: ¿Es grave? ¿Qué podemos hacer?\nVeterinario: Es serio, pero con diagnóstico temprano y tratamiento tiene buen pronóstico. Le voy a tomar una muestra de sangre para confirmar y empezamos con medicación específica. También hay que revisarlo bien de garrapatas.",
+  "chunks_corpus": 107
+ },
+ {
+  "id": "arnold-chiari-malformation",
+  "mesh_target": "Arnold-Chiari Malformation",
+  "especie": "perro",
+  "query": "Veterinario: Hola, ¿qué le pasa a Firulais? Dueño: Doctor, hace como un mes que se rasca mucho el cuello y se queja cuando lo tocamos ahí. También lo notamos como mareado, a veces camina en círculos. Veterinario: Veo que tiene el cuello un poco tenso. Al palparlo, parece que siente dolor. ¿Ha tenido episodios de no coordinar o caerse? Dueño: Sí, el otro día se cayó de la cama y se quedó como ido, con la cabeza inclinada para un lado. Veterinario: Bien. Al revisar su reflejo de amenaza y su postura, noto que tiene una ligera debilidad en las patas delanteras. Estos signos son sugestivos de una malformación en la base del cráneo, compatible con un problema de compresión en la médula y el cerebelo. Dueño: ¿Es grave? ¿Qué podemos hacer? Veterinario: Es un cuadro que puede manejarse con medicación para el dolor y la inflamación, pero a veces requiere cirugía. Vamos a hacer una resonancia magnética para confirmar el diagnóstico. ¿Tiene alguna otra pregunta?",
+  "chunks_corpus": 106
+ },
+ {
+  "id": "glioma",
+  "mesh_target": "Glioma",
+  "especie": "perro",
+  "query": "Veterinario: Hola, ¿cómo anda? ¿Qué le pasa a este hermoso perrito?\\nDueño: Hola, doctor. Bruno empezó con unos ataques raros, como convulsiones, pero no son seguidos, a veces se queda mirando la pared como ausente.\\nVeterinario: Entiendo. ¿Desde hace cuánto nota esos episodios y él antes era normal?\\nDueño: Sí, siempre fue sano, pero hace un mes empezó, y ahora también lo veo desorientado, se choca con las puertas.\\nVeterinario: Bueno, al revisarlo lo noto con el cuello rígido y responde lento al reflejo de amenaza. Por el cuadro de convulsiones y alteración de la conducta, es sugestivo de una lesión intracraneal.\\nDueño: ¿Cómo algo en el cerebro? ¿Puede ser tumor?\\nVeterinario: Exactamente, es compatible con un crecimiento anormal, como un glioma. Para confirmar haríamos estudios de imagen.\\nDueño: Ay, qué miedo. ¿Hay tratamiento?\\nVeterinario: Sí, hay opciones como corticoides para bajar la inflamación y anticonvulsivantes, pero el pronóstico depende del tamaño y ubicación.",
+  "chunks_corpus": 105
+ },
+ {
+  "id": "caliciviridae-infections",
+  "mesh_target": "Caliciviridae Infections",
+  "especie": "gato",
+  "query": "Veterinario: Hola, ¿cómo andan? ¿Qué le pasa a este gatito?\nDueño: Hola, doctor. Mire, Mimí tiene como una cosa rara en la boca, le salió una especie de ampolla en la lengua y no quiere comer. También estornuda bastante y tiene los ojos llorosos.\nVeterinario: Claro, déjeme verlo. (Examina) Sí, veo una úlcera en la lengua y tiene un poco de enrojecimiento en las encías. También tiene secreción nasal clara y un poco de fiebre. ¿Cuánto tiempo hace que empezó esto?\nDueño: Hace como tres o cuatro días. Primero pensé que era un resfrío, pero después dejó de comer y se puso más decaída.\nVeterinario: Bien. A la palpación, noto que tiene los ganglios del cuello un poquito inflamados y la respiración suena un poco más fuerte de lo normal. Esto es sugestivo de una infección viral, compatible con lo que llamamos calicivirus felino, que afecta mucho la boca y las vías respiratorias.\nDueño: ¿Y es grave, doctor? ¿Se puede contagiar a mis otros gatos?\nVeterinario: Puede ser molesto, pero con cuidados suele mejorar. Sí, es contagioso entre gatos. Le voy a recetar algo para el dolor de boca y un antibiótico para prevenir infecciones secundarias. También es importante que la hidrate bien, quizás con comida húmeda o jeringa si no come sola. ¿Tiene más preguntas?",
+  "chunks_corpus": 104
+ },
+ {
+  "id": "hypersensitivity",
+  "mesh_target": "Hypersensitivity",
+  "especie": "perro",
+  "query": "Veterinario: Hola, ¿qué le pasa a Firulais? Dueño: Doctor, no para de rascarse y lamerse las patas. Tiene la piel roja y como granitos. Veterinario: ¿Empezó de repente o viene de antes? Dueño: Hace unos días, después de pasearlo en el parque. También estornuda un poco. Veterinario: Veo que tiene las orejas enrojecidas y las patas inflamadas entre los dedos. Esto es sugestivo de una reacción de hipersensibilidad. Dueño: ¿Alergia? ¿A qué? Veterinario: Puede ser a algo del ambiente, como polen o pasto. Es compatible con una dermatitis alérgica. Dueño: ¿Es grave? Veterinario: No es grave, pero molesta. Vamos a darle un tratamiento para calmar la picazón y evitar que se lastime. Dueño: ¿Y después? Veterinario: Si los síntomas vuelven, podemos hacer pruebas para identificar el alérgeno exacto. Por ahora, evitemos los paseos largos en el pasto.",
+  "chunks_corpus": 101
+ }
+]
