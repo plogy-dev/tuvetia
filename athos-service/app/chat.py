@@ -112,8 +112,21 @@ def stream_answer(question: str, patient_id: str, clinic_id: str, user_id: str |
     if patient_id:
         # Memoria semántica DESPUÉS del retrieval: el Tier 2 ya dejó el vector de la consulta en
         # caché, así que recordar la historia del paciente no cuesta otra llamada a Cohere.
-        from app.patient_memory import recall
+        from app.patient_memory import index_patient_memory, recall
         patient.history_snippets = recall(clinic_id, patient_id, question)
+
+        # Indexado perezoso EN BACKGROUND: la aprobación de notas ocurre en el front, así que el
+        # backend no tiene un evento donde enganchar. Cada consulta deja lista la memoria para la
+        # siguiente sin sumar latencia a ésta. Si no hay material nuevo, no llama a Cohere.
+        def _indexar_memoria() -> None:
+            try:
+                n = index_patient_memory(clinic_id, patient_id)
+                if n:
+                    log.info("memoria de paciente: %s fuentes nuevas indexadas", n)
+            except Exception as e:  # noqa: BLE001 — la memoria nunca rompe el chat
+                log.warning("chat: falló el indexado de memoria: %s", e)
+
+        threading.Thread(target=_indexar_memoria, daemon=True).start()
     # Reusa las alergias severas que load_patient_context YA cargó (evita una 2ª query/conexión a
     # `allergies` por el mismo dato). En consulta general el contexto es vacío -> lista vacía.
     severe = patient.severe_allergies

@@ -27,14 +27,15 @@ def _vector_literal(v) -> str:
 def _fuentes_pendientes(clinic_id: str, patient_id: str) -> list[dict]:
     """Notas aprobadas + transcripciones del paciente que aún no están embeddizadas.
 
-    Solo notas `aprobado`: un borrador puede tener errores del modelo y no debe volverse memoria.
+    Solo notas revisadas por un humano (`approved`/`locked` del enum note_status): un `draft` es
+    salida cruda del modelo y no debe volverse memoria: se realimentaría su propio error.
     """
     notas = fetch_all(
         "select n.id as source_id, 'clinical_note' as source_type, "
         "  concat_ws(E'\\n', n.subjective, n.objective, n.assessment, n.plan) as content "
         "from public.clinical_notes n "
         "join public.consultations c on c.id = n.consultation_id and c.clinic_id = n.clinic_id "
-        "where n.clinic_id = %s and c.patient_id = %s and n.status = 'aprobado' "
+        "where n.clinic_id = %s and c.patient_id = %s and n.status in ('approved','locked') "
         "  and not exists (select 1 from public.patient_embeddings e "
         "                  where e.clinic_id = n.clinic_id and e.source_id = n.id "
         "                    and e.source_type = 'clinical_note')",
