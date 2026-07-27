@@ -41,8 +41,8 @@ export function AcceptInvitation({
     <div className="flex flex-col items-center gap-3">
       {hasClinic && (
         <p className="rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-900 dark:border-amber-900/50 dark:bg-amber-950/40 dark:text-amber-200">
-          Ya perteneces a una clínica. Al aceptar, <b>pasarás a formar parte de {clinicName}</b> y
-          dejarás de ver los datos de tu clínica actual.
+          Ya perteneces a otra clínica. Al aceptar, se agrega <b>{clinicName}</b> a tus clínicas y
+          pasa a ser tu clínica activa.
         </p>
       )}
       <Button onClick={accept} disabled={accepting}>
