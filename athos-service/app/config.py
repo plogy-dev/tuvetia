@@ -25,6 +25,11 @@ class Settings(BaseSettings):
     embedding_model: str = "embed-v4.0"
     embedding_dim: int = 1024
     embedding_api_key: str = ""
+    # Reranking (sección 11.3): reordena los candidatos fusionados por relevancia real a la
+    # consulta antes de la generación. Vacío o `rerank_enabled=False` -> se salta (degradación).
+    rerank_enabled: bool = True
+    rerank_model: str = "rerank-v3.5"
+    rerank_api_key: str = ""               # si vacío reusa embedding_api_key (misma cuenta Cohere)
 
     # STT — Modo Fantasma (ADR-0016: Deepgram Nova, batch + diarización)
     deepgram_api_key: str = ""
@@ -37,6 +42,11 @@ class Settings(BaseSettings):
     @property
     def cors_origins_list(self) -> list[str]:
         return [o.strip() for o in self.cors_origins.split(",") if o.strip()]
+
+    @property
+    def rerank_key(self) -> str:
+        """Key del reranker. Por defecto la misma cuenta de Cohere que los embeddings."""
+        return self.rerank_api_key or self.embedding_api_key
 
     @property
     def corpus_db_url(self) -> str:

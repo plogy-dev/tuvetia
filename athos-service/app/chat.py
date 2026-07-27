@@ -84,10 +84,19 @@ def _chat_prompt(question: str, literature, patient, severe_allergens) -> str:
     ficha = (f"- especie: {patient.species or '?'}; peso: {patient.weight_kg or '?'} kg; "
              f"edad: {patient.age_years or '?'} años")
     alergias = ", ".join(severe_allergens) if severe_allergens else "ninguna conocida"
+    # Historia previa de ESTE paciente (patient_embeddings). Va en su propia sección y con su propia
+    # regla: es memoria clínica, NO literatura — no se cita, y no puede sostener una afirmación por
+    # sí sola (la regla "cita o se calla" se apoya solo en la literatura recuperada).
+    historia = ""
+    if getattr(patient, "history_snippets", None):
+        trozos = "\n".join(f"- {s.strip()[:800]}" for s in patient.history_snippets)
+        historia = ("\nHISTORIA PREVIA DE ESTE PACIENTE (contexto, NO es literatura: no la cites "
+                    "y no la uses como evidencia):\n" + trozos + "\n")
     return (
         "CONTEXTO DEL PACIENTE:\n"
         f"{ficha}\n"
-        f"- alergias severas conocidas: {alergias}\n\n"
+        f"- alergias severas conocidas: {alergias}\n"
+        f"{historia}\n"
         f"PREGUNTA DEL VETERINARIO:\n{question.strip()}\n\n"
         "LITERATURA RECUPERADA (cita SOLO estas fuentes, por su número [n]):\n"
         f"{_format_numbered(literature)}"
@@ -100,6 +109,11 @@ def stream_answer(question: str, patient_id: str, clinic_id: str, user_id: str |
     patient = load_patient_context(clinic_id, patient_id) if patient_id else PatientContext(patient_id="")
     query = build_query(question, patient.species)
     chunks, passed = retrieve(query)
+    if patient_id:
+        # Memoria semántica DESPUÉS del retrieval: el Tier 2 ya dejó el vector de la consulta en
+        # caché, así que recordar la historia del paciente no cuesta otra llamada a Cohere.
+        from app.patient_memory import recall
+        patient.history_snippets = recall(clinic_id, patient_id, question)
     # Reusa las alergias severas que load_patient_context YA cargó (evita una 2ª query/conexión a
     # `allergies` por el mismo dato). En consulta general el contexto es vacío -> lista vacía.
     severe = patient.severe_allergies

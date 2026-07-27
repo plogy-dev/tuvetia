@@ -10,6 +10,7 @@ from functools import lru_cache
 from app.db import fetch_all_corpus
 from app.embeddings import EmbeddingError
 from app.models import PatientContext, RetrievedChunk, StructuredQuery
+from app.retrieval.rerank import rerank_chunks
 
 # --- Parámetros determinísticos (se calibran con el golden set; arrancan conservadores) ---
 THRESHOLD = 0.35        # score del mejor chunk para NO abstenerse
@@ -33,6 +34,11 @@ WEAK_MIN_RESULTS = 3    # menos candidatos que esto (o no pasar umbral) dispara 
 TIER1_KEEP = 24         # léxicos/MeSH que se conservan
 TIER2_KEEP = 16         # semánticos (vector) que se conservan siempre que el Tier 2 corra
 MAX_LITERATURE_CHUNKS = TIER1_KEEP + TIER2_KEEP  # tope de chunks que van a la generación
+
+# Tras el rerank el set final es más chico Y más limpio: un cross-encoder sobre los 40 candidatos
+# deja arriba lo que de verdad habla de la consulta. Medido en el golden ampliado (146 casos), sin
+# rerank la precision@15 es ~19%. Si el rerank no está disponible se conservan los 40 de siempre.
+RERANK_KEEP = 15
 
 # Especie (ES, de la ficha) -> descriptores MeSH del corpus. 'mixto' no mapea: no se excluye.
 SPECIES_MESH = {
@@ -217,8 +223,13 @@ def retrieve(query: StructuredQuery) -> tuple[list[RetrievedChunk], bool]:
             tier2 = None  # sin Cohere (o lento): nos quedamos con el Tier 1
     if tier2 is not None and _should_run_tier2(query, tier1):
         chunks = rank_chunks(_merge_unique(tier1[:TIER1_KEEP], tier2[:TIER2_KEEP]), filters)
-        return chunks, passes_threshold(chunks)
-    return tier1[:MAX_LITERATURE_CHUNKS], passes_threshold(tier1)
+    else:
+        chunks = tier1[:MAX_LITERATURE_CHUNKS]
+    # El umbral se evalúa ANTES del rerank, sobre el score determinístico: activar el reranker
+    # cambia QUÉ literatura llega a la generación, nunca cuándo Athos se abstiene.
+    passed = passes_threshold(chunks)
+    chunks, _ = rerank_chunks(query.raw, chunks, RERANK_KEEP)
+    return chunks, passed
 
 
 def fuse_context(literature: list[RetrievedChunk], patient: PatientContext) -> dict:
