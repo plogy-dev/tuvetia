@@ -45,6 +45,49 @@ Ojo: el `.env` local de `athos-service` sigue con `CORPUS_DATABASE_URL` → dev.
 
 ---
 
+## Tanda de CALIDAD de Athos (2026-07-27, en `master`)
+
+Mandato: que Athos responda "como un veterinario experimentado con memoria infinita", no solo
+rápido. **El modelo de redacción lo elige el cliente por costos y NO se cambia: DeepSeek
+(`deepseek-v4-flash`)**, aunque `athos-service/CLAUDE.md` documente `claude-sonnet-5`.
+
+**Lo primero fue construir con qué medir** (`athos-service/scripts/calidad/`, ver su README): el
+golden de 11 casos está SATURADO y da 11/11 casi pase lo que pase. El banco nuevo ancla la verdad
+de terreno al corpus: 146 casos positivos + 42 negativos de control.
+
+- **Reranking con Cohere** (`app/retrieval/rerank.py`, `rerank-v3.5`) — EN PRODUCCIÓN. Cross-encoder
+  sobre los 40 candidatos fusionados, deja 15. **Target en el top-15: 37,8% → 69,7%; mediana del
+  primer acierto: puesto 15 → puesto 2.** Casi el mismo recall con 2,7× menos contexto. Degrada con
+  gracia (sin key/timeout/429 → sigue sin rerank). El umbral se evalúa ANTES del rerank: activarlo
+  cambia QUÉ literatura llega a la generación, nunca cuándo Athos se abstiene.
+- **Memoria semántica del paciente** (`app/patient_memory.py`) — EN PRODUCCIÓN. `patient_embeddings`
+  estaba vacía, `history_snippets` se devolvía fijo en `[]` y **el campo no se usaba en ningún
+  prompt**. Ahora indexa notas `approved`/`locked` (nunca `draft`: un borrador es salida cruda del
+  modelo) + transcripciones, y recupera por similitud con `clinic_id` Y `patient_id` explícitos.
+  Reusa el vector que el Tier 2 ya cachea → recordar no cuesta otra llamada a Cohere. Se indexa
+  perezosamente en background al consultar (la aprobación pasa por el front: el backend no tiene
+  evento donde enganchar). En el prompt va marcada como contexto, NO como literatura: no se cita.
+- **Glosario**: de 41 términos approved a **~800 descriptores / 2.658 sinónimos ES** activos
+  (3 tandas, cada una con gate: golden 11/11 y sin regresión de distilación). Quedan ~1.450
+  descriptores en `candidate` (inertes hasta aprobarse).
+
+### ⚠️ Abierto y conocido
+
+1. **La abstención NO dispara nunca**: `passes_threshold` da True en **187/187** casos, incluso sin
+   un solo chunk de la condición. `TIER1_MESH_BASE`=0.6 y `TIER1_LEX_BASE`=0.4 ya superan
+   `THRESHOLD`=0.35, y el MeSH de especie ("Dogs", en 43k chunks) cuenta como evidencia temática.
+   Medido: ningún umbral sobre el score determinístico puede separar (mediana **1.701 vs 1.700**),
+   ni sobre el del reranker (0.532 vs 0.499). El juez semántico con el LLM liviano sí separa
+   (7,0 vs 5,0) a ~1,8s. **Diseño propuesto: banda en vez de binario** — abstención dura solo en lo
+   clarísimo, banda intermedia que responde declarando evidencia limitada, resto normal.
+2. **Recall ciego**: condiciones con literatura abundante que el retrieval NUNCA trae — `Distemper`
+   (1.338 chunks), `Lymphoma`, `Tick Infestations`, `Coccidiosis`, `Toxocariasis`. No es culpa del
+   rerank (ya faltaban antes). Sin diagnosticar.
+3. **Compute del principal**: quedó en **Micro** tras el resize a XL (el `DELETE` del addon no
+   revierte a Nano; la Management API no expone `ci_nano`). Decisión del dueño: se queda así.
+
+---
+
 ## Qué se construyó en esta tanda (PRs #4–#9, todos mergeados a `master`)
 
 ### E5 · Modo Fantasma — captura y transcripción (cerrado)
