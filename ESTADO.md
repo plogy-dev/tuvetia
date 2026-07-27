@@ -32,13 +32,16 @@ se aplicó todo lo accionable:
   nominal (verifica el email de la sesión); `profiles` con `clinic_id` explícito; errores de
   query visibles en todos los listados (`DataError`), ya no parecen "sin datos".
 
-**Ingesta del corpus → PRINCIPAL: ✅ COMPLETA (2026-07-26).** El principal tiene
-**61.544 docs / 519.999 chunks**, todos con embedding (corrida final: 31.266 docs nuevos, ~297M
-tokens ≈ US$35, cero duplicados). **Producción todavía lee el corpus de dev** — el switch va por
-fases: **C** índices en el principal (HNSW + GIN + ANALYZE; en curso — ojo: el pooler ignora
-`options` del startup, el `set statement_timeout=0` va como statement) → **D** gate de calidad
-(golden set `--retrieval-only` contra el principal, exigir 11/11) → **E** switch de
-`CORPUS_DATABASE_URL` en Railway al principal + verificación e2e. Rollback = revertir la variable.
+**Corpus → PRINCIPAL: ✅ EN PRODUCCIÓN (2026-07-26).** El principal tiene **61.544 docs /
+519.999 chunks** con embedding (ingesta completa, cero duplicados) y **todos los índices**:
+HNSW + GIN mesh/metadata/tsv + ANALYZE. El build HNSW se hizo con **resize temporal del compute
+a XL** vía Management API (en Micro el build no es viable: el grafo de ~2.5GB no cabe y el build
+on-disk proyectaba semanas; en XL tardó 3.9 min). Gate golden **11/11 retrieval-only** contra el
+principal, verificado en XL y re-verificado en Micro (los 2 `[corpus_gap]` conocidos —
+gi-stasis-rabbit y acute-gastroenteritis — pasan igual). **`CORPUS_DATABASE_URL` en Railway ya
+apunta al principal** (idéntica a `DATABASE_URL`); redeploy SUCCESS y smoke en vivo OK
+(`/health` 200, `/athos/chat` sin JWT → 401). **Rollback = revertir la variable a la URL de dev.**
+Ojo: el `.env` local de `athos-service` sigue con `CORPUS_DATABASE_URL` → dev.
 
 ---
 
