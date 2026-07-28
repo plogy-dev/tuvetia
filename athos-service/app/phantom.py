@@ -15,8 +15,9 @@ from app.config import get_settings
 from app.db import fetch_all, get_conn
 from app.generation.allergy_gate import evaluate_gate
 from app.generation.condition_alerts import detect_conditions, explain_conditions
+from app.generation.evidence_judge import judge_evidence
 from app.generation.generate import generate_note
-from app.models import PhantomSuggestResponse
+from app.models import EVIDENCE_NONE, PhantomSuggestResponse
 from app.patient_context import load_patient_context
 from app.retrieval.cascade import retrieve
 from app.retrieval.query_builder import build_query
@@ -41,41 +42,46 @@ def _load_transcript(clinic_id: str, consultation_id: str) -> dict | None:
     return rows[0] if rows else None
 
 
-# TTL del sondeo de la columna `alerts`: True se cachea PARA SIEMPRE (una columna aplicada no
+# TTL del sondeo de columnas opcionales: True se cachea PARA SIEMPRE (una columna aplicada no
 # desaparece); False caduca a los 5 min -> la migración se auto-detecta sin redeploy, pero la
 # query de catálogo ya no se paga en cada phantom.
-_HAS_ALERTS_TTL_S = 300.0
-_has_alerts_cache: tuple[float, bool] | None = None
+_HAS_COLUMN_TTL_S = 300.0
+_has_column_cache: dict[str, tuple[float, bool]] = {}
 
 
-def _clinical_notes_has_alerts() -> bool:
-    """¿Existe ya la columna `alerts` en clinical_notes (migración 0004)? Permite desplegar el código
-    ANTES de aplicar la migración al principal sin romper el insert (degrada a NO persistir alertas)."""
-    global _has_alerts_cache
+def _clinical_notes_has(column: str) -> bool:
+    """¿Existe ya `column` en clinical_notes? (`alerts`: migración 0004; `evidence_level`: 0025).
+    Permite desplegar el código ANTES de aplicar la migración al principal sin romper el insert
+    (degrada a NO persistir esa columna)."""
     now = time.monotonic()
-    if _has_alerts_cache is not None:
-        ts, val = _has_alerts_cache
-        if val or now - ts < _HAS_ALERTS_TTL_S:
+    cached = _has_column_cache.get(column)
+    if cached is not None:
+        ts, val = cached
+        if val or now - ts < _HAS_COLUMN_TTL_S:
             return val
     val = bool(fetch_all(
         "select 1 from information_schema.columns where table_schema = 'public' "
-        "and table_name = 'clinical_notes' and column_name = 'alerts' limit 1"))
-    _has_alerts_cache = (now, val)
+        "and table_name = 'clinical_notes' and column_name = %s limit 1", (column,)))
+    _has_column_cache[column] = (now, val)
     return val
 
 
 def _insert_note(clinic_id, consultation_id, transcript_id, soap, citations,
-                 gate_triggered, model, ai_at, alerts) -> str:
+                 gate_triggered, model, ai_at, alerts, evidence_level) -> str:
     cols = ["clinic_id", "consultation_id", "transcript_id", "status", "subjective", "objective",
             "assessment", "plan", "citations", "ai_generated_at", "ai_model", "allergy_gate_triggered"]
     vals = ["%s", "%s", "%s", "'draft'", "%s", "%s", "%s", "%s", "%s", "%s", "%s", "%s"]
     params = [clinic_id, consultation_id, transcript_id, soap.subjective, soap.objective,
               soap.assessment, soap.plan, Json([c.model_dump() for c in citations]),
               ai_at, model, gate_triggered]
-    if _clinical_notes_has_alerts():                      # persiste solo si la columna existe (0004)
+    if _clinical_notes_has("alerts"):                     # persiste solo si la columna existe (0004)
         cols.append("alerts")
         vals.append("%s")
         params.append(Json([a.model_dump() for a in alerts]))
+    if _clinical_notes_has("evidence_level"):             # idem, migración 0025
+        cols.append("evidence_level")
+        vals.append("%s")
+        params.append(evidence_level)
     with get_conn() as conn, conn.cursor() as cur:
         cur.execute(f"insert into public.clinical_notes ({', '.join(cols)}) "
                     f"values ({', '.join(vals)}) returning id", params)
@@ -103,13 +109,22 @@ def suggest(consultation_id: str, clinic_id: str, user_id: str | None = None) ->
     # Gate DURO desde `allergies` (no el modelo)
     gate_triggered, severe = evaluate_gate(clinic_id, patient_id)
 
+    # Juez de evidencia: ¿los pasajes recuperados sostienen ESTE caso? Acá va ANTES de generar (a
+    # diferencia del chat, donde corre en paralelo): el Fantasma es asíncrono — se dispara al cerrar
+    # la consulta y nadie espera el primer token —, así que sus ~1,8s no le cuestan a nadie y sí
+    # ahorran la llamada de redacción con literatura que no viene al caso.
+    verdict = judge_evidence(transcript_text, chunks if passed else [])
+
     # B->A: sin evidencia suficiente -> nota del transcript SIN literatura (insufficient_evidence)
-    literature = chunks if passed else []
+    literature = chunks if passed and not verdict.abstains else []
     soap, citations, allergy_flag = generate_note(transcript_text, literature, patient, severe)
     # Honestidad del payload: aunque el retrieval pase el umbral, si la generación no ancló NINGUNA
     # cita (la literatura recuperada no sustentaba el caso), no afirmamos evidencia suficiente. Así
     # el flag es consistente con la nota (citations=[] <-> insufficient_evidence=True).
-    insufficient = not passed or not citations
+    insufficient = not literature or not citations
+    # El nivel REPORTADO es el efectivo: si la nota terminó sin citas, da igual lo bien que puntuara
+    # la literatura — esa nota no tiene respaldo.
+    evidence_level = EVIDENCE_NONE if insufficient else verdict.band
     # Alertas de condición: detección determinística (desde el assessment) + panel "afectaciones en
     # este paciente" (una llamada LLM, grounded en la literatura; degrada a sin-detail si falla).
     alerts = explain_conditions(detect_conditions(soap.assessment, patient), patient, literature)
@@ -123,7 +138,7 @@ def suggest(consultation_id: str, clinic_id: str, user_id: str | None = None) ->
         user_id=user_id, patient_id=patient_id,
     )
     note_id = _insert_note(clinic_id, consultation_id, transcript_id, soap, citations,
-                           gate_triggered, model, ai_at, alerts)
+                           gate_triggered, model, ai_at, alerts, evidence_level)
     soap_text = f"S: {soap.subjective}\nO: {soap.objective}\nA: {soap.assessment}\nP: {soap.plan}"
     log_answer(clinic_id, retrieval_id, note_id, soap_text,
                [c.model_dump() for c in citations], insufficient, gate_triggered, model)
@@ -131,6 +146,7 @@ def suggest(consultation_id: str, clinic_id: str, user_id: str | None = None) ->
     return PhantomSuggestResponse(
         note_id=note_id, status="draft", soap=soap,
         allergy_gate_triggered=gate_triggered, allergy_transcript_flag=allergy_flag,
-        insufficient_evidence=insufficient, citations=citations, alerts=alerts,
+        insufficient_evidence=insufficient, evidence_level=evidence_level,
+        citations=citations, alerts=alerts,
         ai_model=model, ai_generated_at=ai_at,
     )

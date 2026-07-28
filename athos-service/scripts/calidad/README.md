@@ -39,8 +39,8 @@ comparabilidad histórica).
 
 ## Abstención
 
-`passes_threshold` da True en **187/187** casos: la regla "cita o se calla" hoy no protege nada.
-Tres hipótesis medidas, dos muertas:
+`passes_threshold` da True en **187/187** casos: por sí sola, la regla "cita o se calla" no protege
+nada. Cuatro hipótesis medidas, tres muertas:
 
 | señal | positivos | negativos | veredicto |
 |---|---|---|---|
@@ -63,6 +63,44 @@ Al mirar los desacuerdos del juez se ve que buena parte del solapamiento es **ru
 los positivos que puntúa bajo (Distemper, Lymphoma, Tick Infestations) son condiciones que el
 retrieval **no trae** aunque el corpus las tenga — el juez acierta. Mide "¿los pasajes recuperados
 cubren la consulta?", que es justo lo que la abstención debe decidir.
+
+### Ya implementada (2026-07-28)
+
+El juez vive en `app/generation/evidence_judge.py` y devuelve una **banda** en vez de un binario:
+`none` (0-2) → abstención dura, `limited` (3-5) → se responde declarando evidencia limitada,
+`sufficient` (6+) → normal. Cortes y modelo por env (`JUDGE_*`); falla abierta.
+
+```bash
+python scripts/calidad/abstencion_validar.py            # muestra de 12 + 12 (regresión rápida)
+python scripts/calidad/abstencion_validar.py --n 0      # banco completo (187 casos)
+```
+
+Este script corre el pipeline REAL (incluido `judge_evidence`), no una copia: es el que hay que
+correr después de tocar el prompt del juez, el modelo liviano, los cortes o el reranker. Corrida de
+referencia (muestra 12+12, dev): positivos `sufficient` 9 / `limited` 1 / `none` 2, mediana 8,0;
+negativos `none` 2 / `limited` 3 / `sufficient` 7, mediana 6,0; latencia mediana 2,0s. Los dos
+positivos que abstienen (`bone-neoplasms`, `spinal-cord-injuries`) son **recall ciego**: el
+retrieval trajo displasia de codo y signos neurológicos genéricos: callar ahí es lo correcto.
+
+### Latencia: por qué el juez va en paralelo y no encadenado
+
+Desglose del chat medido en dev (una consulta cubierta, contra el corpus remoto):
+
+| etapa | seg |
+|---|---|
+| `build_query` (A→B; distila con el LLM liviano si el glosario no llega a 3 conceptos) | 4,3 |
+| `retrieve` (Tier 1 + Tier 2 en paralelo + rerank) | 4,4 |
+| juez de evidencia | 2,3 |
+| 1er token del redactor | 1,1 |
+
+El redactor arranca rápido (1,1s), así que **encadenar** el juez habría sumado sus 2,3s enteros al
+tiempo hasta el primer token. Corriendo los dos a la vez y reteniendo tokens, el costo real es
+`max(2,3; 1,1) − 1,1 ≈ 1,2s`. Se puede apagar con `JUDGE_ENABLED=false` (sin deploy) y el tope de
+espera es `JUDGE_CHAT_TIMEOUT_S`.
+
+Hallazgo lateral: el mayor costo antes del primer token no es el juez sino **`build_query` (4,3s)**,
+que es el LLM liviano distilando porque el glosario no resuelve. Ampliar el glosario (arriba) ataca
+esa latencia además de la calidad.
 
 ## Glosario
 

@@ -1,7 +1,11 @@
 """Chat: citas honestas por referencia numerada [n]. Determinístico, sin LLM ni DB."""
+import json
+
 import app.chat as chat
 from app.chat import _cited_from_answer, _format_numbered, _thread_history, stream_answer
-from app.models import PatientContext, RetrievedChunk, StructuredQuery
+from app.generation.evidence_judge import ABSTAIN_MESSAGE, EvidenceVerdict
+from app.models import (EVIDENCE_LIMITED, EVIDENCE_NONE, EVIDENCE_SUFFICIENT, PatientContext,
+                        RetrievedChunk, StructuredQuery)
 
 
 def _lit():
@@ -109,3 +113,101 @@ def test_stream_answer_inyecta_memoria_y_loguea_ambos_roles(monkeypatch):
     assert "nueva pregunta" in captured["user"]        # el turno actual va como prompt, no en el hist
     assert "user" in logged_roles and "assistant" in logged_roles
     assert any('"type": "done"' in e for e in events)
+
+
+# --- Abstención en el chat (juez de evidencia) ---
+
+def _run_chat(monkeypatch, *, verdict=None, tokens=("Compatible con gastritis [1].",),
+              passed=True, llm=None) -> tuple[list[dict], list[tuple[str, str]]]:
+    """Corre stream_answer con todo el I/O mockeado. Devuelve (eventos SSE parseados, mensajes
+    logueados). El juez es síncrono acá, pero en producción corre en su propio hilo: el resultado
+    NO depende de quién termine primero (si el stream se adelanta, los tokens quedan retenidos)."""
+    monkeypatch.setattr(chat, "load_patient_context",
+                        lambda c, p: PatientContext(patient_id=p, species="perro"))
+    monkeypatch.setattr(chat, "build_query",
+                        lambda q, s: StructuredQuery(raw=q, concepts=["Vomiting"], species=s))
+    chunk = RetrievedChunk(chunk_id="c1", doc_id="D1", content="canine gastritis ...", score=0.9)
+    monkeypatch.setattr(chat, "retrieve", lambda q: ([chunk], passed))
+    monkeypatch.setattr(chat, "load_thread", lambda c, p, n=8: [])
+    monkeypatch.setattr(chat, "log_retrieval", lambda *a, **k: "rid")
+    logged: list[tuple[str, str]] = []
+    monkeypatch.setattr(chat, "log_message",
+                        lambda cl, uid, pid, role, content: logged.append((role, content)) or "mid")
+    monkeypatch.setattr(chat, "judge_evidence", lambda q, lit: verdict)
+    import app.patient_memory as pm                       # sin DB ni Cohere en el test
+    monkeypatch.setattr(pm, "recall", lambda c, p, q, limit=6: [])
+    monkeypatch.setattr(pm, "index_patient_memory", lambda c, p: 0)
+
+    class FakeLLM:
+        def __init__(self, *a, **k):
+            pass
+
+        def stream(self, system, user, max_tokens=1500, history=None):
+            yield from tokens
+
+    monkeypatch.setattr(chat, "LLMClient", llm or FakeLLM)
+    events = [json.loads(e[len("data: "):]) for e in stream_answer("¿qué hago?", "luna", "clinic-a")]
+    return events, logged
+
+
+def test_juez_abstiene_descarta_lo_ya_generado(monkeypatch):
+    """El umbral determinístico pasa (pasa SIEMPRE: 187/187 en el banco) pero el juez dice que los
+    pasajes no sostienen la consulta. Nada de lo redactado llega al vet: sale la plantilla, sin
+    citas. Retener los tokens hasta el veredicto es justo lo que permite descartarlos."""
+    events, logged = _run_chat(monkeypatch, verdict=EvidenceVerdict(
+        band=EVIDENCE_NONE, score=1.0, judged=True, reason="otra condición"))
+
+    textos = [e.get("text", "") for e in events if e["type"] == "token"]
+    assert textos == [ABSTAIN_MESSAGE]                     # lo generado NO se emitió
+    assert not any("gastritis" in t for t in textos)
+    done = events[-1]
+    assert done["insufficient_evidence"] is True and done["evidence_level"] == EVIDENCE_NONE
+    assert done["citations"] == []
+    # El hilo del paciente guarda la abstención, NUNCA el borrador descartado.
+    assert [c for r, c in logged if r == "assistant"] == [ABSTAIN_MESSAGE]
+
+
+def test_evidencia_limitada_responde_pero_lo_declara_antes(monkeypatch):
+    """Banda intermedia: se responde, pero el aviso sale ANTES del primer token y lo emite el CÓDIGO
+    (como el gate de alergia), no la buena voluntad del modelo."""
+    events, _ = _run_chat(monkeypatch, verdict=EvidenceVerdict(
+        band=EVIDENCE_LIMITED, score=4.0, judged=True))
+
+    tipos = [e["type"] for e in events]
+    assert tipos.index("warning") < tipos.index("token")
+    assert "Evidencia limitada" in events[0]["text"]
+    done = events[-1]
+    assert done["evidence_level"] == EVIDENCE_LIMITED
+    assert done["insufficient_evidence"] is False          # sí se responde
+    assert [c["chunk_id"] for c in done["citations"]] == ["c1"]
+
+
+def test_evidencia_suficiente_no_agrega_avisos(monkeypatch):
+    events, _ = _run_chat(monkeypatch, verdict=EvidenceVerdict(
+        band=EVIDENCE_SUFFICIENT, score=8.0, judged=True))
+
+    assert not any(e["type"] == "warning" for e in events)
+    assert events[-1]["evidence_level"] == EVIDENCE_SUFFICIENT
+    assert "gastritis" in "".join(e.get("text", "") for e in events if e["type"] == "token")
+
+
+def test_juez_caido_responde_igual(monkeypatch):
+    """Falla abierta: si el juez no pudo juzgar (proveedor caído/timeout) NO se calla al vet."""
+    events, _ = _run_chat(monkeypatch, verdict=EvidenceVerdict())   # judged=False
+
+    assert events[-1]["evidence_level"] == EVIDENCE_SUFFICIENT
+    assert "gastritis" in "".join(e.get("text", "") for e in events if e["type"] == "token")
+
+
+def test_umbral_deterministico_abstiene_sin_gastar_llm(monkeypatch):
+    """Si la cascada no pasa el umbral no hay literatura que juzgar: se abstiene sin llamar al LLM
+    (ni al juez). Es el camino barato de 'cita o se calla'."""
+    class ExplodingLLM:
+        def __init__(self, *a, **k):
+            raise AssertionError("sin literatura no se debe llamar al LLM")
+
+    events, logged = _run_chat(monkeypatch, passed=False, llm=ExplodingLLM)
+
+    assert [e.get("text") for e in events if e["type"] == "token"] == [ABSTAIN_MESSAGE]
+    assert events[-1]["evidence_level"] == EVIDENCE_NONE
+    assert [c for r, c in logged if r == "assistant"] == [ABSTAIN_MESSAGE]

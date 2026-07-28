@@ -33,7 +33,7 @@ Despliegue: **Railway**. Base de datos: **Supabase** (Postgres + pgvector). Fron
 1. **Tier 0 filtros** *(gratis)*: especie como **preferencia, no exclusión** (etiquetas ruidosas, 63% "mixto"; apóyate en MeSH `Cats`/`Dogs`) + idioma, `is_current`, `tier`, recencia.
 2. **Tier 1 léxico + glosario** *(gratis)*: conceptos vs `mesh`/`glossary_terms` del chunk + full-text (EN) sobre `content`.
 3. **Tier 2 vector** *(complemento semántico, SIEMPRE)*: corre en toda consulta y se fusiona con el Tier 1 (tope por modalidad). Calibrado 2026-07-22 (golden con DeepSeek 10→11/11): el Tier 1 léxico/MeSH puede ser *fuerte pero off-topic* (signos incidentales + MeSH de especie sepultan la condición real), así que el vector deja de ser solo fallback. Cohere ~US$0,0006/consulta. Degrada con gracia si Cohere no está (se queda con el Tier 1).
-4. **Umbral** *(determinístico)*: si no pasa → Athos responde plantilla **sin LLM**; Fantasma redacta la nota del transcript **sin literatura**.
+4. **Umbral** *(determinístico)* **+ juez de evidencia** *(LLM liviano)*: si no pasa el umbral → Athos responde plantilla **sin LLM**; Fantasma redacta la nota del transcript **sin literatura**. El umbral solo NO alcanza: medido sobre 187 casos daba `passed` en 187/187 (el score está saturado, y ni el del reranker ni el nº de citas discriminan cobertura). Por eso `app/generation/evidence_judge.py` LEE los mejores pasajes y devuelve una **banda**: `none` (0-2) → abstención, `limited` (3-5) → se responde **declarando evidencia limitada**, `sufficient` (6+) → normal. **Falla abierta** (error/timeout → se responde). En el chat corre **en paralelo** con la redacción, reteniendo los tokens hasta el veredicto; en el Fantasma, antes de generar.
 5. **Fusión de contexto** *(determinístico)*: literatura global + contexto del paciente (estructurado + `patient_embeddings`, RLS por `clinic_id`+`patient_id`). En memoria, separado.
 6. **Gate de alergia severa** *(determinístico, antes del plan)*.
 7. **B→A generación** *(única IA)*: Fantasma = **una sola llamada** (SOAP + summary + allergy_flag). Lenguaje de posibilidad, citas mapeadas, presupuesto acotado.
@@ -49,7 +49,8 @@ Entrega: 61.544 markdown + frontmatter YAML + `manifest.csv` (validados, en ingl
 ## Endpoints e integración (contrato cerrado)
 - `POST /athos/chat` (SSE) — chat del vet. Body `{ question, patient_id, clinic_id }`.
 - `POST /athos/phantom/suggest` — **lo llama el Phantom de Pipe al cerrar la consulta.** Body `{ consultation_id, clinic_id }`. Athos crea la fila `clinical_notes` (status=draft), escribe `rag_answer_log` con `note_id`, y **devuelve**:
-  `{ note_id, status:"draft", soap:{subjective,objective,assessment,plan}, allergy_gate_triggered, allergy_transcript_flag, insufficient_evidence, citations:[{chunk_id,doc_id,locator,source}], ai_model, ai_generated_at }`.
+  `{ note_id, status:"draft", soap:{subjective,objective,assessment,plan}, allergy_gate_triggered, allergy_transcript_flag, insufficient_evidence, evidence_level:"none"|"limited"|"sufficient", citations:[{chunk_id,doc_id,locator,source}], ai_model, ai_generated_at }`.
+  `evidence_level` es la banda del juez (aditivo, 2026-07-28); `insufficient_evidence` se mantiene y equivale a `evidence_level == "none"`. En el SSE del chat, el evento `done` lleva el mismo campo y la banda `limited` emite además un `warning` antes del primer token.
   Mapeo del `summarize.ts`: soap.subjetivo/objetivo/analisis/plan → subjective/objective/assessment/plan; `allergy_flag` → `allergy_transcript_flag`. `allergy_gate_triggered` lo calcula **Athos desde `allergies`** (no el modelo).
 - `POST /ingest` (admin) — dispara la ingesta.
 - `GET /health`.

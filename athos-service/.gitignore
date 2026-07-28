@@ -6,4 +6,8 @@ __pycache__/
 supabase/.temp/
 .pytest_cache/
 data/
+# salidas de las corridas del banco de calidad (scripts/calidad/*.py): son resultados de una
+# medición puntual, no fuente. Las cifras de referencia viven en scripts/calidad/README.md.
+scripts/calidad/*_validacion.json
+scripts/calidad/juez_abstencion.json
 .claude/settings.local.json

@@ -31,6 +31,16 @@ class Settings(BaseSettings):
     rerank_model: str = "rerank-v3.5"
     rerank_api_key: str = ""               # si vacío reusa embedding_api_key (misma cuenta Cohere)
 
+    # Abstención (juez semántico de evidencia). Es la ÚNICA señal que separa cobertura real de
+    # plausibilidad temática: ni el score determinístico, ni el del reranker, ni el nº de citas lo
+    # hacen (medido sobre 187 casos). Ver app/generation/evidence_judge.py.
+    judge_enabled: bool = True
+    judge_model: str = ""                  # si vacío usa llm_light_model (el mismo del A->B)
+    judge_abstain_max: int = 2             # puntaje <= -> abstención dura
+    judge_limited_max: int = 5             # puntaje <= -> se responde declarando evidencia limitada
+    judge_passages: int = 6                # mejores chunks que lee el juez
+    judge_chat_timeout_s: float = 4.0      # tope de espera EN EL CHAT; si vence, se responde igual
+
     # STT — Modo Fantasma (ADR-0016: Deepgram Nova, batch + diarización)
     deepgram_api_key: str = ""
     stt_model: str = "nova-2"
@@ -47,6 +57,11 @@ class Settings(BaseSettings):
     def rerank_key(self) -> str:
         """Key del reranker. Por defecto la misma cuenta de Cohere que los embeddings."""
         return self.rerank_api_key or self.embedding_api_key
+
+    @property
+    def judge_model_name(self) -> str:
+        """Modelo del juez. Por defecto el liviano (medido: mediana 1,8s, p90 2,3s)."""
+        return self.judge_model or self.llm_light_model
 
     @property
     def corpus_db_url(self) -> str:

@@ -2,6 +2,13 @@
 from datetime import datetime
 from pydantic import BaseModel, Field
 
+# Nivel de evidencia de la respuesta (lo decide el juez semántico, ver
+# app/generation/evidence_judge.py). Vive aquí porque es parte del CONTRATO de la API, y así el
+# juez puede importarlo sin ciclo (models.py no importa nada de app).
+EVIDENCE_NONE = "none"              # los pasajes no sostienen la consulta -> Athos se abstiene
+EVIDENCE_LIMITED = "limited"        # tocan el tema, no la condición -> se responde declarándolo
+EVIDENCE_SUFFICIENT = "sufficient"  # tratan la condición -> respuesta normal
+
 
 class SOAP(BaseModel):
     subjective: str = ""
@@ -98,6 +105,9 @@ class PhantomSuggestResponse(BaseModel):
     allergy_gate_triggered: bool = False       # DURO: desde allergies.severity='severe'
     allergy_transcript_flag: bool = False       # red del modelo (mención en la consulta)
     insufficient_evidence: bool = False
+    # Banda del juez semántico: none | limited | sufficient. `insufficient_evidence` (binario) se
+    # mantiene por compatibilidad con el front y equivale a evidence_level == "none".
+    evidence_level: str = EVIDENCE_SUFFICIENT
     citations: list[Citation] = Field(default_factory=list)
     alerts: list[ConditionAlert] = Field(default_factory=list)  # condiciones relevantes (no bloqueantes)
     ai_model: str = ""

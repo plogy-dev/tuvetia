@@ -1,18 +1,21 @@
 """Chat de Athos (SSE): el vet pregunta y Athos responde con literatura citada, en streaming.
 
-Cascada A->B -> retrieve -> umbral -> (gate de alergia) -> B->A en streaming. Si el retrieval no
-pasa el umbral, responde una plantilla SIN LLM ("cita o se calla"). Emite eventos SSE:
+Cascada A->B -> retrieve -> umbral -> (gate de alergia) -> juez de evidencia -> B->A en streaming.
+Si el retrieval no pasa el umbral, o si el juez dictamina que los pasajes no sostienen la consulta,
+responde una plantilla SIN literatura ("cita o se calla"). Emite eventos SSE:
   {"type":"warning"|"token"|"done", ...}. `clinic_id` siempre explícito.
 """
 import json
 import logging
 import re
 import threading
+import time
 
 from app.config import get_settings
+from app.generation.evidence_judge import ABSTAIN_MESSAGE, LIMITED_NOTICE, judge_evidence
 from app.generation.generate import _MAX_CHUNK_CHARS
 from app.generation.llm_client import LLMClient
-from app.models import Citation, PatientContext
+from app.models import EVIDENCE_NONE, EVIDENCE_SUFFICIENT, Citation, PatientContext
 from app.patient_context import load_patient_context
 from app.retrieval.cascade import retrieve
 from app.retrieval.query_builder import build_query
@@ -103,6 +106,19 @@ def _chat_prompt(question: str, literature, patient, severe_allergens) -> str:
     )
 
 
+def _abstain(clinic_id: str, patient_id: str | None, gate: bool):
+    """Abstención: plantilla SIN literatura, sin citas y con `evidence_level=none`.
+
+    Un solo camino para los dos motivos de callar — el umbral determinístico de la cascada (no hay
+    nada recuperado) y el juez semántico (lo recuperado no sostiene la consulta)."""
+    yield _sse({"type": "token", "text": ABSTAIN_MESSAGE})
+    if patient_id:
+        log_message(clinic_id, None, patient_id, "assistant", ABSTAIN_MESSAGE)
+    yield _sse({"type": "done", "citations": [], "allergy_gate_triggered": gate,
+                "insufficient_evidence": True, "evidence_level": EVIDENCE_NONE,
+                "ai_model": get_settings().llm_model})
+
+
 def stream_answer(question: str, patient_id: str, clinic_id: str, user_id: str | None = None):
     """Generador de eventos SSE para /athos/chat."""
     # Consulta general (sin paciente): contexto vacío, no consultamos la ficha.
@@ -158,31 +174,94 @@ def stream_answer(question: str, patient_id: str, clinic_id: str, user_id: str |
                             "Tenlas en cuenta antes de cualquier plan."})
 
     if not passed:
-        msg = ("No hay evidencia suficiente en la literatura disponible para responder esta "
-               "consulta con seguridad.")
-        yield _sse({"type": "token", "text": msg})
-        if patient_id:
-            log_message(clinic_id, None, patient_id, "assistant", msg)
-        yield _sse({"type": "done", "citations": [], "allergy_gate_triggered": gate,
-                    "insufficient_evidence": True, "ai_model": get_settings().llm_model})
+        yield from _abstain(clinic_id, patient_id, gate)
         return
 
     # Se ofrecen las mejores fuentes numeradas; las CITAS finales son solo las que el modelo
     # referencia por [n] en su respuesta (honesto: no adjuntamos fuentes que no usó).
     literature = chunks[:CHAT_LIT_LIMIT]
+
+    # --- Juez de evidencia EN PARALELO con la redacción -----------------------------------
+    # El juez cuesta ~1,8s (p90 2,3s). Encadenarlo (juzgar -> redactar) se los sumaría al tiempo
+    # hasta el primer token, justo lo que el paralelismo Tier 1/Tier 2 vino a bajar. Así que
+    # arrancan a la vez y los tokens quedan RETENIDOS hasta que llega el veredicto: el costo pasa de
+    # (juez + primer token) a max(juez, primer token). Si el veredicto es abstención se descarta lo
+    # retenido — el vet nunca vio nada que haya que desdecir. Lo único que se paga de más son los
+    # tokens generados durante esos ~1,8s en los casos que abstienen (medido: ~1,4% de los buenos).
+    box: dict = {}
+    judged = threading.Event()
+
+    def _judge() -> None:
+        try:
+            box["v"] = judge_evidence(question, literature)
+        finally:
+            judged.set()
+
+    threading.Thread(target=_judge, daemon=True).start()
+    deadline = time.monotonic() + get_settings().judge_chat_timeout_s
+
     system = CHAT_SYSTEM
     user = _chat_prompt(question, literature, patient, severe)
     parts: list[str] = []
+    held: list[str] = []       # tokens retenidos mientras no haya veredicto
+    verdict = None
+    decided = False
+    abstained = False
     errored = False
+
+    def _release():
+        """Suelta lo retenido, precedido del aviso de banda si la evidencia es limitada."""
+        if verdict is not None and verdict.is_limited:
+            yield _sse({"type": "warning", "text": LIMITED_NOTICE})
+        for t in held:
+            yield _sse({"type": "token", "text": t})
+        held.clear()
+
+    stream = None
     try:
-        for tok in LLMClient().stream(system, user, history=history, max_tokens=CHAT_MAX_TOKENS):
+        stream = LLMClient().stream(system, user, history=history, max_tokens=CHAT_MAX_TOKENS)
+        for tok in stream:
             parts.append(tok)
-            yield _sse({"type": "token", "text": tok})
+            if decided:
+                yield _sse({"type": "token", "text": tok})
+                continue
+            held.append(tok)
+            if not (judged.is_set() or time.monotonic() >= deadline):
+                continue
+            verdict = box.get("v")   # None = el juez venció el plazo -> se responde igual
+            decided = True
+            if verdict is not None and verdict.abstains:
+                abstained = True
+                break                # deja de generar: lo retenido se descarta
+            yield from _release()
     except Exception as e:  # noqa: BLE001 — el proveedor LLM falló: NUNCA dejar la UI colgada.
         errored = True
         log.warning("chat: el stream del LLM falló: %s", e)
+    finally:
+        if stream is not None:
+            stream.close()           # corta la conexión del proveedor si abstuvimos a mitad
 
     answer = "".join(parts)
+    if not decided:
+        # La redacción terminó antes que el juez: recién acá se espera (ya corrió en paralelo todo
+        # lo que duró la generación, así que casi siempre está listo).
+        judged.wait(max(0.0, deadline - time.monotonic()))
+        verdict = box.get("v")
+        decided = True
+        abstained = bool(verdict is not None and verdict.abstains)
+        if not abstained and answer.strip():
+            yield from _release()
+
+    if verdict is not None and verdict.judged:
+        log.info("juez de evidencia: puntaje=%s banda=%s %.1fs (%s)",
+                 verdict.score, verdict.band, verdict.seconds, verdict.reason[:120])
+
+    if abstained:
+        held.clear()                 # lo generado se descarta: no se muestra literatura que no cubre
+        yield from _abstain(clinic_id, patient_id, gate)
+        return
+
+    level = verdict.band if verdict is not None else EVIDENCE_SUFFICIENT
     if not answer.strip():
         # El proveedor no devolvió texto (rechazó el request, timeout, etc.). Degrada con gracia:
         # aviso claro + done, para que el hilo del vet no quede "pensando" para siempre.
@@ -190,8 +269,8 @@ def stream_answer(question: str, patient_id: str, clinic_id: str, user_id: str |
                     "text": "No se pudo generar la respuesta en este momento. Intenta de nuevo "
                             "en unos segundos."})
         yield _sse({"type": "done", "citations": [], "allergy_gate_triggered": gate,
-                    "insufficient_evidence": False, "ai_model": get_settings().llm_model,
-                    "error": errored})
+                    "insufficient_evidence": False, "evidence_level": level,
+                    "ai_model": get_settings().llm_model, "error": errored})
         return
 
     citations = _cited_from_answer(answer, literature)
@@ -199,4 +278,4 @@ def stream_answer(question: str, patient_id: str, clinic_id: str, user_id: str |
         log_message(clinic_id, None, patient_id, "assistant", answer)
     yield _sse({"type": "done", "citations": [c.model_dump() for c in citations],
                 "allergy_gate_triggered": gate, "insufficient_evidence": False,
-                "ai_model": get_settings().llm_model})
+                "evidence_level": level, "ai_model": get_settings().llm_model})
