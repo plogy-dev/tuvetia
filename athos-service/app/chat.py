@@ -17,8 +17,7 @@ from app.generation.generate import _MAX_CHUNK_CHARS
 from app.generation.llm_client import LLMClient
 from app.models import EVIDENCE_NONE, EVIDENCE_SUFFICIENT, Citation, PatientContext
 from app.patient_context import load_patient_context
-from app.retrieval.cascade import retrieve
-from app.retrieval.query_builder import build_query
+from app.retrieval.cascade import build_and_retrieve
 from app.trace.logs import load_thread, log_message, log_retrieval
 
 CHAT_LIT_LIMIT = 12   # fuentes numeradas que se ofrecen al modelo (y de las que salen las citas)
@@ -123,8 +122,9 @@ def stream_answer(question: str, patient_id: str, clinic_id: str, user_id: str |
     """Generador de eventos SSE para /athos/chat."""
     # Consulta general (sin paciente): contexto vacío, no consultamos la ficha.
     patient = load_patient_context(clinic_id, patient_id) if patient_id else PatientContext(patient_id="")
-    query = build_query(question, patient.species)
-    chunks, passed = retrieve(query)
+    # A->B y recuperación juntos: el Tier 2 (vector sobre el texto crudo) se solapa con la
+    # distilación del LLM liviano en vez de esperarla.
+    query, chunks, passed = build_and_retrieve(question, patient.species)
     if patient_id:
         # Memoria semántica DESPUÉS del retrieval: el Tier 2 ya dejó el vector de la consulta en
         # caché, así que recordar la historia del paciente no cuesta otra llamada a Cohere.

@@ -22,11 +22,10 @@ def _patch_common(monkeypatch, *, passed: bool, captured: dict) -> None:
     monkeypatch.setattr(phantom, "load_patient_context",
                         lambda c, p: PatientContext(patient_id="luna", species="perro",
                                                     severe_allergies=["pollo"]))
-    monkeypatch.setattr(phantom, "build_query",
-                        lambda text, sp: StructuredQuery(raw=text, concepts=["Vomiting"], species=sp))
     chunk = RetrievedChunk(chunk_id="c1", doc_id="PM1", content="feline gastritis ...", score=0.9)
-    monkeypatch.setattr(phantom, "retrieve",
-                        lambda q: ([chunk], True) if passed else ([], False))
+    monkeypatch.setattr(phantom, "build_and_retrieve", lambda text, sp: (
+        StructuredQuery(raw=text, concepts=["Vomiting"], species=sp),
+        [chunk] if passed else [], passed))
     # gate DURO: Luna tiene alergia severa -> True (contra DB se prueba en test_allergy_gate)
     monkeypatch.setattr(phantom, "evaluate_gate", lambda c, p: (True, ["pollo"]))
 

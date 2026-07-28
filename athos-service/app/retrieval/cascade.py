@@ -4,13 +4,17 @@ Tier 0 filtros/boosts -> Tier 1 léxico+glosario -> (Tier 2 vector solo si Tier 
 umbral -> fusión de contexto. El corpus es global; el contexto del paciente va por su propio
 camino (RLS por clinic_id) y se fusiona EN MEMORIA. Nunca JOIN entre zonas.
 """
+import logging
 from concurrent.futures import ThreadPoolExecutor
 from functools import lru_cache
 
 from app.db import fetch_all_corpus
 from app.embeddings import EmbeddingError
 from app.models import PatientContext, RetrievedChunk, StructuredQuery
+from app.retrieval.query_builder import build_query
 from app.retrieval.rerank import rerank_chunks
+
+log = logging.getLogger(__name__)
 
 # --- Parámetros determinísticos (se calibran con el golden set; arrancan conservadores) ---
 THRESHOLD = 0.35        # score del mejor chunk para NO abstenerse
@@ -124,22 +128,56 @@ def _to_chunk(row: dict, base: float) -> RetrievedChunk:
     )
 
 
+# Tope de filas que se rankean en la rama SOLO-full-text. Esa rama es el relleno: sólo aporta
+# cuando el MeSH devuelve menos de TIER1_LIMIT. Sin tope, rankear sus decenas de miles de matches
+# costaba más que todo el resto de la cascada junta.
+TIER1_FTS_SCAN_CAP = 3000
+
+# Constante (y no inline) para que `scripts/calidad/latencia_db.py` mida EXACTAMENTE lo que corre en
+# producción: si el SQL vive en dos lugares, la medición miente en cuanto uno de los dos cambie.
+TIER1_SQL = (
+    "with por_mesh as ("
+    "  select id, source, title, content, metadata, true as mesh_hit, "
+    "         ts_rank_cd(tsv, websearch_to_tsquery(%s, %s)) as lex "
+    "  from public.corpus_chunks where metadata->'mesh' ?| %s "
+    "  order by lex desc limit %s"
+    "), por_texto as ("
+    "  select id, source, title, content, metadata, false as mesh_hit, "
+    "         ts_rank_cd(tsv, websearch_to_tsquery(%s, %s)) as lex "
+    "  from (select id, source, title, content, metadata, tsv from public.corpus_chunks "
+    "        where tsv @@ websearch_to_tsquery(%s, %s) and not (metadata->'mesh' ?| %s) "
+    "        limit %s) c "
+    "  order by lex desc limit %s"
+    ") select * from (select * from por_mesh union all select * from por_texto) u "
+    "order by mesh_hit desc, lex desc limit %s"
+)
+
+
+def tier1_params(cfg: str, terms: str, mesh: list[str]) -> tuple:
+    """Parámetros posicionales de TIER1_SQL (el orden importa y se repite: se arma en un solo sitio)."""
+    return (cfg, terms, mesh, TIER1_LIMIT,
+            cfg, terms, cfg, terms, mesh, TIER1_FTS_SCAN_CAP, TIER1_LIMIT,
+            TIER1_LIMIT)
+
+
 def tier1_lexical_glossary(query: StructuredQuery, filters: dict) -> list[RetrievedChunk]:
     """Léxico + glosario (gratis): full-text (config del idioma) sobre content + match de
-    conceptos/MeSH contra metadata->'mesh'. Base = 0.6 (MeSH) + 0.4 (léxico). Usa la DB."""
+    conceptos/MeSH contra metadata->'mesh'. Base = 0.6 (MeSH) + 0.4 (léxico). Usa la DB.
+
+    Las dos ramas van SEPARADAS a propósito. La versión con `where mesh ?| ... or tsv @@ ...`
+    tardaba **15 segundos de servidor** sobre el corpus de 520k (medido 2026-07-28, al filo del
+    `statement_timeout` de 15s: en producción se cancelaban consultas). El motivo: el `or` obliga a
+    traer al heap TODOS los matches de ambas ramas —1.692 por MeSH y 17.147 por full-text en una
+    consulta típica— y a calcular `ts_rank_cd` sobre los ~19k antes del LIMIT, cuando el orden
+    primario (`mesh_hit desc`) garantiza que los de MeSH van primero igual.
+
+    Separadas, sólo se rankea la rama que puede quedar arriba: **42 ms, mismos 40 chunks** (347x).
+    """
     concepts = filters.get("concepts") or list(query.concepts)
     mesh = filters.get("mesh") or list(query.mesh)
     cfg = _ts_config(filters.get("language"))
     terms = " or ".join(concepts)  # websearch_to_tsquery entiende OR
-    rows = fetch_all_corpus(
-        "select id, source, title, content, metadata, "
-        "  ts_rank_cd(tsv, websearch_to_tsquery(%s, %s)) as lex, "
-        "  (metadata->'mesh' ?| %s) as mesh_hit "
-        "from public.corpus_chunks "
-        "where tsv @@ websearch_to_tsquery(%s, %s) or metadata->'mesh' ?| %s "
-        "order by mesh_hit desc nulls last, lex desc nulls last limit %s",
-        (cfg, terms, mesh, cfg, terms, mesh, TIER1_LIMIT),
-    )
+    rows = fetch_all_corpus(TIER1_SQL, tier1_params(cfg, terms, mesh))
     out = []
     for r in rows:
         lex = float(r["lex"] or 0.0)
@@ -172,12 +210,19 @@ def _query_vector_cached(text: str) -> tuple[float, ...]:
     return tuple(client.embed([text], input_type="search_query")[0])
 
 
-def tier2_vector_fallback(query: StructuredQuery, filters: dict) -> list[RetrievedChunk]:
-    """Complemento semántico: embeddiza la consulta (Cohere, input_type=search_query) y busca sobre
-    el corpus. Timeout corto: si Cohere no responde en QUERY_EMBED_TIMEOUT_S, EmbeddingUnavailable
-    sube y retrieve() se queda con el Tier 1 (el chat nunca espera un embed lento)."""
-    vector = list(_query_vector_cached(query.raw.strip() or query.raw))
+def vector_candidates(text: str) -> list[RetrievedChunk]:
+    """Tier 2 crudo: embeddiza el TEXTO (Cohere, input_type=search_query) y busca sobre el corpus.
+
+    Depende del texto, NO de los conceptos: por eso puede arrancar antes de que el A->B termine
+    (ver `build_and_retrieve`). Timeout corto: si Cohere no responde en QUERY_EMBED_TIMEOUT_S sube
+    EmbeddingError y la cascada se queda con el Tier 1 (el chat nunca espera un embed lento)."""
+    vector = list(_query_vector_cached(text.strip() or text))
     return _vector_search(vector, TIER2_LIMIT)
+
+
+def tier2_vector_fallback(query: StructuredQuery, filters: dict) -> list[RetrievedChunk]:
+    """Complemento semántico sobre una consulta ya construida."""
+    return vector_candidates(query.raw)
 
 
 def _is_weak(chunks: list[RetrievedChunk]) -> bool:
@@ -202,15 +247,31 @@ def _merge_unique(primary: list[RetrievedChunk], extra: list[RetrievedChunk]) ->
     return primary + [c for c in extra if c.chunk_id not in seen]
 
 
-def retrieve(query: StructuredQuery) -> tuple[list[RetrievedChunk], bool]:
-    """Orquesta Tier 0/1/(2), rankea y evalúa el umbral. Devuelve (chunks, passed_threshold).
+def _fusionar(query: StructuredQuery, filters: dict, tier1: list[RetrievedChunk],
+              tier2: list[RetrievedChunk] | None) -> tuple[list[RetrievedChunk], bool]:
+    """Fusiona ambas modalidades, evalúa el umbral y reordena. Conserva un tope de CADA una (léxico
+    + semántico) para que los buenos matches semánticos no queden sepultados por matches léxicos o
+    de MeSH incidentales."""
+    if tier2 is not None and _should_run_tier2(query, tier1):
+        chunks = rank_chunks(_merge_unique(tier1[:TIER1_KEEP], tier2[:TIER2_KEEP]), filters)
+    else:
+        chunks = tier1[:MAX_LITERATURE_CHUNKS]
+    # El umbral se evalúa ANTES del rerank, sobre el score determinístico: activar el reranker
+    # cambia QUÉ literatura llega a la generación, nunca cuándo Athos se abstiene.
+    passed = passes_threshold(chunks)
+    chunks, _ = rerank_chunks(query.raw, chunks, RERANK_KEEP)
+    return chunks, passed
 
-    Tier 1 (query al corpus) y Tier 2 (embed de Cohere + query vectorial) corren EN PARALELO:
-    antes iban encadenados y la latencia de Cohere se SUMABA a la del Tier 1 en cada request;
-    ahora se paga solo el mayor de los dos. Al fusionar, se conserva un tope de CADA modalidad
-    (léxico + semántico) para que los buenos matches semánticos no queden sepultados por matches
-    léxicos/MeSH incidentales. Si Cohere no está disponible o está lento (timeout corto), degrada
-    con gracia al Tier 1 (no rompe el camino determinístico)."""
+
+def retrieve(query: StructuredQuery) -> tuple[list[RetrievedChunk], bool]:
+    """Orquesta Tier 0/1/2 sobre una consulta YA construida. Devuelve (chunks, passed_threshold).
+
+    Tier 1 (query al corpus) y Tier 2 (embed de Cohere + query vectorial) corren EN PARALELO: antes
+    iban encadenados y la latencia de Cohere se SUMABA a la del Tier 1 en cada request. Si Cohere no
+    está disponible o está lento (timeout corto), degrada con gracia al Tier 1.
+
+    Para el camino completo desde el texto del vet usa `build_and_retrieve`, que además solapa el
+    Tier 2 con el A->B."""
     filters = tier0_filters(query)
     with ThreadPoolExecutor(max_workers=2) as ex:
         f_tier1 = ex.submit(lambda: rank_chunks(tier1_lexical_glossary(query, filters), filters))
@@ -221,15 +282,34 @@ def retrieve(query: StructuredQuery) -> tuple[list[RetrievedChunk], bool]:
             tier2 = f_tier2.result()
         except EmbeddingError:
             tier2 = None  # sin Cohere (o lento): nos quedamos con el Tier 1
-    if tier2 is not None and _should_run_tier2(query, tier1):
-        chunks = rank_chunks(_merge_unique(tier1[:TIER1_KEEP], tier2[:TIER2_KEEP]), filters)
-    else:
-        chunks = tier1[:MAX_LITERATURE_CHUNKS]
-    # El umbral se evalúa ANTES del rerank, sobre el score determinístico: activar el reranker
-    # cambia QUÉ literatura llega a la generación, nunca cuándo Athos se abstiene.
-    passed = passes_threshold(chunks)
-    chunks, _ = rerank_chunks(query.raw, chunks, RERANK_KEEP)
-    return chunks, passed
+    return _fusionar(query, filters, tier1, tier2)
+
+
+def build_and_retrieve(text: str, species: str | None) -> tuple[StructuredQuery, list[RetrievedChunk], bool]:
+    """A->B + recuperación, con el Tier 2 SOLAPADO sobre la construcción de la consulta.
+
+    El Tier 2 embebe el TEXTO CRUDO del vet: no necesita los conceptos, así que no tiene por qué
+    esperar al A->B. Antes se pagaba en serie —distilación con el LLM liviano (~4,3s medidos) y
+    recién después el retrieval (~4,4s)—; ahora el embed y la búsqueda vectorial se cocinan MIENTRAS
+    el LLM interpreta el cuadro. En las consultas que distilan (la mayoría: el glosario no cubre
+    todo el lenguaje del dueño) el ahorro es de varios segundos hasta el primer token.
+
+    Devuelve también la `StructuredQuery` porque el llamador la necesita para la traza.
+    """
+    with ThreadPoolExecutor(max_workers=1) as ex:
+        f_tier2 = ex.submit(vector_candidates, text)
+        query = build_query(text, species)          # glosario (+ LLM liviano si hace falta)
+        filters = tier0_filters(query)
+        tier1 = rank_chunks(tier1_lexical_glossary(query, filters), filters)
+        try:
+            tier2 = rank_chunks(f_tier2.result(), filters)
+        except EmbeddingError:
+            tier2 = None
+        except Exception as e:  # noqa: BLE001 — el Tier 2 nunca tumba el camino determinístico
+            log.warning("cascada: el Tier 2 solapado falló (%s); se sigue con el Tier 1", e)
+            tier2 = None
+    chunks, passed = _fusionar(query, filters, tier1, tier2)
+    return query, chunks, passed
 
 
 def fuse_context(literature: list[RetrievedChunk], patient: PatientContext) -> dict:

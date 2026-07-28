@@ -102,6 +102,34 @@ Hallazgo lateral: el mayor costo antes del primer token no es el juez sino **`bu
 que es el LLM liviano distilando porque el glosario no resuelve. Ampliar el glosario (arriba) ataca
 esa latencia además de la calidad.
 
+## Latencia: el Tier 1 tardaba 15 segundos (2026-07-28)
+
+```bash
+python scripts/calidad/latencia_db.py    # tiempo de SERVIDOR de las 2 consultas del hot-path
+```
+
+Medir desde una notebook mezcla la latencia de red con el costo real; Railway corre al lado de la
+DB, así que lo que importa es el tiempo del servidor. `EXPLAIN ANALYZE` lo separa:
+
+| consulta | antes | después |
+|---|---|---|
+| Tier 1 (full-text + MeSH sobre 520k) | **15.397 ms** | **143 ms** |
+| Tier 2 (pgvector HNSW) | 3 ms | 3 ms |
+
+El Tier 1 estaba **al filo del `statement_timeout` de 15s**: en producción se cancelaban consultas
+(se veía como "canceling statement due to statement timeout" al correr el banco). El vector, en
+cambio, siempre estuvo perfecto — el problema era la consulta "gratis", no la cara.
+
+Causa: `where tsv @@ ... or metadata->'mesh' ?| ...` obliga a un BitmapOr que trae al heap TODOS los
+matches de las dos ramas (1.692 por MeSH + 17.147 por full-text en una consulta típica) y calcula
+`ts_rank_cd` sobre los ~19k **antes** del LIMIT — aunque el orden primario (`mesh_hit desc`) ya
+garantice que los de MeSH van primero. Separando las ramas sólo se rankea la que puede quedar
+arriba. Verificado sobre 8 casos del golden: **99% de solapamiento** en el top-40, speedup mediano
+de 5x en pared (dominado por la red del que mide) y 108x del lado del servidor.
+
+El SQL vive en `cascade.TIER1_SQL` y el script lo importa de ahí a propósito: una copia en el script
+de medición mentiría en cuanto uno de los dos cambiara.
+
 ## A->B: especificidad en vez de cantidad (2026-07-28)
 
 `build_query` decidía si llamar al LLM liviano **contando** conceptos (`MIN_CONFIDENT_CONCEPTS=3`).

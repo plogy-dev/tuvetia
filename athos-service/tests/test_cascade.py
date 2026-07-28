@@ -117,6 +117,61 @@ def test_tier2_corre_siempre_como_complemento(monkeypatch):
     assert passed is True
 
 
+def test_build_and_retrieve_solapa_el_tier2_con_el_a2b(monkeypatch):
+    """El Tier 2 embebe el TEXTO CRUDO, así que no tiene por qué esperar al A->B.
+
+    La prueba es de concurrencia real: el A->B no devuelve hasta ver que el Tier 2 ya arrancó. Si
+    volvieran a encadenarse (A->B y recién después el vector), este test se cuelga y falla."""
+    import threading
+
+    import app.retrieval.cascade as csc
+
+    arranco_tier2 = threading.Event()
+    tier2 = [_chunk("v_1", "gato", ["Hyperthyroidism", "Cats"], 0.5)]
+
+    def _vector(text):
+        arranco_tier2.set()
+        return tier2
+
+    def _build(text, species):
+        # Si el Tier 2 estuviera detrás del A->B, esta espera vencería: siguen en serie.
+        assert arranco_tier2.wait(5), "el Tier 2 NO arrancó durante el A->B: están encadenados"
+        return StructuredQuery(concepts=["Vomiting"], mesh=["Vomiting"], species=species,
+                               raw=text, distilled=True)
+
+    monkeypatch.setattr(csc, "vector_candidates", _vector)
+    monkeypatch.setattr(csc, "build_query", _build)
+    monkeypatch.setattr(csc, "tier1_lexical_glossary",
+                        lambda q, f: [_chunk("t1_1", "gato", ["Cats", "Vomiting"], 0.9)])
+
+    query, chunks, passed = csc.build_and_retrieve("gata de 13 anios que adelgaza", "gato")
+
+    ids = {c.chunk_id for c in chunks}
+    assert ids == {"t1_1", "v_1"}          # ambas modalidades llegaron
+    assert passed is True
+    assert query.species == "gato"          # devuelve la query construida (la traza la necesita)
+
+
+def test_build_and_retrieve_degrada_si_el_tier2_solapado_falla(monkeypatch):
+    """El Tier 2 solapado tampoco puede tumbar el camino determinístico."""
+    import app.retrieval.cascade as csc
+    from app.embeddings import EmbeddingUnavailable
+
+    def _boom(text):
+        raise EmbeddingUnavailable("Cohere no respondió")
+
+    monkeypatch.setattr(csc, "vector_candidates", _boom)
+    monkeypatch.setattr(csc, "build_query",
+                        lambda t, s: StructuredQuery(concepts=["Cats"], mesh=["Cats"], raw=t))
+    monkeypatch.setattr(csc, "tier1_lexical_glossary",
+                        lambda q, f: [_chunk("t1_1", "gato", ["Cats"], 0.9)])
+
+    _, chunks, passed = csc.build_and_retrieve("x", "gato")
+
+    assert [c.chunk_id for c in chunks] == ["t1_1"]
+    assert passed is True
+
+
 def test_retrieve_degrada_si_tier2_falla(monkeypatch):
     """Si el Tier 1 es débil y el Tier 2 no puede embeddizar (sin Cohere), retrieve NO rompe:
     se queda con el Tier 1 y se abstiene. Determinístico (sin DB ni red)."""

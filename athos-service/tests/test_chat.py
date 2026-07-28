@@ -81,10 +81,9 @@ def test_stream_answer_inyecta_memoria_y_loguea_ambos_roles(monkeypatch):
     en el historial (va como prompt del turno) y se loguean los roles user + assistant."""
     monkeypatch.setattr(chat, "load_patient_context",
                         lambda c, p: PatientContext(patient_id=p, species="perro"))
-    monkeypatch.setattr(chat, "build_query",
-                        lambda q, s: StructuredQuery(raw=q, concepts=["Vomiting"], species=s))
     chunk = RetrievedChunk(chunk_id="c1", doc_id="D1", content="feline gastritis ...", score=0.9)
-    monkeypatch.setattr(chat, "retrieve", lambda q: ([chunk], True))
+    monkeypatch.setattr(chat, "build_and_retrieve", lambda texto, especie: (
+        StructuredQuery(raw=texto, concepts=["Vomiting"], species=especie), [chunk], True))
     monkeypatch.setattr(chat, "load_thread", lambda c, p, n=8: [
         {"role": "user", "content": "pregunta previa"},
         {"role": "assistant", "content": "respuesta previa [1]"}])
@@ -124,10 +123,9 @@ def _run_chat(monkeypatch, *, verdict=None, tokens=("Compatible con gastritis [1
     NO depende de quién termine primero (si el stream se adelanta, los tokens quedan retenidos)."""
     monkeypatch.setattr(chat, "load_patient_context",
                         lambda c, p: PatientContext(patient_id=p, species="perro"))
-    monkeypatch.setattr(chat, "build_query",
-                        lambda q, s: StructuredQuery(raw=q, concepts=["Vomiting"], species=s))
     chunk = RetrievedChunk(chunk_id="c1", doc_id="D1", content="canine gastritis ...", score=0.9)
-    monkeypatch.setattr(chat, "retrieve", lambda q: ([chunk], passed))
+    monkeypatch.setattr(chat, "build_and_retrieve", lambda texto, especie: (
+        StructuredQuery(raw=texto, concepts=["Vomiting"], species=especie), [chunk], passed))
     monkeypatch.setattr(chat, "load_thread", lambda c, p, n=8: [])
     monkeypatch.setattr(chat, "log_retrieval", lambda *a, **k: "rid")
     logged: list[tuple[str, str]] = []

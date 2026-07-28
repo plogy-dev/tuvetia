@@ -19,8 +19,7 @@ from app.generation.evidence_judge import judge_evidence
 from app.generation.generate import generate_note
 from app.models import EVIDENCE_NONE, PhantomSuggestResponse
 from app.patient_context import load_patient_context
-from app.retrieval.cascade import retrieve
-from app.retrieval.query_builder import build_query
+from app.retrieval.cascade import build_and_retrieve
 from app.trace.logs import log_answer, log_retrieval
 
 
@@ -102,9 +101,8 @@ def suggest(consultation_id: str, clinic_id: str, user_id: str | None = None) ->
 
     patient = load_patient_context(clinic_id, patient_id)
 
-    # A->B (glosario + LLM liviano de respaldo) + cascada
-    query = build_query(transcript_text, patient.species)
-    chunks, passed = retrieve(query)
+    # A->B (glosario + LLM liviano de respaldo) + cascada, con el Tier 2 solapado sobre el A->B
+    query, chunks, passed = build_and_retrieve(transcript_text, patient.species)
 
     # Gate DURO desde `allergies` (no el modelo)
     gate_triggered, severe = evaluate_gate(clinic_id, patient_id)
