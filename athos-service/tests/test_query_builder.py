@@ -50,10 +50,8 @@ def test_no_hay_falsos_positivos_por_subcadena():
 
 # --- Respaldo con LLM liviano (build_query) ---
 
-def test_build_query_glosario_suficiente_no_distila(monkeypatch):
-    """Si el glosario ya resuelve >= MIN_CONFIDENT_CONCEPTS, NO se llama al LLM (mínima IA)."""
-    rico = StructuredQuery(concepts=["A", "B", "C", "D"], mesh=["A"], species="gato", raw="x")
-    monkeypatch.setattr(qb, "resolve_concepts", lambda t, s: rico)
+def _spy_distill(monkeypatch):
+    """Reemplaza el LLM liviano por un espía; devuelve el contador de llamadas."""
     llamado = {"n": 0}
 
     def _spy(t, s):
@@ -61,10 +59,64 @@ def test_build_query_glosario_suficiente_no_distila(monkeypatch):
         return ["X"], ["X"]
 
     monkeypatch.setattr(qb, "distill_query", _spy)
-    q = build_query("...", "gato")
+    return llamado
+
+
+def test_build_query_condicion_nombrada_y_suficientes_no_distila(monkeypatch):
+    """Las DOS condiciones (cantidad + una condición nombrada) -> no se llama al LLM."""
+    q_glos = StructuredQuery(concepts=["Vomiting", "Fever", "Babesiosis"], mesh=["Babesiosis"],
+                             species="perro", raw="x")
+    monkeypatch.setattr(qb, "resolve_concepts", lambda t, s: q_glos)
+    llamado = _spy_distill(monkeypatch)
+
+    q = build_query("perro con garrapatas, fiebre y vomitos, sospecho babesiosis", "perro")
+
     assert llamado["n"] == 0
     assert q.distilled is False
-    assert q.concepts == ["A", "B", "C", "D"]
+
+
+def test_build_query_condicion_nombrada_pero_pocos_conceptos_distila(monkeypatch):
+    """Medido (3 mejoras vs 3 empeoras): que el glosario acierte el diagnóstico NO justifica
+    saltarse la distilación — el LLM sigue aportando términos hermanos. Se distila igual."""
+    q_glos = StructuredQuery(concepts=["Babesiosis"], mesh=["Babesiosis"], species="perro", raw="x")
+    monkeypatch.setattr(qb, "resolve_concepts", lambda t, s: q_glos)
+    monkeypatch.setattr(qb, "distill_query", lambda t, s: (["tick borne disease"], ["Tick Infestations"]))
+
+    q = build_query("sospecho babesiosis", "perro")
+
+    assert q.distilled is True
+    assert "Babesiosis" in q.concepts and "Tick Infestations" in q.mesh
+
+
+def test_build_query_solo_signos_distila_aunque_sean_muchos(monkeypatch):
+    """Tres signos inespecíficos pasaban el umbral viejo por CANTIDAD y se saltaban la inferencia.
+    'toma mucha agua, orina mucho, bajó de peso' no nombra la enfermedad: hay que interpretarlo."""
+    solo_signos = StructuredQuery(concepts=["Polydipsia", "Polyuria", "Weight Loss"],
+                                  mesh=["Polydipsia"], species="perro", raw="x")
+    monkeypatch.setattr(qb, "resolve_concepts", lambda t, s: solo_signos)
+    monkeypatch.setattr(qb, "distill_query",
+                        lambda t, s: (["diabetes mellitus"], ["Diabetes Mellitus"]))
+
+    q = build_query("toma mucha agua, orina mucho y bajo de peso", "perro")
+
+    assert q.distilled is True
+    assert "Diabetes Mellitus" in q.mesh          # la inferencia que el conteo se perdía
+    assert "Polydipsia" in q.concepts              # aditivo: no reemplaza lo del glosario
+
+
+def test_build_query_sin_dato_de_especificidad_cae_al_conteo(monkeypatch):
+    """Si falta el JSON de especificidad, degrada al criterio anterior (>= MIN_CONFIDENT_CONCEPTS)
+    en vez de distilar siempre."""
+    import app.glossary.specificity as spec
+    monkeypatch.setattr(spec, "diagnostic_descriptors", lambda: frozenset())
+    rico = StructuredQuery(concepts=["A", "B", "C"], mesh=["A"], raw="x")
+    monkeypatch.setattr(qb, "resolve_concepts", lambda t, s: rico)
+    llamado = _spy_distill(monkeypatch)
+
+    q = build_query("...", None)
+
+    assert llamado["n"] == 0
+    assert q.distilled is False
 
 
 def test_build_query_glosario_pobre_distila_y_fusiona(monkeypatch):

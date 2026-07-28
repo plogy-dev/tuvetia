@@ -5,9 +5,11 @@ __pycache__/
 *.pyc
 supabase/.temp/
 .pytest_cache/
-data/
+# Solo el data/ de la RAIZ (descargas de la ingesta del corpus). Sin la barra inicial tambien
+# matcheaba app/glossary/data/, que SI es fuente y tiene que viajar al deploy.
+/data/
 # salidas de las corridas del banco de calidad (scripts/calidad/*.py): son resultados de una
 # medición puntual, no fuente. Las cifras de referencia viven en scripts/calidad/README.md.
-scripts/calidad/*_validacion.json
-scripts/calidad/juez_abstencion.json
+# (la fuente de datos del banco es el .tsv, no hay .json que versionar)
+scripts/calidad/*.json
 .claude/settings.local.json

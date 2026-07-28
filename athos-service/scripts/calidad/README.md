@@ -102,6 +102,40 @@ Hallazgo lateral: el mayor costo antes del primer token no es el juez sino **`bu
 que es el LLM liviano distilando porque el glosario no resuelve. Ampliar el glosario (arriba) ataca
 esa latencia además de la calidad.
 
+## A->B: especificidad en vez de cantidad (2026-07-28)
+
+`build_query` decidía si llamar al LLM liviano **contando** conceptos (`MIN_CONFIDENT_CONCEPTS=3`).
+Contar no es entender: "toma muchísima agua, orina mucho y bajó de peso" resuelve tres signos
+genéricos, pasaba el umbral y el retrieval nunca recibía `Diabetes Mellitus`.
+
+```bash
+python scripts/calidad/ab_decision_diff.py              # qué casos cambian de decisión (segundos)
+python scripts/calidad/ab_decision_diff.py --retrieval  # + hit@15 real, sólo en los que cambian
+```
+
+Medir sólo los casos que cambian es lo que hace la comparación barata: de 146 casos, la decisión
+cambia en 31, y **son los únicos donde el resultado puede diferir**. Los dos brazos NO fueron en la
+misma dirección (hit@15 contra producción):
+
+| brazo | casos | mejora | empeora | igual |
+|---|---|---|---|---|
+| exigir que nombre una condición (distila **más**) | 20 | **7** | 2 | 11 |
+| relajar la cantidad si ya nombró una (distila **menos**) | 8 | 3 | 3 | 2 |
+
+Por eso la regla adoptada es la **unión**, no el reemplazo: se exigen las dos cosas (cantidad Y
+especificidad). Distilar de más sólo cuesta latencia —la distilación es aditiva, nunca reemplaza lo
+del glosario— mientras que distilar de menos cuesta respuestas. El segundo brazo ahorraba ~4,3s en
+el 6% de las consultas, pero a cambio de regresiones impredecibles: no vale la pena.
+
+Costo: 22 de 146 consultas (15%) pasan a pagar la distilación que antes se salteaban. La forma de
+recuperar esa latencia sin perder la calidad es **solapar la distilación con el Tier 2**, que no
+depende de los conceptos (embebe el texto crudo) — pendiente.
+
+La clasificación signo/condición sale del árbol MeSH y se regenera con
+`mesh_especificidad_generar.py` (rama C23 = "Pathological Conditions, Signs and Symptoms"). Ojo: 124
+descriptores son **ambiguos** (MeSH cruza-lista `Renal Insufficiency, Chronic` como enfermedad *y*
+como signo); se los trata como signo a propósito, porque el error barato es distilar de más.
+
 ## Glosario
 
 Pipeline en 4 pasos. **Sembrar es inerte** (`resolve.py` sólo lee `approved`); aprobar es lo que

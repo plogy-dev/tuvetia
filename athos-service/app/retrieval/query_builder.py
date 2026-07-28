@@ -11,12 +11,12 @@ import re
 
 from app.config import get_settings
 from app.glossary.resolve import resolve_concepts
+from app.glossary.specificity import names_a_condition
 from app.models import StructuredQuery
 
-# Si el glosario resuelve MENOS conceptos que esto, se distila con el LLM liviano. Calibrado
-# (2026-07-22) tras ampliar el glosario curado: con el glosario rico, resolver >=3 conceptos
-# coherentes (a menudo signos + un síndrome) es señal suficiente; <3 sugiere hueco real. Aun sin
-# distilar, el Tier 2 vectorial cubre las queries genuinamente pobres.
+# Mínimo de conceptos del glosario para no distilar. Calibrado (2026-07-22) tras ampliar el glosario
+# curado. Es NECESARIO pero ya no suficiente: desde 2026-07-28 además alguno tiene que nombrar una
+# condición concreta (ver `_glossary_is_confident`).
 MIN_CONFIDENT_CONCEPTS = 3
 
 _DISTILL_SYSTEM = (
@@ -67,15 +67,42 @@ def distill_query(text: str, species: str | None) -> tuple[list[str], list[str]]
         return [], []
 
 
+def _glossary_is_confident(concepts: list[str]) -> bool:
+    """¿Alcanza lo que resolvió el glosario, o hay que pedirle al LLM que interprete el cuadro?
+
+    Exige las DOS cosas: suficientes conceptos Y que alguno nombre una condición concreta. Basta que
+    falte una para distilar, porque la distilación es ADITIVA (nunca reemplaza lo del glosario), así
+    que de más sólo cuesta latencia y de menos cuesta una respuesta.
+
+    Medido sobre los 31 casos del golden ampliado donde la decisión cambia (retrieval real contra
+    producción, hit@15):
+      - exigir especificidad (antes se pasaba con 3 signos genéricos): **MEJORA 7, EMPEORA 2**.
+        "Toma mucha agua, orina mucho y bajó de peso" son tres conceptos que pasaban el umbral por
+        cantidad, pero ninguno nombra la enfermedad; sin distilar, el retrieval nunca recibía
+        `Diabetes Mellitus`.
+      - relajar la cantidad cuando ya había una condición nombrada: **3 mejoras y 3 empeoras**, un
+        empate. Ahorraba ~4,3s pero a cambio de regresiones impredecibles, así que NO se adoptó: el
+        LLM sigue aportando términos hermanos aunque el glosario ya haya acertado el diagnóstico.
+
+    Si el dato de especificidad no está disponible, cae al criterio anterior por cantidad.
+    """
+    from app.glossary.specificity import diagnostic_descriptors
+    if len(concepts) < MIN_CONFIDENT_CONCEPTS:
+        return False
+    if not diagnostic_descriptors():   # sin el dato MeSH, el criterio viejo es lo único que hay
+        return True
+    return names_a_condition(concepts)
+
+
 def build_query(text: str, species: str | None) -> StructuredQuery:
     """Construye la StructuredQuery.
 
     1) resolve_concepts(text, species)  (determinístico, glosario `approved`).
-    2) Si la detección queda pobre (< MIN_CONFIDENT_CONCEPTS), el LLM liviano distila la consulta y
-       se FUSIONA (aditivo) con lo del glosario. Marca `distilled=True` para la traza y el Tier 2.
+    2) Si el glosario no nombró ninguna condición concreta, el LLM liviano distila la consulta y se
+       FUSIONA (aditivo) con lo del glosario. Marca `distilled=True` para la traza y el Tier 2.
     """
     q = resolve_concepts(text, species)
-    if len(q.concepts) >= MIN_CONFIDENT_CONCEPTS:
+    if _glossary_is_confident(q.concepts):
         return q
     concepts, mesh = distill_query(text, species)
     if not concepts and not mesh:
