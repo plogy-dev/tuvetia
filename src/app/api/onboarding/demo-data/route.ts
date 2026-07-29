@@ -7,6 +7,11 @@ import { createAdminClient } from "@/lib/supabase/admin"
 // draft, para que el vet explore el Modo Fantasma sin grabar nada. Marcador: el titular
 // "Ejemplo — TuvetIA" (DELETE borra por él; los FKs en cascada limpian todo).
 // La nota va SIN citas (citations=[]) a propósito: no fabricamos referencias bibliográficas.
+//
+// OJO: este string NO se renombró a "Tuvetia" con el resto de la marca a propósito — es una CLAVE
+// de búsqueda, no texto visible. Las filas de demo que ya existen en producción lo tienen así, y
+// cambiarlo dejaría esos datos huérfanos (el DELETE no los encontraría). Si algún día se migra,
+// hay que actualizar el valor en la BD y aquí en el mismo movimiento (ver también dashboard/page.tsx).
 
 const DEMO_OWNER = "Ejemplo — TuvetIA"
 

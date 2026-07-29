@@ -28,7 +28,7 @@ export async function GET(_req: Request, { params }: { params: Promise<{ token: 
     .order("starts_at", { ascending: true })
 
   const ics = buildIcs((appts as unknown as IcsAppointment[] | null) ?? [], {
-    calName: "TuvetIA — Agenda",
+    calName: "Tuvetia — Agenda",
   })
 
   return new Response(ics, {

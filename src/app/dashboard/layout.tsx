@@ -46,7 +46,7 @@ export default async function DashboardLayout({
     email: user?.email ?? "",
     avatar: "",
   }
-  const sidebarClinic = { name: c?.name ?? "TuvetIA", logoUrl: c?.logo_url ?? null }
+  const sidebarClinic = { name: c?.name ?? "Tuvetia", logoUrl: c?.logo_url ?? null }
 
   return (
     <SidebarProvider

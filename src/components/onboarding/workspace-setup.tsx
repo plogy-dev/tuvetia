@@ -87,7 +87,7 @@ export function WorkspaceSetup({
         </div>
         <h1 className="text-xl font-bold">Configura tu clínica</h1>
         <p className="text-sm text-muted-foreground">
-          Estos datos identifican tu clínica en TuvetIA — los puedes cambiar después.
+          Estos datos identifican tu clínica en Tuvetia — los puedes cambiar después.
         </p>
       </div>
 
