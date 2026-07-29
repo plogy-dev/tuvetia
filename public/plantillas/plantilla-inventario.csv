@@ -1,0 +1,7 @@
+Nombre,Tipo,Categoria,SKU,Precio venta,Costo,IVA,Existencia,Unidad,Unidad de compra,Factor,Stock minimo,Lote,Vencimiento,Proveedor,Ubicacion
+Vacuna leucemia felina,medicamento,Vacunas,MED-101,60000,38000,0,10,dosis,caja x5,5,3,LF-2609,2026-12-15,Zoetis,Nevera 1
+Amoxicilina 500 mg,medicamento,Medicamentos,MED-102,4500,2100,0,60,tableta,caja x60,60,30,AMX-118,2027-03-01,Laboratorios Zoovet,Estante 1
+Concentrado cachorro 1 kg,producto,Alimentos,PRD-201,32000,24000,19,15,bolsa,bolsa,1,4,,,PetFood Colombia,Bodega A
+Shampoo antipulgas 250 ml,producto,Higiene,PRD-202,28000,16000,19,8,frasco,frasco,1,3,,,Distribuidora VetPlus,Estante 3
+Gasas esteriles,insumo,Insumos,INS-301,500,300,19,200,unidad,paquete x100,100,50,,,Insumos MD,Estante 2
+Jeringa 5 ml,insumo,Insumos,INS-302,900,450,19,120,unidad,caja x100,100,40,,,Distribuidora VetPlus,Estante 2
