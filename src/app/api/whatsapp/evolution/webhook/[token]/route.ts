@@ -1,0 +1,166 @@
+import { NextResponse, after } from "next/server"
+
+import { createAdminClient } from "@/lib/supabase/admin"
+import { verifySharedSecret } from "@/lib/whatsapp/verify"
+import { getOwnerPhone } from "@/lib/whatsapp/evolution"
+import { routeInbound } from "@/lib/whatsapp/inbound-router"
+
+export const runtime = "nodejs"
+export const maxDuration = 60 // after(): debounce del modo auto
+
+// Webhook de Evolution API (Baileys). Evolution NO firma sus webhooks: la auth es el segmento
+// [token] de la URL (solo Evolution la conoce — la registramos nosotros) comparado en tiempo
+// constante, + la instancia debe existir en whatsapp_integrations.
+//
+// Normaliza los eventos de Baileys a nuestro esquema whatsapp_messages (Meta-nativo):
+//  - messages.upsert: entrantes Y salientes (fromMe=true = lo que el vet escribe desde su teléfono
+//    → sync completo del número, sin coexistencia de Meta). Grupos y broadcasts se IGNORAN siempre
+//    (protección: el agente jamás toca grupos).
+//  - connection.update: open → connected · close → disconnected (aviso en Configuración).
+
+type EvoMessage = {
+  key?: { remoteJid?: string; fromMe?: boolean; id?: string }
+  pushName?: string
+  messageTimestamp?: number | string
+  message?: {
+    conversation?: string
+    extendedTextMessage?: { text?: string }
+    imageMessage?: { caption?: string }
+    videoMessage?: { caption?: string }
+    audioMessage?: object
+    documentMessage?: { fileName?: string }
+    stickerMessage?: object
+  }
+}
+type EvoPayload = {
+  event?: string
+  instance?: string
+  data?: EvoMessage | EvoMessage[] | { state?: string; connection?: string }
+}
+
+const digits = (s: string) => s.replace(/\D/g, "")
+
+function textOf(m: EvoMessage): string | null {
+  const msg = m.message
+  if (!msg) return null
+  return msg.conversation ?? msg.extendedTextMessage?.text ?? msg.imageMessage?.caption ?? msg.videoMessage?.caption ?? null
+}
+
+function mediaTypeOf(m: EvoMessage): string | null {
+  const msg = m.message
+  if (!msg) return null
+  if (msg.imageMessage) return "image"
+  if (msg.videoMessage) return "video"
+  if (msg.audioMessage) return "audio"
+  if (msg.documentMessage) return "document"
+  if (msg.stickerMessage) return "sticker"
+  return null
+}
+
+export async function POST(req: Request, { params }: { params: Promise<{ token: string }> }) {
+  const { token } = await params
+  const secret = process.env.EVOLUTION_WEBHOOK_TOKEN
+  if (!secret) return new Response("Webhook no configurado", { status: 503 })
+  if (!verifySharedSecret(token, secret)) return new Response("Unauthorized", { status: 401 })
+
+  let admin: ReturnType<typeof createAdminClient>
+  try {
+    admin = createAdminClient()
+  } catch {
+    return new Response("Falta SUPABASE_SERVICE_ROLE_KEY", { status: 503 })
+  }
+
+  const payload = (await req.json().catch(() => null)) as EvoPayload | null
+  const event = payload?.event?.toLowerCase()
+  const instance = payload?.instance
+  if (!payload || !event || !instance) return NextResponse.json({ ok: true, ignored: true })
+
+  const { data: integRow } = await admin
+    .from("whatsapp_integrations")
+    .select("clinic_id, phone_number, status")
+    .eq("evolution_instance", instance)
+    .maybeSingle()
+  const integ = integRow as { clinic_id: string; phone_number: string | null; status: string } | null
+  if (!integ) return NextResponse.json({ ok: true, ignored: true })
+  const clinicId = integ.clinic_id
+
+  if (event === "connection.update") {
+    const d = payload.data as { state?: string; connection?: string } | undefined
+    const state = d?.state ?? d?.connection
+    if (state === "open") {
+      const phone = integ.phone_number ?? (await getOwnerPhone(instance))
+      await admin
+        .from("whatsapp_integrations")
+        .update({
+          status: "connected",
+          ...(phone ? { phone_number: phone } : {}),
+          ...(integ.status !== "connected" ? { connected_at: new Date().toISOString() } : {}),
+          updated_at: new Date().toISOString(),
+        })
+        .eq("clinic_id", clinicId)
+    } else if (state === "close" && integ.status === "connected") {
+      await admin
+        .from("whatsapp_integrations")
+        .update({ status: "disconnected", updated_at: new Date().toISOString() })
+        .eq("clinic_id", clinicId)
+    }
+    return NextResponse.json({ ok: true })
+  }
+
+  if (event === "messages.upsert") {
+    const raw = payload.data
+    const list = (Array.isArray(raw) ? raw : [raw]) as EvoMessage[]
+    let inserted = 0
+    for (const m of list) {
+      const jid = m.key?.remoteJid ?? ""
+      const waMessageId = m.key?.id
+      // Grupos, broadcasts y newsletters: JAMÁS (protección dura del agente).
+      if (!waMessageId || !jid.endsWith("@s.whatsapp.net")) continue
+      const contactPhone = jid.split("@")[0]
+      const fromMe = Boolean(m.key?.fromMe)
+      const body = textOf(m)
+      const media = mediaTypeOf(m)
+      if (!body && !media) continue
+
+      const { data: ownerRows } = await admin
+        .from("owners")
+        .select("id")
+        .eq("clinic_id", clinicId)
+        .ilike("phone", `%${digits(contactPhone).slice(-10)}%`)
+        .limit(1)
+      const ownerId = (ownerRows as { id: string }[] | null)?.[0]?.id ?? null
+
+      const { data: upserted, error } = await admin
+        .from("whatsapp_messages")
+        .upsert(
+          {
+            clinic_id: clinicId,
+            owner_id: ownerId,
+            wa_message_id: waMessageId,
+            wa_phone_from: fromMe ? (integ.phone_number ?? "") : contactPhone,
+            wa_phone_to: fromMe ? contactPhone : (integ.phone_number ?? ""),
+            direction: fromMe ? "outbound" : "inbound",
+            body,
+            media_type: media,
+          },
+          { onConflict: "wa_message_id", ignoreDuplicates: true },
+        )
+        .select("id")
+      if (error) {
+        console.error("evolution/webhook upsert:", error.message)
+        continue
+      }
+      const isNew = (upserted ?? []).length > 0
+      if (isNew) inserted += 1
+      // Entrantes NUEVOS (fromMe jamás): primero cartera, luego modo auto (inbound-router).
+      if (isNew && !fromMe) {
+        after(() =>
+          routeInbound({ clinicId, waMessageId, fromPhone: contactPhone, text: body }),
+        )
+      }
+    }
+    return NextResponse.json({ ok: true, inserted })
+  }
+
+  return NextResponse.json({ ok: true, ignored: true })
+}

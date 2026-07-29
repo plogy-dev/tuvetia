@@ -14,7 +14,20 @@ import {
   FieldSeparator,
 } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
-import { GalleryVerticalEndIcon, Loader2Icon } from "lucide-react"
+import { Loader2Icon } from "lucide-react"
+
+/* Glifo "chispa" de la marca Tuvetia (patrón del Sidebar del cliente). */
+function BrandGlyph() {
+  return (
+    <svg width="28" height="28" viewBox="0 0 64 64" aria-hidden>
+      <path
+        fill="var(--accent)"
+        fillRule="evenodd"
+        d="M32 8a24 24 0 1 0 0.001 0Z M44 22a5 5 0 1 0 0.001 0Z"
+      />
+    </svg>
+  )
+}
 
 export function SignupForm({
   className,
@@ -82,7 +95,7 @@ export function SignupForm({
       <div className={cn("flex flex-col gap-6 text-center", className)} {...props}>
         <div className="flex flex-col items-center gap-2">
           <div className="flex size-8 items-center justify-center rounded-md">
-            <GalleryVerticalEndIcon className="size-6" />
+            <BrandGlyph />
           </div>
           <h1 className="text-xl font-bold">Revisa tu correo</h1>
           <FieldDescription>
@@ -102,18 +115,20 @@ export function SignupForm({
       <form onSubmit={handleSubmit}>
         <FieldGroup>
           <div className="flex flex-col items-center gap-2 text-center">
-            <a
-              href="#"
+            <Link
+              href="/"
               className="flex flex-col items-center gap-2 font-medium"
             >
               <div className="flex size-8 items-center justify-center rounded-md">
-                <GalleryVerticalEndIcon className="size-6" />
+                <BrandGlyph />
               </div>
-              <span className="sr-only">TuvetIA</span>
-            </a>
-            <h1 className="text-xl font-bold">Crea tu cuenta en TuvetIA</h1>
+              <span className="font-display text-[17px] font-bold tracking-[-0.02em]">
+                Tuvetia
+              </span>
+            </Link>
+            <h1 className="text-xl font-bold">Crea tu cuenta en Tuvetia</h1>
             <FieldDescription>
-              ¿Ya tienes cuenta? <Link href="/">Inicia sesión</Link>
+              ¿Ya tienes cuenta? <Link href="/login">Inicia sesión</Link>
             </FieldDescription>
           </div>
           <Field>

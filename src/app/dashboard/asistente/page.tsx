@@ -1,7 +1,7 @@
 import { createClient } from "@/lib/supabase/server"
 import { Assistant, type AssistantPatient } from "./assistant"
 
-export const metadata = { title: "Asistente · TuvetIA" }
+export const metadata = { title: "Asistente · Tuvetia" }
 
 // Server component: resuelve clínica y pacientes ANTES del primer paint y se los pasa al chat.
 // Antes el cliente hacía getUser -> profiles -> patients en serie desde el navegador.

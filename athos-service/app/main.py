@@ -9,6 +9,9 @@ from app.models import (
     ChatRequest,
     PhantomSuggestRequest,
     PhantomSuggestResponse,
+    RetrieveRequest,
+    RetrieveResponse,
+    RetrievedChunkLite,
     TranscribeRequest,
     TranscribeResponse,
     WhatsappSuggestRequest,
@@ -18,6 +21,9 @@ from app.phantom import suggest as phantom_suggest_service
 from app.transcription import transcribe as transcribe_service
 from app.whatsapp_reply import suggest_reply
 from app.chat import stream_answer
+from app.retrieval.cascade import retrieve
+from app.retrieval.query_builder import build_query
+from app.trace.logs import log_retrieval
 
 settings = get_settings()
 app = FastAPI(title="Athos RAG service")
@@ -69,10 +75,34 @@ def phantom_suggest(body: PhantomSuggestRequest, authorization: str | None = Hea
     return phantom_suggest_service(body.consultation_id, clinic_id, user_id)
 
 
-@app.post("/ingest")
-def ingest(authorization: str | None = Header(default=None)):
-    """Admin: dispara la ingesta del corpus. TODO: proteger con una llave de admin."""
-    raise NotImplementedError("implementar disparo de ingesta (sección 9)")
+@app.post("/athos/retrieve", response_model=RetrieveResponse)
+def athos_retrieve(body: RetrieveRequest, authorization: str | None = Header(default=None)):
+    """Retrieval determinístico para el agente de Next (tool search_clinical_evidence).
+
+    Corre la cascada (A->B + tiers) SIN el LLM de redacción y devuelve los mejores chunks
+    con extracto — el agente cita esas fuentes o dice que no hay evidencia. Gratis en tokens
+    salvo el distilador liviano cuando el glosario no alcanza.
+    """
+    user_id, clinic_id = _auth(authorization, body.clinic_id)
+    query = build_query(body.question, body.species)
+    chunks, passed = retrieve(query)
+    if body.patient_id:
+        log_retrieval(clinic_id, "agent", (query.raw or "")[:1000], list(query.concepts),
+                      [c.chunk_id for c in chunks], max((c.score for c in chunks), default=0.0),
+                      passed, user_id=user_id, patient_id=body.patient_id)
+    return RetrieveResponse(
+        passed=passed,
+        chunks=[
+            RetrievedChunkLite(
+                chunk_id=c.chunk_id,
+                source=c.source,
+                locator=c.locator,
+                score=c.score,
+                excerpt=c.content[:600],
+            )
+            for c in chunks[:8]
+        ],
+    )
 
 
 @app.post("/athos/transcribe", response_model=TranscribeResponse)

@@ -51,7 +51,7 @@ export function OnboardingTour({ onboarded }: { onboarded: boolean }) {
       steps: [
         {
           popover: {
-            title: "Bienvenido a TuvetIA 🐾",
+            title: "Bienvenido a Tuvetia 🐾",
             description:
               "Un recorrido de 30 segundos por lo principal. Podés cerrarlo cuando quieras y retomar con el ‘?’ de cada sección.",
           },

@@ -52,7 +52,7 @@ Entrega: 61.544 markdown + frontmatter YAML + `manifest.csv` (validados, en ingl
   `{ note_id, status:"draft", soap:{subjective,objective,assessment,plan}, allergy_gate_triggered, allergy_transcript_flag, insufficient_evidence, evidence_level:"none"|"limited"|"sufficient", citations:[{chunk_id,doc_id,locator,source}], ai_model, ai_generated_at }`.
   `evidence_level` es la banda del juez (aditivo, 2026-07-28); `insufficient_evidence` se mantiene y equivale a `evidence_level == "none"`. En el SSE del chat, el evento `done` lleva el mismo campo y la banda `limited` emite además un `warning` antes del primer token.
   Mapeo del `summarize.ts`: soap.subjetivo/objetivo/analisis/plan → subjective/objective/assessment/plan; `allergy_flag` → `allergy_transcript_flag`. `allergy_gate_triggered` lo calcula **Athos desde `allergies`** (no el modelo).
-- `POST /ingest` (admin) — dispara la ingesta.
+- La ingesta del corpus corre por CLI (`app/ingestion/run.py`); el endpoint `POST /ingest` se eliminó (era un stub público con `NotImplementedError`, hallazgo de seguridad 2026-07-28).
 - `GET /health`.
 - **Frontend:** verifica el JWT de Supabase que llega en `Authorization: Bearer`, resuelve `clinic_id` desde `profiles` (`profiles.clinic_id`), habilita CORS al origen del front, y sirve `/athos/chat` por SSE. `clinic_id` siempre explícito hacia la DB (service_role se salta RLS).
 

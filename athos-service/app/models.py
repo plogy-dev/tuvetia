@@ -138,3 +138,28 @@ class WhatsappSuggestRequest(BaseModel):
 
 class WhatsappSuggestResponse(BaseModel):
     draft: str
+
+
+class RetrieveRequest(BaseModel):
+    """Retrieval determinístico (sin LLM de redacción) para el agente de Next.
+
+    species viene del contexto que el agente ya tiene (ficha del paciente); no se
+    consulta acá para mantener el endpoint barato y sin estado.
+    """
+    clinic_id: str
+    question: str
+    species: str | None = None
+    patient_id: str | None = None  # solo para trazabilidad
+
+
+class RetrievedChunkLite(BaseModel):
+    chunk_id: str
+    source: str | None = None
+    locator: str | None = None
+    score: float = 0.0
+    excerpt: str
+
+
+class RetrieveResponse(BaseModel):
+    passed: bool
+    chunks: list[RetrievedChunkLite] = Field(default_factory=list)

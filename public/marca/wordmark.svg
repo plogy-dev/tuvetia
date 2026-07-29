@@ -1,0 +1,6 @@
+<svg width="220" height="56" viewBox="0 0 220 56" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Tuvetia">
+  <!-- Wordmark en Instrument Serif. Texto vivo = archivo de trabajo;
+       en producción este texto se CONVIERTE A CURVAS (outline) para no depender de la fuente.
+       Concepto: el tittle de la "i" se reemplaza por la chispa brasa (ver lockup). -->
+  <text x="2" y="42" font-family="'Bricolage Grotesque', sans-serif" font-weight="700" font-size="42" letter-spacing="-1" fill="#16140F">Tuvetia</text>
+</svg>

@@ -1,0 +1,86 @@
+/* Datos de la demo autónoma — el caso de Rocky. */
+
+export const NOTEBOOK = `rocky — prurito 2 sem, peor de noche
+orejas: cerumen oscuro ++, olor a levadura
+pliegue facial con eritema
+cambio de alimento hace 1 mes (¿lleva pollo? ver ficha: alergia marzo)
+hoy: citología + raspado
+si malassezia → limpiador enzimático + antifúngico tópico
+hablar dieta de eliminación con el dueño (8 sem)
+ojo: 2 vómitos con espuma esta mañana — palpar abdomen`;
+
+export const liveNote = {
+  motivo:
+    "Prurito de dos semanas de evolución, con predominio nocturno. Se rasca las orejas y se lame las patas.",
+  anamnesis:
+    "Cambio de alimento hace ~1 mes. Sin antiparasitario externo al día según el dueño. Sin episodios previos de otitis registrados este año.",
+  vitales: {
+    Temperatura: "38.6 °C",
+    FC: "110 lpm",
+    Peso: "12.4 kg (−0.7 vs último control)",
+  } as Record<string, string>,
+  hallazgos: [
+    "Eritema en pliegue facial, con humedad y olor a levadura",
+    "Cerumen oscuro abundante bilateral en conducto auditivo",
+    "Tinción salival marrón en patas delanteras",
+  ],
+  plan: "Citología ótica bilateral + raspado del pliegue hoy. Limpieza ótica enzimática. Evaluar dieta de eliminación 8 semanas según resultados.",
+  abiertas: [
+    "¿Fecha exacta del cambio de alimento?",
+    "¿Antipulgas al día? Confirmar producto y fecha",
+  ],
+};
+
+export const transcript = [
+  { t: "10:03", sp: "vet", txt: "A ver Rocky, vamos a revisarte. ¿Hace cuánto notaste que se rasca así?" },
+  { t: "10:03", sp: "duenio", txt: "Como dos semanas, doctora. Sobre todo de noche — se rasca las orejas y se lame mucho las patas." },
+  { t: "10:04", sp: "vet", txt: "Acá en el pliegue facial tiene la piel irritada, y las orejas con bastante cerumen oscuro. Hay olor a levadura." },
+  { t: "10:05", sp: "duenio", txt: "Le cambiamos el alimento el mes pasado, ¿puede ser por eso?" },
+  { t: "10:06", sp: "vet", txt: "Puede influir. Vamos a hacer citología de oído y un raspado del pliegue para confirmar antes de medicar." },
+];
+
+export const sugs = [
+  {
+    kind: "contradiction",
+    lb: "Contradicciones con la ficha",
+    conf: "alta",
+    based: "Ficha CRM · alergias + transcript 10:05",
+    txt: "En la ficha de Rocky figura «alergia a pollo» registrada en marzo. El alimento nuevo que menciona el dueño lista pollo como primer ingrediente.",
+  },
+  {
+    kind: "differential",
+    lb: "Diferenciales a considerar",
+    conf: "media",
+    based: "Transcript 10:04 + historial de visitas",
+    txt: "Prurito facial + otitis bilateral con cerumen oscuro en bulldog francés: considera dermatitis por Malassezia secundaria a atopia, además de la alergia alimentaria.",
+  },
+  {
+    kind: "question",
+    lb: "Preguntas para el dueño",
+    conf: "media",
+    based: "Patrón de anamnesis incompleto",
+    txt: "¿El prurito mejora cuando Rocky cambia de ambiente (viajes, campo)? Ayuda a diferenciar atopia estacional de alergia alimentaria.",
+  },
+];
+
+export const vetNotes = [
+  { t: "10:05", txt: "Citología de oído bilateral — pedirle a Laura que prepare los portaobjetos." },
+  { t: "10:08", txt: "Volver a pesar al final; la báscula marcaba raro al entrar." },
+];
+
+export const PILL_TABS: Array<[string, string]> = [
+  ["transcript", "Transcripción"],
+  ["live-notes", "Live notes"],
+  ["similar", "Casos parecidos"],
+  ["suggestions", "Sugerencias"],
+  ["vet-notes", "Notas del vet"],
+  ["chat", "Chat"],
+];
+
+export const CK_TABS: Array<[string, string]> = [
+  ["consulta", "Consulta"],
+  ["transcript", "Transcripción"],
+  ["similar", "Casos parecidos"],
+  ["suggestions", "Sugerencias"],
+  ["chat", "Chat"],
+];

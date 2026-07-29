@@ -27,7 +27,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
       <header className="border-b">
         <div className="mx-auto flex h-12 w-full max-w-5xl items-center gap-4 px-4">
           <div className="flex items-center gap-1.5 text-sm font-bold">
-            <ShieldCheck className="size-4" /> TuvetIA · Admin
+            <ShieldCheck className="size-4" /> Tuvetia · Admin
           </div>
           <nav className="flex items-center gap-3 text-sm text-muted-foreground">
             {nav.map((n) => (

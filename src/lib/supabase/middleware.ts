@@ -2,7 +2,8 @@ import { createServerClient } from "@supabase/ssr"
 import { NextResponse, type NextRequest } from "next/server"
 
 const PROTECTED_PREFIXES = ["/dashboard"]
-const AUTH_PREFIXES = ["/", "/signup"]
+// El login vive ahora en /login (la raíz es la landing pública de marketing).
+const AUTH_PREFIXES = ["/login", "/signup"]
 
 export async function updateSession(request: NextRequest) {
   let supabaseResponse = NextResponse.next({ request })
@@ -34,7 +35,7 @@ export async function updateSession(request: NextRequest) {
     user = result.data.user
   } catch (e) {
     // Hipo transitorio de Supabase Auth (red/timeout): NO tratarlo como "no autenticado" ni romper
-    // toda la app con un 500. Dejamos pasar; la página valida de nuevo. Evita rebotes falsos a "/".
+    // toda la app con un 500. Dejamos pasar; la página valida de nuevo. Evita rebotes falsos a /login.
     console.error("updateSession: getUser falló, se deja pasar la request:", e)
     return supabaseResponse
   }
@@ -54,7 +55,7 @@ export async function updateSession(request: NextRequest) {
     return res
   }
 
-  if (!user && isProtected) return redirectPreservingSession("/")
+  if (!user && isProtected) return redirectPreservingSession("/login")
   if (user && isAuthPage) return redirectPreservingSession("/dashboard")
 
   return supabaseResponse

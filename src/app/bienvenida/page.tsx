@@ -3,7 +3,7 @@ import { redirect } from "next/navigation"
 import { createClient } from "@/lib/supabase/server"
 import { WorkspaceSetup } from "@/components/onboarding/workspace-setup"
 
-export const metadata = { title: "Configura tu clínica · TuvetIA" }
+export const metadata = { title: "Configura tu clínica · Tuvetia" }
 
 // Onboarding: pantalla única para personalizar la clínica (logo + nombre) que el trigger de BD
 // on_auth_user_confirmed ya creó con un nombre placeholder. Los invitados y usuarios preexistentes
@@ -13,7 +13,7 @@ export default async function BienvenidaPage() {
   const {
     data: { user },
   } = await supabase.auth.getUser()
-  if (!user) redirect("/")
+  if (!user) redirect("/login")
 
   const { data: prof } = await supabase
     .from("profiles")

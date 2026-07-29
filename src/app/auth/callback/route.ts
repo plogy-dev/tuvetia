@@ -44,5 +44,5 @@ export async function GET(request: NextRequest) {
   }
 
   // Motivo real al login (bad_code_verifier, etc.) para que el usuario sepa qué pasó.
-  return NextResponse.redirect(`${origin}/?error=auth&reason=${encodeURIComponent(reason)}`)
+  return NextResponse.redirect(`${origin}/login?error=auth&reason=${encodeURIComponent(reason)}`)
 }

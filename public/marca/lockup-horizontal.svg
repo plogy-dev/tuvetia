@@ -1,0 +1,6 @@
+<svg width="260" height="64" viewBox="0 0 260 64" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Tuvetia">
+  <!-- Lockup horizontal: la chispa + wordmark. Distancia glifo-texto = altura de la x. -->
+  <path fill="#E8643C" fill-rule="evenodd" transform="translate(2,16) scale(0.5)"
+        d="M32 8a24 24 0 1 0 0.001 0Z M44 22a5 5 0 1 0 0.001 0Z"/>
+  <text x="46" y="44" font-family="'Bricolage Grotesque', sans-serif" font-weight="700" font-size="38" letter-spacing="-1" fill="#16140F">Tuvetia</text>
+</svg>

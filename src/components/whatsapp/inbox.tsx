@@ -6,11 +6,11 @@
 // Al abrir una conversación se marcan leídos los entrantes (policy UPDATE, migración 0018).
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
-import { Check, CheckCheck, Loader2, MessageCircle, Plus, Send, Sparkles } from "lucide-react"
+import { Check, CheckCheck, CircleAlert, Loader2, MessageCircle, Plus, Send, Sparkles } from "lucide-react"
 import { toast } from "sonner"
 
-import { athosWhatsappSuggest } from "@/lib/athos"
 import { createClient } from "@/lib/supabase/client"
+import { ActionApprovalCard, type ProposedAction } from "@/components/athos/action-approval-card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import {
@@ -33,6 +33,8 @@ export type InboxMessage = {
   media_type: string | null
   read_at: string | null
   delivered_at: string | null
+  failed_at?: string | null
+  error_detail?: string | null
   created_at: string
 }
 export type InboxOwner = { id: string; full_name: string; phone: string | null }
@@ -41,7 +43,6 @@ const digits = (s: string) => s.replace(/\D/g, "")
 
 // Los optimistas usan id "tmp-…" y created_at del RELOJ DEL CLIENTE: no sirven como cursor del
 // poll (un reloj adelantado dejaría fuera entrantes reales) y deben reemplazarse al llegar la fila real.
-const isTmp = (m: InboxMessage) => m.id.startsWith("tmp-")
 
 function contactOf(m: InboxMessage): string {
   return digits(m.direction === "inbound" ? m.wa_phone_from : m.wa_phone_to)
@@ -59,12 +60,10 @@ export function WhatsappInbox({
   initialMessages,
   owners,
   clinicPhone,
-  clinicId,
 }: {
   initialMessages: InboxMessage[]
   owners: InboxOwner[]
   clinicPhone: string
-  clinicId: string
 }) {
   const [supabase] = useState(() => createClient())
   const [messages, setMessages] = useState<InboxMessage[]>(initialMessages)
@@ -73,6 +72,9 @@ export function WhatsappInbox({
   const [sending, setSending] = useState(false)
   const [suggesting, setSuggesting] = useState(false)
   const [showNew, setShowNew] = useState(false)
+  // Sugerencia de Athos = acción 'proposed' persistida: enviar el borrador es APROBARLA.
+  const [pendingActionId, setPendingActionId] = useState<string | null>(null)
+  const [proposals, setProposals] = useState<ProposedAction[]>([])
   const endRef = useRef<HTMLDivElement | null>(null)
 
   // Nombre del contacto: por owner_id del mensaje o match de teléfono con titulares.
@@ -108,60 +110,82 @@ export function WhatsappInbox({
     [messages, selected],
   )
 
-  // Poll de mensajes nuevos cada 15 s (RLS: solo la clínica). Lee `messages` por ref para no
-  // recrear el interval en cada actualización.
-  const messagesRef = useRef(messages)
-  useEffect(() => {
-    messagesRef.current = messages
-  }, [messages])
+  // Cursor del poll: SOLO avanza con created_at que vienen de la BD. Nunca usar el reloj del
+  // navegador (un reloj adelantado dejaba el .gt() ciego para siempre) ni depender de `messages`
+  // (recreaba el intervalo en cada mensaje y reiniciaba los 15 s).
+  const cursorRef = useRef<string>(initialMessages.at(-1)?.created_at ?? new Date(0).toISOString())
+
+  // Poll de mensajes nuevos cada 15 s (RLS: solo la clínica).
   useEffect(() => {
     const t = setInterval(() => {
       void (async () => {
-        // Cursor: máximo created_at de filas REALES (los tmp llevan reloj del cliente).
-        const latest = messagesRef.current.reduce(
-          (max, m) => (!isTmp(m) && m.created_at > max ? m.created_at : max),
-          new Date(0).toISOString(),
-        )
         const { data } = await supabase
           .from("whatsapp_messages")
-          .select("id, owner_id, wa_message_id, wa_phone_from, wa_phone_to, direction, body, media_type, read_at, delivered_at, created_at")
-          .gt("created_at", latest)
+          .select("id, owner_id, wa_message_id, wa_phone_from, wa_phone_to, direction, body, media_type, read_at, delivered_at, failed_at, error_detail, created_at")
+          .gt("created_at", cursorRef.current)
           .order("created_at", { ascending: true })
+          .limit(200)
         const fresh = (data as InboxMessage[] | null) ?? []
         if (!fresh.length) return
-        setMessages((prev) => {
-          const nuevos = fresh.filter((f) => !prev.some((p) => p.id === f.id))
-          if (!nuevos.length) return prev
-          const next = [...prev]
-          for (const f of nuevos) {
-            if (f.direction === "outbound") {
-              // La fila real reemplaza a su optimista (mismo contacto y cuerpo) — sin duplicado.
-              const i = next.findIndex(
-                (p) => isTmp(p) && contactOf(p) === contactOf(f) && (p.body ?? "") === (f.body ?? ""),
-              )
-              if (i !== -1) next.splice(i, 1)
-            }
-            next.push(f)
-          }
-          return next
-        })
+        cursorRef.current = fresh[fresh.length - 1].created_at
+        setMessages((prev) => [
+          ...prev,
+          ...fresh.filter(
+            (f) => !prev.some((p) => p.id === f.id || (f.wa_message_id !== null && p.wa_message_id === f.wa_message_id)),
+          ),
+        ])
       })()
     }, 15000)
     return () => clearInterval(t)
   }, [supabase])
 
-  // Al abrir una conversación: marcar leídos los entrantes.
+  // Ticks de salientes: delivered/read llegan por el webhook — refrescar el hilo abierto.
+  useEffect(() => {
+    const t = setInterval(() => {
+      void (async () => {
+        const pendingTicks = messages.filter((m) => m.direction === "outbound" && !m.read_at && !m.failed_at)
+        if (!pendingTicks.length) return
+        const { data } = await supabase
+          .from("whatsapp_messages")
+          .select("id, read_at, delivered_at, failed_at, error_detail")
+          .in("id", pendingTicks.map((m) => m.id).slice(0, 100))
+        const byId = new Map(((data as Pick<InboxMessage, "id" | "read_at" | "delivered_at" | "failed_at" | "error_detail">[] | null) ?? []).map((r) => [r.id, r]))
+        if (byId.size)
+          setMessages((prev) => prev.map((m) => (byId.has(m.id) ? { ...m, ...byId.get(m.id) } : m)))
+      })()
+    }, 20000)
+    return () => clearInterval(t)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [supabase, messages.length])
+
+  // Al abrir una conversación: marcar leídos los entrantes + cargar propuestas de Athos pendientes
+  // (sobreviven recargas: son filas 'proposed' de athos_actions, RLS por clínica).
   const openConversation = useCallback(
     (phone: string) => {
       setSelected(phone)
       setShowNew(false)
+      setPendingActionId(null)
+      setProposals([])
+      void supabase
+        .from("athos_actions")
+        .select("id, tool_name, summary, payload, status, created_at")
+        .eq("conversation_key", phone)
+        .eq("status", "proposed")
+        .order("created_at", { ascending: true })
+        .then(({ data }) => setProposals((data as ProposedAction[] | null) ?? []))
       const unreadIds = messages
         .filter((m) => contactOf(m) === phone && m.direction === "inbound" && !m.read_at)
         .map((m) => m.id)
       if (unreadIds.length) {
         const now = new Date().toISOString()
         setMessages((prev) => prev.map((m) => (unreadIds.includes(m.id) ? { ...m, read_at: now } : m)))
-        void supabase.from("whatsapp_messages").update({ read_at: now }).in("id", unreadIds)
+        void supabase
+          .from("whatsapp_messages")
+          .update({ read_at: now })
+          .in("id", unreadIds)
+          .then(({ error }) => {
+            if (error) toast.error(`No se pudieron marcar los leídos: ${error.message}`)
+          })
       }
     },
     [messages, supabase],
@@ -171,19 +195,24 @@ export function WhatsappInbox({
     endRef.current?.scrollIntoView({ behavior: "instant", block: "end" })
   }, [thread.length, selected])
 
-  // Borrador de Athos (agent_mode=review): llena el composer EDITABLE — el vet aprueba al enviar.
+  // Sugerencia de Athos (agent_mode=review): el agente lee la conversación y PROPONE una respuesta
+  // — persistida en athos_actions (sobrevive recargas, auditada). El composer queda EDITABLE y
+  // "Enviar" es la aprobación de esa acción.
   async function suggestReply() {
     if (!selected || suggesting) return
     setSuggesting(true)
     try {
       const owner = ownerByPhone.get(selected.slice(-10))
-      const { draft: suggestion } = await athosWhatsappSuggest({
-        clinicId,
-        ownerName: owner?.full_name ?? null,
-        messages: thread.slice(-15).map((m) => ({ direction: m.direction, body: m.body ?? "" })),
+      const res = await fetch("/api/athos/suggest-reply", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ phone: selected, owner_id: owner?.id ?? null, owner_name: owner?.full_name ?? null }),
       })
-      setDraft(suggestion)
-      toast.success("Borrador de Athos listo — revisalo y editalo antes de enviar")
+      const j = (await res.json().catch(() => ({}))) as { draft?: string; action_id?: string; error?: string }
+      if (!res.ok || !j.draft || !j.action_id) throw new Error(j.error ?? `HTTP ${res.status}`)
+      setDraft(j.draft)
+      setPendingActionId(j.action_id)
+      toast.success("Borrador de Athos listo — revisalo y editalo; enviar = aprobar")
     } catch (e) {
       toast.error(`No se pudo generar la sugerencia: ${(e as Error).message}`)
     } finally {
@@ -197,20 +226,44 @@ export function WhatsappInbox({
     setSending(true)
     try {
       const owner = ownerByPhone.get(selected.slice(-10))
-      const res = await fetch("/api/whatsapp/send", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ to: selected, body: draft.trim(), owner_id: owner?.id ?? null }),
-      })
-      const j = (await res.json().catch(() => ({}))) as { error?: string }
-      if (!res.ok) throw new Error(j.error ?? `HTTP ${res.status}`)
-      // Optimista: el poll lo reconcilia con la fila real (mismo contacto y cuerpo).
-      setMessages((prev) => [
-        ...prev,
-        {
-          id: `tmp-${Date.now()}`,
+      // Si el borrador viene de una propuesta de Athos, enviarlo ES aprobar esa acción (con el
+      // texto final como override si el vet lo editó). Si no, envío directo normal.
+      const res = pendingActionId
+        ? await fetch(`/api/athos/actions/${pendingActionId}/execute`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ payload_override: { body: draft.trim() } }),
+          })
+        : await fetch("/api/whatsapp/send", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ to: selected, body: draft.trim(), owner_id: owner?.id ?? null }),
+          })
+      const raw = (await res.json().catch(() => ({}))) as {
+        error?: string
+        warning?: string
+        wa_message_id?: string
+        message?: { id: string; created_at: string } | null
+        result?: { wa_message_id?: string; message?: { id: string; created_at: string } | null }
+      }
+      if (!res.ok) throw new Error(raw.error ?? `HTTP ${res.status}`)
+      const j = {
+        warning: raw.warning,
+        wa_message_id: raw.wa_message_id ?? raw.result?.wa_message_id,
+        message: raw.message ?? raw.result?.message ?? null,
+      }
+      if (pendingActionId) {
+        setPendingActionId(null)
+        setProposals((prev) => prev.filter((a) => a.id !== pendingActionId))
+      }
+      if (j.warning) toast.warning(j.warning)
+      // La API devuelve la fila REAL (id + created_at de la BD): el hilo no duplica y el poll
+      // la reconoce por id. Si el registro falló (warning), no hay fila que mostrar.
+      if (j.message) {
+        const real: InboxMessage = {
+          id: j.message.id,
           owner_id: owner?.id ?? null,
-          wa_message_id: null,
+          wa_message_id: j.wa_message_id ?? null,
           wa_phone_from: clinicPhone,
           wa_phone_to: selected,
           direction: "outbound",
@@ -218,9 +271,12 @@ export function WhatsappInbox({
           media_type: null,
           read_at: null,
           delivered_at: null,
-          created_at: new Date().toISOString(),
-        },
-      ])
+          failed_at: null,
+          error_detail: null,
+          created_at: j.message.created_at,
+        }
+        setMessages((prev) => (prev.some((p) => p.id === real.id) ? prev : [...prev, real]))
+      }
       setDraft("")
     } catch (err) {
       toast.error(`No se pudo enviar: ${(err as Error).message}`)
@@ -325,7 +381,11 @@ export function WhatsappInbox({
                     <span className={`mt-0.5 flex items-center justify-end gap-1 text-[10px] ${m.direction === "outbound" ? "text-primary-foreground/70" : "text-muted-foreground"}`}>
                       {fmtTime(m.created_at)}
                       {m.direction === "outbound" &&
-                        (m.read_at ? (
+                        (m.failed_at ? (
+                          <span className="inline-flex items-center gap-0.5 text-red-300" title={m.error_detail ?? "No se pudo entregar"}>
+                            <CircleAlert className="size-3" /> No entregado
+                          </span>
+                        ) : m.read_at ? (
                           <CheckCheck className="size-3 text-sky-300" />
                         ) : m.delivered_at ? (
                           <CheckCheck className="size-3" />
@@ -338,6 +398,22 @@ export function WhatsappInbox({
               ))}
               <div ref={endRef} />
             </div>
+            {proposals.filter((a) => a.id !== pendingActionId).length > 0 && (
+              <div className="flex flex-col gap-2 border-t bg-muted/30 p-3">
+                <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                  Propuestas de Athos pendientes
+                </span>
+                {proposals
+                  .filter((a) => a.id !== pendingActionId)
+                  .map((a) => (
+                    <ActionApprovalCard
+                      key={a.id}
+                      action={a}
+                      onResolved={(id) => setProposals((prev) => prev.filter((x) => x.id !== id))}
+                    />
+                  ))}
+              </div>
+            )}
             <form onSubmit={send} className="flex items-center gap-2 border-t p-3">
               <Button
                 type="button"

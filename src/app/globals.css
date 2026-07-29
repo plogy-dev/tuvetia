@@ -7,9 +7,10 @@
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-sans);
-  --font-mono: var(--font-geist-mono);
-  --font-heading: var(--font-sans);
+  --font-sans: var(--font-inter-tight), "Inter Tight", system-ui, sans-serif;
+  --font-mono: var(--font-jetbrains), "JetBrains Mono", monospace;
+  --font-heading: var(--font-bricolage), "Bricolage Grotesque", system-ui, sans-serif;
+  --font-display: var(--font-bricolage), "Bricolage Grotesque", system-ui, sans-serif;
   --color-sidebar-ring: var(--sidebar-ring);
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
@@ -25,12 +26,16 @@
   --color-chart-1: var(--chart-1);
   --color-ring: var(--ring);
   --color-input: var(--input);
-  --color-border: var(--border);
+  /* OJO: --border / --muted / --accent son tokens de MARCA Tuvetia (abajo);
+     las utilidades shadcn (border-border, bg-muted, bg-accent…) apuntan a las
+     variables prefijadas --ui-* — misma convención que el repo del cliente. */
+  --color-border: var(--ui-border);
   --color-destructive: var(--destructive);
-  --color-accent-foreground: var(--accent-foreground);
-  --color-accent: var(--accent);
-  --color-muted-foreground: var(--muted-foreground);
-  --color-muted: var(--muted);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-accent-foreground: var(--ui-accent-foreground);
+  --color-accent: var(--ui-accent);
+  --color-muted-foreground: var(--ui-muted-foreground);
+  --color-muted: var(--ui-muted);
   --color-secondary-foreground: var(--secondary-foreground);
   --color-secondary: var(--secondary);
   --color-primary-foreground: var(--primary-foreground);
@@ -46,75 +51,230 @@
   --radius-2xl: calc(var(--radius) * 1.8);
   --radius-3xl: calc(var(--radius) * 2.2);
   --radius-4xl: calc(var(--radius) * 2.6);
+
+  /* ── Tokens de marca Tuvetia (traducción del tailwind.config.ts del cliente) ── */
+  /* legacy (compat) */
+  --color-ink: var(--ink);
+  --color-ink-2: var(--ink-2);
+  --color-surface: var(--surface);
+  --color-surface-2: var(--surface-2);
+  --color-text-2: var(--text-2);
+  --color-accent-bright: var(--accent-bright);
+  /* tokens semánticos de marca */
+  --color-page: var(--ink);
+  --color-fg: var(--text);
+  --color-fg-muted: var(--text-2);
+  --color-fg-faint: var(--muted);
+  --color-line: var(--border);
+  --color-line-soft: var(--border-soft);
+  --color-brand: var(--accent);
+  --color-brand-deep: var(--brand-deep);
+  --color-on-brand: var(--on-brand);
+  --color-danger: var(--danger);
+  --color-danger-soft: var(--danger-soft);
+  --color-ok: var(--ok);
+  --color-warn: var(--warn);
+  --color-info: var(--info);
+  --color-type-consulta: var(--type-consulta);
+  --color-type-control: var(--type-control);
+  --color-type-vacunacion: var(--type-vacunacion);
+  --color-type-cirugia: var(--type-cirugia);
+  --color-type-urgencia: var(--type-urgencia);
+  --color-type-otro: var(--type-otro);
 }
 
 :root {
-  --card: oklch(1 0 0);
-  --card-foreground: oklch(0.145 0 0);
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.145 0 0);
-  --primary: oklch(0.205 0 0);
-  --primary-foreground: oklch(0.985 0 0);
-  --secondary: oklch(0.97 0 0);
-  --secondary-foreground: oklch(0.205 0 0);
-  --muted: oklch(0.97 0 0);
-  --muted-foreground: oklch(0.556 0 0);
-  --accent: oklch(0.97 0 0);
-  --accent-foreground: oklch(0.205 0 0);
-  --destructive: oklch(0.577 0.245 27.325);
-  --border: oklch(0.922 0 0);
-  --input: oklch(0.922 0 0);
-  --ring: oklch(0.708 0 0);
-  --chart-1: oklch(0.87 0 0);
-  --chart-2: oklch(0.556 0 0);
-  --chart-3: oklch(0.439 0 0);
-  --chart-4: oklch(0.371 0 0);
-  --chart-5: oklch(0.269 0 0);
-  --radius: 0.625rem;
-  --sidebar: oklch(0.985 0 0);
-  --sidebar-foreground: oklch(0.145 0 0);
-  --sidebar-primary: oklch(0.205 0 0);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.97 0 0);
-  --sidebar-accent-foreground: oklch(0.205 0 0);
-  --sidebar-border: oklch(0.922 0 0);
-  --sidebar-ring: oklch(0.708 0 0);
-  --background: oklch(1 0 0);
-  --foreground: oklch(0.145 0 0);
+  /* ─────────────────────────────────────────────────────────────────────────
+     Paleta de marca "Brasa sobre neutro" — claro/crema primario (del cliente).
+     Nombres heredados del tema oscuro; los valores son el palette de marca.
+     ───────────────────────────────────────────────────────────────────────── */
+  --ink: #f5f2eb;        /* fondo papel (crema) */
+  --ink-2: #efeadf;      /* bandas / announce */
+  --surface: #fbf9f3;    /* cards */
+  --surface-2: #f1ece1;  /* elevado */
+  --border: #dad4c7;     /* arena */
+  --border-soft: #e7e2d6;
+  --muted: #9a9486;
+  --text-2: #6e6a60;     /* texto secundario */
+  --text: #16140f;       /* tinta (texto principal) */
+  --white: #ffffff;
+  --accent: #e8643c;     /* brasa */
+  --accent-bright: #e8643c;
+  --sky: #3f6670;        /* info */
+  --emerald: #4f7a5b;    /* ok */
+  --violet: #8a6bbf;
+  --amber: #c8922e;      /* warn */
+  --red: #c0452e;        /* err */
+  --maxw: 1320px;
+  --pad: clamp(1.1rem, 4vw, 2.75rem);
+  --ease: cubic-bezier(0.16, 0.84, 0.3, 1);
+  --font-display: var(--font-bricolage), "Bricolage Grotesque", system-ui, sans-serif;
+
+  /* Tokens semánticos extra para la app (modo claro) */
+  --on-brand: #16140f;
+  --brand-deep: #b5421f;
+  --danger: #c0452e;
+  --danger-soft: rgba(192, 69, 46, 0.1);
+  --ok: #4f7a5b;
+  --warn: #c8922e;
+  --info: #3f6670;
+  --type-consulta: #3f6670;
+  --type-control: #4f7a5b;
+  --type-vacunacion: #2e8b82;
+  --type-cirugia: #8a6bbf;
+  --type-urgencia: #c0452e;
+  --type-otro: #9a9486;
+
+  /* ── Tokens shadcn/ui — valores del cliente (papel crema / arena / tinta +
+     primario azul profundo #0f3557), adaptados de HSL-triplets al formato de
+     este repo (color completo en la variable). Los que chocaban con la marca
+     van prefijados --ui-*. ── */
+  --background: hsl(42 33% 94%); /* #f5f2eb papel crema */
+  --foreground: hsl(43 19% 7%); /* #16140f tinta */
+  --card: hsl(45 50% 97%); /* #fbf9f3 */
+  --card-foreground: hsl(43 19% 7%);
+  --popover: hsl(43 100% 99%); /* #fffdf8 */
+  --popover-foreground: hsl(43 19% 7%);
+  --primary: hsl(208 71% 20%); /* #0f3557 azul profundo */
+  --primary-foreground: hsl(210 57% 97%); /* #f4f8fc */
+  --secondary: hsl(41 31% 88%); /* #eae4d7 arena */
+  --secondary-foreground: hsl(44 10% 22%); /* #3d3a32 */
+  --ui-muted: hsl(41 33% 91%); /* #efeadf bandas suaves */
+  --ui-muted-foreground: hsl(42 8% 51%); /* #8b8577 */
+  --ui-accent: hsl(41 37% 90%); /* #efe9dc hover sutil */
+  --ui-accent-foreground: hsl(43 19% 7%);
+  --destructive: hsl(9 61% 47%); /* #c0452e */
+  --destructive-foreground: hsl(18 100% 97%); /* #fff6f2 */
+  --ui-border: hsl(41 21% 83%); /* #dcd6c9 arena */
+  --input: hsl(42 19% 79%); /* #d4cec0 */
+  --ring: hsl(208 71% 20%);
+  --chart-1: hsl(208 71% 20%); /* azul */
+  --chart-2: hsl(174 50% 36%); /* teal #2e8b82 */
+  --chart-3: hsl(39 63% 48%); /* warn #c8922e */
+  --chart-4: hsl(262 46% 58%); /* violeta #8a6bbf */
+  --chart-5: hsl(137 21% 39%); /* ok #4f7a5b */
+  --radius: 10px;
+  --sidebar: hsl(45 50% 97%);
+  --sidebar-foreground: hsl(44 10% 22%);
+  --sidebar-primary: hsl(208 71% 20%);
+  --sidebar-primary-foreground: hsl(210 57% 97%);
+  --sidebar-accent: hsl(41 37% 90%);
+  --sidebar-accent-foreground: hsl(43 19% 7%);
+  --sidebar-border: hsl(41 21% 83%);
+  --sidebar-ring: hsl(208 71% 20%);
 }
 
+/* ── Modo oscuro cálido de la app — se activa con la clase .dark en <html> ── */
 .dark {
-  --background: oklch(0.145 0 0);
-  --foreground: oklch(0.985 0 0);
-  --card: oklch(0.205 0 0);
-  --card-foreground: oklch(0.985 0 0);
-  --popover: oklch(0.205 0 0);
-  --popover-foreground: oklch(0.985 0 0);
-  --primary: oklch(0.922 0 0);
-  --primary-foreground: oklch(0.205 0 0);
-  --secondary: oklch(0.269 0 0);
-  --secondary-foreground: oklch(0.985 0 0);
-  --muted: oklch(0.269 0 0);
-  --muted-foreground: oklch(0.708 0 0);
-  --accent: oklch(0.269 0 0);
-  --accent-foreground: oklch(0.985 0 0);
-  --destructive: oklch(0.704 0.191 22.216);
-  --border: oklch(1 0 0 / 10%);
-  --input: oklch(1 0 0 / 15%);
-  --ring: oklch(0.556 0 0);
-  --chart-1: oklch(0.87 0 0);
-  --chart-2: oklch(0.556 0 0);
-  --chart-3: oklch(0.439 0 0);
-  --chart-4: oklch(0.371 0 0);
-  --chart-5: oklch(0.269 0 0);
-  --sidebar: oklch(0.205 0 0);
-  --sidebar-foreground: oklch(0.985 0 0);
-  --sidebar-primary: oklch(0.488 0.243 264.376);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.269 0 0);
-  --sidebar-accent-foreground: oklch(0.985 0 0);
-  --sidebar-border: oklch(1 0 0 / 10%);
-  --sidebar-ring: oklch(0.556 0 0);
+  --ink: #141210;
+  --ink-2: #100e0c;
+  --surface: #1c1a16;
+  --surface-2: #24211b;
+  --border: #322e27;
+  --border-soft: #262320;
+  --muted: #7d776b;
+  --text-2: #a9a293;
+  --text: #ede8dd;
+  --accent: #f0764e;
+  --accent-bright: #f0764e;
+  --brand-deep: #f0764e;
+  --on-brand: #16140f;
+  --danger: #d85a42;
+  --danger-soft: rgba(216, 90, 66, 0.16);
+  --ok: #5e9a6e;
+  --warn: #d9a646;
+  --info: #5b8a96;
+  --type-consulta: #5b8a96;
+  --type-control: #5e9a6e;
+  --type-vacunacion: #3fa89c;
+  --type-cirugia: #a488d0;
+  --type-urgencia: #d85a42;
+  --type-otro: #8a8478;
+
+  --background: hsl(30 11% 7%); /* #141210 */
+  --foreground: hsl(41 31% 90%); /* #ede8dd */
+  --card: hsl(40 12% 10%); /* #1c1a16 */
+  --card-foreground: hsl(41 31% 90%);
+  --popover: hsl(38 14% 11%); /* #211e19 */
+  --popover-foreground: hsl(41 31% 90%);
+  --primary: hsl(209 51% 65%); /* #7aa9d4 azul claro */
+  --primary-foreground: hsl(212 57% 11%); /* #0c1b2c */
+  --secondary: hsl(44 15% 15%); /* #2b2820 */
+  --secondary-foreground: hsl(42 20% 81%); /* #d8d2c4 */
+  --ui-muted: hsl(40 14% 12%); /* #24211b */
+  --ui-muted-foreground: hsl(40 7% 51%); /* #8a8478 */
+  --ui-accent: hsl(42 15% 13%); /* #26231c */
+  --ui-accent-foreground: hsl(41 31% 90%);
+  --destructive: hsl(10 66% 55%); /* #d85a42 */
+  --destructive-foreground: hsl(15 100% 97%); /* #fff3ef */
+  --ui-border: hsl(38 12% 17%); /* #322e27 */
+  --input: hsl(39 14% 20%); /* #3a352c */
+  --ring: hsl(209 51% 65%);
+  --chart-1: hsl(209 51% 65%);
+  --chart-2: hsl(172 47% 45%); /* teal #3fa89c */
+  --chart-3: hsl(40 65% 56%); /* warn #d9a646 */
+  --chart-4: hsl(263 43% 67%); /* violeta #a488d0 */
+  --chart-5: hsl(133 24% 49%); /* ok #5e9a6e */
+  --sidebar: hsl(40 12% 10%);
+  --sidebar-foreground: hsl(42 20% 81%);
+  --sidebar-primary: hsl(209 51% 65%);
+  --sidebar-primary-foreground: hsl(212 57% 11%);
+  --sidebar-accent: hsl(42 15% 13%);
+  --sidebar-accent-foreground: hsl(41 31% 90%);
+  --sidebar-border: hsl(38 12% 17%);
+  --sidebar-ring: hsl(209 51% 65%);
+}
+
+/* ── Scoping .app-theme (del cliente): dentro de la app el primario de marca
+   pasa de brasa naranja a azul profundo. Se aplica en la raíz del layout
+   autenticado y en las pantallas de auth, para que la LANDING conserve su
+   acento brasa intacto. ── */
+.app-theme {
+  --accent: #0f3557;
+  --accent-bright: #164873;
+  --brand-deep: #164873;
+  --on-brand: #f4f8fc;
+}
+.dark .app-theme {
+  --accent: #7aa9d4;
+  --accent-bright: #8db8de;
+  --brand-deep: #8db8de;
+  --on-brand: #0c1b2c;
+}
+
+/* Grano de papel sutil: debajo del contenido (z-0 vs z-[1]). */
+.app-theme::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+  opacity: 0.35;
+  mix-blend-mode: multiply;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 .04 0'/%3E%3C/filter%3E%3Crect width='160' height='160' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+.dark .app-theme::before {
+  mix-blend-mode: screen;
+  opacity: 0.25;
+}
+
+* {
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* Titulares en Bricolage Grotesque (display); el cuerpo queda en Inter Tight.
+   Scoped a .app-theme para NO pisar la landing de marketing, que trae su
+   propia tipografía (Archivo) y estiliza h1/h2 por herencia. */
+.app-theme h1,
+.app-theme h2,
+.sec-title {
+  font-family: var(--font-display);
+  letter-spacing: -0.015em;
+}
+
+::selection {
+  background: var(--accent);
+  color: var(--text);
 }
 
 @layer base {

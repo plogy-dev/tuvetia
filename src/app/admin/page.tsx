@@ -6,7 +6,7 @@ import { loadPlatformMetrics, daysAgo, since } from "@/lib/admin/metrics"
 import { SectionCards } from "@/components/section-cards"
 import { ConsultationsChart } from "@/components/dashboard/consultations-chart"
 
-export const metadata = { title: "Admin · TuvetIA" }
+export const metadata = { title: "Admin · Tuvetia" }
 
 const WEEKS = 12
 

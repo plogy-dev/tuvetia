@@ -1,7 +1,7 @@
 import Link from "next/link"
 import { ArrowLeft } from "lucide-react"
 
-export const metadata = { title: "Política de privacidad · TuvetIA" }
+export const metadata = { title: "Política de privacidad · Tuvetia" }
 
 export default function PrivacidadPage() {
   return (
@@ -14,7 +14,7 @@ export default function PrivacidadPage() {
       </Link>
       <h1 className="text-xl font-bold">Política de privacidad</h1>
       <p className="text-sm text-muted-foreground">
-        Documento en preparación. La versión definitiva de la Política de privacidad de TuvetIA —
+        Documento en preparación. La versión definitiva de la Política de privacidad de Tuvetia —
         incluyendo el tratamiento de datos conforme a la Ley 1581 de 2012— se publicará aquí antes del
         lanzamiento general. Si tenés preguntas sobre el manejo de tus datos, contactanos.
       </p>
