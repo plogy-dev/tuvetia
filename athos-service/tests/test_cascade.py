@@ -62,6 +62,22 @@ def test_solo_especie_deja_el_mesh_vacio_y_no_lo_repone():
     assert f["mesh"] == []
 
 
+def test_especie_texto_libre_se_normaliza():
+    """La ficha y la tool del agente mandan especie como texto libre ("Canino", "hurón"): sin
+    normalización, la preferencia de especie se pierde EN SILENCIO (no hay error que lo delate)."""
+    for valor, esperado in [("Canino", "Dogs"), ("FELINO", "Cats"), ("hurón", "Ferrets"),
+                            ("  Pájaro ", "Birds"), ("perro", "Dogs")]:
+        f = tier0_filters(StructuredQuery(species=valor))
+        assert esperado in f["preferred_species_mesh"], valor
+
+
+def test_especie_desconocida_no_excluye():
+    """Una especie que no mapea ("mixto", "iguana") no filtra nada: preferencia vacía, sin error."""
+    for valor in ("mixto", "iguana", "", None):
+        f = tier0_filters(StructuredQuery(species=valor))
+        assert f["preferred_species_mesh"] == []
+
+
 def test_tier1_encuentra_por_mesh(require_db):
     """Tier 1 recupera chunks del corpus por descriptor MeSH (integración contra la DB)."""
     import pytest

@@ -162,4 +162,8 @@ class RetrievedChunkLite(BaseModel):
 
 class RetrieveResponse(BaseModel):
     passed: bool
+    # Banda del juez semántico (none | limited | sufficient). `passed` está saturado (True en
+    # 187/187 casos medidos): el agente que cuelga su "no hay evidencia" de `passed` nunca se
+    # abstiene. La banda es la señal que sí discrimina — misma que chat y Fantasma.
+    evidence_level: str = EVIDENCE_SUFFICIENT
     chunks: list[RetrievedChunkLite] = Field(default_factory=list)

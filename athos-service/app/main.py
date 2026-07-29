@@ -21,8 +21,8 @@ from app.phantom import suggest as phantom_suggest_service
 from app.transcription import transcribe as transcribe_service
 from app.whatsapp_reply import suggest_reply
 from app.chat import stream_answer
-from app.retrieval.cascade import retrieve
-from app.retrieval.query_builder import build_query
+from app.generation.evidence_judge import judge_evidence
+from app.retrieval.cascade import build_and_retrieve
 from app.trace.logs import log_retrieval
 
 settings = get_settings()
@@ -77,21 +77,26 @@ def phantom_suggest(body: PhantomSuggestRequest, authorization: str | None = Hea
 
 @app.post("/athos/retrieve", response_model=RetrieveResponse)
 def athos_retrieve(body: RetrieveRequest, authorization: str | None = Header(default=None)):
-    """Retrieval determinístico para el agente de Next (tool search_clinical_evidence).
+    """Retrieval para el agente de Next (tool search_clinical_evidence): cascada + juez, sin redacción.
 
-    Corre la cascada (A->B + tiers) SIN el LLM de redacción y devuelve los mejores chunks
-    con extracto — el agente cita esas fuentes o dice que no hay evidencia. Gratis en tokens
-    salvo el distilador liviano cuando el glosario no alcanza.
+    Corre la cascada con el Tier 2 solapado sobre el A->B (`build_and_retrieve`, varios segundos
+    menos que el camino serial: el front aborta a los 20s) y pasa el resultado por el juez de
+    evidencia. Devuelve los mejores chunks con extracto y la banda `evidence_level` — el agente
+    cita esas fuentes o dice que no hay evidencia SEGÚN LA BANDA, no según `passed` (saturado).
     """
     user_id, clinic_id = _auth(authorization, body.clinic_id)
-    query = build_query(body.question, body.species)
-    chunks, passed = retrieve(query)
-    if body.patient_id:
-        log_retrieval(clinic_id, "agent", (query.raw or "")[:1000], list(query.concepts),
-                      [c.chunk_id for c in chunks], max((c.score for c in chunks), default=0.0),
-                      passed, user_id=user_id, patient_id=body.patient_id)
+    query, chunks, passed = build_and_retrieve(body.question, body.species)
+    # Juez semántico, mismo criterio que el Fantasma: `passed` está saturado (True en 187/187) y
+    # el prompt del agente cuelga su "no hay evidencia suficiente" de esta respuesta. Falla abierta.
+    verdict = judge_evidence(body.question, chunks if passed else [])
+    # Traza SIEMPRE (sin patient_id queda NULL): la bandeja y la consulta general del agente son
+    # la mayoría de su tráfico, y sin log no se puede medir la calidad del canal agéntico.
+    log_retrieval(clinic_id, "agent", (query.raw or "")[:1000], list(query.concepts),
+                  [c.chunk_id for c in chunks], max((c.score for c in chunks), default=0.0),
+                  passed, user_id=user_id, patient_id=body.patient_id)
     return RetrieveResponse(
         passed=passed,
+        evidence_level=verdict.band,
         chunks=[
             RetrievedChunkLite(
                 chunk_id=c.chunk_id,

@@ -5,6 +5,7 @@ umbral -> fusión de contexto. El corpus es global; el contexto del paciente va 
 camino (RLS por clinic_id) y se fusiona EN MEMORIA. Nunca JOIN entre zonas.
 """
 import logging
+import unicodedata
 from concurrent.futures import ThreadPoolExecutor
 from functools import lru_cache
 
@@ -45,15 +46,29 @@ MAX_LITERATURE_CHUNKS = TIER1_KEEP + TIER2_KEEP  # tope de chunks que van a la g
 RERANK_KEEP = 15
 
 # Especie (ES, de la ficha) -> descriptores MeSH del corpus. 'mixto' no mapea: no se excluye.
+# La ficha y la tool del agente de Next aceptan especie como TEXTO LIBRE ("Canino", "hurón"...):
+# se normaliza (minúsculas, sin acentos) y se contemplan los sinónimos habituales, porque un
+# valor que no mapea pierde la preferencia EN SILENCIO — no hay error que lo delate.
 SPECIES_MESH = {
     "gato": ["Cats", "Cat Diseases"],
+    "felino": ["Cats", "Cat Diseases"],
     "perro": ["Dogs", "Dog Diseases"],
+    "canino": ["Dogs", "Dog Diseases"],
     "ave": ["Birds", "Bird Diseases"],
+    "pajaro": ["Birds", "Bird Diseases"],
     "conejo": ["Rabbits"],
     "reptil": ["Reptiles"],
     "roedor": ["Rodentia", "Rodent Diseases"],
     "huron": ["Ferrets"],
 }
+
+
+def _normalize_species(species: str | None) -> str | None:
+    """"Hurón"/"Canino" -> "huron"/"canino": minúsculas y sin marcas diacríticas."""
+    if not species:
+        return None
+    plano = unicodedata.normalize("NFKD", species.strip().lower())
+    return "".join(ch for ch in plano if not unicodedata.combining(ch)) or None
 
 # idioma de la consulta -> config de full-text. El corpus está en inglés.
 _TS_CONFIG = {"en": "english", "es": "spanish", "pt": "portuguese"}
@@ -76,7 +91,7 @@ TIER1_MESH_STOPLIST = frozenset({
 def tier0_filters(query: StructuredQuery) -> dict:
     """Filtros/boosts determinísticos (no tocan la DB). Especie = PREFERENCIA, no exclusión
     (se apoya en MeSH Cats/Dogs); idioma, is_current, tier y conceptos/MeSH para el ranking."""
-    species = (query.species or "").lower() or None
+    species = _normalize_species(query.species)
     return {
         "species": species,
         "preferred_species_mesh": SPECIES_MESH.get(species or "", []),
