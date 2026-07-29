@@ -265,6 +265,49 @@ los positivos que puntúa bajo (Distemper, Lymphoma, Tick Infestations) son cond
 retrieval **no trae** aunque el corpus las tenga — el juez acierta. Mide "¿los pasajes recuperados
 cubren la consulta?", que es justo lo que la abstención debe decidir.
 
+### Por qué el juez "dejó de discriminar" contra producción (2026-07-29)
+
+El banco de respuestas mostró que **9 de 10 negativos reciben banda `sufficient`**, contra la
+medición del 2026-07-27 que separaba 7,0 vs 5,0. Se contrastó cada negativo con un **árbitro fuerte**
+(`deepseek-v4-pro`), preguntándole sólo si con esos pasajes un veterinario podría fundamentar una
+respuesta. Resultado: **dos problemas distintos, no uno**.
+
+**(1) La mitad de los "negativos" NO son negativos.** El árbitro dice que la literatura **sí
+alcanza** en 5 de 10, con 8-9 sobre 10:
+
+| caso | árbitro | qué trae el corpus en realidad |
+|---|---|---|
+| `neg-impetigo` | 9 | tratamiento del impétigo canino con clorhexidina (bajo `Pyoderma`) |
+| `neg-neck-injuries` | 9 | lesión cervical, inestabilidad y hernia discal en perros |
+| `neg-rheumatic-heart-disease` | 9 | enfermedad valvular crónica canina (el cuadro real; el descriptor es humano) |
+| `neg-ossification-heterotopic` | 9 | osificación heterotópica en perros: etiología y presentación |
+| `neg-exophthalmos` | 8 | espacio retrobulbar, exoftalmos, tumores y abscesos |
+
+Los negativos se eligieron por **ausencia del descriptor MeSH exacto**, pero el corpus tiene la
+literatura bajo otro descriptor (o el descriptor era humano). Así que la métrica "respondió con
+confianza (peligro)" **sobreestima el problema**: en esos 5, responder era lo correcto.
+
+**(2) Pero el juez liviano sí es demasiado blando.** En los 5 casos donde el árbitro confirma que la
+literatura NO alcanza, el juez liviano se equivocó en **4**:
+
+| caso | juez liviano (flash) | árbitro (pro) |
+|---|---|---|
+| `neg-ganglioglioma` | 8,0 → `sufficient` | 2 → no alcanza |
+| `neg-hepatitis-viral-animal` | 8,0 → `sufficient` | 2 |
+| `neg-granular-cell-tumor` | 7,0 → `sufficient` | 1 |
+| `neg-pneumonia-atypical-interstitial-of-cattle` | 6,0 → `sufficient` | 2 |
+| `neg-fascioloidiasis` | 2,0 → `none` ✅ | 3 |
+
+El patrón: el liviano premia que los pasajes **mencionen la entidad** ("los pasajes discuten
+específicamente gangliogliomas caninos"); el árbitro exige que **respondan al caso** ("ninguno aborda
+el diagnóstico diferencial ni el manejo de una masa cerebral con estos signos"). Es la misma
+distinción que el juez debía hacer y que el modelo flash no hace.
+
+**Arreglo candidato, de una variable:** `JUDGE_MODEL` ya es configurable y por defecto cae a
+`LLM_LIGHT_MODEL`. Apuntarlo al modelo grande usa el que sí acierta, y el juez corre **en paralelo**
+con la redacción (tope `JUDGE_CHAT_TIMEOUT_S`), así que la latencia extra casi no se paga. Hay que
+medir que no aparezca sobre-abstención en los positivos antes de adoptarlo.
+
 ### Ya implementada (2026-07-28)
 
 El juez vive en `app/generation/evidence_judge.py` y devuelve una **banda** en vez de un binario:
