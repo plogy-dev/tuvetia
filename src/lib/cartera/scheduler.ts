@@ -18,6 +18,11 @@
 // por sendWhatsAppText vía el puerto — sin plantillas Meta. El canal EMAIL no
 // está configurado: nunca figura conectado y el barrido lo salta con log.
 
+// PRIMERO: ancla el proceso a America/Bogota. El dominio evalúa las ventanas de la Ley 2300 con
+// los getters locales de Date, y en Vercel el runtime es UTC — sin esto la ventana queda corrida
+// 5 horas (permitiría cobrar de madrugada). Ver business-timezone.ts.
+import { assertBusinessTimezone } from './business-timezone';
+
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { holidaySet } from '@/lib/facturacion/domain/holidays';
 import {
@@ -453,6 +458,9 @@ export async function runCarteraSweepForClinic(
   if (!settings.reminders_enabled) {
     return { plan: { invoicesPlanned: 0, remindersCreated: 0, promisesExpired: 0 }, dispatched: [] };
   }
+  // Antes de tocar nada: si el proceso no quedó en la zona del negocio, abortar. Un recordatorio
+  // que no sale se reintenta; una cobranza fuera de la ventana legal no se deshace.
+  assertBusinessTimezone();
   const plan = await planNextReminders(supabase, clinicId, settings, now);
   const dispatched = await dispatchDueReminders(supabase, clinicId, settings, now, injectedPort);
   return { plan, dispatched };

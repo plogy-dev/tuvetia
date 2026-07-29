@@ -157,7 +157,12 @@ Para activar lo que hoy está **dormido**:
 **Vercel → Environment Variables (Production):**
 - `SUPABASE_SERVICE_ROLE_KEY` — service_role del principal (Google sync + ICS + cron de purga).
 - `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` — del OAuth client de Google (sync de calendario).
-- `CRON_SECRET` — protege el cron de purga de audio (`/api/cron/purge-audio`, diario vía `vercel.json`).
+- ⚠️ `CRON_SECRET` — **OBLIGATORIA**. Protege los dos crons (`/api/cron/purge-audio` y
+  `/api/cron/cartera`). Antes era opcional de hecho: el código hacía `if (secret && ...)`, así que
+  sin la variable el endpoint quedaba **abierto** y funcionaba igual. Ahora ambos devuelven **503**
+  si falta — y sin ella la **purga de audio deja de correr**, que es la retención a 4 días de la Ley
+  1581. Generala con `openssl rand -base64 32`. Vercel manda `Authorization: Bearer <valor>` en cada
+  disparo solo cuando la variable existe. Es una env **de Vercel**: athos-service (Railway) no la lee.
 
 **Google Cloud + Supabase (sync de calendario):**
 - Google Auth Platform: habilitar Calendar API, agregar scope `calendar.events`, y **test users** (hasta
