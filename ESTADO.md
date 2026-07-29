@@ -197,6 +197,64 @@ Para activar lo que hoy está **dormido**:
 - **Checklist "Primeros pasos"** en el dashboard (checks con datos reales; auto-oculta al completar).
 - Los **invitados NO ven el wizard** (`accept_invitation` marca el setup). El tour driver.js convive.
 
+## Sesión 2026-07-28 — WhatsApp estable + capa provider, Athos agéntico, landing del cliente, seguridad
+
+Plan completo en `~/.claude/plans/claude-varios-ajustes-dame-compiled-grove.md`. Lo entregado:
+
+- **WhatsApp estabilizado (Track 1)**: el bug raíz era el path inexistente `GET /platform/v1/phone-numbers`
+  (el real es `/whatsapp/phone_numbers?customer_id=`) — la conexión nunca pasaba a `connected`.
+  Además: webhook sin hack cross-tenant (tenant por `metadata.phone_number_id`, statuses con scoping),
+  auth por header + timingSafeEqual + GET challenge de Meta, inbox sin duplicado optimista y con
+  cursor de BD (el poll ya no se ciega), `failed_at`/`error_detail` visibles (migración `0027`),
+  origin del redirect por `NEXT_PUBLIC_SITE_URL`/x-forwarded-host.
+- **Capa proveedor-agnóstica + Meta directo (Track 2)**: `src/lib/whatsapp/` (provider/kapso/meta/
+  crypto AES-GCM/send-message/verify), migración `0028` (columna `provider`, waba_id, token cifrado
+  y revocado para PostgREST), **Embedded Signup en popup** (`whatsapp-settings` + `/api/whatsapp/exchange`)
+  sin redirect. Kapso queda como legado en transición. Trámite Meta documentado en `WHATSAPP.md`
+  (verificación de negocio + App Review + config_id — admin pendiente). Plantillas de citas en
+  `scripts/create-wa-templates.mjs`.
+- **Athos agéntico (Track 3, Next + Vercel AI SDK)**: "Athos propone, el vet ejecuta". Agente en
+  `/api/athos/agent` (claude-sonnet-5, tools con la SESIÓN del vet → RLS/RPCs con auth.uid() real),
+  registry en `src/lib/athos-agent/`, tabla `athos_actions` (migración `0029`) + `audit_logs` en uso,
+  rutas execute/reject con `payload_override`, tarjeta `action-approval-card`, "Sugerir" del inbox
+  persiste la propuesta (sobrevive recargas; enviar = aprobar), badge de pendientes en el sidebar,
+  `clinic_hours` (migración `0030` + UI en Configuración) y tool determinística de cupos,
+  `POST /athos/retrieve` en athos-service (retrieval sin LLM para la tool de evidencia),
+  **modo auto opt-in** (migración `0031` + toggle): webhook → `after()` → `maybeAutoReply` con
+  debounce 5 s, idempotencia, límite diario, anti-loop 8/h y **nada clínico jamás** (haiku clasifica;
+  ante duda, silencio). Envs nuevas: `ANTHROPIC_API_KEY` (obligatoria), `ATHOS_AGENT_MODEL`,
+  `ATHOS_AUTO_MODEL`, `WHATSAPP_TOKEN_KEY`, `META_*` (ver WHATSAPP.md).
+- **Seguridad (Track 4, migración `0026` aplicada)**: RLS en `corpus_chunks`, revoke `anon`/PUBLIC en
+  las ~20 RPCs SECURITY DEFINER (+default privileges), bucket `clinic-logos` sin listado, `POST /ingest`
+  eliminado de athos-service. Advisors verificados: el ERROR y los WARN de anon desaparecieron.
+  Pendiente del humano: habilitar leaked-password protection en el dashboard de Auth y el
+  `supabase migration repair` del drift CLI.
+- **Landing + design system del cliente (Track 5)**: el repo `landing-tuvetia` resultó ser un
+  Tuvetia paralelo completo (ver memoria del proyecto). Se portó: landing pública entera
+  (`(marketing)`: `/`, `/producto`, `/seguridad`, `/demo`), login movido a `/login` (blindaje OAuth
+  intacto), tokens de marca + `.app-theme` azul (Tailwind v4), fuentes Inter Tight/Bricolage/
+  JetBrains/Archivo/Instrument Serif, logo "chispa", marca canónica **Tuvetia**.
+- **Evolution API como tercer proveedor (migración `0032`)**: Baileys / WhatsApp Web NO oficial, para
+  las clínicas que no quieren pasar por la verificación de Meta. Webhook propio en
+  `/api/whatsapp/evolution/webhook/[token]` (Evolution no firma: la auth es el token de la URL en
+  tiempo constante + la instancia debe existir). Grupos, broadcasts y newsletters se ignoran SIEMPRE.
+> **Facturación y cartera** se portaron en la misma tanda pero van en un PR aparte (el motor, sin
+> UI): migraciones `0033`–`0036`. Este doc se completa cuando ese PR entre.
+
+### ⚠️ Numeración de migraciones (leer antes de crear una nueva)
+Las migraciones de esta tanda se renumeraron a **`0026`–`0036`** el 29-jul, porque `0021`–`0025` ya
+estaban ocupadas por las de multi-clínica que entraron en paralelo. No es cosmético:
+`0026_security_hardening` hace `revoke execute` sobre `switch_active_clinic` y
+`enforce_profile_clinic_invariant`, que crean `0021`/`0022` — con la numeración anterior corría antes
+que ellas y **fallaba en cualquier entorno nuevo**. La próxima migración arranca en `0037`.
+
+Los duplicados `0019` y `0020` (dos archivos cada uno) son historia ya aplicada en prod y se dejan
+como están: la BD las ordena por su timestamp real, no por el prefijo del archivo.
+
+> **Ojo con el drift prod vs. código:** las migraciones `0026`–`0036` **ya están aplicadas al
+> proyecto principal** (por MCP, 28-jul noche). O sea que el esquema vive en producción desde antes
+> que el código que lo usa — incluido el de facturación, que todavía no entró. No las reapliques.
+
 ## Pendientes conocidos
 - ⚠️ **Template de email "Magic Link" en Supabase** (config, no código): debe emitir
   `{{ .SiteURL }}/auth/confirm?token_hash={{ .TokenHash }}&type=email&next=/dashboard`. Si sigue
@@ -204,8 +262,19 @@ Para activar lo que hoy está **dormido**:
   otro dispositivo. Verificar en Auth → Email Templates (coordinar con Santiago).
 - (Opcional) **2ª key de Cohere** para aislar la ingesta de producción del todo — hoy el timeout
   de 6s ya protege el chat mientras ingesta.
-- Rediseño de la **historia del paciente** (UX confusa).
+- Rediseño de la **historia del paciente** (UX confusa) — hacerlo ya con el design system nuevo.
 - **Verificación de Google** para el scope de calendario (si se abre al público).
 - **Texto legal** definitivo (hoy las páginas legales son placeholder honesto).
 - Deuda menor: transcripción en batch (no en vivo), retención del transcript (decisión legal
   abierta), paginación real en listados (hoy guardas de escala con `limit`).
+- **Trámite Meta Tech Provider** (admin): checklist en `WHATSAPP.md` §Trámite.
+- Re-registrar el webhook de Kapso con el secreto en HEADER y borrar el fallback de query param.
+- **`xlsx@0.18.5`** tiene prototype pollution + ReDoS y *no hay fix en npm* (SheetJS se mudó a su
+  propio CDN). Hoy solo corre client-side en el import de pacientes, o sea que cada quien parsea su
+  propio archivo. Se vuelve serio con facturación, que lo usa **server-side**.
+- **Doble ejecución de acciones de Athos**: el chequeo de `status='proposed'` y el UPDATE que la marca
+  ejecutada no son atómicos. Dos clics en "Aprobar" ejecutan dos veces. Falta compare-and-set.
+- **`CRON_SECRET`**: si la env no está definida, `/api/cron/purge-audio` queda público (`if (secret &&
+  ...)`). Debería devolver 503 como hace el webhook de WhatsApp.
+- **Site URL de Supabase**: ahora que `/` es la landing y el login vive en `/login`, hay que revisar
+  la config del dashboard de Auth — si el fallback aterriza en la raíz, no hay intercambio de código.
