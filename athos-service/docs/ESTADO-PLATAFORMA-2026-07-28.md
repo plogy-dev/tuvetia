@@ -33,6 +33,71 @@ nuestras migraciones, así que la diferencia prod−dev es (casi exactamente) lo
 Las 8 funciones con "definición distinta" son overloads de pgvector (`sparsevec`/`halfvec`): es una
 diferencia de versión de la extensión entre proyectos, no un cambio del equipo.
 
+## HASTA DÓNDE LLEGÓ EL CAMBIO (evidencia del historial de migraciones)
+
+El principal registra cada migración en `supabase_migrations.schema_migrations` **con su SQL
+completo**. Ahí está la respuesta exacta: el equipo aplicó **11 migraciones, `0022`–`0032`**, entre
+las **2026-07-28 22:01 UTC** y las **2026-07-29 03:18 UTC**.
+
+| versión | nombre | qué hizo |
+|---|---|---|
+| 20260728220139 | `0023_whatsapp_message_failed_status` | `whatsapp_messages.failed_at` + `error_detail` |
+| 20260728220155 | `0022_security_hardening` | cierra `corpus_chunks` a PostgREST, revoca SECURITY DEFINER de anon/PUBLIC |
+| 20260728221612 | `0024_whatsapp_provider_meta` | capa de proveedor (kapso → meta), token cifrado |
+| 20260728222842 | **`0025_athos_actions`** | enum + tabla de acciones propuestas por Athos |
+| 20260728222852 | `0026_clinic_hours` | horarios de atención por clínica |
+| 20260728223656 | `0027_whatsapp_auto_mode` | `agent_mode` + `auto_daily_limit` |
+| 20260728230029 | `0028_whatsapp_evolution_provider` | proveedor `evolution` + consentimiento no oficial |
+| 20260729031634 | `0029_facturacion_core` | núcleo de facturación |
+| 20260729031740 | `0030_facturacion_cartera` | cartera/recaudo (motor Ley 2300) |
+| 20260729031818 | `0031_facturacion_catalogo_inventario` | catálogo e inventario |
+| 20260729031857 | `0032_facturacion_compras_gastos` | compras, proveedores y gastos |
+
+**La base llegó completa hasta `0032`. El repositorio no recibió nada.** Los propios comentarios de
+las migraciones dicen *"ver header completo en el archivo del repo"* y *"adaptación de
+`0021_facturacion_core` **del repo origen**"*, pero esos archivos **no están en
+`plogy-dev/tuvetia`**: `origin/master` sigue en nuestro último commit. O sea que **lo que se cortó
+fue el push del código, no la aplicación del esquema**: el SQL y el front viven todavía en su
+máquina.
+
+### ⚠️ Choque de numeración: `0022`–`0025` existen DOS veces
+
+| nº | nuestra | suya |
+|---|---|---|
+| 0022 | `multi_clinic_memberships` | `security_hardening` |
+| 0023 | `clinic_logos_storage` | `whatsapp_message_failed_status` |
+| 0024 | `clinic_logos_select_policy` | `whatsapp_provider_meta` |
+| 0025 | `clinical_notes_evidence_level` | `athos_actions` |
+
+Cuando él pushee su carpeta `supabase/migrations/`, los nombres van a colisionar con los nuestros.
+**Hay que acordar la numeración antes de que ninguno de los dos pushee.** Sugerencia: que nuestras
+migraciones del RAG salten a un rango propio (p.ej. `1001+`) y dejar `00xx` para la plataforma.
+
+Detalle adicional: **nuestra `0025_clinical_notes_evidence_level` NO figura en el historial** porque
+la apliqué a mano con psycopg, no con el CLI. Es idempotente (`add column if not exists` + drop/add
+del constraint), así que un `supabase db push` posterior no rompe nada, pero el registro del
+principal no la conoce.
+
+### Piezas que quedaron colgando dentro de lo que sí entró
+
+1. **`athos_actions` no tiene el trigger `touch_updated_at`.** Todas las tablas nuevas de
+   facturación lo tienen; ésta no, porque se creó en `0025` y la función `touch_updated_at()` recién
+   se creó en `0029`. Su `updated_at` nunca se va a actualizar solo.
+2. **`comm_messages.wa_conversation_id` apunta a una entidad que no existe**: no hay tabla
+   `wa_conversations` ni FK. Es un resto del port desde el repo origen.
+3. **`athos_actions` no tiene ruta de aprobación**: sólo política de `SELECT`, sin RPC para
+   aprobar/rechazar/ejecutar. La mitad humana del ciclo no está construida.
+4. **Cero UI**: el front no referencia ninguna de las 31 tablas.
+
+### Lo que el hardening (`0022`) hizo con lo nuestro — verificado
+
+- `corpus_chunks` quedó con **RLS habilitada y 0 políticas**, y sus permisos quedan **sólo para
+  `service_role`** (se revocó `anon`/`authenticated`). Athos entra por psycopg con `service_role`,
+  que se salta RLS: **no nos afecta**, y de hecho cierra un agujero real (el corpus estaba expuesto
+  por PostgREST). Su propio comentario lo razona igual.
+- `glossary_term` / `glossary_synonym` conservan su política de lectura para `authenticated`.
+- Verificado en vivo después del cambio: el retrieval completo corre y da hit@15 83,6%.
+
 ## Qué entró exactamente
 
 ### Capa de facturación y cobranza (no existía)
@@ -162,10 +227,8 @@ responde 200.
 
 ## Riesgos abiertos y coordinación necesaria
 
-1. **Numeración de migraciones.** El principal lleva su propio historial con versiones tipo
-   `20260727073858`; las nuestras (`0001`–`0025`) se aplican a mano y no quedan registradas ahí. Si
-   otro aplica SQL en paralelo, nadie tiene un registro común. Acordar dónde vive el SQL de la capa
-   nueva antes de que crezca más.
+1. **Numeración de migraciones: `0022`–`0025` están duplicadas** (ver arriba). Es el riesgo de
+   conflicto más concreto y hay que resolverlo **antes** de que cualquiera de los dos pushee.
 2. **`athos_actions` sin implementar** de nuestro lado, y sin ruta de aprobación del lado del front.
 3. **Doble canal de WhatsApp** (clínico vs cobranza) sin árbitro definido.
 4. **El front está una feature atrás** en la abstención (punto anterior).
