@@ -1,0 +1,6 @@
+<svg width="64" height="64" viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Tuvetia">
+  <!-- "La chispa": disco brasa con un glint en negativo (la "IA" + el tittle de la i).
+       fill-rule evenodd hace que el glint sea un agujero real, así funciona sobre cualquier fondo. -->
+  <path fill="#E8643C" fill-rule="evenodd"
+        d="M32 8a24 24 0 1 0 0.001 0Z M44 22a5 5 0 1 0 0.001 0Z"/>
+</svg>

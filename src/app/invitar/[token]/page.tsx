@@ -6,7 +6,7 @@ import { createAdminClient } from "@/lib/supabase/admin"
 import { AcceptInvitation } from "@/components/team/accept-invitation"
 import { Button } from "@/components/ui/button"
 
-export const metadata = { title: "Invitación · TuvetIA" }
+export const metadata = { title: "Invitación · Tuvetia" }
 
 // Página pública de aceptación de invitación. El lookup del token se hace server-side con
 // service_role (la RLS de invitations es solo-admin) y solo se expone el nombre de la clínica.
@@ -42,7 +42,7 @@ export default async function InvitarPage({ params }: { params: Promise<{ token:
   }
 
   const shell = (children: React.ReactNode) => (
-    <div className="mx-auto flex min-h-svh w-full max-w-md flex-col items-center justify-center gap-4 px-6 py-10 text-center">
+    <div className="app-theme relative mx-auto flex min-h-svh w-full max-w-md flex-col items-center justify-center gap-4 px-6 py-10 text-center">
       <div className="flex size-10 items-center justify-center rounded-xl bg-primary text-primary-foreground">
         <Stethoscope className="size-5" />
       </div>
@@ -81,7 +81,7 @@ export default async function InvitarPage({ params }: { params: Promise<{ token:
         </p>
         <div className="flex gap-2">
           <Button render={<Link href={`/signup?next=${next}`} />}>Crear cuenta</Button>
-          <Button variant="outline" render={<Link href={`/?next=${next}`} />}>
+          <Button variant="outline" render={<Link href={`/login?next=${next}`} />}>
             Ya tengo cuenta
           </Button>
         </div>

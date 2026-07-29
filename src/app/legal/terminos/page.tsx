@@ -1,7 +1,7 @@
 import Link from "next/link"
 import { ArrowLeft } from "lucide-react"
 
-export const metadata = { title: "Términos de servicio · TuvetIA" }
+export const metadata = { title: "Términos de servicio · Tuvetia" }
 
 export default function TerminosPage() {
   return (
@@ -14,7 +14,7 @@ export default function TerminosPage() {
       </Link>
       <h1 className="text-xl font-bold">Términos de servicio</h1>
       <p className="text-sm text-muted-foreground">
-        Documento en preparación. La versión definitiva de los Términos de servicio de TuvetIA se
+        Documento en preparación. La versión definitiva de los Términos de servicio de Tuvetia se
         publicará aquí antes del lanzamiento general. Si necesitás una copia o tenés preguntas,
         contactanos.
       </p>

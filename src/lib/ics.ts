@@ -49,13 +49,13 @@ export function buildIcs(
   appts: IcsAppointment[],
   opts: { calName?: string; now?: Date } = {},
 ): string {
-  const calName = opts.calName ?? "TuvetIA — Agenda"
+  const calName = opts.calName ?? "Tuvetia — Agenda"
   const dtstamp = (opts.now ?? new Date()).toISOString().replace(/[-:]/g, "").replace(/\.\d{3}Z$/, "Z")
 
   const lines: string[] = [
     "BEGIN:VCALENDAR",
     "VERSION:2.0",
-    "PRODID:-//TuvetIA//Calendario//ES",
+    "PRODID:-//Tuvetia//Calendario//ES",
     "CALSCALE:GREGORIAN",
     "METHOD:PUBLISH",
     fold(`X-WR-CALNAME:${esc(calName)}`),

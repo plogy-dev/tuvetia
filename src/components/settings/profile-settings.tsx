@@ -34,7 +34,7 @@ export function ProfileSettings({ userId, initialName }: { userId: string; initi
   async function signOut() {
     setSigningOut(true)
     await supabase.auth.signOut()
-    router.push("/")
+    router.push("/login")
   }
 
   return (

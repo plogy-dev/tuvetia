@@ -50,6 +50,7 @@ export default async function DashboardLayout({
 
   return (
     <SidebarProvider
+      className="app-theme"
       style={
         {
           "--sidebar-width": "calc(var(--spacing) * 72)",
