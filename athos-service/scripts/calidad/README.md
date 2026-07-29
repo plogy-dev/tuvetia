@@ -31,8 +31,31 @@ condiciones **ausentes del corpus o con 1-3 chunks**. Athos debería abstenerse 
 python scripts/calidad/golden_eval.py --etiqueta baseline --k 15
 ```
 Mide `hit@k`, `precision@k` y el rank del primer acierto. Correr antes y después de tocar la
-cascada. Referencia: al activar el rerank, el target en el top-15 pasó de 37,8% a 69,7% y la
-mediana del primer acierto del puesto 15 al 2.
+cascada.
+
+**Línea base de PRODUCCIÓN (2026-07-28)** — la primera; todas las cifras anteriores se habían
+tomado contra dev, que tiene 67k chunks y 41 términos de glosario contra 520k y 818. Por eso salen
+bastante mejor de lo que creíamos:
+
+| métrica | dev (medición vieja) | producción, 146/146 |
+|---|---|---|
+| hit@15 (el target en el top-15) | 69,7% | **83,6%** |
+| precision@15 | 23,6% | **30,5%** |
+| rank del primer acierto (mediana) | 2 | **2** |
+| pasa el umbral | 100% | **100%** |
+| pidió distilación al LLM | — | 45/146 |
+
+La primera corrida (antes de la stoplist de especie) sólo pudo evaluar **137 de 146**: nueve casos
+murieron por `statement_timeout`. Con la stoplist corren los 146 sin un solo fallo, en ~13 min en
+vez de ~20, y las métricas SUBEN (82,5% → 83,6%; precision 29,9% → 30,5%): sacar la especie del
+criterio de búsqueda no cuesta calidad, la mejora.
+
+El umbral determinístico pasa en el 100% de los casos también en producción: confirma que la
+abstención real es el juez semántico, no el umbral.
+
+De los casos que fallan, buena parte es **ruido de etiquetas del banco**: los descriptores sin
+acierto son en su mayoría paraguas abstractos (`Inflammation`, `Disease Progression`, `Recurrence`,
+`Disease Susceptibility`, `Bacterial Infections`) que ningún veterinario consulta como tales.
 
 `golden_generar.py` regenera el banco de positivos (sólo si hace falta: regenerarlo rompe la
 comparabilidad histórica).
@@ -129,6 +152,15 @@ de 5x en pared (dominado por la red del que mide) y 108x del lado del servidor.
 
 El SQL vive en `cascade.TIER1_SQL` y el script lo importa de ahí a propósito: una copia en el script
 de medición mentiría en cuanto uno de los dos cambiara.
+
+**La especie ya no se usa para buscar** (`cascade.TIER1_MESH_STOPLIST`). Aun con las ramas
+separadas quedaban casos que reventaban el timeout: el prompt de distilación pide *"incluye la
+especie como MeSH si se conoce"*, así que el A→B agregaba `Dogs` — que está en **43.033 de los 520k
+chunks**— y la rama MeSH pasaba a 43k filas. En el caso `pain` del banco eso son 43.072 chunks; sin
+`Dogs`, 963. Además de la latencia, arregla un problema de calidad ya documentado: el MeSH de
+especie contaba como "evidencia temática" para el umbral, una de las razones por las que
+`passes_threshold` daba True en 187/187. La especie sigue viva como **preferencia** (el boost de
+`score_chunk` vía `preferred_species_mesh`), que es lo que el diseño siempre dijo que debía ser.
 
 ## A->B: especificidad en vez de cantidad (2026-07-28)
 

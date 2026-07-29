@@ -58,6 +58,20 @@ SPECIES_MESH = {
 # idioma de la consulta -> config de full-text. El corpus está en inglés.
 _TS_CONFIG = {"en": "english", "es": "spanish", "pt": "portuguese"}
 
+# Descriptores que NO sirven para BUSCAR ni para puntuar: no dicen de qué trata el documento.
+# La especie entra como PREFERENCIA (boost en `score_chunk` vía `preferred_species_mesh`), nunca
+# como criterio temático. Dos problemas medidos que esto resuelve:
+#   - `Dogs` está en 43.033 de los 520k chunks: si el A->B lo agrega (el prompt de distilación pide
+#     la especie como MeSH), la rama MeSH del Tier 1 pasa a 43k filas y revienta el statement_timeout.
+#   - contaba como "evidencia temática" para el umbral, que es una de las razones por las que
+#     `passes_threshold` daba True en 187/187 casos (ver docs de la abstención).
+TIER1_MESH_STOPLIST = frozenset({
+    "Animals", "Animals, Domestic", "Pets", "Humans", "Female", "Male",
+    "Dogs", "Cats", "Birds", "Rabbits", "Reptiles", "Rodentia", "Ferrets", "Horses", "Swine",
+    "Dog Diseases", "Cat Diseases", "Bird Diseases", "Rodent Diseases", "Horse Diseases",
+    "Swine Diseases", "Rabbit Diseases",
+})
+
 
 def tier0_filters(query: StructuredQuery) -> dict:
     """Filtros/boosts determinísticos (no tocan la DB). Especie = PREFERENCIA, no exclusión
@@ -69,7 +83,9 @@ def tier0_filters(query: StructuredQuery) -> dict:
         "language": query.language,
         "require_is_current": True,
         "concepts": list(query.concepts),
-        "mesh": list(query.mesh),
+        # Sin los descriptores de especie/estructurales: acá se decide TEMA, no a qué animal
+        # pertenece el paper. La especie sigue viva como preferencia (preferred_species_mesh).
+        "mesh": [m for m in query.mesh if m not in TIER1_MESH_STOPLIST],
     }
 
 
@@ -132,6 +148,9 @@ def _to_chunk(row: dict, base: float) -> RetrievedChunk:
 # cuando el MeSH devuelve menos de TIER1_LIMIT. Sin tope, rankear sus decenas de miles de matches
 # costaba más que todo el resto de la cascada junta.
 TIER1_FTS_SCAN_CAP = 3000
+# Respaldo por si un descriptor legítimo resulta enorme: acota cuántas filas se rankean en la rama
+# MeSH. Con la stoplist, una consulta normal trae 1-3k; esto sólo actúa en la cola larga.
+TIER1_MESH_SCAN_CAP = 20000
 
 # Constante (y no inline) para que `scripts/calidad/latencia_db.py` mida EXACTAMENTE lo que corre en
 # producción: si el SQL vive en dos lugares, la medición miente en cuanto uno de los dos cambie.
@@ -139,7 +158,8 @@ TIER1_SQL = (
     "with por_mesh as ("
     "  select id, source, title, content, metadata, true as mesh_hit, "
     "         ts_rank_cd(tsv, websearch_to_tsquery(%s, %s)) as lex "
-    "  from public.corpus_chunks where metadata->'mesh' ?| %s "
+    "  from (select id, source, title, content, metadata, tsv from public.corpus_chunks "
+    "        where metadata->'mesh' ?| %s limit %s) c "
     "  order by lex desc limit %s"
     "), por_texto as ("
     "  select id, source, title, content, metadata, false as mesh_hit, "
@@ -155,7 +175,7 @@ TIER1_SQL = (
 
 def tier1_params(cfg: str, terms: str, mesh: list[str]) -> tuple:
     """Parámetros posicionales de TIER1_SQL (el orden importa y se repite: se arma en un solo sitio)."""
-    return (cfg, terms, mesh, TIER1_LIMIT,
+    return (cfg, terms, mesh, TIER1_MESH_SCAN_CAP, TIER1_LIMIT,
             cfg, terms, cfg, terms, mesh, TIER1_FTS_SCAN_CAP, TIER1_LIMIT,
             TIER1_LIMIT)
 
@@ -174,7 +194,9 @@ def tier1_lexical_glossary(query: StructuredQuery, filters: dict) -> list[Retrie
     Separadas, sólo se rankea la rama que puede quedar arriba: **42 ms, mismos 40 chunks** (347x).
     """
     concepts = filters.get("concepts") or list(query.concepts)
-    mesh = filters.get("mesh") or list(query.mesh)
+    # OJO con `or`: si la stoplist deja la lista VACÍA (la consulta sólo traía especie), un `or`
+    # volvería a la lista sin filtrar y anularía el filtro justo en el caso que más importa.
+    mesh = filters["mesh"] if "mesh" in filters else list(query.mesh)
     cfg = _ts_config(filters.get("language"))
     terms = " or ".join(concepts)  # websearch_to_tsquery entiende OR
     rows = fetch_all_corpus(TIER1_SQL, tier1_params(cfg, terms, mesh))

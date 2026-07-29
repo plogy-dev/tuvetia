@@ -42,16 +42,40 @@ def test_fuse_context_separa_zonas():
     assert fused["severe_allergies"] == ["pollo"]
 
 
+def test_especie_no_entra_como_criterio_tematico():
+    """`Dogs` (43.033 de 520k chunks) NO puede usarse para buscar: no dice de qué trata el paper,
+    revienta el Tier 1 y encima contaba como 'evidencia temática' para el umbral. Sigue vivo como
+    preferencia de especie."""
+    from app.retrieval.cascade import TIER1_MESH_STOPLIST
+    q = StructuredQuery(concepts=["Pain", "Dogs"], mesh=["Pain", "Dogs"], species="perro", raw="x")
+    f = tier0_filters(q)
+    assert "Dogs" not in f["mesh"] and "Pain" in f["mesh"]
+    assert "Dogs" in f["preferred_species_mesh"]         # la especie sigue dando boost
+    assert "Dog Diseases" in TIER1_MESH_STOPLIST
+
+
+def test_solo_especie_deja_el_mesh_vacio_y_no_lo_repone():
+    """Si la consulta SÓLO trajo especie, la lista de búsqueda queda vacía a propósito. Un `or` en
+    el código la habría repuesto sin filtrar, anulando el filtro justo en el caso patológico."""
+    q = StructuredQuery(concepts=["Dogs"], mesh=["Dogs"], species="perro", raw="x")
+    f = tier0_filters(q)
+    assert f["mesh"] == []
+
+
 def test_tier1_encuentra_por_mesh(require_db):
     """Tier 1 recupera chunks del corpus por descriptor MeSH (integración contra la DB)."""
     import pytest
     from app.db import fetch_all
+    from app.retrieval.cascade import TIER1_MESH_STOPLIST
+    # Un descriptor TEMÁTICO y acotado: los de especie están en la stoplist a propósito, y los
+    # gigantes (decenas de miles de chunks) no prueban nada sobre el match por MeSH.
     row = fetch_all(
-        "select metadata->'mesh'->>0 m from public.corpus_chunks "
-        "where metadata ? 'mesh' and jsonb_array_length(metadata->'mesh') > 0 limit 1"
+        "select x.m, count(*) n from public.corpus_chunks c, "
+        "  jsonb_array_elements_text(c.metadata->'mesh') x(m) "
+        "group by x.m having count(*) between 50 and 400 order by n desc limit 1"
     )
-    if not row or not row[0]["m"]:
-        pytest.skip("corpus sin descriptores MeSH")
+    if not row or not row[0]["m"] or row[0]["m"] in TIER1_MESH_STOPLIST:
+        pytest.skip("corpus sin un descriptor tematico acotado")
     descriptor = row[0]["m"]
     q = StructuredQuery(concepts=[descriptor], mesh=[descriptor], raw=descriptor)
     chunks = tier1_lexical_glossary(q, tier0_filters(q))

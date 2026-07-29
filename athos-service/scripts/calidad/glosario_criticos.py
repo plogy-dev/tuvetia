@@ -57,6 +57,17 @@ EXTRA: dict[str, list[str]] = {
     "Leishmaniasis": ["leishmaniasis cutanea", "ulceras que no cierran por leishmania"],
 }
 
+# Mapeos MAL puestos: frases de signo genérico que apuntaban a una enfermedad concreta. No se
+# borran (la frase debe seguir resolviendo) sino que se mueven al descriptor de SIGNO que les
+# corresponde; nombrar la enfermedad a partir del signo es trabajo de la distilación y del vector,
+# no del glosario. Medido sobre las 188 transcripciones del banco con `glosario_precision.py`:
+# ambas disparan en varios casos y en NINGUNO el diagnóstico era el que afirmaban.
+#   (frase, descriptor equivocado, descriptor correcto)
+REMAPEOS: list[tuple[str, str, str]] = [
+    ("esta decaido", "Kidney Diseases", "Lethargy"),   # disparaba en 5 casos, 0 eran renales
+    ("se cansa mucho", "Heart Failure", "Lethargy"),   # disparaba en 4 casos, 0 eran cardíacos
+]
+
 
 def _chunks(cur, descriptor: str) -> int:
     cur.execute("select count(*) from public.corpus_chunks where metadata->'mesh' ? %s",
@@ -130,10 +141,26 @@ def main() -> None:
                 "review_status) values (%s,%s,'es','curado',%s,'approved')",
                 (term_id, syn, ORIGEN))
             nuevos_s += 1
+    # 3) Remapeos: la frase se conserva, cambia el término al que apunta.
+    remapeados = []
+    for frase, malo, bueno in REMAPEOS:
+        cur.execute("select id from public.glossary_term where canonical_en=%s", (bueno,))
+        destino = cur.fetchone()
+        if not destino:
+            print(f"  remapeo omitido: no existe el termino destino {bueno!r}")
+            continue
+        cur.execute(
+            "update public.glossary_synonym s set term_id=%s from public.glossary_term t "
+            "where t.id = s.term_id and t.canonical_en=%s and lower(s.text)=lower(%s)",
+            (destino[0], malo, frase))
+        if cur.rowcount:
+            remapeados.append(f"{frase!r}: {malo} -> {bueno}")
     conn.commit()
 
     print(f"\nterminos nuevos: {nuevos_t} | sinonimos nuevos: {nuevos_s} | "
           f"reaprobados: {reaprobados}")
+    for r in remapeados:
+        print(f"  remapeado {r}")
     cur.execute("select count(*) from public.glossary_synonym where review_status='approved'")
     print(f"sinonimos approved en total: {cur.fetchone()[0]}")
     conn.close()
