@@ -6,25 +6,18 @@ import { DataError } from "@/components/data-error"
 import { WhatsappInbox, type InboxMessage, type InboxOwner } from "@/components/whatsapp/inbox"
 import { Button } from "@/components/ui/button"
 
-export const metadata = { title: "Comunicaciones · TuvetIA" }
+export const metadata = { title: "Comunicaciones · Tuvetia" }
 
 // Bandeja de WhatsApp de la clínica. Los mensajes llegan por el webhook de Kapso a
 // whatsapp_messages (RLS por clínica); el envío sale por /api/whatsapp/send.
 export default async function ComunicacionesPage() {
   const supabase = await createClient()
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
-  const { data: prof } = user
-    ? await supabase.from("profiles").select("clinic_id").eq("id", user.id).maybeSingle()
-    : { data: null }
-  const clinicId = (prof as { clinic_id: string | null } | null)?.clinic_id ?? ""
 
   const [{ data: integ }, { data: msgs, error: msgsError }, { data: owners }] = await Promise.all([
     supabase.from("whatsapp_integrations").select("status, phone_number").maybeSingle(),
     supabase
       .from("whatsapp_messages")
-      .select("id, owner_id, wa_message_id, wa_phone_from, wa_phone_to, direction, body, media_type, read_at, delivered_at, created_at")
+      .select("id, owner_id, wa_message_id, wa_phone_from, wa_phone_to, direction, body, media_type, read_at, delivered_at, failed_at, error_detail, created_at")
       // Payload inicial acotado: las conversaciones viejas salen del historial reciente; el poll
       // trae lo nuevo. (Paginación hacia atrás: backlog.)
       .order("created_at", { ascending: false })
@@ -62,7 +55,6 @@ export default async function ComunicacionesPage() {
         initialMessages={((msgs as InboxMessage[] | null) ?? []).slice().reverse()}
         owners={(owners as InboxOwner[] | null) ?? []}
         clinicPhone={integration?.phone_number ?? ""}
-        clinicId={clinicId}
       />
     </>
   )

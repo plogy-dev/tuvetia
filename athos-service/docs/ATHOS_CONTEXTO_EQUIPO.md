@@ -87,7 +87,7 @@ Filosofía: **gastar la mínima IA**. Un buscador determinístico con un diccion
 ## 4. Los endpoints de Athos (el contrato)
 - `POST /athos/chat` (SSE) — chat del vet.
 - `POST /athos/phantom/suggest` — lo llama el Phantom al cerrar la consulta.
-- `POST /ingest` (admin) — indexar el corpus.
+- Ingesta del corpus: por CLI (`app/ingestion/run.py`) — el endpoint `POST /ingest` se eliminó (stub público, hallazgo de seguridad 2026-07-28).
 - `GET /health`.
 - **Base URL (EN VIVO):** `https://athos-service-production.up.railway.app` — el front (Vercel) ya apunta ahí vía `NEXT_PUBLIC_ATHOS_URL`; el Phantom de Pipe hace `POST` a esa misma URL.
 

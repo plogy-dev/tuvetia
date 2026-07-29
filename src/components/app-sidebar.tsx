@@ -16,7 +16,20 @@ import {
   SidebarMenuButton,
   SidebarMenuItem,
 } from "@/components/ui/sidebar"
-import { LayoutDashboardIcon, UsersIcon, ContactIcon, CalendarIcon, MessageCircleIcon, Settings2Icon, CircleHelpIcon, BotIcon, GhostIcon, CommandIcon } from "lucide-react"
+import { LayoutDashboardIcon, UsersIcon, ContactIcon, CalendarIcon, MessageCircleIcon, Settings2Icon, CircleHelpIcon, BotIcon, GhostIcon } from "lucide-react"
+
+/* Glifo "chispa" de la marca Tuvetia (patrón del Sidebar del cliente). */
+function BrandGlyph({ className }: { className?: string }) {
+  return (
+    <svg width="21" height="21" viewBox="0 0 64 64" aria-hidden className={className}>
+      <path
+        fill="var(--accent)"
+        fillRule="evenodd"
+        d="M32 8a24 24 0 1 0 0.001 0Z M44 22a5 5 0 1 0 0.001 0Z"
+      />
+    </svg>
+  )
+}
 
 const data = {
   navMain: [
@@ -115,8 +128,8 @@ export function AppSidebar({
               className="data-[slot=sidebar-menu-button]:p-1.5!"
               render={<a href="/dashboard" />}
             >
-              <CommandIcon className="size-5!" />
-              <span className="text-base font-semibold">TuvetIA</span>
+              <BrandGlyph className="size-5!" />
+              <span className="font-display text-base font-bold tracking-[-0.02em]">Tuvetia</span>
             </SidebarMenuButton>
           </SidebarMenuItem>
         </SidebarMenu>
