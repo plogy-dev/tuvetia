@@ -24,6 +24,48 @@ condiciones **ausentes del corpus o con 1-3 chunks**. Athos debería abstenerse 
 > estricta: un pasaje puede responder la consulta sin llevar ese tag exacto, así que las cifras
 > absolutas subestiman. Para comparar ANTES/DESPUÉS de un cambio es sólido, porque el sesgo es el
 > mismo de los dos lados.
+>
+> Esa limitación es lo que vino a cubrir el banco de **calidad de respuestas** (más abajo): mide lo
+> que el veterinario realmente lee, no lo que el buscador recupera.
+
+## Calidad de las RESPUESTAS (2026-07-29)
+
+El mandato de producto es que hablar con Athos se parezca a consultar a un clínico con décadas de
+experiencia. Eso no lo mide el retrieval: una respuesta puede apoyarse en la literatura correcta y
+aun así ser un resumen genérico que el veterinario ya sabía.
+
+```bash
+python scripts/calidad/respuestas_eval.py --etiqueta baseline --n-pos 24 --n-neg 10 \
+       --juez-modelo deepseek-v4-pro --juez-proveedor openai
+```
+
+Corre el flujo REAL del chat (importa `CHAT_SYSTEM`/`_chat_prompt`/`_cited_from_answer` de
+`app.chat`; una copia mentiría en cuanto el prompt cambie) en modo consulta general — sin paciente
+y **sin escribir** `athos_messages` ni `rag_retrieval_log`. Redacta con el modelo de producción y
+califica con un juez fuerte y distinto del redactor (`--juez-modelo`; nunca el mismo flash que
+redacta: un modelo es el peor evaluador de sí mismo). **Mantener el mismo juez entre corridas**, o
+las cifras dejan de ser comparables.
+
+Rúbrica 0-10: `pertinencia`, `fundamentacion` (¿el pasaje citado sostiene lo afirmado?),
+`seguridad`, `utilidad` (lo que agrega un veterano: diferenciales priorizados, siguiente paso
+concreto, criterios de urgencia) y `honestidad`, más un binario: *¿un veterinario experimentado
+seguiría esta recomendación tal cual?*
+
+En los **negativos** (condiciones ausentes del corpus) lo correcto es callar o declarar el límite;
+responder con confianza es el modo de falla más peligroso que puede tener el sistema.
+
+### A/B de prompts
+
+```bash
+python scripts/calidad/respuestas_ab.py --a actual --b clinico --n 16 \
+       --juez-modelo deepseek-v4-pro --juez-proveedor openai
+```
+
+Recupera **una sola vez** por caso y hace redactar a las dos variantes sobre la MISMA literatura:
+así la diferencia medida es del prompt y no del retrieval (que además es la etapa cara). El juez ve
+las dos respuestas juntas y elige — comparar es más fiable que puntuar por separado. Las variantes
+viven en `prompts_variantes.py`; la `actual` se importa de `app.chat` y solo se mueve una candidata
+a producción **después** de ganar la medición.
 
 ## Retrieval
 
