@@ -15,6 +15,7 @@ from app.config import get_settings
 from app.db import fetch_all, get_conn
 from app.generation.allergy_gate import evaluate_gate
 from app.generation.condition_alerts import detect_conditions, explain_conditions
+from app.generation.dose_guard import patient_data_complete, redact_doses
 from app.generation.evidence_judge import judge_evidence
 from app.generation.generate import generate_note
 from app.models import EVIDENCE_NONE, PhantomSuggestResponse
@@ -116,6 +117,12 @@ def suggest(consultation_id: str, clinic_id: str, user_id: str | None = None) ->
     # B->A: sin evidencia suficiente -> nota del transcript SIN literatura (insufficient_evidence)
     literature = chunks if passed and not verdict.abstains else []
     soap, citations, allergy_flag = generate_note(transcript_text, literature, patient, severe)
+    # Gate de dosis (regla nº4): con la ficha incompleta, ninguna cifra por peso entra a la nota.
+    # Va acá y no en el prompt porque medido el prompt no la cumple (ver app/generation/dose_guard).
+    # La nota es un borrador que el vet aprueba: una dosis sin verificar no puede llegar a firmarse.
+    if not patient_data_complete(patient.species, patient.weight_kg, patient.age_years):
+        soap = soap.model_copy(update={"plan": redact_doses(soap.plan)[0],
+                                       "assessment": redact_doses(soap.assessment)[0]})
     # Honestidad del payload: aunque el retrieval pase el umbral, si la generación no ancló NINGUNA
     # cita (la literatura recuperada no sustentaba el caso), no afirmamos evidencia suficiente. Así
     # el flag es consistente con la nota (citations=[] <-> insufficient_evidence=True).
