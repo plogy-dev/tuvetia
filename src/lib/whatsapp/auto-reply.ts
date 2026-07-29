@@ -3,9 +3,12 @@
 // Diseño (salvaguardas antes que inteligencia, patrón validado en el repo del cliente):
 //  1. Opt-in por clínica (whatsapp_integrations.agent_mode = 'auto').
 //  2. Debounce 5 s: si el titular sigue escribiendo, este trigger se aborta (responde el último).
-//  3. Idempotencia por wa_message_id (una respuesta por entrante, aunque el webhook reintente).
+//  3. Reserva atómica del entrante (compare-and-set sobre auto_reply_claimed_at): una respuesta
+//     por mensaje aunque el webhook reintente. Va antes del modelo, no después.
 //  4. Anti-loop: máx. 8 respuestas auto/hora por conversación.
-//  5. Límite diario por clínica (auto_daily_limit).
+//  5. Límite diario por clínica (auto_daily_limit). Los frenos 4 y 5 se cuentan sobre
+//     athos_actions (source='auto') — NO sobre whatsapp_messages, porque cartera también envía
+//     con agent_mode='auto' y estaría gastando la cuota del asistente clínico.
 //  6. NADA clínico jamás: un solo pase del modelo liviano clasifica y redacta; ante duda, silencio
 //     (el mensaje queda sin leer para el vet, como siempre).
 // Contexto 100% ensamblado acá con service_role + clinic_id EXPLÍCITO — nunca se le pasan tools
@@ -68,34 +71,50 @@ export async function maybeAutoReply(input: {
     .maybeSingle()
   if ((newer as { wa_message_id: string | null } | null)?.wa_message_id !== waMessageId) return
 
-  // 3) Idempotencia (retries del webhook).
-  const { data: dupe } = await admin
-    .from("athos_actions")
-    .select("id")
+  // 3) RESERVA ATÓMICA del entrante. Antes acá había una consulta de idempotencia contra
+  //    athos_actions, pero esa fila se escribe DESPUÉS de enviar: entre el chequeo y la escritura
+  //    pasan varios segundos (debounce + modelo) y un reintento del webhook colaba una segunda
+  //    respuesta al titular. El compare-and-set lo cierra: solo una invocación sella la columna;
+  //    la otra recibe 0 filas y se calla. Mismo patrón que las acciones de Athos (PR #28).
+  //    Va ANTES de los frenos y del modelo: la decisión completa corre a lo sumo una vez.
+  const { data: claimed, error: claimError } = await admin
+    .from("whatsapp_messages")
+    .update({ auto_reply_claimed_at: new Date().toISOString() })
     .eq("clinic_id", clinicId)
-    .eq("source", "auto")
-    .eq("payload->>in_reply_to", waMessageId)
-    .limit(1)
-  if (dupe?.length) return
+    .eq("wa_message_id", waMessageId)
+    .is("auto_reply_claimed_at", null)
+    .select("id")
+  if (claimError) {
+    // Distinto de perder la carrera: acá algo está mal (típicamente, la migración 0038 sin aplicar).
+    // Sin este log el modo auto se apagaría en silencio y nadie se enteraría.
+    console.error("whatsapp/auto-reply: no se pudo reservar el entrante:", claimError.message)
+    return
+  }
+  if (!(claimed ?? []).length) return // otra invocación se lo quedó: correcto, silencio
 
-  // 4) + 5) Frenos.
+  // 4) + 5) Frenos. Se cuentan sobre athos_actions (source='auto'), NO sobre whatsapp_messages:
+  //    cartera también envía con agent_mode='auto' y estaba consumiendo esta misma cuota, así que
+  //    una clínica con cobranza activa podía agotar auto_daily_limit y dejar MUDO al asistente
+  //    clínico. athos_actions con source='auto' lo escribe solo este camino (cartera no la toca),
+  //    o sea que cada subsistema gasta lo suyo.
   const dayAgo = new Date(Date.now() - 24 * 3600_000).toISOString()
   const hourAgo = new Date(Date.now() - 3600_000).toISOString()
+  const conversationKey = digits(fromPhone)
   const [{ count: daily }, { count: hourly }] = await Promise.all([
     admin
-      .from("whatsapp_messages")
+      .from("athos_actions")
       .select("id", { count: "exact", head: true })
       .eq("clinic_id", clinicId)
-      .eq("direction", "outbound")
-      .eq("agent_mode", "auto")
+      .eq("source", "auto")
+      .eq("status", "executed")
       .gte("created_at", dayAgo),
     admin
-      .from("whatsapp_messages")
+      .from("athos_actions")
       .select("id", { count: "exact", head: true })
       .eq("clinic_id", clinicId)
-      .eq("direction", "outbound")
-      .eq("agent_mode", "auto")
-      .ilike("wa_phone_to", `%${last10}`)
+      .eq("source", "auto")
+      .eq("status", "executed")
+      .eq("conversation_key", conversationKey)
       .gte("created_at", hourAgo),
   ])
   if ((daily ?? 0) >= effectiveDailyLimit) return
@@ -168,10 +187,12 @@ Si el titular pide cita: dile que con gusto, que un miembro del equipo le confir
       .insert({
         clinic_id: clinicId,
         owner_id: owner?.id ?? null,
-        conversation_key: digits(fromPhone),
+        // MISMA variable que usa el freno horario: si estos dos valores divergen, el anti-loop
+        // deja de contar y el titular puede recibir más de 8 respuestas por hora.
+        conversation_key: conversationKey,
         source: "auto",
         tool_name: "send_whatsapp_message",
-        payload: { to_phone: digits(fromPhone), body: text, in_reply_to: waMessageId },
+        payload: { to_phone: conversationKey, body: text, in_reply_to: waMessageId },
         summary: `Respuesta automática: "${text.length > 100 ? `${text.slice(0, 99)}…` : text}"`,
         risk: "auto",
         status: "executed",
