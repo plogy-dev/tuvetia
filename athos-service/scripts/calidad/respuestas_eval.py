@@ -40,6 +40,7 @@ sys.path.insert(0, BASE)
 os.chdir(BASE)
 
 from app.chat import CHAT_LIT_LIMIT, CHAT_MAX_TOKENS, CHAT_SYSTEM, _chat_prompt, _cited_from_answer  # noqa: E402
+from app.generation.citation_fidelity import check_fidelity  # noqa: E402
 from app.generation.dose_guard import patient_data_complete, redact_doses  # noqa: E402
 from app.generation.evidence_judge import ABSTAIN_MESSAGE, judge_evidence  # noqa: E402
 from app.generation.llm_client import LLMClient  # noqa: E402
@@ -168,12 +169,17 @@ def evaluar_caso(caso: dict, es_negativo: bool) -> dict:
     if not patient_data_complete(paciente.species, paciente.weight_kg, paciente.age_years):
         answer, fila["dosis_redactada"] = redact_doses(answer)
 
-    citas = _cited_from_answer(answer, literature)
+    # Auditoría de fidelidad, igual que en el chat: mide cuántas referencias se caen por no
+    # sostener lo afirmado. Es la métrica del hueco de confianza más grande del sistema.
+    fid = check_fidelity(answer, literature)
+    citas = _cited_from_answer(answer, literature, drop=fid.unfaithful)
     numeros = [int(m) for m in re.findall(r"\[(\d+)\]", answer)]
     fila.update({
         "respuesta": answer, "n_citas": len(citas),
         "citas_invalidas": sum(1 for n in set(numeros) if not (1 <= n <= len(literature))),
         "declara_limite": verdict.is_limited,
+        "fid_juzgado": fid.judged, "fid_afirmaciones": fid.n_claims,
+        "fid_descartadas": sorted(fid.unfaithful), "fid_seg": round(fid.seconds, 1),
     })
 
     rubrica_raw = JUDGE.complete(
@@ -259,6 +265,15 @@ def main() -> None:
             infieles = sum(1 for f in con_rubrica if f["rubrica"].get("citas_infieles"))
             print(f"  'un vet experimentado confiaría'    : {conf}/{len(con_rubrica)}")
             print(f"  respuestas con >=1 cita infiel      : {infieles}/{len(con_rubrica)}")
+        auditadas = [f for f in pos if f.get("fid_juzgado")]
+        if auditadas:
+            tocadas = sum(1 for f in auditadas if f.get("fid_descartadas"))
+            caidas = sum(len(f.get("fid_descartadas") or []) for f in auditadas)
+            print(f"  auditor de fidelidad: verificó       : {len(auditadas)}/{len(pos)} "
+                  f"(media {statistics.mean(f['fid_afirmaciones'] for f in auditadas):.1f} "
+                  f"afirmaciones, {statistics.median(f['fid_seg'] for f in auditadas):.1f}s)")
+            print(f"  respuestas con referencias caídas   : {tocadas}/{len(auditadas)} "
+                  f"({caidas} fuentes en total)")
         respondidos = [f for f in pos if not f["abstuvo"]]
         if respondidos:
             print(f"  citas por respuesta (mediana)       : "

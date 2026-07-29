@@ -41,6 +41,18 @@ class Settings(BaseSettings):
     judge_passages: int = 6                # mejores chunks que lee el juez
     judge_chat_timeout_s: float = 4.0      # tope de espera EN EL CHAT; si vence, se responde igual
 
+    # Fidelidad de las citas: ¿el pasaje citado sostiene lo afirmado? Medido, 18 de 24 respuestas
+    # citaban al menos un pasaje que no. Corre DESPUÉS de la respuesta (no suma latencia al primer
+    # token) y sólo filtra las referencias del payload. Ver app/generation/citation_fidelity.py.
+    #
+    # ⚠️ APAGADO POR DEFECTO: funciona (1,8s, 8,7 afirmaciones por respuesta) pero está SIN CALIBRAR
+    # — medido contra producción descarta el **58% de las referencias** (81 de 140), incluso en
+    # respuestas que el juez de calidad puntúa con fundamentación 8-9, y deja una respuesta sin
+    # ninguna referencia. Su prompt es demasiado severo: castiga la reformulación legítima igual que
+    # la extrapolación. Encenderlo con `FIDELITY_ENABLED=true` sólo después de recalibrar el umbral
+    # (exigir "claramente no sostiene" en vez de "no sostiene literalmente").
+    fidelity_enabled: bool = False
+
     # STT — Modo Fantasma (ADR-0016: Deepgram Nova, batch + diarización)
     deepgram_api_key: str = ""
     stt_model: str = "nova-2"

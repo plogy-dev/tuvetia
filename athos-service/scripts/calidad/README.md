@@ -67,6 +67,29 @@ las dos respuestas juntas y elige — comparar es más fiable que puntuar por se
 viven en `prompts_variantes.py`; la `actual` se importa de `app.chat` y solo se mueve una candidata
 a producción **después** de ganar la medición.
 
+### ⚠️ Cuánto ruido tiene una corrida (leer antes de comparar dos números)
+
+Dos corridas con **el mismo prompt, el mismo modelo, el mismo banco y el mismo juez** dieron:
+
+| | corrida A | corrida B |
+|---|---|---|
+| fundamentación | 7,0 | **5,8** |
+| "un vet experimentado seguiría esto" | 16/24 (67%) | **7/22 (32%)** |
+| utilidad | 9,0 | 8,7 |
+| pertinencia | 8,8 | 9,0 |
+
+Nada cambió entre las dos: la diferencia es variabilidad del redactor y del juez. **Una diferencia
+de ±1 punto en una dimensión, o de 20 puntos porcentuales en el binario de confianza, puede ser
+puro ruido.** Consecuencias prácticas:
+
+- **Lo robusto es el A/B pareado** (`respuestas_ab.py`): el juez ve las dos respuestas del MISMO
+  caso en el MISMO llamado y elige. Un 15-0 ahí sí significa algo.
+- **Lo robusto son los cambios grandes y repetidos**: la utilidad subió de 5,9 a 9,0 y a 8,7 en dos
+  corridas independientes — esa ganancia es real.
+- **Lo robusto es lo determinístico**: "0/24 cifras de dosis" no pasa por ningún juez.
+- Para dimensiones sutiles (fundamentación), una sola corrida de 24 casos **no alcanza**. Hay que
+  parear o repetir.
+
 ### Lo que encontró la primera corrida (2026-07-29)
 
 Línea base con el prompt viejo, 24 positivos + 10 negativos contra producción:
@@ -81,6 +104,10 @@ Línea base con el prompt viejo, 24 positivos + 10 negativos contra producción:
 | **"un vet experimentado seguiría esto"** | **3/23** | **13/23** |
 | respuestas con ≥1 cita infiel | 18/23 | 18/23 |
 | largo mediano | 1.656 chars | 4.972 chars |
+
+> Leer estas cifras con la sección de ruido arriba: la **utilidad** (+3, reproducida en dos corridas)
+> y el A/B pareado 15-0 son sólidos; el binario de confianza oscila entre 32% y 67% **sin que nada
+> cambie**, así que sirve como señal de dirección, no como nota.
 
 El A/B directo (misma literatura) dio **15-0** a favor del prompt de clínico. La ganancia viene de
 lo que el juez pedía en 23 de 24 casos: **diferenciales priorizados, siguiente paso concreto y
@@ -115,6 +142,24 @@ presentadas con cita, **11 estaban en el pasaje citado**, y los 3 fallos son de 
 Un guard determinístico de cifras habría resuelto un problema que casi no existe. Los fallos reales
 son semánticos (extrapolar el pasaje, citar tablas como narrativa, cita múltiple decorativa), y eso
 exige LEER: verificación por afirmación con el LLM liviano.
+
+### El auditor de fidelidad existe pero está APAGADO (sin calibrar)
+
+`app/generation/citation_fidelity.py` parte la respuesta en afirmaciones citadas y le pregunta al
+LLM liviano, por cada una, si el pasaje la sostiene; las fuentes que nunca sostuvieron nada no se
+ofrecen como referencia. Falla abierta y tiene 12 tests.
+
+**Funciona pero descarta demasiado**: medido contra producción audita 8,7 afirmaciones por respuesta
+en 1,8 s y tira el **58% de las referencias** (81 de 140). El problema no es que falle, es que su
+umbral castiga la reformulación legítima igual que la extrapolación: en `heart-valve-diseases`, que
+el juez de calidad puntuó con fundamentación **9**, descartó 4 de 5 fuentes; en
+`intervertebral-disc-degeneration` (fundamentación 8) descartó las 8 y dejó la respuesta sin ninguna
+referencia.
+
+Por eso `FIDELITY_ENABLED` viene en `false`. Para calibrarlo: pedirle al verificador que marque sólo
+lo que **claramente** no sostiene (con un "en caso de duda, sostiene"), y validar a mano una muestra
+de descartes antes de encenderlo. Encenderlo como está degradaría las referencias que el veterinario
+usa para verificar.
 
 ## Retrieval
 

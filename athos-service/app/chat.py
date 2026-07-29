@@ -12,6 +12,7 @@ import threading
 import time
 
 from app.config import get_settings
+from app.generation.citation_fidelity import check_fidelity
 from app.generation.dose_guard import (
     DOSE_NOTICE, patient_data_complete, redact_doses, split_safe_tail)
 from app.generation.evidence_judge import ABSTAIN_MESSAGE, LIMITED_NOTICE, judge_evidence
@@ -87,14 +88,20 @@ def _format_numbered(literature) -> str:
     return "\n\n".join(lines) if lines else "(sin literatura suficiente)"
 
 
-def _cited_from_answer(answer: str, literature) -> list[Citation]:
+def _cited_from_answer(answer: str, literature, drop: frozenset[int] | None = None) -> list[Citation]:
     """Devuelve SOLO las citas que el modelo referenció por número [n] en la respuesta, en orden de
-    aparición y sin duplicados. Si no referenció ninguna, la lista queda vacía (honesto)."""
+    aparición y sin duplicados. Si no referenció ninguna, la lista queda vacía (honesto).
+
+    `drop` son los números que el auditor de fidelidad marcó como no sostenidos por su pasaje: no
+    se ofrecen como referencia, porque una cita que no respalda nada erosiona la confianza en todas
+    las demás. Ver app/generation/citation_fidelity.py.
+    """
     used: list[Citation] = []
     seen: set[int] = set()
     for m in re.findall(r"\[(\d+)\]", answer):
-        i = int(m) - 1
-        if 0 <= i < len(literature) and i not in seen:
+        n = int(m)
+        i = n - 1
+        if 0 <= i < len(literature) and i not in seen and not (drop and n in drop):
             seen.add(i)
             used.append(Citation.from_chunk(literature[i]))
     return used
@@ -332,7 +339,14 @@ def stream_answer(question: str, patient_id: str, clinic_id: str, user_id: str |
                     "ai_model": get_settings().llm_model, "error": errored})
         return
 
-    citations = _cited_from_answer(answer, literature)
+    # Auditoría de fidelidad de las citas. Corre DESPUÉS de que el vet ya leyó la respuesta, así que
+    # no le suma latencia al primer token; lo que filtra son las REFERENCIAS del payload (la lista
+    # que el front ofrece para abrir la fuente). Falla abierta: si no se pudo verificar, van todas.
+    fidelity = check_fidelity(answer, literature)
+    if fidelity.judged:
+        log.info("fidelidad de citas: %s afirmaciones, %s fuentes descartadas %.1fs",
+                 fidelity.n_claims, len(fidelity.unfaithful), fidelity.seconds)
+    citations = _cited_from_answer(answer, literature, drop=fidelity.unfaithful)
     if patient_id:
         # Se guarda lo que el vet REALMENTE vio: si el gate tapó una dosis, la historia del hilo no
         # puede conservar la cifra (si no, reaparece como contexto en el próximo turno).
