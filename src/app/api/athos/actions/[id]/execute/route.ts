@@ -40,12 +40,29 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
   if (action.status !== "proposed")
     return NextResponse.json({ error: `La acción ya está en estado "${action.status}"` }, { status: 409 })
   if (new Date(action.expires_at).getTime() < Date.now()) {
-    await markAction(action.id, { status: "expired" })
+    // Condicional también: si alguien la ejecutó justo ahora, no la pisamos con "expired".
+    await claimAction(action.id, { status: "expired" })
     return NextResponse.json({ error: "La propuesta expiró — pídele a Athos una nueva" }, { status: 410 })
   }
 
   const body = (await req.json().catch(() => ({}))) as { payload_override?: Record<string, unknown> }
   const payload = { ...action.payload, ...(body.payload_override ?? {}) }
+
+  // RESERVA ATÓMICA antes de despachar. El chequeo de status de arriba es un TOCTOU: entre leer
+  // y ejecutar puede colarse otra request (doble clic en "Aprobar", reintento del navegador) y
+  // ambas pasaban la validación → dos citas creadas, o dos WhatsApp al titular. El UPDATE
+  // condicional deja que solo UNA transición proposed→approved gane; la perdedora ve 0 filas.
+  const claimed = await claimAction(action.id, {
+    status: "approved",
+    reviewed_by: user.id,
+    reviewed_at: new Date().toISOString(),
+  })
+  if (!claimed) {
+    return NextResponse.json(
+      { error: "Esta propuesta ya fue procesada — recargá para ver en qué quedó" },
+      { status: 409 },
+    )
+  }
 
   try {
     const result = await dispatch(supabase, user.id, action, payload)
@@ -230,6 +247,27 @@ async function dispatch(
   }
 }
 
+/**
+ * Transición condicional desde 'proposed' (compare-and-set).
+ *
+ * El UPDATE lleva `.eq("status", "proposed")`, así que si dos requests compiten por la misma
+ * propuesta solo una encuentra la fila en ese estado: la otra recibe 0 filas y devuelve false.
+ * Es la reserva que hace segura la ejecución — sin esto, ambas despachaban.
+ *
+ * Devuelve true si esta request se quedó con la acción.
+ */
+async function claimAction(id: string, patch: Record<string, unknown>): Promise<boolean> {
+  const admin = createAdminClient()
+  const { data } = await admin
+    .from("athos_actions")
+    .update({ ...patch, updated_at: new Date().toISOString() })
+    .eq("id", id)
+    .eq("status", "proposed")
+    .select("id")
+  return (data ?? []).length > 0
+}
+
+/** Transición incondicional. Solo se usa DESPUÉS de haber ganado la reserva. */
 async function markAction(id: string, patch: Record<string, unknown>) {
   const admin = createAdminClient()
   await admin

@@ -27,11 +27,23 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
 
   const admin = createAdminClient()
   const now = new Date().toISOString()
-  const { error } = await admin
+  // Compare-and-set: el chequeo de status de arriba es un TOCTOU (doble clic, reintento del
+  // navegador). Con `.eq("status", "proposed")` en el propio UPDATE, solo una request encuentra
+  // la fila en ese estado; la otra recibe 0 filas. Evita además rechazar algo que se acaba de
+  // ejecutar en paralelo, que dejaría la auditoría contando dos historias distintas.
+  const { data, error } = await admin
     .from("athos_actions")
     .update({ status: "rejected", reviewed_by: user.id, reviewed_at: now, updated_at: now })
     .eq("id", id)
+    .eq("status", "proposed")
+    .select("id")
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  if ((data ?? []).length === 0) {
+    return NextResponse.json(
+      { error: "Esta propuesta ya fue procesada — recargá para ver en qué quedó" },
+      { status: 409 },
+    )
+  }
 
   await admin.from("audit_logs").insert({
     clinic_id: action.clinic_id,
