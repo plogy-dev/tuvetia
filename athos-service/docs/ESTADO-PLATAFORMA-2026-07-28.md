@@ -254,3 +254,70 @@ responde 200.
 - Último mensaje de chat registrado: 2026-07-28 13:23 UTC.
 - Banco completo de retrieval contra producción: **hit@15 83,6%**, precision@15 30,5%, primer
   acierto en el puesto 2 (mediana), 146/146 casos sin fallos.
+
+---
+
+# Segunda pasada — auditoría de la integración (2026-07-29)
+
+Con el push del equipo ya en `master` se re-auditó TODO (base de producción + los 21 commits).
+
+## Verificado
+
+- **El historial del principal termina en `0032` (su numeración vieja)**, 03:18 UTC del 29-jul.
+  Nada nuevo entró después. `scripts/calidad/auditar_esquema.py` corre limpio: la única tabla que
+  el repo no declara es `memberships` (nació out-of-band; `0022` la documenta y la arregla).
+- **Las 11 migraciones renumeradas (`0026`–`0036`) coinciden sentencia por sentencia con el SQL
+  aplicado en producción** (comparadas contra `schema_migrations.statements`, 332 sentencias DDL
+  clave): la renumeración fue solo de nombre de archivo. No reaplicar.
+- **Permisos del RAG intactos** tras el hardening: CRUD completo sobre las 7 tablas que escribimos.
+- Facturación/cartera **no toca datos de Athos**: solo `owners.id_doc_type` (aditiva, nullable) y
+  FKs `on delete set null` hacia `profiles`/`patients`/`consultations`. Ningún trigger nuevo sobre
+  tablas nuestras. El barrido de cartera hoy es un no-op (0 clínicas con `reminders_enabled`).
+
+## Lo que ajustamos de nuestro lado (2026-07-29)
+
+`POST /athos/retrieve` (la tool `search_clinical_evidence` del agente) tenía tres huecos de
+integración, ya corregidos:
+
+1. **El agente no podía abstenerse.** Su prompt cuelga el "no hay evidencia suficiente" de
+   `passed`, que está saturado (True en 187/187 medidos). El endpoint ahora corre el **juez de
+   evidencia** y devuelve `evidence_level: none|limited|sufficient` — la señal que sí discrimina.
+   → **Pipe: el system-prompt del agente debe usar la banda, no `passed`.**
+2. **Latencia vs el timeout de 20s del front**: el endpoint usaba el camino serial; ahora usa
+   `build_and_retrieve` (Tier 2 solapado con el A→B, varios segundos menos). El juez suma ~1,8s
+   y falla abierta.
+3. **Trazabilidad**: se logueaba solo con `patient_id`, y la bandeja y la consulta general mandan
+   `patient_id: null` — la mayoría del tráfico del agente no quedaba en `rag_retrieval_log`.
+   Ahora se traza siempre con `source='agent'`.
+4. **Especie como texto libre**: la tool acepta "Canino"/"hurón"/"Felino" y el mapeo a MeSH solo
+   conocía "perro"/"gato"/…, perdiendo la preferencia en silencio. Ahora se normaliza (acentos,
+   mayúsculas) con sinónimos canino/felino/pájaro.
+
+## Hallazgos para el equipo (de la tanda integrada, ordenados por urgencia)
+
+1. 🔴 **`CRON_SECRET` sin configurar en Vercel** (pendiente manual en `ESTADO.md`): con el
+   endurecimiento nuevo, `/api/cron/purge-audio` devuelve **503** y la retención de audio a 4 días
+   (Ley 1581) **deja de correr en silencio**. Configurarla HOY.
+2. 🔴 **El prompt del agente decide honestidad con `passed`** (`system-prompt.ts:39`) — ver arriba;
+   el campo `evidence_level` ya viaja en la respuesta.
+3. 🟠 **`payload_override` sin revalidar**: al aprobar, `execute` mergea el override sobre el
+   payload sin validarlo contra el schema Zod de la tool (el schema solo corre al proponer).
+   Cualquier miembro puede reescribir `to_phone`/`patient_id`/`starts_at` por API.
+4. 🟠 **`0026` borra `clinic_logos_storage_select`** que `0024` creó a propósito (el
+   `INSERT … RETURNING` de Storage falla sin SELECT — "trampa ya pisada dos veces" según
+   `MULTITENANT.md`). Probable regresión al subir el logo. Mejor una policy restringida que el drop.
+5. 🟠 **Cartera y asistente clínico comparten cuota y contexto**: los envíos de cobranza cuentan
+   contra `auto_daily_limit` del modo auto clínico; un titular con factura activa que escribe algo
+   clínico ("mi perro vomita hace 3 días") lo clasifica el catálogo de cobranza, no el clasificador
+   clínico; `media_url` nunca se persiste (el flujo de comprobantes es código muerto); y la ruta
+   del link de pago `/f/[token]` no existe (todo recordatorio saldría con un 404).
+6. 🟡 **Propuestas del agente**: el badge y la bandeja no filtran `expires_at` (las vencidas se
+   muestran como aprobables); las propuestas hechas en el chat se pierden de la UI al recargar.
+7. 🟡 **`POST /athos/whatsapp/suggest` quedó sin llamadores** (la bandeja migró al agente de Next):
+   sigue montado y funcional. Decidir con Pipe si se depreca — y borrar `athosWhatsappSuggest` de
+   `src/lib/athos.ts`, que ya es código muerto. Guardrails de "nada clínico" hoy triplicados.
+8. 🟡 **186 tests de facturación/cartera sin CI** (no hay workflow en la raíz del monorepo — el
+   mismo problema que ya tenía nuestro `athos-service/.github/workflows/ci.yml`).
+9. Menores: `META_REGISTER_PIN` defaultea a `"000000"`; el fallback `?secret=` del webhook de
+   Kapso sigue vivo; `xlsx` vulnerable corre server-side en el import de facturación; los
+   pendientes 10/12/13 de `ESTADO.md` ya están resueltos en `master` (lista desfasada).
