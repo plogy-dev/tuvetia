@@ -1,0 +1,13 @@
+Nombre,Categoria,Precio venta,IVA,Duracion,SKU
+Consulta general,Consultas,85000,0,30,SRV-001
+Consulta de urgencia,Consultas,140000,0,45,SRV-002
+Consulta a domicilio,Consultas,120000,0,60,SRV-003
+Vacunacion (aplicacion),Vacunas,25000,0,15,SRV-010
+Desparasitacion,Prevencion,20000,0,15,SRV-011
+Bano y peluqueria,Estetica,70000,19,90,SRV-020
+Profilaxis dental (limpieza),Odontologia,250000,0,60,SRV-030
+Esterilizacion canina (OVH),Cirugia,380000,0,120,SRV-040
+Ecografia abdominal,Imagenes,120000,0,40,SRV-050
+Radiografia (2 proyecciones),Imagenes,150000,0,30,SRV-051
+Certificado de salud,Documentos,50000,0,20,SRV-060
+Hospitalizacion (dia),Hospitalizacion,110000,0,,SRV-070
