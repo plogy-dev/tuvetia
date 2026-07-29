@@ -5,6 +5,18 @@
 > Todo lo de acá se verificó **contra la base de producción** (`auxlnexhkmtoedrzfsnz`, us-west-2),
 > sólo lectura, salvo lo que se indique.
 
+> **ACTUALIZACIÓN 2026-07-29 — gran parte de esta foto quedó saldada al día siguiente.** El push
+> que faltaba llegó (PRs #23–#28 en `master`): la tanda entró al repo **renumerada como
+> `0026`–`0036`** (el choque de numeración se resolvió a favor nuestro: `0022`–`0025` siguen siendo
+> las de multi-clínica/logos/evidence_level; la próxima arranca en `0037`, ver `ESTADO.md` raíz),
+> `athos_actions` **ya tiene su ciclo completo** (agente en `src/lib/athos-agent/` que propone con
+> `service_role`; aprobación/edición/ejecución bajo la sesión del vet en
+> `/api/athos/actions/[id]/execute|reject`, con tarjetas de aprobación en la UI) y el backend ganó
+> `POST /athos/retrieve` como herramienta de evidencia del agente. Los entrantes de WhatsApp ahora
+> pasan por un punto único (`src/lib/whatsapp/inbound-router.ts`). **Siguen vigentes:** el front no
+> lee `evidence_level` (§El front), el multi-clínica a medio cablear, y la concurrencia en Micro.
+> El resto del documento se conserva como foto histórica del 2026-07-28.
+
 ## El hallazgo que ordena todo lo demás
 
 **El esquema de producción y el repositorio divergieron.** La base tiene **56 tablas**; el repo
