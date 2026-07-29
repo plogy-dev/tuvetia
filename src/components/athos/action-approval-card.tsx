@@ -30,6 +30,18 @@ const TOOL_LABELS: Record<string, { label: string; icon: typeof MessageCircle }>
   update_patient_record: { label: "Actualizar ficha", icon: ClipboardEdit },
 }
 
+// Estados finales tal como los ve el vet. `approved` es intermedio: la ruta de ejecución RESERVA
+// la acción (compare-and-set) antes de despachar, así que una fila puede quedarse ahí si el
+// proceso se interrumpe justo en el medio. En ese caso el efecto pudo haber ocurrido o no — por
+// eso no decimos "intentá de nuevo", que era el consejo que daba antes al caer en el genérico.
+const RESOLVED_LABELS: Record<string, string> = {
+  executed: "✓ Ejecutada",
+  rejected: "✗ Rechazada",
+  failed: "⚠ Falló — revisa e intenta de nuevo",
+  expired: "⌛ Expiró — pedile a Athos una nueva",
+  approved: "⏳ Quedó a medio ejecutar — verificá el resultado antes de repetirla",
+}
+
 export function ActionApprovalCard({
   action,
   onResolved,
@@ -95,9 +107,7 @@ export function ActionApprovalCard({
         />
       )}
       {resolved ? (
-        <p className="mt-2 text-xs font-medium text-fg-muted">
-          {resolved === "executed" ? "✓ Ejecutada" : resolved === "rejected" ? "✗ Rechazada" : "⚠ Falló — revisa e intenta de nuevo"}
-        </p>
+        <p className="mt-2 text-xs font-medium text-fg-muted">{RESOLVED_LABELS[resolved] ?? RESOLVED_LABELS.failed}</p>
       ) : (
         <div className="mt-2 flex items-center gap-2">
           <Button size="sm" onClick={() => act("execute")} disabled={busy !== null || (editable && !body.trim())}>
