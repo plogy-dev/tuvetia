@@ -303,10 +303,21 @@ específicamente gangliogliomas caninos"); el árbitro exige que **respondan al 
 el diagnóstico diferencial ni el manejo de una masa cerebral con estos signos"). Es la misma
 distinción que el juez debía hacer y que el modelo flash no hace.
 
-**Arreglo candidato, de una variable:** `JUDGE_MODEL` ya es configurable y por defecto cae a
-`LLM_LIGHT_MODEL`. Apuntarlo al modelo grande usa el que sí acierta, y el juez corre **en paralelo**
-con la redacción (tope `JUDGE_CHAT_TIMEOUT_S`), así que la latencia extra casi no se paga. Hay que
-medir que no aparezca sobre-abstención en los positivos antes de adoptarlo.
+**Arreglo, de una variable — MEDIDO Y ADOPTADO:** `JUDGE_MODEL` apuntado al modelo grande.
+
+| negativos (10) | juez liviano | juez grande |
+|---|---|---|
+| se abstuvo | 0-1 | **2** |
+| respondió declarando evidencia limitada | 1 | **3** |
+| **respondió con confianza** | **8-9** | **5** |
+| sobre-abstención en positivos | 2/24 | **2/24** (no sube) |
+| latencia del juez | 1,7 s | 2,1 s (corre en paralelo: no se paga) |
+
+Los 5 que siguen respondiendo con confianza son **exactamente** los 5 donde el árbitro dijo que la
+literatura sí alcanza. O sea que el juez grande queda alineado con el criterio correcto.
+
+Se setea como variable de Railway (sin redeploy). Rollback: borrar `JUDGE_MODEL` y vuelve al liviano;
+`JUDGE_ENABLED=false` apaga el juez entero.
 
 ### Ya implementada (2026-07-28)
 
