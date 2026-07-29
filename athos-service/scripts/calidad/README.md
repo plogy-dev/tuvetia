@@ -97,6 +97,25 @@ criterios de urgencia**.
    sostenga la afirmación. Es el hueco de confianza más grande que queda abierto y necesita una
    verificación de fidelidad por afirmación, no otra vuelta de prompt.
 
+### Por qué la fidelidad de las citas NO se arregla con prompt (medido, no repetir)
+
+Se probó una variante `citas_estrictas` (en `prompts_variantes.py`, conservada como evidencia) que
+pedía citar por cláusula, prohibía la cita múltiple decorativa y nombraba los casos de la tabla de
+datos y del caso único. **Empeoró todas las dimensiones**: fundamentación 7,0 → 6,3, utilidad
+9,0 → 8,6, honestidad 8,4 → 7,9, y "un vet experimentado seguiría esto" **16/24 → 8/23**. Las citas
+infieles ni se movieron (18/24 → 19/23).
+
+Lo que lo explica: el modelo pasó a citar **más** (mediana 6 → 8 fuentes). Insistirle sobre las
+citas le sube la ansiedad por citar y le diluye las instrucciones clínicas, que es de donde venía
+la ganancia.
+
+Antes de construir el verificador se midió también la hipótesis barata — que el problema fueran
+**cifras inventadas** con cita — y quedó descartada: de 14 cifras duras (`%`, "X de cada Y")
+presentadas con cita, **11 estaban en el pasaje citado**, y los 3 fallos son de una sola respuesta.
+Un guard determinístico de cifras habría resuelto un problema que casi no existe. Los fallos reales
+son semánticos (extrapolar el pasaje, citar tablas como narrativa, cita múltiple decorativa), y eso
+exige LEER: verificación por afirmación con el LLM liviano.
+
 ## Retrieval
 
 ```bash
@@ -128,6 +147,48 @@ abstención real es el juez semántico, no el umbral.
 De los casos que fallan, buena parte es **ruido de etiquetas del banco**: los descriptores sin
 acierto son en su mayoría paraguas abstractos (`Inflammation`, `Disease Progression`, `Recurrence`,
 `Disease Susceptibility`, `Bacterial Infections`) que ningún veterinario consulta como tales.
+
+### El "recall ciego" es casi todo artefacto del banco (revisado el 2026-07-29)
+
+El pendiente estaba abierto desde el 2026-07-27 como *"condiciones con literatura abundante que el
+retrieval NUNCA trae: Distemper (1.338 chunks), Lymphoma, Tick Infestations, Coccidiosis,
+Toxocariasis"*. Al revisar la última corrida, **ninguno de esos cinco sigue fallando**: los arregló
+la stoplist de especie y el A→B por especificidad. Lo que queda son **24 fallos de 146**, y al
+abrirlos uno por uno casi todos son límites del banco, no defectos de Athos:
+
+| grupo | casos | por qué no es un fallo real |
+|---|---|---|
+| paraguas abstractos | 12 | `Inflammation`, `Syndrome`, `Recurrence`, `Heart Diseases`… nadie consulta eso |
+| aves indistinguibles | 3 | `influenza-in-birds`, `circoviridae-infections` y `west-nile-fever` son **el mismo loro** ("no come, plumas erizadas, decaído") con tres diagnósticos distintos. Ni un clínico los separaría del texto |
+| solapamiento sindrómico | 4 | `enteritis`, `gastroenteritis`, `escherichia-coli-infections` y `ancylostomiasis` son el mismo cuadro de diarrea aguda con cuatro etiquetas. Traer `Enteritis` en vez de `E. coli Infections` no es un error clínico |
+| término humano, no veterinario | 2 | `Breast Neoplasms` (lo veterinario es `Mammary Neoplasms, Animal`, que **sí funciona**) y `Coronavirus Infections` en gato (sería peritonitis infecciosa felina) |
+| probable sinónimo | 1 | `staphylococcal-infections` es un pioderma; el retrieval trae `Pyoderma`, que es lo correcto |
+| **candidatos a fallo real** | **2** | `lyme-disease` y `cardiomyopathies` (felina) — ver diagnóstico abajo |
+
+Diagnosticados los dos con `recall_ciego.py`:
+
+- **`cardiomyopathies` ya NO falla**: llega en el **puesto 3** del top-15. El A→B nombró
+  `Cardiomyopathies` (distiló) y el Tier 1 lo trajo primero. El fallo era de una corrida anterior.
+- **`lyme-disease` es el único fallo real y el culpable es el RERANK**: el Tier 2 (vector) lo traía
+  en el puesto 36 de 40 candidatos y el reranker de Cohere lo dejó fuera de los 15. El Tier 1 no lo
+  trae porque el A→B nunca nombra `Lyme Disease` — la consulta es "fue al campo, cojea, decaído" y
+  el glosario resuelve `Fever`, `Lameness, Animal`, `Lethargy`, `Anorexia`, `Pain`: signos, ninguna
+  condición. **Dos arreglos posibles**, ambos medibles: sembrar en el glosario el puente
+  "campo/garrapata + cojera → borreliosis", o revisar por qué el reranker hunde un pasaje que el
+  vector puntuó como pertinente.
+
+**Del "recall ciego" queda entonces UN caso de 146.**
+
+**Consecuencia para leer las cifras:** el `hit@15` de 83,6% **subestima** el retrieval, porque exige
+el tag exacto. Lo confirma el banco de respuestas: la pertinencia es 8,8–9,1 sobre 10. Para comparar
+antes/después sigue sirviendo (el sesgo es el mismo de los dos lados); como nota absoluta, no.
+
+```bash
+python scripts/calidad/recall_ciego.py                    # los que fallan, con literatura
+python scripts/calidad/recall_ciego.py --casos lyme-disease,cardiomyopathies
+```
+Abre la cascada por etapas y dice **en qué paso** se pierde el target (A→B, Tier 1, Tier 2, rerank o
+filtros duros), que es lo que convierte "el recall es ciego" en algo accionable.
 
 `golden_generar.py` regenera el banco de positivos (sólo si hace falta: regenerarlo rompe la
 comparabilidad histórica).
