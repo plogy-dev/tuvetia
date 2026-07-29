@@ -238,8 +238,11 @@ Plan completo en `~/.claude/plans/claude-varios-ajustes-dame-compiled-grove.md`.
   las clínicas que no quieren pasar por la verificación de Meta. Webhook propio en
   `/api/whatsapp/evolution/webhook/[token]` (Evolution no firma: la auth es el token de la URL en
   tiempo constante + la instancia debe existir). Grupos, broadcasts y newsletters se ignoran SIEMPRE.
-> **Facturación y cartera** se portaron en la misma tanda pero van en un PR aparte (el motor, sin
-> UI): migraciones `0033`–`0036`. Este doc se completa cuando ese PR entre.
+- **Facturación y cartera portadas (migraciones `0033`–`0036`)**: núcleo fiscal DIAN, catálogo,
+  inventario, compras y gastos + el motor de recaudo con los límites de la Ley 2300. Dominio puro y
+  determinístico con 185 tests. Dinero = enteros en centavos, half-up. ⚠️ **Es solo el motor: no hay
+  UI todavía** — las rutas `/dashboard/facturacion/*` no existen y los `revalidatePath` apuntan a
+  donde vivirán.
 
 ### ⚠️ Numeración de migraciones (leer antes de crear una nueva)
 Las migraciones de esta tanda se renumeraron a **`0026`–`0036`** el 29-jul, porque `0021`–`0025` ya
@@ -269,9 +272,14 @@ como están: la BD las ordena por su timestamp real, no por el prefijo del archi
   abierta), paginación real en listados (hoy guardas de escala con `limit`).
 - **Trámite Meta Tech Provider** (admin): checklist en `WHATSAPP.md` §Trámite.
 - Re-registrar el webhook de Kapso con el secreto en HEADER y borrar el fallback de query param.
-- **`xlsx@0.18.5`** tiene prototype pollution + ReDoS y *no hay fix en npm* (SheetJS se mudó a su
-  propio CDN). Hoy solo corre client-side en el import de pacientes, o sea que cada quien parsea su
-  propio archivo. Se vuelve serio con facturación, que lo usa **server-side**.
+- **UI de facturación/cartera**: el motor está completo y testeado, pero `/dashboard/facturacion/*`
+  no existe. Hoy el módulo es inalcanzable desde la app.
+- **Cron de cartera**: `runCarteraForAllClinics` dice "lo llama el cron" pero no hay ninguno. Falta
+  `/api/cron/cartera` + su entrada en `vercel.json`. Sin eso los recordatorios no salen solos.
+- ⚠️ **`xlsx@0.18.5`** tiene prototype pollution + ReDoS y *no hay fix en npm* (SheetJS se mudó a su
+  propio CDN). En el import de pacientes corre client-side (cada quien parsea su propio archivo),
+  pero facturación lo usa **server-side** en `import/parse.ts` → resolver **antes** de exponer ese
+  módulo con UI.
 - **Doble ejecución de acciones de Athos**: el chequeo de `status='proposed'` y el UPDATE que la marca
   ejecutada no son atómicos. Dos clics en "Aprobar" ejecutan dos veces. Falta compare-and-set.
 - **`CRON_SECRET`**: si la env no está definida, `/api/cron/purge-audio` queda público (`if (secret &&
