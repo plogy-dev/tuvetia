@@ -279,15 +279,31 @@ como están: la BD las ordena por su timestamp real, no por el prefijo del archi
 - Re-registrar el webhook de Kapso con el secreto en HEADER y borrar el fallback de query param.
 - **UI de facturación/cartera**: el motor está completo y testeado, pero `/dashboard/facturacion/*`
   no existe. Hoy el módulo es inalcanzable desde la app.
-- **Cron de cartera**: `runCarteraForAllClinics` dice "lo llama el cron" pero no hay ninguno. Falta
-  `/api/cron/cartera` + su entrada en `vercel.json`. Sin eso los recordatorios no salen solos.
 - ⚠️ **`xlsx@0.18.5`** tiene prototype pollution + ReDoS y *no hay fix en npm* (SheetJS se mudó a su
   propio CDN). En el import de pacientes corre client-side (cada quien parsea su propio archivo),
   pero facturación lo usa **server-side** en `import/parse.ts` → resolver **antes** de exponer ese
   módulo con UI.
-- **Doble ejecución de acciones de Athos**: el chequeo de `status='proposed'` y el UPDATE que la marca
-  ejecutada no son atómicos. Dos clics en "Aprobar" ejecutan dos veces. Falta compare-and-set.
-- **`CRON_SECRET`**: si la env no está definida, `/api/cron/purge-audio` queda público (`if (secret &&
-  ...)`). Debería devolver 503 como hace el webhook de WhatsApp.
+- **Cartera consume la cuota diaria del asistente clínico**: sus envíos van con `agent_mode='auto'`
+  (`cartera/channels.ts`, `cartera/wa-router.ts`) y el contador de `auto-reply.ts` filtra por ese
+  mismo valor. Una clínica con cobranza activa puede agotar `auto_daily_limit` y dejar mudo al
+  asistente clínico. Faltaría un `agent_mode` propio (p. ej. `'cartera'`) o cuotas separadas.
+- **Cartera se queda con el mensaje aunque no sea de cobranza**: si el titular tiene una factura
+  cobrable y respondió a un recordatorio reciente, `applyCarteraInbound` devuelve `handled: true`
+  incluso cuando el intent cae en `OTRO`, así que el modo auto general nunca ve el mensaje. No se
+  pierde nada (abre tarea humana y el vet lo ve en la bandeja), pero una pregunta trivial —"¿a qué
+  hora abren?"— deja de responderse sola para ese titular.
+- **`payload_override` no se revalida**: `/api/athos/actions/[id]/execute` mergea lo que mande el
+  cliente sobre el payload propuesto sin volver a pasarlo por el schema del tool. Lo ejecuta un vet
+  autenticado bajo su propia sesión (la RLS acota el alcance), pero conviene revalidar.
+- **Modo auto: ventana de duplicado**: en `auto-reply.ts:72` la idempotencia se consulta ANTES de
+  llamar al modelo y la fila se escribe DESPUÉS de enviar. Un reintento del webhook dentro de esa
+  ventana manda dos respuestas. Mismo patrón que se corrigió en las acciones de Athos (0028).
+- **`POST /athos/whatsapp/suggest` quedó sin llamadores**: la bandeja migró al agente de Next
+  (`/api/athos/suggest-reply`). El endpoint sigue vivo en athos-service y `athosWhatsappSuggest` en
+  `src/lib/athos.ts` también. Decidir con el equipo si se borra.
+- **El agente cita `passed`, no `evidence_level`**: `system-prompt.ts` y `tools.ts` hablan de
+  `passed=false`, y `/athos/retrieve` hoy solo devuelve `passed`. Para usar la banda del juez de
+  evidencia hay que agregar `evidence_level` a `RetrieveResponse` primero (backend), y recién ahí
+  cambiar el prompt.
 - **Site URL de Supabase**: ahora que `/` es la landing y el login vive en `/login`, hay que revisar
   la config del dashboard de Auth — si el fallback aterriza en la raíz, no hay intercambio de código.

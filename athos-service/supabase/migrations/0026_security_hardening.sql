@@ -10,6 +10,9 @@
 --    internamente como owner, no necesitan EXECUTE del rol llamador).
 -- 4) El bucket público clinic-logos permitía LISTAR todos los archivos; el acceso por URL directa
 --    a objetos de un bucket público no necesita policy de SELECT.
+--    ⚠️ ESTE PUNTO ESTABA MAL Y SE REVIRTIÓ EN 0037. Es cierto para LEER, pero el servicio de
+--    Storage hace `INSERT ... RETURNING` al subir: sin policy de SELECT la RLS rechaza el insert
+--    y la subida de logos se rompe. Era la regresión que 0024 ya había arreglado. No lo repitas.
 -- 5) Extensión `vector` en schema public: riesgo aceptado y documentado (moverla rompe los índices
 --    HNSW existentes; revisar en una ventana de mantenimiento).
 --
