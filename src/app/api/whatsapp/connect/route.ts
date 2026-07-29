@@ -60,13 +60,20 @@ export async function POST(req: Request) {
       if (upErr) throw new Error(`No se pudo guardar la integración: ${upErr.message}`)
     }
 
-    const origin = new URL(req.url).origin
+    // El origin NUNCA se deriva de req.url a secas: detrás del proxy de Vercel puede resolver al
+    // deployment URL y el usuario volvería de Kapso a un dominio sin sesión (pariente del bug OAuth
+    // del fix 3203eb4). Prioridad: env explícita → host reenviado por el proxy → req.url.
+    const fwdHost = req.headers.get("x-forwarded-host")
+    const fwdProto = req.headers.get("x-forwarded-proto") ?? "https"
+    const origin =
+      process.env.NEXT_PUBLIC_SITE_URL ?? (fwdHost ? `${fwdProto}://${fwdHost}` : new URL(req.url).origin)
     const setupUrl = await createSetupLink(kapsoCustomerId, `${origin}/dashboard/settings?whatsapp=connected`)
 
-    await admin
+    const { error: linkErr } = await admin
       .from("whatsapp_integrations")
       .update({ setup_link_url: setupUrl, updated_at: new Date().toISOString() })
       .eq("clinic_id", clinicId)
+    if (linkErr) throw new Error(`No se pudo guardar el setup link: ${linkErr.message}`)
 
     return NextResponse.json({ setup_url: setupUrl })
   } catch (e) {

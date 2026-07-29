@@ -1,9 +1,10 @@
-import { Building2, Download, MessageCircle, User, Users } from "lucide-react"
+import { Building2, Clock, Download, MessageCircle, User, Users } from "lucide-react"
 import { Button } from "@/components/ui/button"
 
 import { createClient } from "@/lib/supabase/server"
 import { ProfileSettings } from "@/components/settings/profile-settings"
 import { WhatsappSettings } from "@/components/settings/whatsapp-settings"
+import { ClinicHoursSettings, type ClinicHourRow } from "@/components/settings/clinic-hours-settings"
 import {
   TeamSettings,
   type PendingInvitation,
@@ -42,10 +43,21 @@ export default async function SettingsPage() {
   // Estado de la conexión de WhatsApp (RLS: solo la fila de la clínica; columnas no sensibles).
   const { data: wa } = await supabase
     .from("whatsapp_integrations")
-    .select("status, phone_number")
+    .select("status, phone_number, agent_mode")
     .maybeSingle()
-  const waRow = wa as { status: "pending" | "connected" | "disconnected"; phone_number: string | null } | null
-  const waStatus = waRow?.status === "connected" ? "connected" : waRow ? "pending" : "none"
+  const waRow = wa as {
+    status: "pending" | "connected" | "disconnected"
+    phone_number: string | null
+    agent_mode: "auto" | "review" | "paused" | "intervene"
+  } | null
+  const waStatus = waRow?.status ?? "none"
+
+  // Horarios de atención (RLS de la clínica) — los usa Athos para citas y respuestas automáticas.
+  const { data: hoursRows } = await supabase
+    .from("clinic_hours")
+    .select("id, weekday, opens_at, closes_at, slot_minutes")
+    .order("weekday")
+    .order("opens_at")
 
   // Equipo: miembros de la clínica (RLS: profiles de la clínica) + invitaciones pendientes
   // (RLS: solo el admin las ve; para un vet llega vacío).
@@ -106,7 +118,23 @@ export default async function SettingsPage() {
             viven en la sección Comunicaciones.
           </HelpTip>
         </div>
-        <WhatsappSettings initialStatus={waStatus} initialPhone={waRow?.phone_number ?? null} />
+        <WhatsappSettings
+          initialStatus={waStatus}
+          initialPhone={waRow?.phone_number ?? null}
+          initialAgentMode={waRow?.agent_mode ?? "review"}
+        />
+      </div>
+
+      {/* Horarios de atención (los usa Athos: citas y respuestas automáticas) */}
+      <div className="rounded-xl border bg-card p-4">
+        <div className="mb-3 flex items-center gap-2 text-sm font-semibold">
+          <Clock className="size-4 text-muted-foreground" /> Horarios de atención
+          <HelpTip>
+            Athos usa estos horarios para proponer citas con cupos reales y para responder
+            &quot;¿a qué hora abren?&quot; por WhatsApp. Sin horarios, no propone ni responde eso.
+          </HelpTip>
+        </div>
+        <ClinicHoursSettings initialHours={(hoursRows as ClinicHourRow[] | null) ?? []} />
       </div>
 
       {/* Perfil (editable) */}
