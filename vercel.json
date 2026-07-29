@@ -6,7 +6,7 @@
     },
     {
       "path": "/api/cron/cartera",
-      "schedule": "0 12-23 * * *"
+      "schedule": "0 14 * * *"
     }
   ]
 }
