@@ -9,8 +9,11 @@ const AUDIO_BUCKET = "consultation-audios"
 const BATCH = 500
 
 export async function GET(req: Request) {
+  // Estricto: sin CRON_SECRET no se corre. Antes era `if (secret && ...)`, que dejaba el endpoint
+  // ABIERTO cuando la env no estaba definida — cualquiera podía forzar la purga.
   const secret = process.env.CRON_SECRET
-  if (secret && req.headers.get("authorization") !== `Bearer ${secret}`) {
+  if (!secret) return new Response("Cron no configurado (falta CRON_SECRET)", { status: 503 })
+  if (req.headers.get("authorization") !== `Bearer ${secret}`) {
     return new Response("Unauthorized", { status: 401 })
   }
 
