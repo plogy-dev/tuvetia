@@ -13,7 +13,7 @@ Despliegue: **Railway**. Base de datos: **Supabase** (Postgres + pgvector). Fron
 1. **Cita o se calla.** Sin evidencia suficiente → "no hay evidencia suficiente". Nunca inventes fuentes.
 2. **Lenguaje de posibilidad** ("compatible con", "sugestivo de"). **Nunca diagnóstico definitivo.**
 3. **Gate de alergia severa ANTES de cualquier plan.** Determinístico, desde `allergies` con `severity='severe'`. Bloqueante. Nunca depende del LLM. Escribe `clinical_notes.allergy_gate_triggered`.
-4. **Sin dosis si faltan datos** (especie, peso, edad).
+4. **Sin dosis si faltan datos** (especie, peso, edad). **Lo impone `app/generation/dose_guard.py`, no el prompt**: medido el 2026-07-29 sobre 23 respuestas contra producción, el prompt que ya lo pedía dejaba pasar cifras en 2/23, y con un prompt más resolutivo subió a 9/23 (pedirle al modelo que decida lo empuja a dosificar). El guard tapa la cifra —no la frase: fármaco, vía y frecuencia se conservan— en el chat (con colchón de emisión para que el stream no la parta) y en la nota del Fantasma.
 5. **Aprobación humana**: ninguna nota entra a la historia sin que el vet la apruebe (`draft → aprobado`).
 6. **Aislamiento por clínica.** Corpus y glosario son **globales** (sin `clinic_id`); datos y embeddings de paciente son **por clínica** (`clinic_id` + RLS). **Nunca** JOIN entre corpus y datos de paciente: caminos separados, fusión en memoria.
 7. **`service_role` se salta RLS** → pasa `clinic_id` explícito en cada query del lado paciente y filtra por él. Cubierto por test.
@@ -36,7 +36,7 @@ Despliegue: **Railway**. Base de datos: **Supabase** (Postgres + pgvector). Fron
 4. **Umbral** *(determinístico)* **+ juez de evidencia** *(LLM liviano)*: si no pasa el umbral → Athos responde plantilla **sin LLM**; Fantasma redacta la nota del transcript **sin literatura**. El umbral solo NO alcanza: medido sobre 187 casos daba `passed` en 187/187 (el score está saturado, y ni el del reranker ni el nº de citas discriminan cobertura). Por eso `app/generation/evidence_judge.py` LEE los mejores pasajes y devuelve una **banda**: `none` (0-2) → abstención, `limited` (3-5) → se responde **declarando evidencia limitada**, `sufficient` (6+) → normal. **Falla abierta** (error/timeout → se responde). En el chat corre **en paralelo** con la redacción, reteniendo los tokens hasta el veredicto; en el Fantasma, antes de generar.
 5. **Fusión de contexto** *(determinístico)*: literatura global + contexto del paciente (estructurado + `patient_embeddings`, RLS por `clinic_id`+`patient_id`). En memoria, separado.
 6. **Gate de alergia severa** *(determinístico, antes del plan)*.
-7. **B→A generación** *(única IA)*: Fantasma = **una sola llamada** (SOAP + summary + allergy_flag). Lenguaje de posibilidad, citas mapeadas, presupuesto acotado.
+7. **B→A generación** *(única IA)*: Fantasma = **una sola llamada** (SOAP + summary + allergy_flag). Lenguaje de posibilidad, citas mapeadas, presupuesto acotado. El prompt del chat (`CHAT_SYSTEM`) es de **clínico que decide**, no de resumidor: impresión priorizada → siguiente paso concreto → criterios de alarma, y lo que no está en la literatura se marca como criterio clínico. Medido: gana 15-0 al anterior; "un veterinario experimentado seguiría esto" pasó de 3/23 a 13/23. Banco: `scripts/calidad/respuestas_eval.py`.
 8. **Verificación de citas** *(determinístico)*: cada afirmación mapea a un chunk recuperado; lo que no, se descarta. El modelo no inventa fuentes.
 9. **Trazabilidad + humano**: `rag_answer_log` + `athos_messages`. El vet revisa y aprueba.
 

@@ -12,6 +12,8 @@ import threading
 import time
 
 from app.config import get_settings
+from app.generation.dose_guard import (
+    DOSE_NOTICE, patient_data_complete, redact_doses, split_safe_tail)
 from app.generation.evidence_judge import ABSTAIN_MESSAGE, LIMITED_NOTICE, judge_evidence
 from app.generation.generate import _MAX_CHUNK_CHARS
 from app.generation.llm_client import LLMClient
@@ -28,17 +30,46 @@ CHAT_MAX_TOKENS = 3000
 
 log = logging.getLogger(__name__)
 
+# Prompt de redacción. Medido contra el anterior sobre 15 casos del golden ampliado (juez
+# deepseek-v4-pro, misma literatura recuperada para los dos): **gana 15-0**. Utilidad 3,2 -> 9,1;
+# fidelidad 5,5 -> 8,4; seguridad 6,1 -> 8,7; "un veterinario experimentado seguiría esto" pasó de
+# 3/23 a 13/23 en el banco completo. El anterior producía resúmenes correctos pero genéricos: el
+# juez pedía SIEMPRE lo mismo (diferenciales priorizados, siguiente paso concreto, criterios de
+# urgencia), que es justo lo que separa a un clínico con experiencia de un buscador.
+#
+# Dos decisiones no obvias:
+#  - La regla 2 (marcar lo que NO está en la literatura) permite subir la utilidad SIN abrir la
+#    puerta a afirmar sin respaldo: en vez de callar lo que sabe, el modelo debe declararlo.
+#  - La regla de dosis NO se confía al prompt: la impone `app/generation/dose_guard` sobre el
+#    texto. Con este prompt las cifras de dosis SUBIERON (2/23 -> 9/23) porque pedirle que sea
+#    resolutivo lo empuja a dosificar. Endurecer el texto de la regla no alcanzó.
 CHAT_SYSTEM = (
-    "Eres un asistente clínico veterinario. Responde SOLO con base en la LITERATURA entregada. "
-    "Usa lenguaje de posibilidad ('compatible con', 'sugestivo de'); NUNCA des un diagnóstico "
-    "definitivo. No propongas dosis si faltan especie, peso o edad. Si el paciente tiene alergias "
-    "severas, adviértelo antes de un plan. Sé conciso y claro.\n"
-    "La LITERATURA entregada YA fue recuperada por su relevancia a la pregunta: APÓYATE en ella. "
-    "Cita cada afirmación clínica con el número de su fuente entre corchetes (p.ej. [1], [3]); basta "
-    "con que UNA fuente respalde o sea pertinente a una afirmación para citarla — no exijas una "
-    "coincidencia perfecta. Usa SOLO números presentes en la LITERATURA y cita ÚNICAMENTE las que "
-    "realmente uses. Di 'no hay evidencia suficiente' (sin citar) SOLO si NINGUNA fuente se relaciona "
-    "con el cuadro."
+    "Eres un veterinario clínico con décadas de experiencia respondiendo a un COLEGA que tiene al "
+    "paciente delante. No eres un buscador ni un resumidor de papers: tu valor está en el criterio "
+    "clínico — qué es más probable, qué no se puede dejar pasar, y qué hacer AHORA.\n\n"
+    "REGLAS DURAS (el sistema las verifica):\n"
+    "1. Toda afirmación clínica que provenga de la LITERATURA va con su número de fuente entre "
+    "corchetes ([1], [3]). Usa SOLO números presentes en la LITERATURA.\n"
+    "2. Si algo es criterio clínico general y NO está en la literatura entregada, puedes decirlo, "
+    "pero antepón 'Criterio clínico (no está en la literatura recuperada):'. NUNCA presentes como "
+    "respaldado algo que no lo está — sobre todo fármacos, dosis, tiempos o cifras.\n"
+    "3. No atribuyas a una fuente más de lo que dice: si el pasaje describe UN caso, no lo "
+    "conviertas en 'suele ocurrir'.\n"
+    "4. Lenguaje de posibilidad ('compatible con', 'sugestivo de'). Nunca un diagnóstico cerrado.\n"
+    "5. DOSIS: si no tienes especie, peso Y edad confirmados, NO escribas ninguna cifra de dosis "
+    "— ni siquiera como rango, ni 'a modo orientativo', ni citándola de la literatura. Nombra el "
+    "fármaco de elección y pide el peso para dosificarlo.\n"
+    "6. Si el paciente tiene alergias severas, adviértelo ANTES de cualquier plan.\n"
+    "7. Di 'no hay evidencia suficiente' SOLO si NINGUNA fuente se relaciona con el cuadro.\n\n"
+    "CÓMO RESPONDER (sin encabezados rígidos ni relleno; habla como a un colega):\n"
+    "- Empieza por tu IMPRESIÓN CLÍNICA priorizada: lo más probable primero y por qué, y en "
+    "seguida lo que NO se puede dejar pasar aunque sea menos probable (lo grave o urgente).\n"
+    "- Di el SIGUIENTE PASO CONCRETO: qué prueba o maniobra pediría ya, y qué esperas que "
+    "distinga. No 'se recomiendan estudios complementarios'; di cuál y para qué.\n"
+    "- Menciona los CRITERIOS DE ALARMA: qué hallazgo cambiaría la conducta o exigiría "
+    "hospitalización/derivación urgente.\n"
+    "- Si el cuadro admite coinfecciones o el tratamiento cambia según el resultado, dilo.\n"
+    "No expliques lo obvio: tu interlocutor es veterinario. Prefiere ser útil a ser exhaustivo."
 )
 
 
@@ -209,13 +240,34 @@ def stream_answer(question: str, patient_id: str, clinic_id: str, user_id: str |
     abstained = False
     errored = False
 
+    # Gate de dosis (regla nº4): con la ficha incompleta, ninguna cifra por peso puede salir. Se
+    # aplica al TEXTO, no al prompt, porque medido el prompt no la cumple (ver dose_guard). En el
+    # stream hace falta un colchón: si "10 mg" se emitiera antes de que llegue "/kg", la cifra ya
+    # estaría en pantalla cuando el guard la reconozca.
+    dosing_ok = patient_data_complete(patient.species, patient.weight_kg, patient.age_years)
+    pending = ""               # cola retenida por el colchón del guard
+    dose_redacted = False
+
+    def _emit(texto: str):
+        """Emite texto ya decidido, pasándolo por el gate de dosis si la ficha no alcanza."""
+        nonlocal dose_redacted
+        if not texto:
+            return
+        if not dosing_ok:
+            texto, redacted = redact_doses(texto)
+            if redacted and not dose_redacted:
+                dose_redacted = True
+                yield _sse({"type": "warning", "text": DOSE_NOTICE})
+        yield _sse({"type": "token", "text": texto})
+
     def _release():
         """Suelta lo retenido, precedido del aviso de banda si la evidencia es limitada."""
+        nonlocal pending
         if verdict is not None and verdict.is_limited:
             yield _sse({"type": "warning", "text": LIMITED_NOTICE})
-        for t in held:
-            yield _sse({"type": "token", "text": t})
+        listo, pending = split_safe_tail(pending + "".join(held))
         held.clear()
+        yield from _emit(listo)
 
     stream = None
     try:
@@ -223,7 +275,9 @@ def stream_answer(question: str, patient_id: str, clinic_id: str, user_id: str |
         for tok in stream:
             parts.append(tok)
             if decided:
-                yield _sse({"type": "token", "text": tok})
+                pending += tok
+                listo, pending = split_safe_tail(pending)
+                yield from _emit(listo)
                 continue
             held.append(tok)
             if not (judged.is_set() or time.monotonic() >= deadline):
@@ -252,6 +306,11 @@ def stream_answer(question: str, patient_id: str, clinic_id: str, user_id: str |
         if not abstained and answer.strip():
             yield from _release()
 
+    if not abstained and pending:
+        # Vacía el colchón del gate de dosis: ya no viene más texto, nada puede quedar partido.
+        yield from _emit(pending)
+        pending = ""
+
     if verdict is not None and verdict.judged:
         log.info("juez de evidencia: puntaje=%s banda=%s %.1fs (%s)",
                  verdict.score, verdict.band, verdict.seconds, verdict.reason[:120])
@@ -275,7 +334,10 @@ def stream_answer(question: str, patient_id: str, clinic_id: str, user_id: str |
 
     citations = _cited_from_answer(answer, literature)
     if patient_id:
-        log_message(clinic_id, None, patient_id, "assistant", answer)
+        # Se guarda lo que el vet REALMENTE vio: si el gate tapó una dosis, la historia del hilo no
+        # puede conservar la cifra (si no, reaparece como contexto en el próximo turno).
+        visto = redact_doses(answer)[0] if not dosing_ok else answer
+        log_message(clinic_id, None, patient_id, "assistant", visto)
     yield _sse({"type": "done", "citations": [c.model_dump() for c in citations],
                 "allergy_gate_triggered": gate, "insufficient_evidence": False,
                 "evidence_level": level, "ai_model": get_settings().llm_model})

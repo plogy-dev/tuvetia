@@ -40,6 +40,7 @@ sys.path.insert(0, BASE)
 os.chdir(BASE)
 
 from app.chat import CHAT_LIT_LIMIT, CHAT_MAX_TOKENS, CHAT_SYSTEM, _chat_prompt, _cited_from_answer  # noqa: E402
+from app.generation.dose_guard import patient_data_complete, redact_doses  # noqa: E402
 from app.generation.evidence_judge import ABSTAIN_MESSAGE, judge_evidence  # noqa: E402
 from app.generation.llm_client import LLMClient  # noqa: E402
 from app.models import PatientContext  # noqa: E402
@@ -75,6 +76,7 @@ RUBRICA_SYSTEM = (
 _PASSAGE_CHARS = 1200
 
 JUDGE: LLMClient | None = None   # lo fija main() según --juez-modelo/--juez-proveedor
+SYSTEM_PROMPT: str = CHAT_SYSTEM  # lo fija main() según --prompt (por defecto, el de producción)
 
 
 def _env_var(nombre: str) -> str:
@@ -158,9 +160,13 @@ def evaluar_caso(caso: dict, es_negativo: bool) -> dict:
     paciente = PatientContext(patient_id="", species=caso.get("especie"))
     t2 = time.monotonic()
     answer = LLMClient().complete(
-        CHAT_SYSTEM, _chat_prompt(caso["query"], literature, paciente, []),
+        SYSTEM_PROMPT, _chat_prompt(caso["query"], literature, paciente, []),
         max_tokens=CHAT_MAX_TOKENS)
     fila["seg_redaccion"] = round(time.monotonic() - t2, 1)
+    # Gate de dosis, igual que en el chat: el banco corre sin ficha, así que ninguna cifra por peso
+    # debería sobrevivir. Se aplica ACÁ para que el juez califique lo que el vet realmente vería.
+    if not patient_data_complete(paciente.species, paciente.weight_kg, paciente.age_years):
+        answer, fila["dosis_redactada"] = redact_doses(answer)
 
     citas = _cited_from_answer(answer, literature)
     numeros = [int(m) for m in re.findall(r"\[(\d+)\]", answer)]
@@ -195,10 +201,15 @@ def main() -> None:
     ap.add_argument("--workers", type=int, default=3)
     ap.add_argument("--juez-modelo", default=None)
     ap.add_argument("--juez-proveedor", default=None, choices=(None, "anthropic", "openai"))
+    ap.add_argument("--prompt", default=None,
+                    help="variante de prompts_variantes.py; por defecto, el de producción")
     args = ap.parse_args()
 
-    global JUDGE
+    global JUDGE, SYSTEM_PROMPT
     JUDGE = _judge_client(args.juez_modelo, args.juez_proveedor)
+    if args.prompt:
+        from scripts.calidad.prompts_variantes import VARIANTES
+        SYSTEM_PROMPT = VARIANTES[args.prompt]
 
     def log(m):
         print(f"[{time.strftime('%H:%M:%S')}] {m}", flush=True)
@@ -210,7 +221,7 @@ def main() -> None:
                                         encoding="utf-8")), args.n_neg)
     tareas = [(c, False) for c in positivos] + [(c, True) for c in negativos]
     log(f"{len(positivos)} positivos + {len(negativos)} negativos, "
-        f"redactor={LLMClient().model}, juez={JUDGE.model}")
+        f"redactor={LLMClient().model}, juez={JUDGE.model}, prompt={args.prompt or 'produccion'}")
 
     filas: list[dict] = []
     with ThreadPoolExecutor(max_workers=args.workers) as ex:

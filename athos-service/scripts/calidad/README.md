@@ -67,6 +67,36 @@ las dos respuestas juntas y elige — comparar es más fiable que puntuar por se
 viven en `prompts_variantes.py`; la `actual` se importa de `app.chat` y solo se mueve una candidata
 a producción **después** de ganar la medición.
 
+### Lo que encontró la primera corrida (2026-07-29)
+
+Línea base con el prompt viejo, 24 positivos + 10 negativos contra producción:
+
+| | baseline | con prompt de clínico |
+|---|---|---|
+| pertinencia | 8,1 | **9,1** |
+| fundamentación | 6,3 | 6,8 |
+| seguridad | 8,0 | **8,6** |
+| **utilidad** | 5,9 | **9,0** |
+| honestidad | 7,8 | 8,3 |
+| **"un vet experimentado seguiría esto"** | **3/23** | **13/23** |
+| respuestas con ≥1 cita infiel | 18/23 | 18/23 |
+| largo mediano | 1.656 chars | 4.972 chars |
+
+El A/B directo (misma literatura) dio **15-0** a favor del prompt de clínico. La ganancia viene de
+lo que el juez pedía en 23 de 24 casos: **diferenciales priorizados, siguiente paso concreto y
+criterios de urgencia**.
+
+**Dos hallazgos que NO se arreglan con prompt:**
+
+1. **Cifras de dosis.** El prompt viejo ya prohibía dosificar sin datos y aun así dejaba pasar
+   cifras en 2/23; con el prompt resolutivo subió a **9/23** (pedirle que decida lo empuja a
+   dosificar) y endurecer el texto de la regla no alcanzó — escribía el rango y advertía después.
+   Por eso existe `app/generation/dose_guard.py`, determinístico, igual que el gate de alergia.
+2. **Citas infieles: 18/23 en ambas variantes.** El modelo redacta desde su conocimiento y luego
+   "decora" con números; `_cited_from_answer` verifica que el `[n]` exista, no que el pasaje
+   sostenga la afirmación. Es el hueco de confianza más grande que queda abierto y necesita una
+   verificación de fidelidad por afirmación, no otra vuelta de prompt.
+
 ## Retrieval
 
 ```bash

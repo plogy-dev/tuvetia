@@ -32,7 +32,10 @@ CLINICO = (
     "3. No atribuyas a una fuente más de lo que dice: si el pasaje describe UN caso, no lo "
     "conviertas en 'suele ocurrir'.\n"
     "4. Lenguaje de posibilidad ('compatible con', 'sugestivo de'). Nunca un diagnóstico cerrado.\n"
-    "5. Sin dosis si faltan especie, peso o edad. Si el colega las necesita, pídelas.\n"
+    "5. DOSIS: si no tienes especie, peso Y edad confirmados, NO escribas ninguna cifra de dosis "
+    "— ni siquiera como rango, ni 'a modo orientativo', ni citándola de la literatura. Nombra el "
+    "fármaco de elección y pide el peso para dosificarlo. Advertir 'no dosifiques sin el peso' "
+    "DESPUÉS de haber escrito el rango no cumple esta regla: el rango ya quedó escrito.\n"
     "6. Si el paciente tiene alergias severas, adviértelo ANTES de cualquier plan.\n"
     "7. Di 'no hay evidencia suficiente' SOLO si NINGUNA fuente se relaciona con el cuadro.\n\n"
     "CÓMO RESPONDER (sin encabezados rígidos ni relleno; habla como a un colega):\n"
@@ -50,3 +53,9 @@ VARIANTES = {
     "actual": CHAT_SYSTEM,
     "clinico": CLINICO,
 }
+
+# Resultado del A/B contra `actual` (15 casos del golden ampliado, juez deepseek-v4-pro,
+# 2026-07-29): **gana `clinico` 15-0**. fidelidad 5,5 -> 8,4; utilidad 3,2 -> 9,1; seguridad
+# 6,1 -> 8,7; "un vet experimentado confiaría" 0/15 -> 15/15. La regla 5 se endureció DESPUÉS de
+# esa corrida: la primera versión escribía el rango de dosis y advertía a continuación que no se
+# usara sin el peso — el rango ya quedaba escrito, que es justo lo que la regla debe impedir.
