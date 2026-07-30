@@ -4,12 +4,17 @@
 // Flujo: consentimiento (Ley 1581, BLOQUEANTE) -> grabar -> subir al bucket privado
 // -> registrar consultation_audios -> pedir transcripción (Deepgram) -> avisar al padre.
 // Sin consentimiento no se habilita el micrófono; además la BD lo bloquea por trigger.
+//
+// La transcripción va EN VIVO por WebSocket (`LiveTranscription`): el vet ve el texto mientras
+// habla. El audio se sigue subiendo igual —hace falta para la retención de 4 días— y el camino
+// por lotes queda de RED DE SEGURIDAD: si el vivo se cae, se transcribe al cerrar como antes.
 
 import { useCallback, useEffect, useRef, useState } from "react"
 import { AudioLines, Loader2, Mic, ShieldCheck, Square } from "lucide-react"
 import { toast } from "sonner"
 
 import { athosTranscribe } from "@/lib/athos"
+import { LiveTranscription } from "@/lib/athos-live"
 import { createClient } from "@/lib/supabase/client"
 import { HelpTip } from "@/components/help-tip"
 import { Button } from "@/components/ui/button"
@@ -41,19 +46,28 @@ export function ConsultationRecorder({
   const [phase, setPhase] = useState<Phase>("idle")
   const [seconds, setSeconds] = useState(0)
 
+  // Texto en vivo: `estable` es lo confirmado, `provisional` la hipótesis que Deepgram reemplaza.
+  const [estable, setEstable] = useState("")
+  const [provisional, setProvisional] = useState("")
+  // En estado, no en ref: el indicador "transcribiendo en vivo" tiene que re-renderizar cuando
+  // la sesión se cae a mitad de consulta.
+  const [vivo, setVivo] = useState(false)
+
   const recorderRef = useRef<MediaRecorder | null>(null)
   const chunksRef = useRef<Blob[]>([])
   const streamRef = useRef<MediaStream | null>(null)
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null)
+  const liveRef = useRef<LiveTranscription | null>(null)
   // `handleStop` se engancha a rec.onstop al arrancar (cuando seconds=0), así que su closure
   // veía siempre 0 -> duration_secs quedaba en 0. El ref se lee al detener y está siempre al día.
   const secondsRef = useRef(0)
 
-  // Limpieza: si el componente se desmonta grabando, soltamos el micrófono.
+  // Limpieza: si el componente se desmonta grabando, soltamos el micrófono y el socket.
   useEffect(() => {
     return () => {
       if (timerRef.current) clearInterval(timerRef.current)
       streamRef.current?.getTracks().forEach((t) => t.stop())
+      liveRef.current?.cerrar()
     }
   }, [])
 
@@ -69,12 +83,40 @@ export function ConsultationRecorder({
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
       streamRef.current = stream
       chunksRef.current = []
+      setEstable("")
+      setProvisional("")
+
+      // Sesión en vivo. `open` no lanza nunca: si no se pudo, `activa` queda en false y todo
+      // sigue igual que antes (transcripción por lotes al cerrar).
+      const live = await LiveTranscription.open(
+        { consultationId, clinicId },
+        {
+          onText: (est, prov) => {
+            setEstable(est)
+            setProvisional(prov)
+          },
+          onFallback: (motivo) => {
+            setVivo(false)
+            // Sin toast de error: para el veterinario no cambia nada, sólo deja de ver el texto
+            // en vivo. Que la consulta se transcriba igual es lo que importa.
+            console.info(`[fantasma] transcripción en vivo no disponible: ${motivo}`)
+          },
+        },
+      )
+      liveRef.current = live
+      setVivo(live.activa)
+
       const rec = new MediaRecorder(stream, {
         mimeType: "audio/webm",
         audioBitsPerSecond: 48000,
       })
       rec.ondataavailable = (e) => {
-        if (e.data.size > 0) chunksRef.current.push(e.data)
+        if (e.data.size > 0) {
+          chunksRef.current.push(e.data)
+          // El MISMO trozo va al bucket (acumulado) y a Deepgram (en vivo). No se transforma:
+          // el primer trozo lleva la cabecera del contenedor webm y sin ella no decodifica.
+          void liveRef.current?.enviarAudio(e.data)
+        }
       }
       rec.onstop = () => void handleStop()
       rec.start(1000)
@@ -105,7 +147,12 @@ export function ConsultationRecorder({
     setPhase("uploading")
     const blob = new Blob(chunksRef.current, { type: "audio/webm" })
     const duration = secondsRef.current
+    const live = liveRef.current
     try {
+      // Se le corta la entrada de audio a Deepgram y se esperan sus últimos tramos ANTES de
+      // subir: el final de la consulta es donde está el plan, y perderlo sería lo peor.
+      await live?.detener()
+
       const audioId = crypto.randomUUID()
       // La ruta empieza por clinic_id: es lo que usan las policies de Storage para aislar.
       const path = `${clinicId}/${consultationId}/${audioId}.webm`
@@ -127,11 +174,18 @@ export function ConsultationRecorder({
       if (rowErr) throw new Error(`registro del audio: ${rowErr.message}`)
 
       setPhase("transcribing")
-      await athosTranscribe({ consultationId, clinicId })
+      // Recién ahora existe la fila del audio, que es lo que exige la FK de transcripts.audio_id.
+      const guardado = await live?.finalizar(audioId)
+      if (!guardado) {
+        // El vivo no llegó a guardar: se transcribe por lotes, como antes de que existiera.
+        await athosTranscribe({ consultationId, clinicId })
+      }
+      live?.cerrar()
       setPhase("done")
       toast.success("Consulta transcrita. Ya puedes generar la nota.")
       onTranscribed?.()
     } catch (e) {
+      live?.cerrar()
       toast.error(`No se pudo procesar la grabación: ${(e as Error).message}`)
       setPhase("idle")
     }
@@ -218,15 +272,41 @@ export function ConsultationRecorder({
 
   if (phase === "recording") {
     return (
-      <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-destructive/40 bg-destructive/5 p-4">
-        <div className="flex items-center gap-2 text-sm">
-          <span className="size-2 animate-pulse rounded-full bg-destructive" />
-          <span className="font-medium">Grabando consulta</span>
-          <span className="font-mono text-muted-foreground">{mmss}</span>
+      <div className="rounded-xl border border-destructive/40 bg-destructive/5 p-4">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="flex items-center gap-2 text-sm">
+            <span className="size-2 animate-pulse rounded-full bg-destructive" />
+            <span className="font-medium">Grabando consulta</span>
+            <span className="font-mono text-muted-foreground">{mmss}</span>
+            {vivo && (
+              <span className="text-xs text-muted-foreground">· transcribiendo en vivo</span>
+            )}
+          </div>
+          <Button variant="destructive" onClick={stopRecording}>
+            <Square className="size-4" /> Detener y transcribir
+          </Button>
         </div>
-        <Button variant="destructive" onClick={stopRecording}>
-          <Square className="size-4" /> Detener y transcribir
-        </Button>
+
+        {(estable || provisional) && (
+          <div
+            className="mt-3 max-h-48 overflow-y-auto rounded-lg border bg-background p-3 text-sm leading-relaxed"
+            aria-live="polite"
+            aria-label="Transcripción en vivo"
+          >
+            {estable.split("\n").map((linea, i) => {
+              const [quien, ...resto] = linea.split(":")
+              const dicho = resto.join(":").trim()
+              if (!dicho) return null
+              return (
+                <p key={i} className="mb-1">
+                  <span className="font-medium text-muted-foreground">{quien}:</span> {dicho}
+                </p>
+              )
+            })}
+            {/* La hipótesis en curso va atenuada: Deepgram la reemplaza al confirmar. */}
+            {provisional && <p className="text-muted-foreground/60 italic">{provisional}</p>}
+          </div>
+        )}
       </div>
     )
   }

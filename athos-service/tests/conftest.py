@@ -104,7 +104,17 @@ def _sin_red(monkeypatch, request):
     if request.node.get_closest_marker("red"):
         return
 
-    def bloqueado(*a, **k):
+    import httpx
+    from starlette.testclient import TestClient
+
+    original = httpx.Client.send
+
+    def bloqueado(self, *a, **k):
+        # `TestClient` de Starlette habla con la app POR MEMORIA a traves de httpx (su transporte es
+        # ASGI, no un socket). Bloquearlo tambien rompia las pruebas del WebSocket, que no salen a
+        # ningun lado. Se distingue por el tipo del cliente, no por la URL.
+        if isinstance(self, TestClient):
+            return original(self, *a, **k)
         raise AssertionError(
             "Esta prueba intento una llamada HTTP real. Casi seguro un mock dejo de aplicar: "
             "revisa en que modulo se resuelve el cliente (p. ej. `provider_cascade.LLMClient`, "
@@ -112,6 +122,11 @@ def _sin_red(monkeypatch, request):
             "@pytest.mark.red."
         )
 
-    import httpx
+    def bloqueado_async(*a, **k):
+        raise AssertionError(
+            "Esta prueba intento una llamada HTTP real (async). Revisa los mocks o marcala "
+            "con @pytest.mark.red."
+        )
+
     monkeypatch.setattr(httpx.Client, "send", bloqueado)
-    monkeypatch.setattr(httpx.AsyncClient, "send", bloqueado)
+    monkeypatch.setattr(httpx.AsyncClient, "send", bloqueado_async)

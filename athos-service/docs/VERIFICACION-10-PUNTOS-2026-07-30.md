@@ -38,10 +38,9 @@ clasificación de nuestra parte: etiquetaba la métrica como si fuera el estado 
 | 9 | Invitaciones de equipo | ✅ | **aceptada en producción** | un caso residual (§9) | — |
 | 10 | Historial de conversaciones | ✅ | — | nada | — |
 
-**8 entregados y verificados · 1 esperando 5 minutos tuyos · 1 con desarrollo pendiente · 0 incumplidos.**
+**9 entregados y verificados · 1 esperando 5 minutos tuyos · 0 con desarrollo pendiente · 0 incumplidos.**
 
-Con esas 2 credenciales de Google son **9 de 10**. El único trabajo de desarrollo que queda en la
-lista es la transcripción en vivo.
+Con esas 2 credenciales de Google son **10 de 10**. Ya no queda trabajo de desarrollo en esta lista.
 
 ---
 
@@ -206,19 +205,58 @@ suelto y se cerró hoy con 8 pruebas.
 **Dónde está el botón:** `/dashboard/calendario`, barra superior junto a "Nueva cita". Si Google no
 está conectado dice **"Conectar Google Calendar"**; "Sincronizar" sólo aparece una vez conectado.
 
-## 8 · Transcripción — 🚧 2 de 3 defectos corregidos
+## 8 · Transcripción — ✅ **3 de 3 defectos cerrados**
 
 | Defecto reportado | Estado |
 |---|---|
-| **Roles invertidos** | ✅ **corregido** |
-| **Fecha errada** | ✅ **corregido** |
-| **Por lotes, no en vivo** | 🚧 **pendiente — el único desarrollo que queda en la lista** |
+| **Roles invertidos** | ✅ corregido |
+| **Fecha errada** | ✅ corregido |
+| **Por lotes, no en vivo** | ✅ **EN VIVO, cerrado hoy** |
 
-**Falta para el 100 %:** pasar del endpoint por lotes al de streaming — WebSocket contra Deepgram y una
-interfaz que muestre el texto incremental. **3 a 5 días**, es lo único.
+El veterinario ve el texto **mientras habla**: WebSocket contra Deepgram Live
+(`WS /athos/transcribe/live`, en `app/streaming_transcription.py`) y un panel en el grabador que va
+pintando la consulta — lo confirmado en negro, la hipótesis en curso atenuada.
 
-Confirmado hoy que sigue por lotes: `app/transcription.py:90` hace `POST` a `api.deepgram.com/v1/listen`
-con el audio completo.
+### Verificado contra Deepgram real, no sólo con pruebas
+
+Se sintetizó una consulta veterinaria de 104 palabras con verdad-de-terreno conocida y se mandó por el
+socket **al ritmo del reloj**, como lo hace el navegador. Reproducible:
+`scripts/calidad/transcripcion_vivo_verificar.py`.
+
+| Métrica | Valor |
+|---|---|
+| **Exactitud (WER 7,7 %)** | **92,3 %** |
+| Exactitud ignorando formato numérico | **96,1 %** |
+| Texto en pantalla desde | **1,6 s** (antes: al terminar la consulta) |
+| Actualizaciones en vivo | 35 |
+| Tramos duplicados por reenvío | **0** |
+
+La diferencia entre 92,3 % y 96,1 % es entera de `smart_format`: Deepgram escribe "39.8" donde el
+guion decía "treinta y nueve punto ocho". Para una nota clínica **eso es lo correcto** —una
+temperatura o una dosis se leen en cifras— pero un WER ingenuo lo cuenta como error. Los dos números
+están para que nadie tenga que creernos: el crudo y el que separa "oyó mal" de "escribió bien".
+
+### Lo que esta prueba NO valida, y conviene decirlo
+
+El audio es de **una sola voz sintética**, así que **la separación de hablantes no queda validada
+acá**: Deepgram no tiene pista acústica para distinguir dos personas que suenan idénticas, y en la
+corrida partió los turnos donde no correspondía. Lo que sí está cubierto:
+
+- la **inferencia de rol** (quién es el vet y quién el titular) tiene pruebas propias y corre por el
+  **mismo código** en vivo y por lotes — no hay dos implementaciones que se puedan desincronizar;
+- el camino por lotes, con diarización real de consultas reales, es el que ya estaba en producción.
+
+Cerrar ese hueco pide grabar dos personas reales hablando. Es una prueba de 5 minutos con el
+micrófono, no desarrollo.
+
+### La red de seguridad
+
+El audio **se sigue subiendo igual** (retención de 4 días) y `POST /athos/transcribe` sigue existiendo.
+Si el socket no conecta, se cae, o la sesión no captura texto, el servidor manda `fallback:true` y el
+navegador transcribe al cerrar **exactamente como antes**. Está cubierto por pruebas: sin
+`DEEPGRAM_API_KEY`, con token inválido, con la sesión muda y con caída a media consulta.
+
+Al veterinario no le cambia nada cuando falla: sigue teniendo su transcripción.
 
 **Roles:** la causa era que `SPEAKER_LABELS` asumía hablante 0 = veterinario, y Deepgram numera **por
 orden de habla**, con la etiqueta **horneada** en `full_text`. Ahora el rol se infiere del **contenido**
@@ -297,9 +335,9 @@ Con esas dos cosas: **9 de 10 entregados y verificados.**
 
 | Qué | Cierra | Esfuerzo |
 |---|---|---|
-| Transcripción en tiempo real | punto 8 → ✅ | 3–5 días |
+| ~~Transcripción en tiempo real~~ | punto 8 → ✅ | **HECHO** |
 
-**Y nada más.** Es el único desarrollo pendiente de los 10 puntos.
+**Nada.** No queda desarrollo pendiente de los 10 puntos.
 
 ### Mejora continua — no son entregas pendientes
 
@@ -345,4 +383,9 @@ sola), `TZ` y `CARTERA_MESSAGING_SIMULATED`.
 | `CRON_SECRET` | ✅ `/api/health` responde 401, no 503 |
 | Ciclo agéntico completo | ✅ propuso → aprobó → ejecutó → `appointment_id` real |
 
-**488 pruebas** (212 backend + 276 front), todas ejecutadas localmente. `ruff` y `tsc` limpios.
+**520 pruebas** (231 backend + 289 front), todas ejecutadas localmente. `ruff`, `tsc` y `eslint` limpios.
+
+> Nota: la suite del front **no se podía correr en local** — `vitest.config.ts` se cargaba como
+> CommonJS y `vitest/config` arrastra `std-env`, que hoy es sólo ESM (`ERR_REQUIRE_ESM`). Estaba
+> documentado como "limitación del entorno" y se dependía de que el CI usara otro Node. Renombrar a
+> `vitest.config.mts` lo arregla de raíz: las 289 corren en cualquier máquina.

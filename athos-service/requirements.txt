@@ -10,6 +10,10 @@ python-dotenv
 psycopg[binary]
 pgvector
 httpx
+# Cliente WebSocket para Deepgram Live (transcripcion EN VIVO del Modo Fantasma). Llegaba ya como
+# dependencia transitiva de `uvicorn[standard]`, pero ahora el codigo lo importa directo
+# (`app/streaming_transcription.py`) y una dependencia directa se declara.
+websockets
 pyjwt
 anthropic
 cohere

@@ -1,5 +1,5 @@
 """FastAPI: rutas de Athos. /health está implementado; el resto llama a los módulos."""
-from fastapi import FastAPI, Header, HTTPException
+from fastapi import FastAPI, Header, HTTPException, WebSocket
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 
@@ -18,6 +18,7 @@ from app.models import (
     WhatsappSuggestResponse,
 )
 from app.phantom import suggest as phantom_suggest_service
+from app.streaming_transcription import run_live_session
 from app.transcription import transcribe as transcribe_service
 from app.whatsapp_reply import suggest_reply
 from app.chat import stream_answer
@@ -36,12 +37,21 @@ app.add_middleware(
 )
 
 
+def _auth_token(token: str, clinic_id: str) -> tuple[str, str]:
+    """Verifica el JWT y confirma la membresía. Devuelve (user_id, clinic_id).
+
+    Recibe el token pelado porque el WebSocket no lo manda en una cabecera `Authorization`: el
+    navegador no puede ponerle cabeceras a `new WebSocket()`, así que viaja en el primer mensaje.
+    """
+    user_id = verify_jwt(token)
+    return user_id, resolve_clinic_id(user_id, clinic_id)
+
+
 def _auth(authorization: str | None, clinic_id: str) -> tuple[str, str]:
     """Extrae el bearer, verifica el JWT y confirma la membresía. Devuelve (user_id, clinic_id)."""
     if not authorization or not authorization.lower().startswith("bearer "):
         raise HTTPException(status_code=401, detail="falta Authorization: Bearer")
-    user_id = verify_jwt(authorization.split(" ", 1)[1])
-    return user_id, resolve_clinic_id(user_id, clinic_id)
+    return _auth_token(authorization.split(" ", 1)[1], clinic_id)
 
 
 @app.get("/health")
@@ -124,6 +134,17 @@ def athos_transcribe(body: TranscribeRequest, authorization: str | None = Header
         full_text=result["full_text"],
         stt_model=result["stt_model"],
     )
+
+
+@app.websocket("/athos/transcribe/live")
+async def athos_transcribe_live(ws: WebSocket):
+    """Transcripción EN VIVO: el navegador manda audio y recibe el texto mientras habla.
+
+    El endpoint por lotes (`POST /athos/transcribe`) sigue existiendo y es la **red de seguridad**:
+    si esta sesión falla, el servidor manda `fallback:true` y el navegador transcribe al cerrar,
+    exactamente como antes. Protocolo y decisiones: `app/streaming_transcription.py`.
+    """
+    await run_live_session(ws, autenticar=_auth_token)
 
 
 @app.post("/athos/whatsapp/suggest", response_model=WhatsappSuggestResponse)
