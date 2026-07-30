@@ -457,7 +457,21 @@ SMTP de autenticación de Supabase.
 envío (SPF/DKIM/DMARC); si se exige Gmail API nativa, revisión de Google por scopes restringidos
 (semanas a meses).
 
-### [4.4] ❌ NO CUMPLE — Invitaciones de equipo (los 2 fallos tienen causa raíz identificada)
+### [4.4] ✅ CORREGIDO en código (2026-07-29, commit `166c6a6`) — Invitaciones de equipo
+
+> **Los 3 bugs de código están arreglados.** (1) `redirectTo` ahora apunta a
+> `/auth/callback?next=/invitar/<token>`, que **sí canjea** el `?code=` de PKCE — antes el invitado
+> aterrizaba sin sesión y el enlace "no hacía nada"; (2) el origin sale de `getAppBaseUrl()` en vez de
+> `new URL(req.url).origin`, que en preview daba un dominio fuera de la allow-list de Supabase; (3) se
+> agregó `POST /auth/signout` (POST a propósito: con GET, el prefetch de `<Link>` cerraría la sesión
+> al pasar el mouse) y el botón "cambiar de cuenta" ahora **cierra sesión de verdad**, preservando el
+> destino para volver a la invitación.
+>
+> ⏳ **Queda 1 ítem de configuración, no de código (30 min):** la plantilla "Magic Link" del panel de
+> Supabase tiene el destino fijo en `/dashboard`, así que quien reintenta por "Ya tengo cuenta" cae en
+> el panel en vez de volver a la invitación. Requiere acceso al panel de Auth.
+
+*Diagnóstico original, conservado como referencia:*
 
 **Evidencia:** el link **sí** incluye el token y la ruta **sí** existe
 (`src/app/invitar/[token]/page.tsx`); el backend está completo. Los fallos son de integración:
@@ -492,7 +506,7 @@ acotado a 100 mensajes sin paginación.
 conversaciones y paginación. **El dato está guardado y es recuperable.**
 **Esfuerzo estimado:** 1,5–2 días.
 
-### [4.6] ❌ NO CUMPLE — Transcripción de consultas (los 3 defectos confirmados)
+### [4.6] ⚠️ PARCIAL — Transcripción de consultas (1 de 3 defectos corregido)
 
 **(a) Roles invertidos — es una heurística codificada.** `app/transcription.py:29`:
 `SPEAKER_LABELS = {0: "Veterinario", 1: "Titular"}`, con el comentario que lo admite: *"Deepgram
@@ -506,11 +520,15 @@ corregir en lectura. **No existe UI para intercambiar roles.** Defecto adicional
 **(b) Es por lotes, no en tiempo real.** `transcription.py:69-87` hace un POST único al endpoint
 pre-recorded sobre el audio ya completo. No hay WebSocket ni streaming. `config.py:64` lo declara
 ("batch + diarización").
-**(c) Fecha incorrecta por zona horaria.** `dashboard/consultas/page.tsx:46-52` formatea con
-`toLocaleDateString("es-CO")` **sin `timeZone`**, en un server component que corre en UTC en Vercel:
-una consulta de las 19:00 en Bogotá se muestra **con la fecha del día siguiente**. Mismo defecto en
-`patients/[id]/page.tsx:52-62`. El repo ya tiene la utilidad correcta
-(`src/lib/date-utils.ts` usa `America/Bogota`) y estas pantallas no la usan.
+**(c) Fecha incorrecta por zona horaria — ✅ CORREGIDO (2026-07-29, commit `22f2cf1`).** El defecto
+era real: `toLocaleDateString("es-CO")` **sin `timeZone`** en server components, que corren en UTC en
+Vercel, así que una consulta de las 19:00 en Bogotá se mostraba **con la fecha del día siguiente**.
+Afectaba **tres** pantallas, no dos: el listado de consultas, la ficha del paciente (donde además
+corría la hora 5 h) y **las próximas citas del dashboard**. Se centralizó en `src/lib/date-utils.ts`
+(`bogotaDate`, `bogotaDateTime`, junto a las que ya estaban ancladas) y los tests fuerzan
+`process.env.TZ = "UTC"` para reproducir Vercel: si alguien vuelve a formatear sin `timeZone`, fallan.
+Los componentes de WhatsApp, historial y adjuntos usan la zona del navegador porque son *client
+components* — correcto, y se dejaron así.
 **Esfuerzo estimado:** (a) 1–1,5 días + 2 h de backfill; (b) 4–6 días si se exige tiempo real;
 (c) 3–4 h. **Total 6–8 días.** **Bloqueadores externos:** ninguno (Deepgram ya soporta streaming).
 
