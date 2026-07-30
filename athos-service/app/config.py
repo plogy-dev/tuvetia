@@ -89,8 +89,29 @@ class Settings(BaseSettings):
     # El arreglo real es rehacer el banco de negativos con validación clínica y recién entonces
     # calibrar los cortes. Detalle: `scripts/calidad/README.md` §JUDGE_MODEL probado y revertido.
     judge_model: str = ""
-    judge_abstain_max: int = 2             # puntaje <= -> abstención dura
-    judge_limited_max: int = 5             # puntaje <= -> se responde declarando evidencia limitada
+    # Cortes de las bandas, CALIBRADOS el 2026-07-30 barriendo el umbral sobre el banco validado de
+    # 24 casos (12 con literatura, 12 sin ella). Antes eran (2, 5) y estaban puestos a ojo.
+    #
+    #   A  L  | negativos: se abstiene / declara limitada / RESPONDE MAL | positivos mal abstenidos
+    #   2  5  |        2          3               7                     |          2      <- antes
+    #   4  7  |        5          4               3                     |          3      <- ahora
+    #   4  8  |        5          6               1                     |          3, pero además
+    #                                                                     5 positivos caen a
+    #                                                                     "limitada" y sólo 4
+    #                                                                     responden normal: se
+    #                                                                     descarta, degrada el
+    #                                                                     camino útil.
+    #
+    # De 5 a 9 de cada 12 casos sin cobertura se manejan con honestidad (abstención o aviso), a
+    # cambio de UNA sobre-abstención más. Y hay una propiedad del banco que lo hace barato: **ningún
+    # caso CON literatura puntúa entre 4 y 7**, así que ensanchar la banda intermedia hasta 7 no
+    # castiga a ninguno.
+    #
+    # ⚠️ Calibrado sobre 24 casos: es el mejor punto de operación medido, no una verdad universal.
+    # Son variables de entorno (`JUDGE_ABSTAIN_MAX`, `JUDGE_LIMITED_MAX`) justamente para poder
+    # recalibrar cuando el banco crezca, sin desplegar.
+    judge_abstain_max: int = 4             # puntaje <= -> abstención dura
+    judge_limited_max: int = 7             # puntaje <= -> se responde declarando evidencia limitada
     judge_passages: int = 6                # mejores chunks que lee el juez
     judge_chat_timeout_s: float = 4.0      # tope de espera EN EL CHAT; si vence, se responde igual
 

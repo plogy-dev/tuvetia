@@ -44,10 +44,16 @@ def _patch_llm(monkeypatch, raw):
 # --- Bandas -----------------------------------------------------------------------------------
 
 def test_band_for_cortes():
-    """0-2 abstención dura; 3-5 evidencia limitada; 6+ normal (medido sobre 187 casos)."""
-    assert [band_for(s) for s in (0, 1, 2)] == [EVIDENCE_NONE] * 3
-    assert [band_for(s) for s in (3, 4, 5)] == [EVIDENCE_LIMITED] * 3
-    assert [band_for(s) for s in (6, 8, 10)] == [EVIDENCE_SUFFICIENT] * 3
+    """0-4 abstención dura; 5-7 evidencia limitada; 8+ normal.
+
+    Los cortes se CALIBRARON el 2026-07-30 barriendo el umbral sobre el banco validado de 24 casos:
+    pasaron de (2, 5) —puestos a ojo— a (4, 7). Con eso, de cada 12 consultas sin cobertura, las que
+    se manejan con honestidad (abstención o aviso de evidencia limitada) subieron de 5 a 9, a costa
+    de UNA sobre-abstención más. Detalle y tabla completa en `app/config.py`.
+    """
+    assert [band_for(s) for s in (0, 2, 4)] == [EVIDENCE_NONE] * 3
+    assert [band_for(s) for s in (5, 6, 7)] == [EVIDENCE_LIMITED] * 3
+    assert [band_for(s) for s in (8, 9, 10)] == [EVIDENCE_SUFFICIENT] * 3
 
 
 def test_band_for_sin_puntaje_falla_abierta():
@@ -70,7 +76,7 @@ def test_judge_puntaje_bajo_abstiene(monkeypatch):
 
 
 def test_judge_puntaje_medio_es_limitado(monkeypatch):
-    _patch_llm(monkeypatch, '{"puntaje": 4, "cubre": false, "motivo": "misma especie, otra cosa"}')
+    _patch_llm(monkeypatch, '{"puntaje": 6, "cubre": false, "motivo": "misma especie, otra cosa"}')
     assert judge_evidence("q", _chunks()).band == EVIDENCE_LIMITED
 
 
