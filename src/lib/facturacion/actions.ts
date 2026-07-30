@@ -808,10 +808,17 @@ export async function sendInvoiceEmailAction(
       message: parsed.data.message ?? null,
     });
     if (!r.ok) {
-      return {
-        ok: false,
-        error: 'El envío por email no está configurado. Usa WhatsApp para compartir la factura.',
+      // Cada motivo tiene una acción distinta del lado del vet: mandarlos todos al mismo mensaje
+      // hacía que "el correo del cliente está vacío" se leyera como "falta configurar el correo".
+      const MENSAJES: Record<typeof r.reason, string> = {
+        email_no_configurado:
+          'El correo de la clínica no está configurado. Configuralo en Configuración → Correo, o usá WhatsApp.',
+        sin_destinatario:
+          'Este pagador no tiene correo registrado. Agregalo en su ficha o escribí una dirección al enviar.',
+        factura_no_encontrada: 'No se encontró la factura.',
+        envio_fallido: `El servidor de correo rechazó el envío${r.error ? `: ${r.error}` : '.'}`,
       };
+      return { ok: false, error: MENSAJES[r.reason] };
     }
     revalidatePath('/dashboard/facturacion');
     revalidatePath(`/dashboard/facturacion/${parsed.data.invoiceId}`);
