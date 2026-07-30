@@ -146,11 +146,69 @@ def extract_note_claims(subjective: str, objective: str) -> list[NoteClaim]:
     return claims
 
 
-def _build_prompt(claims: list[NoteClaim], transcript: str) -> str:
+def conceptos_agregados(texto_nota: str, transcript: str) -> dict[str, list[str]]:
+    """Conceptos clínicos que la NOTA nombra y la CONSULTA no contiene en ninguna forma conocida.
+
+    Determinístico y gratis: reusa el mismo glosario del retrieval (2.506 términos / 7.378 sinónimos,
+    con el lenguaje coloquial del dueño ya curado: "no come" ↔ inapetencia, "caca blanda" ↔ diarrea).
+    Si la nota dice "hepatomegalia" y la consulta no dice ni "hepatomegalia" ni ninguno de sus
+    sinónimos, el concepto **entró en la redacción**, no en la consulta.
+
+    Por qué esto y no pedirle al LLM que lo encuentre: medido, el auditor LLM sobre 150 afirmaciones
+    sólo levantaba 8-21, y lo que se le escapaba era SIEMPRE el mismo patrón — el ascenso de
+    terminología ("se siente grande el hígado" → "hepatomegalia palpable", "ruido tipo resorte" →
+    "se palpa un ruido"). Buscar eso leyendo es justamente lo que un modelo hace mal y una comparación
+    de conjuntos hace perfecto.
+
+    NO decide que sea un invento: la consulta puede expresar el concepto con palabras que el glosario
+    no conoce. Genera **candidatos** para que el LLM adjudique una lista corta y concreta en vez de
+    barrer la nota entera. Devuelve {concepto: [sinónimos con los que aparece en la nota]}.
+    """
+    from app.glossary.resolve import _load_approved_synonyms, _normalize, match_concepts
+    try:
+        sinonimos = _load_approved_synonyms()
+    except Exception as e:  # noqa: BLE001 — sin glosario el auditor sigue funcionando, sin la pista
+        log.warning("fidelidad de nota: no se pudo cargar el glosario (%s)", e)
+        return {}
+    en_nota = set(match_concepts(texto_nota, None, sinonimos).concepts)
+    en_consulta = set(match_concepts(transcript, None, sinonimos).concepts)
+    agregados = en_nota - en_consulta
+    if not agregados:
+        return {}
+    # Con qué palabras aparece cada concepto en la nota: es lo que se le muestra al LLM para que sepa
+    # exactamente qué frase mirar, en vez de darle un nombre canónico en inglés y nada más.
+    heno = f" {_normalize(texto_nota)} "
+    out: dict[str, list[str]] = {}
+    for s in sinonimos:
+        c = s.get("canonical_en")
+        if c in agregados and s.get("syn") and f" {s['syn']} " in heno:
+            out.setdefault(c, [])
+            if s["syn"] not in out[c]:
+                out[c].append(s["syn"])
+    return out
+
+
+def _build_prompt(claims: list[NoteClaim], transcript: str,
+                  agregados: dict[str, list[str]] | None = None) -> str:
     bloques = "\n".join(
         f"AFIRMACIÓN {i} (sección {c.section}): {c.text[:600]}" for i, c in enumerate(claims, 1))
+    pista = ""
+    if agregados:
+        # La pista va DESPUÉS de las afirmaciones y es lo último que lee el modelo: es el punto donde
+        # más rinde su atención, y es información que no puede deducir leyendo.
+        lineas = "\n".join(
+            f"  - «{', '.join(sins[:3])}» (concepto: {c})" for c, sins in list(agregados.items())[:8])
+        pista = (
+            "\n\nPISTA DETERMINÍSTICA — el sistema comparó la nota contra la consulta usando el "
+            "glosario veterinario (que incluye el lenguaje coloquial del dueño) y estos términos "
+            "aparecen en la NOTA sin aparecer en la CONSULTA en ninguna forma conocida:\n"
+            f"{lineas}\n"
+            "Mirá con atención las afirmaciones que los contienen. Puede que la consulta lo diga con "
+            "palabras que el glosario no conoce —en ese caso la afirmación se sostiene— o puede que la "
+            "nota haya ASCENDIDO el relato a un término clínico que nadie constató, que es el fallo "
+            "más frecuente. Decidí para cada una.")
     return (f"TRANSCRIPCIÓN DE LA CONSULTA:\n{(transcript or '').strip()[:TRANSCRIPT_CHARS]}\n\n"
-            f"AFIRMACIONES A AUDITAR:\n{bloques}")
+            f"AFIRMACIONES A AUDITAR:\n{bloques}{pista}")
 
 
 _VEREDICTO_RE = re.compile(
@@ -182,10 +240,101 @@ def _veredictos(raw: str) -> dict[int, bool]:
     return rescatados
 
 
-def check_note_fidelity(subjective: str, objective: str, transcript: str) -> NoteFidelityReport:
+REPAIR_SYSTEM = (
+    "Eres un asistente clínico veterinario corrigiendo las secciones S (subjetivo) y O (objetivo) de "
+    "una nota clínica antes de que el veterinario la firme.\n\n"
+    "Se detectó que la nota usa TÉRMINOS CLÍNICOS que la consulta no contiene. Eso convierte el "
+    "relato en un hallazgo: escrito así, quien lea el expediente entiende que alguien lo constató.\n\n"
+    "Tu tarea: reescribir S y O DICIENDO LO MISMO CON LAS PALABRAS DE LA CONSULTA.\n"
+    "- NO BORRES información. Si el dueño dijo 'se siente grande la panza', eso va — lo que no va es "
+    "convertirlo en 'hepatomegalia palpable'. Reformulá, no elimines.\n"
+    "- Si un dato sólo se sostiene con el término prohibido y no hay forma de decirlo con lo que se "
+    "dijo, entonces sí quitalo: no estaba en la consulta.\n"
+    "- No agregues nada nuevo. No interpretes. No pases datos de S a O ni de O a S.\n"
+    "- Mantené el mismo nivel de detalle y una extensión parecida.\n\n"
+    "Devolvé SOLO JSON válido, sin ```:\n"
+    '{"subjective": "", "objective": ""}'
+)
+
+# Si la reparación devuelve un texto mucho más corto, reparó BORRANDO en vez de reformulando. En una
+# historia clínica eso es peor que el término de más: se pierde lo que sí se dijo. Se rechaza.
+MIN_RATIO_LARGO = 0.6
+
+
+def repair_sections(subjective: str, objective: str, transcript: str,
+                    model: str | None = None) -> tuple[str, str] | None:
+    """Reescribe S y O sacando los términos clínicos que la consulta no contiene.
+
+    Se dispara con la señal DETERMINÍSTICA (`conceptos_agregados`), no con el veredicto del auditor
+    LLM, y es una decisión de diseño: el auditor acierta 78 de cada 100 señalamientos, así que
+    reescribir por su veredicto tocaría una frase correcta 1 de cada 5 veces. La comparación de
+    conjuntos contra el glosario, en cambio, dice algo verificable — "este término no aparece en la
+    consulta ni en ninguno de sus sinónimos conocidos" — y la corrección que pide es conservadora:
+    decir lo mismo con las palabras que se usaron.
+
+    MEDIDO sobre 40 transcripciones contra producción, de forma **determinística** (sin juez):
+        términos sin respaldo, total   : 28  ->  4   (−86 %)
+        notas con al menos uno         : 19/40 -> 4/40
+        extensión de S+O               : +15 %  <- NO reparó borrando: reformular cuesta palabras
+        casos donde empeoró            : 1 de 40
+
+    Y una nota sobre por qué se mide así y no con el juez de calidad: el juez **no puede ver este
+    efecto**. Puntuando en abstracto dio firmaría 17, 20, 24 y 27 sobre 40 en cuatro corridas del
+    MISMO prompt; y comparando de a pares resultó que prefiere la nota que ve **segunda** en el 78 %
+    de los casos contra el 10 % cuando la ve primera — un sesgo de posición que invierte el resultado.
+    La propiedad que esta función ataca es verificable sin opinión: «este término no aparece en la
+    consulta ni en ninguno de sus sinónimos conocidos». Eso se cuenta, no se juzga.
+
+    Devuelve (subjective, objective) reparados, o **None** si no había nada que reparar, si el modelo
+    falló, o si la reparación no mejoró. NUNCA lanza.
+    """
+    agregados = conceptos_agregados(f"{subjective}\n{objective}", transcript)
+    if not agregados:
+        return None
+    s = get_settings()
+    terminos = "\n".join(f"  - «{', '.join(sins[:3])}»" for sins in agregados.values())
+    user = (
+        f"TRANSCRIPCIÓN DE LA CONSULTA:\n{(transcript or '').strip()[:TRANSCRIPT_CHARS]}\n\n"
+        f"S (subjetivo) ACTUAL: {subjective}\n"
+        f"O (objetivo) ACTUAL: {objective}\n\n"
+        f"TÉRMINOS QUE NO APARECEN EN LA CONSULTA (reformulá las frases que los contienen):\n"
+        f"{terminos}"
+    )
+    try:
+        raw = LLMClient(model=model or s.note_fidelity_model or s.llm_light_model).complete(
+            REPAIR_SYSTEM, user, max_tokens=1200)
+        m = re.search(r"\{.*\}", raw or "", re.S)
+        data = json.loads(m.group(0)) if m else {}
+        nuevo_s, nuevo_o = str(data.get("subjective", "")), str(data.get("objective", ""))
+    except Exception as e:  # noqa: BLE001 — la reparación es opcional, nunca rompe la nota
+        log.warning("reparación de la nota: no se pudo (%s)", e)
+        return None
+
+    largo_antes = len(subjective.strip()) + len(objective.strip())
+    largo_ahora = len(nuevo_s.strip()) + len(nuevo_o.strip())
+    if not largo_ahora or largo_ahora < largo_antes * MIN_RATIO_LARGO:
+        log.info("reparación de la nota descartada: reparó borrando (%s -> %s chars)",
+                 largo_antes, largo_ahora)
+        return None
+    # Sólo se adopta si de verdad bajó la cantidad de términos sin respaldo. Si el modelo cambió las
+    # palabras sin arreglar nada, la nota original se queda: cambiar por cambiar no es una mejora.
+    restantes = conceptos_agregados(f"{nuevo_s}\n{nuevo_o}", transcript)
+    if len(restantes) >= len(agregados):
+        log.info("reparación de la nota descartada: no bajó los términos sin respaldo (%s -> %s)",
+                 len(agregados), len(restantes))
+        return None
+    log.info("nota reparada: términos sin respaldo %s -> %s", len(agregados), len(restantes))
+    return nuevo_s, nuevo_o
+
+
+def check_note_fidelity(subjective: str, objective: str, transcript: str,
+                        model: str | None = None) -> NoteFidelityReport:
     """Audita S y O contra el transcript. NUNCA lanza: ante cualquier problema falla abierta.
 
     NO modifica la nota — devuelve qué señalar. La decisión es del veterinario que firma.
+
+    `model` sustituye el de producción: es el punto de entrada de `scripts/calidad/auditor_calibrar.py`,
+    que compara modelos en paralelo y por eso necesita pasarlo como argumento en vez de mutar Settings.
     """
     s = get_settings()
     if not getattr(s, "transcript_fidelity_enabled", True):
@@ -200,8 +349,10 @@ def check_note_fidelity(subjective: str, objective: str, transcript: str) -> Not
     claims = claims[:MAX_CLAIMS]
     t0 = time.monotonic()
     try:
-        raw = LLMClient(model=s.llm_light_model).complete(
-            VERIFY_SYSTEM, _build_prompt(claims, transcript), max_tokens=MAX_TOKENS)
+        # Candidatos determinísticos primero (gratis), para que el LLM adjudique una lista concreta.
+        agregados = conceptos_agregados(f"{subjective}\n{objective}", transcript)
+        raw = LLMClient(model=model or s.note_fidelity_model or s.llm_light_model).complete(
+            VERIFY_SYSTEM, _build_prompt(claims, transcript, agregados), max_tokens=MAX_TOKENS)
         veredictos = _veredictos(raw)
         if not veredictos:
             # Devolver "todo verificado, sin problemas" sería afirmar una revisión que no ocurrió.

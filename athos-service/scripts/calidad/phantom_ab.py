@@ -106,10 +106,14 @@ def _resumen(filas, etiqueta, nombre):
     rubs = [d.get("rubrica", {}) for d in lado]
     out = {"nombre": nombre, "n": len(lado)}
     for d in DIMS:
-        vals = [r[d] for r in rubs if isinstance(r.get(d), (int, float))]
+        # Se ignoran las puntuaciones fuera de 0-10: el juez contesto en escala 0-100 alguna vez
+        # y una sola respuesta asi mueve la media entera (ver `_valida_escala` en phantom_eval).
+        vals = [r[d] for r in rubs
+                if isinstance(r.get(d), (int, float)) and 0 <= r[d] <= 10]
         out[d] = round(statistics.mean(vals), 1) if vals else None
     out["firmaria"] = sum(1 for r in rubs if r.get("firmaria") is True)
-    out["inventan"] = sum(1 for r in rubs if r.get("inventado"))
+    out["inventan_so"] = sum(1 for r in rubs if r.get("inventado_so"))
+    out["problemas_ap"] = sum(1 for r in rubs if r.get("problemas_ap"))
     out["vacias"] = sum(1 for d in lado if d.get("vacio"))
     out["dosis_final"] = sum(1 for d in lado if d.get("dosis_visible_al_final"))
     out["citas_mediana"] = statistics.median([d.get("n_citas", 0) for d in lado]) if lado else 0
@@ -155,7 +159,8 @@ def main() -> None:
     print(f"A/B PAREADO DE LA NOTA DEL FANTASMA   ({len(filas)} transcripciones)")
     print("=" * 82)
     print(f"  {'':22} {args.a:>16} {args.b:>16}   delta")
-    for k in (*DIMS, "firmaria", "inventan", "aud_notas_senaladas", "aud_afirmaciones",
+    for k in (*DIMS, "firmaria", "inventan_so", "problemas_ap", "aud_notas_senaladas",
+              "aud_afirmaciones",
               "vacias", "dosis_final", "citas_mediana"):
         va, vb = ra.get(k), rb.get(k)
         if va is None or vb is None:
@@ -190,7 +195,7 @@ def main() -> None:
         if isinstance(fa.get("fidelidad"), (int, float)) and \
            isinstance(fb.get("fidelidad"), (int, float)) and fb["fidelidad"] < fa["fidelidad"]:
             print(f"    {f['id']:28} F {fa['fidelidad']} -> {fb['fidelidad']}")
-            for inv in (fb.get("inventado") or [])[:2]:
+            for inv in (fb.get("inventado_so") or [])[:2]:
                 print(f"        inventado: {str(inv)[:110]}")
 
     destino = os.path.join(SCRATCH, f"phantom_ab_{args.a}_vs_{args.b}.json")

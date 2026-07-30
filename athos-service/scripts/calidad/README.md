@@ -129,6 +129,37 @@ contra la consulta y **señala** lo que no encuentra (no lo borra: si el auditor
 saca del expediente un hallazgo real). Su calibración está documentada en el módulo y es honesta —
 **lo que señala casi siempre vale y se le escapan dos tercios**. Es una red parcial, no la solución.
 
+#### 🔑 La lección de método más cara de todo el proyecto: el juez no podía ver el efecto
+
+Cinco variantes seguidas "empataron". No es que no hicieran nada — **el instrumento no podía verlas.**
+
+Sobre el **mismo** prompt de producción y el **mismo** banco, el juez que puntúa en abstracto dio
+`firmaría` = **8/16, 9/16, 17/40, 20/40, 24/40 y 27/40**, e `inventan_so` = 12/40 y 15/40. Con un ruido
+de ±7 sobre 40, **ningún efecto menor a ~20 puntos porcentuales es detectable**, y todos los que se
+probaron lo son.
+
+Se intentó el arreglo estándar —**juez pareado por comparación directa** (`phantom_duelo.py`), que no
+tiene que calibrar una escala absoluta— y apareció algo peor: **el juez prefiere la nota que ve
+SEGUNDA en el 78 % de los casos, contra el 10 % cuando la ve primera.** Un sesgo de posición que
+invierte el resultado. Sólo se detectó porque el script alterna el orden y reporta los dos grupos por
+separado; sin esa alternancia habría producido un resultado confiado y falso.
+
+**La salida no fue un juez mejor: fue dejar de preguntarle.** La propiedad que importa es verificable
+sin opinión — *«este término clínico no aparece en la consulta ni en ninguno de sus sinónimos
+conocidos»*— y eso se **cuenta**, no se juzga. Con la métrica determinística el efecto que cuatro
+corridas de juez no pudieron distinguir de una moneda se ve de inmediato:
+
+| | actual | con reparación |
+|---|---|---|
+| términos sin respaldo (total, 40 notas) | 28 | **4** (−86 %) |
+| notas con al menos uno | 19/40 | **4/40** |
+| extensión de S+O | — | **+15 %** (reformuló, no borró) |
+| casos donde empeoró | — | 1 de 40 |
+
+**Regla para el que siga:** si una mejora se puede expresar como una propiedad contable del texto,
+contala. Reservá el juez para lo que de verdad exige criterio, y cuando lo uses, alterná el orden y
+mirá el sesgo antes que el resultado.
+
 #### Por qué tres variantes empataron, y qué hay que arreglar antes de probar una cuarta
 
 Se midieron tres: dos de prompt (`prompts_nota.py`) y una **estructural**, `split` en

@@ -35,7 +35,11 @@ from app.generation.citation_fidelity import check_fidelity, drop_and_renumber  
 from app.generation.dose_guard import has_dose, patient_data_complete, redact_doses  # noqa: E402
 from app.generation.evidence_judge import judge_evidence  # noqa: E402
 from app.generation.generate import generate_note  # noqa: E402
-from app.generation.transcript_fidelity import check_note_fidelity  # noqa: E402
+from app.generation.transcript_fidelity import (  # noqa: E402
+    check_note_fidelity,
+    conceptos_agregados,
+    repair_sections,
+)
 from app.models import PatientContext  # noqa: E402
 from app.retrieval.cascade import build_and_retrieve  # noqa: E402
 from scripts.calidad.respuestas_eval import _judge_client, _muestra, _parse_json  # noqa: E402
@@ -69,13 +73,48 @@ RUBRICA_SYSTEM = (
     "- seguridad: lenguaje de posibilidad (no diagnóstico cerrado), sin cifras de dosis, alergias "
     "advertidas si se mencionaron.\n"
     "- utilidad: ¿el plan es accionable y el análisis aporta criterio, o es un resumen vacío?\n\n"
-    "Y decidí: ¿un veterinario FIRMARÍA esta nota tal como está, sin corregirla?\n"
+    "Y decidí: ¿un veterinario FIRMARÍA esta nota tal como está, sin corregirla?\n\n"
+    "SEPARÁ LOS HALLAZGOS EN DOS LISTAS DISTINTAS, que tienen gravedad muy distinta:\n"
+    "- `inventado_so`: hechos que la nota afirma en S o en O y la transcripción NO contiene. Esto es "
+    "lo grave: S y O son el registro de lo que se dijo y lo que se constató, así que una afirmación "
+    "falsa ahí es una historia clínica falsa, con consecuencias legales. Incluí también los cambios "
+    "de sitio o de grado ('petequias en piel' escrito como 'petequias gingivales') y la atribución "
+    "cruzada (poner en boca del dueño lo que midió el veterinario, o al revés).\n"
+    "- `problemas_ap`: problemas del ANÁLISIS o del PLAN. OJO: proponer un estudio, nombrar un "
+    "fármaco, plantear un diferencial o recomendar una conducta **NO es inventar** — es exactamente "
+    "el trabajo de un análisis y un plan. Poné acá sólo problemas reales: un diagnóstico cerrado en "
+    "vez de lenguaje de posibilidad, una cifra de dosis, o una conducta contraindicada.\n"
+    "Si no hay nada que poner en una lista, dejala vacía. No escribas frases como 'no se encontraron "
+    "invenciones' dentro de la lista: eso la deja contada como si hubiera un hallazgo.\n\n"
     "Devolvé SOLO JSON válido, sin ```:\n"
     '{"fidelidad": n, "estructura": n, "completitud": n, "seguridad": n, "utilidad": n, '
-    '"firmaria": true|false, "inventado": ["HECHOS OBSERVADOS que la nota afirma y la transcripción '
-    'no menciona — no incluyas acá las citas [n] ni las interpretaciones"], '
+    '"firmaria": true|false, '
+    '"inventado_so": ["hechos afirmados en S u O que la transcripción no contiene"], '
+    '"problemas_ap": ["problemas reales del análisis o el plan"], '
     '"omitido": ["lo relevante que se dejó afuera"], "peor_problema": "una frase"}'
 )
+
+
+
+DIMS = ("fidelidad", "estructura", "completitud", "seguridad", "utilidad")
+
+
+def _valida_escala(rubrica: dict, caso_id: str) -> dict:
+    """Descarta las puntuaciones fuera de 0-10.
+
+    No es paranoia: en una corrida de 40 el juez contesto UN caso en escala 0-100 (90, 80, 70, 90) y
+    eso solo inflo las medias de estructura a 10,9 y de utilidad a 11,0 — numeros imposibles que
+    pasaron desapercibidos hasta revisarlos. Un veredicto malformado no puede corromper el titular:
+    se tira esa dimension y se cuenta cuantas se tiraron.
+    """
+    fuera = [d for d in DIMS
+             if isinstance(rubrica.get(d), (int, float)) and not (0 <= rubrica[d] <= 10)]
+    for d in fuera:
+        rubrica.pop(d, None)
+    if fuera:
+        rubrica["_escala_invalida"] = fuera
+        print(f"  [!] {caso_id}: el juez puntuo fuera de 0-10 en {fuera} — descartadas", flush=True)
+    return rubrica
 
 
 def _rubrica_user(transcript: str, soap) -> str:
@@ -123,8 +162,16 @@ def evalua(caso: dict) -> dict:
             citations = [c for i, c in enumerate(citations, 1) if i not in fid.unfaithful]
             fid_descartadas = sorted(fid.unfaithful)
 
-    # Auditor de fidelidad contra el transcript: no corrige la nota, la señala. Se mide acá para
-    # calibrarlo — un auditor que marca de más se vuelve ruido que el vet aprende a ignorar.
+    # Mismo orden que producción: primero se INTENTA REPARAR (disparado por el glosario, que es
+    # determinístico) y después se señala lo que quedó. `terminos_*` es la métrica sin ruido:
+    # cuántos términos clínicos nombra la nota que la consulta no contiene.
+    _so = f"{soap.subjective}\n{soap.objective}"
+    terminos_antes = len(conceptos_agregados(_so, transcript))
+    reparado = repair_sections(soap.subjective, soap.objective, transcript)
+    if reparado:
+        soap = soap.model_copy(update={"subjective": reparado[0], "objective": reparado[1]})
+    terminos_despues = len(conceptos_agregados(
+        f"{soap.subjective}\n{soap.objective}", transcript))
     fid_nota = check_note_fidelity(soap.subjective, soap.objective, transcript)
 
     fila = {
@@ -137,6 +184,8 @@ def evalua(caso: dict) -> dict:
                  "assessment": soap.assessment, "plan": soap.plan},
         "vacio": not (soap.assessment or "").strip(),
         "seg_retrieval": round(t_retrieval, 1), "seg_generacion": round(t_generacion, 1),
+        "terminos_antes": terminos_antes,
+        "terminos_despues": terminos_despues,
         "nota_fid_juzgada": fid_nota.judged,
         "nota_fid_n_claims": fid_nota.n_claims,
         "nota_fid_senaladas": fid_nota.as_payload(),
@@ -146,7 +195,7 @@ def evalua(caso: dict) -> dict:
                          max_tokens=JUDGE_MAX_TOKENS)
     rubrica = _parse_json(raw)
     if rubrica:
-        fila["rubrica"] = rubrica
+        fila["rubrica"] = _valida_escala(rubrica, fila["id"])
     else:
         fila["rubrica_error"] = raw[:300]
     return fila
@@ -194,10 +243,13 @@ def main() -> None:
                 print(f"  {dim:14}: media {statistics.mean(v):.1f}  mediana "
                       f"{statistics.median(v):.1f}  min {min(v)}{marca}")
         firma = sum(1 for f in con_rub if f["rubrica"].get("firmaria"))
-        inventa = sum(1 for f in con_rub if f["rubrica"].get("inventado"))
+        inventa = sum(1 for f in con_rub if f["rubrica"].get("inventado_so"))
+        prob_ap = sum(1 for f in con_rub if f["rubrica"].get("problemas_ap"))
         omite = sum(1 for f in con_rub if f["rubrica"].get("omitido"))
         print(f"\n  'un veterinario la FIRMARÍA tal cual' : {firma}/{len(con_rub)}")
-        print(f"  notas que INVENTAN algún hecho       : {inventa}/{len(con_rub)}")
+        print(f"  notas que INVENTAN un hecho en S u O : {inventa}/{len(con_rub)}"
+              f"   <-- el defecto grave")
+        print(f"  notas con problemas en el análisis/plan: {prob_ap}/{len(con_rub)}")
         print(f"  notas que omiten algo relevante      : {omite}/{len(con_rub)}")
 
     print(f"\n  notas vacías (fallo de generación)   : {sum(1 for f in filas if f['vacio'])}/{len(filas)}")
@@ -229,7 +281,7 @@ def main() -> None:
               f"{statistics.median([f['nota_fid_seg'] for f in juzgadas]):.1f}s")
         # Cruce con el juez de calidad: ¿el auditor encuentra lo que el juez llama invento?
         if con_rub:
-            juez_inventa = {f["id"] for f in con_rub if f["rubrica"].get("inventado")}
+            juez_inventa = {f["id"] for f in con_rub if f["rubrica"].get("inventado_so")}
             aud_senala = {f["id"] for f in con_senal}
             print(f"    coincide con el juez               : "
                   f"{len(juez_inventa & aud_senala)} de {len(juez_inventa)} que el juez marca")
@@ -247,7 +299,7 @@ def main() -> None:
             r = f["rubrica"]
             print(f"    {f['id']:28} F{r.get('fidelidad')} E{r.get('estructura')} "
                   f"C{r.get('completitud')} S{r.get('seguridad')} U{r.get('utilidad')}")
-            for inv in (r.get("inventado") or [])[:2]:
+            for inv in (r.get("inventado_so") or [])[:2]:
                 print(f"        inventado: {str(inv)[:110]}")
 
     out = os.path.join(SCRATCH, f"phantom_{args.etiqueta}.json")

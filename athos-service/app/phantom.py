@@ -20,7 +20,7 @@ from app.generation.condition_alerts import detect_conditions, explain_condition
 from app.generation.dose_guard import patient_data_complete, redact_doses
 from app.generation.evidence_judge import judge_evidence
 from app.generation.generate import EmptyNoteError, generate_note
-from app.generation.transcript_fidelity import check_note_fidelity
+from app.generation.transcript_fidelity import check_note_fidelity, repair_sections
 from app.models import EVIDENCE_NONE, PhantomSuggestResponse
 from app.patient_context import load_patient_context
 from app.retrieval.cascade import build_and_retrieve
@@ -160,6 +160,12 @@ def suggest(consultation_id: str, clinic_id: str, user_id: str | None = None) ->
     # nadie hizo — y no se arregla por prompt (se probaron dos variantes, ver scripts/calidad).
     # NO corrige la nota, la SEÑALA: si el auditor se equivoca, borrar una frase saca del expediente
     # un hallazgo real. La nota es un borrador que el vet aprueba; esto le dice qué revisar antes.
+    # Primero se INTENTA ARREGLAR, y sólo después se señala lo que quede. El disparador es
+    # determinístico (términos clínicos que la consulta no contiene según el glosario), no el veredicto
+    # del auditor: pide reformular con las palabras de la consulta, y se rechaza si reparó borrando.
+    reparado = repair_sections(soap.subjective, soap.objective, transcript_text)
+    if reparado:
+        soap = soap.model_copy(update={"subjective": reparado[0], "objective": reparado[1]})
     fid_nota = check_note_fidelity(soap.subjective, soap.objective, transcript_text)
     if fid_nota.unsupported:
         log.info("fidelidad de nota (Fantasma): %s de %s afirmaciones sin respaldo en la consulta",

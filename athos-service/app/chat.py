@@ -13,6 +13,7 @@ import time
 
 from app.config import get_settings
 from app.generation.citation_fidelity import check_fidelity, strip_markers
+from app.generation.undeclared import find_undeclared
 from app.generation.dose_guard import (
     DOSE_NOTICE, patient_data_complete, redact_doses, split_safe_tail)
 from app.generation.evidence_judge import ABSTAIN_MESSAGE, LIMITED_NOTICE, judge_evidence
@@ -354,10 +355,19 @@ def stream_answer(question: str, patient_id: str, clinic_id: str, user_id: str |
         visto = answer if dosing_ok else redact_doses(answer)[0]
         visto = strip_markers(visto, fidelity.unfaithful)
         log_message(clinic_id, None, patient_id, "assistant", visto)
+    # Lo que el modelo afirma como EJECUTABLE (un fármaco, una cifra) sin citar y sin declararlo
+    # criterio clínico. La regla 2 del prompt lo pide y el prompt no basta: medido, 30 casos en 34
+    # respuestas. No se censura —que Athos diga que la doxiciclina es de elección para ehrlichiosis
+    # es correcto y útil— pero el veterinario tiene que ver de dónde viene.
+    undeclared = find_undeclared(answer)
+    if undeclared:
+        log.info("afirmaciones ejecutables sin declarar: %s", len(undeclared))
     # `unverified_sources` es aditivo para el front: son los `[n]` que quedaron escritos en el texto
     # ya emitido pero cuya fuente el auditor descartó. El chat es streaming, así que el texto no se
     # puede reescribir hacia atrás — el front debería atenuarlos o quitarlos al recibir este evento.
+    # `undeclared_claims` viaja igual y por la misma razón.
     yield _sse({"type": "done", "citations": [c.model_dump() for c in citations],
                 "allergy_gate_triggered": gate, "insufficient_evidence": False,
                 "evidence_level": level, "ai_model": get_settings().llm_model,
-                "unverified_sources": sorted(fidelity.unfaithful)})
+                "unverified_sources": sorted(fidelity.unfaithful),
+                "undeclared_claims": undeclared})

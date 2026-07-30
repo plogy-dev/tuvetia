@@ -150,3 +150,24 @@ GENERADORES = {
     "actual": genera_actual,
     "split": genera_split,
 }
+
+
+def genera_reparado(transcript, literature, patient, severe_allergens):
+    """Generación de producción + el PASE DE REPARACIÓN determinístico sobre S y O.
+
+    Es lo que corre hoy en `phantom.suggest()`: se genera igual, se calcula con el glosario qué
+    términos clínicos nombra la nota que la consulta no contiene, y si hay alguno se pide reformular
+    con las palabras de la consulta. La reparación se rechaza si borró en vez de reformular o si no
+    bajó los términos sin respaldo.
+    """
+    from app.generation.generate import generate_note
+    from app.generation.transcript_fidelity import repair_sections
+
+    soap, citations, flag = generate_note(transcript, literature, patient, severe_allergens)
+    reparado = repair_sections(soap.subjective, soap.objective, transcript)
+    if reparado:
+        soap = soap.model_copy(update={"subjective": reparado[0], "objective": reparado[1]})
+    return soap, citations, flag
+
+
+GENERADORES["reparado"] = genera_reparado

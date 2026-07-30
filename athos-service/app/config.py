@@ -70,6 +70,18 @@ class Settings(BaseSettings):
     # síntomas atribuidos a la boca equivocada). No corrige la nota: la señala, para que el
     # veterinario lo arregle antes de firmar. Rollback: `TRANSCRIPT_FIDELITY_ENABLED=false`.
     transcript_fidelity_enabled: bool = True
+    # Modelo del auditor de la nota. Se separa del liviano porque comparar un hallazgo contra el
+    # transcript palabra por palabra es razonamiento fino, no redacción, y el Fantasma es asíncrono:
+    # acá un modelo más caro no le cuesta espera a nadie (2,3s vs 1,2s, y nadie está esperando).
+    # Medido sobre 39 notas con verdad-de-terreno (`scripts/calidad/auditor_calibrar.py`):
+    #                      recall  precisión
+    #   flash, sin pista     0,20     0,50
+    #   flash, con pista     0,33     0,62
+    #   pro,   sin pista     0,40     0,46
+    #   pro,   con pista     0,47     0,78   <-- adoptado
+    # La precisión es la que más importa: un señalamiento falso le hace perder confianza al veterinario
+    # en los señalamientos, y entonces deja de leerlos. Vacío = cae a `llm_light_model`.
+    note_fidelity_model: str = "deepseek-v4-pro"
 
     # STT — Modo Fantasma (ADR-0016: Deepgram Nova, batch + diarización)
     deepgram_api_key: str = ""
