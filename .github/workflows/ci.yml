@@ -51,6 +51,14 @@ jobs:
           cache: npm
       - run: npm ci
 
+      # OBLIGATORIO antes de tsc: `next-env.d.ts` está en .gitignore (convención de create-next-app),
+      # y es lo que declara los módulos de imagen vía `next/image-types/global`. Sin él, `tsc` falla
+      # con TS2307 en los 8 imports de `@/public/media/*.png` de la landing — pasa local (donde el
+      # archivo existe porque ya corrió un build) y revienta en CI, que arranca limpio.
+      # `typegen` genera esas definiciones sin pagar un build completo.
+      - name: generar tipos de Next
+        run: npx next typegen
+
       # Los cuatro gates van en orden de "más rápido en fallar" primero: si hay un error de tipos no
       # tiene sentido gastar 20 s en el build.
       #
