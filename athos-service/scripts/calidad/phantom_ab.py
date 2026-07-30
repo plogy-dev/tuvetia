@@ -26,9 +26,11 @@ from app.generation import generate as gen  # noqa: E402
 from app.generation.citation_fidelity import check_fidelity, drop_and_renumber  # noqa: E402
 from app.generation.dose_guard import has_dose, patient_data_complete, redact_doses  # noqa: E402
 from app.generation.evidence_judge import judge_evidence  # noqa: E402
+from app.generation.transcript_fidelity import check_note_fidelity  # noqa: E402
 from app.models import PatientContext  # noqa: E402
 from app.retrieval.cascade import build_and_retrieve  # noqa: E402
 from scripts.calidad.phantom_eval import RUBRICA_SYSTEM, _rubrica_user  # noqa: E402
+from scripts.calidad.generadores_nota import GENERADORES  # noqa: E402
 from scripts.calidad.prompts_nota import VARIANTES  # noqa: E402
 from scripts.calidad.respuestas_eval import _judge_client, _muestra, _parse_json  # noqa: E402
 
@@ -70,18 +72,27 @@ def evalua_par(caso: dict, nombre_a: str, nombre_b: str) -> dict:
     for etiqueta, nombre in (("a", nombre_a), ("b", nombre_b)):
         t0 = time.monotonic()
         try:
-            # `system_prompt` como argumento y no mutando el global del módulo: acá corren varias
-            # variantes en paralelo y el swap global se pisaría entre hilos.
-            soap, citations, _flag = gen.generate_note(
-                transcript, literature, patient, [], system_prompt=VARIANTES[nombre])
+            if nombre in GENERADORES:
+                # Variante de ESTRATEGIA: cambia cómo se genera (p. ej. `split` usa dos llamadas).
+                soap, citations, _flag = GENERADORES[nombre](transcript, literature, patient, [])
+            else:
+                # Variante de PROMPT. `system_prompt` como argumento y no mutando el global del
+                # módulo: acá corren varias variantes en paralelo y el swap global se pisaría.
+                soap, citations, _flag = gen.generate_note(
+                    transcript, literature, patient, [], system_prompt=VARIANTES[nombre])
         except gen.EmptyNoteError as e:
             fila[etiqueta] = {"error": str(e), "vacio": True}
             continue
         soap, citations, dosis_antes, descartadas = _guards(soap, citations, chunks, patient)
+        # Dos senales INDEPENDIENTES del mismo defecto: el juez de calidad (que lee la nota
+        # entera) y el auditor de produccion (que compara frase por frase). Si coinciden, el
+        # resultado es mucho mas creible que con una sola.
+        fid_nota = check_note_fidelity(soap.subjective, soap.objective, transcript)
         raw = JUDGE.complete(RUBRICA_SYSTEM, _rubrica_user(transcript, soap), max_tokens=800)
         fila[etiqueta] = {
             "rubrica": _parse_json(raw) or {}, "n_citas": len(citations),
             "fid_descartadas": descartadas, "dosis_en_el_borrador": dosis_antes,
+            "aud_senaladas": len(fid_nota.unsupported), "aud_claims": fid_nota.n_claims,
             "dosis_visible_al_final": has_dose(f"{soap.assessment}\n{soap.plan}"),
             "soap": {"subjective": soap.subjective, "objective": soap.objective,
                      "assessment": soap.assessment, "plan": soap.plan},
@@ -102,13 +113,16 @@ def _resumen(filas, etiqueta, nombre):
     out["vacias"] = sum(1 for d in lado if d.get("vacio"))
     out["dosis_final"] = sum(1 for d in lado if d.get("dosis_visible_al_final"))
     out["citas_mediana"] = statistics.median([d.get("n_citas", 0) for d in lado]) if lado else 0
+    out["aud_notas_senaladas"] = sum(1 for d in lado if d.get("aud_senaladas"))
+    out["aud_afirmaciones"] = sum(d.get("aud_senaladas", 0) for d in lado)
     return out
 
 
 def main() -> None:
     ap = argparse.ArgumentParser()
-    ap.add_argument("--a", default="actual", choices=sorted(VARIANTES))
-    ap.add_argument("--b", required=True, choices=sorted(VARIANTES))
+    ramas = sorted(set(VARIANTES) | set(GENERADORES))
+    ap.add_argument("--a", default="actual", choices=ramas)
+    ap.add_argument("--b", required=True, choices=ramas)
     ap.add_argument("--n", type=int, default=16)
     ap.add_argument("--workers", type=int, default=3)
     ap.add_argument("--juez-modelo", default="deepseek-v4-pro")
@@ -141,13 +155,16 @@ def main() -> None:
     print(f"A/B PAREADO DE LA NOTA DEL FANTASMA   ({len(filas)} transcripciones)")
     print("=" * 82)
     print(f"  {'':22} {args.a:>16} {args.b:>16}   delta")
-    for k in (*DIMS, "firmaria", "inventan", "vacias", "dosis_final", "citas_mediana"):
+    for k in (*DIMS, "firmaria", "inventan", "aud_notas_senaladas", "aud_afirmaciones",
+              "vacias", "dosis_final", "citas_mediana"):
         va, vb = ra.get(k), rb.get(k)
         if va is None or vb is None:
             continue
         marca = ""
         if k in DIMS or k == "firmaria":
             marca = "  <-- mejor" if vb > va else ("  <-- PEOR" if vb < va else "")
+        elif k.startswith("aud_"):
+            marca = "  <-- mejor" if vb < va else ("  <-- PEOR" if vb > va else "")
         elif vb != va:
             marca = "  <-- mejor" if vb < va else "  <-- PEOR"
         print(f"  {k:22} {va:>16} {vb:>16}   {round(vb - va, 1):+}{marca}")

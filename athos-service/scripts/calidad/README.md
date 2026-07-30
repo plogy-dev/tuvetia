@@ -129,6 +129,25 @@ contra la consulta y **señala** lo que no encuentra (no lo borra: si el auditor
 saca del expediente un hallazgo real). Su calibración está documentada en el módulo y es honesta —
 **lo que señala casi siempre vale y se le escapan dos tercios**. Es una red parcial, no la solución.
 
+#### Por qué tres variantes empataron, y qué hay que arreglar antes de probar una cuarta
+
+Se midieron tres: dos de prompt (`prompts_nota.py`) y una **estructural**, `split` en
+`generadores_nota.py`, que genera S y O en una llamada aparte **sin la literatura a la vista** — la
+hipótesis era que los 15 pasajes en el contexto son lo que empuja al modelo a completar el cuadro con
+hallazgos que suenan a libro. Las tres cayeron dentro del ruido.
+
+**El motivo es la métrica, no las variantes.** Al clasificar por sección lo que el juez llama
+"inventado": **21 señalamientos son sobre S u O** —el defecto real— y **21 son sobre el PLAN o el
+ANÁLISIS**, donde proponer un estudio o nombrar un fármaco es el trabajo de un plan. "Menciona
+afoxolaner en el Plan" no es un invento.
+
+Eso reconcilia los dos instrumentos, que parecían contradecirse: el juez dice 17-21 de 40 y el auditor
+de producción —que sólo mira S y O— señala 4 de 40. Con su recall medido (~1/3), ese 4 implica unas
+**12 de 40 notas con un hallazgo falso real en S u O**: grave, pero la mitad de lo que sugería el
+titular. Antes de la cuarta variante hay que rehacer la rúbrica para que cuente **sólo** fabricación en
+S/O. Optimizar contra un número que mezcla el defecto con el comportamiento correcto es cómo se llega a
+tres empates seguidos.
+
 ### A/B de prompts
 
 ```bash
