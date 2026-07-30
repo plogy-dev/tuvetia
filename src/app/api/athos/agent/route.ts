@@ -78,5 +78,27 @@ export async function POST(req: Request) {
     stopWhen: stepCountIs(8),
   })
 
-  return result.toUIMessageStreamResponse()
+  // El AI SDK reemplaza CUALQUIER fallo por "An error occurred." si no se le dice qué mostrar. Eso
+  // dejaba al veterinario con un mensaje que no ayuda y a nosotros sin rastro: una credencial sin
+  // saldo, un límite de tasa del proveedor y un timeout se veían exactamente igual.
+  //
+  // Acá se hacen las dos cosas: el error COMPLETO va al log del servidor (Vercel), y al veterinario
+  // se le devuelve la CLASE de fallo, que es lo que le permite decidir si reintentar o avisar.
+  // Nunca se devuelve el mensaje crudo del proveedor: puede traer fragmentos de la petición.
+  return result.toUIMessageStreamResponse({
+    onError: (error) => {
+      console.error("[athos/agent] falló la generación:", error)
+      const msg = error instanceof Error ? error.message : String(error)
+      const m = msg.toLowerCase()
+      if (m.includes("credit") || m.includes("billing") || m.includes("quota") || m.includes("insufficient"))
+        return "El proveedor de IA rechazó la petición por saldo o cuota. Avisá al equipo técnico."
+      if (m.includes("api key") || m.includes("apikey") || m.includes("authentication") || m.includes("401"))
+        return "La credencial del proveedor de IA no es válida. Avisá al equipo técnico."
+      if (m.includes("rate") || m.includes("429"))
+        return "El proveedor está limitando las peticiones. Esperá unos segundos y reintentá."
+      if (m.includes("timeout") || m.includes("aborted") || m.includes("etimedout"))
+        return "La respuesta tardó demasiado y se cortó. Reintentá."
+      return "No se pudo generar la respuesta. El detalle quedó en el log del servidor."
+    },
+  })
 }
