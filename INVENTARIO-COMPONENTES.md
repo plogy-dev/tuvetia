@@ -1,10 +1,16 @@
 # Inventario de componentes — TUVET IA
 
 **Contrato:** COT-2026-TUV-001 · **Documento exigido por:** Otrosí N.° 1, numeral 2.1
-**Fecha de corte:** 30 de julio de 2026, 07:00 · **Versión:** 1.1
-**Repositorio:** `plogy-dev/tuvetia`, rama `master` · **Commit de corte:** `4ae1b3e`
+**Fecha de corte:** 30 de julio de 2026, 10:15 · **Versión:** 1.2
+**Repositorio:** `plogy-dev/tuvetia`, rama `master` · **Commit de corte:** `2d72c6d`
 
-> **Cambios de la v1.0 (corte `31db27a`) a esta v1.1:** 93 componentes y **64 operando** (69 %). Se
+> **Cambios de la v1.1 a esta v1.2 (mismo día, 10:15):** el cliente entregó la credencial de Google
+> y con eso **Gemini quedó integrado y operando en producción**, junto con la **cascada entre
+> proveedores**. Eran los dos únicos incumplimientos literales del contrato que quedaban en pie;
+> con esto **no queda ningún componente sin construir**. Claude sigue sin operar en el backend, pero
+> por falta de crédito en su cuenta, no por falta de trabajo.
+>
+> **Cambios de la v1.0 (corte `31db27a`) a la v1.1:** 93 componentes y **64 operando**. Se
 > corrigió además la regla de conteo, que en la v1.0 no era reproducible — ver el Resumen. Se movieron
 > cinco filas: el **correo electrónico** dejó de ser un stub y ahora envía por
 > SMTP y lee respuestas por IMAP; la **purga de audio de la Ley 1581 ya corre** (se verificó que
@@ -225,8 +231,8 @@ producción; el usuario no puede alcanzar el módulo desde la aplicación.
 | Proveedor | Rol | Estado |
 |---|---|---|
 | **DeepSeek** | Redacción, distilación, juez de evidencia y auditoría de citas — todo el backend | ✅ Operando |
-| **Claude (Anthropic)** | Agente con herramientas, WhatsApp y lectura de documentos — en el front | ⚠️ Parcial — **no opera en el backend**: falta la credencial en Railway |
-| **Gemini** | — | ❌ **No construido** |
+| **Claude (Anthropic)** | Agente con herramientas, WhatsApp y lectura de documentos — en el front | ⚠️ Parcial — **no opera en el backend**. Verificado leyendo las 31 variables de Railway: `ANTHROPIC_API_KEY` no está. Y la cuenta **no tiene crédito**, así que la credencial por sí sola no lo pondría a operar |
+| **Gemini** | Alternativa de la cascada en redacción y en el camino liviano | ✅ Operando *(30-jul: integrado por su endpoint compatible con OpenAI, key en Railway, verificado contra el proveedor real)* |
 | Cohere | Vectores semánticos y reranking | ✅ Operando |
 | Deepgram | Transcripción de voz | ✅ Operando |
 
@@ -237,12 +243,12 @@ migrando de Claude a DeepSeek en producción y revalidando el golden set complet
 
 | Capacidad exigida por el contrato | Estado |
 |---|---|
-| Prompts del sistema definidos | ✅ 14 en producción |
+| Prompts del sistema definidos | ✅ 16 en producción |
 | Prompts versionados | ⚠️ Parcial — el historial es Git; no se guarda la versión junto a cada respuesta |
 | Estructura de habilidades (*skills*) | ⚠️ Parcial — 17 herramientas con esquema; sin agrupación por dominio |
-| **Cascada entre los tres modelos** | ❌ **No construida** — requiere las tres cuentas activas a la vez |
-| **Enrutamiento dinámico por consulta** | ⚠️ Parcial — hoy es asignación fija por tipo de tarea |
-| Pruebas comparativas entre modelos | ⚠️ Parcial — la herramienta existe desde el 22-jul; falta el informe |
+| **Cascada entre modelos** | ✅ **Construida y operando** — `app/generation/provider_cascade.py`, configurada en Railway. Ante caída, timeout o saldo agotado del primario responde el siguiente. Anthropic queda fuera de la cadena hasta que su cuenta tenga crédito |
+| **Enrutamiento dinámico por consulta** | ⚠️ Parcial — hay cadenas independientes y configurables por tarea (redacción vs. liviano), pero la asignación sigue siendo estática. El routing por consulta necesita antes la comparativa de calidad entre modelos |
+| Pruebas comparativas entre modelos | ⚠️ Parcial — la herramienta existe desde el 22-jul y **ya no está bloqueada**: con Gemini operando, la comparativa DeepSeek vs Gemini se puede correr con el banco pareado que ya existe. Falta correrla y publicar el informe (~1 día) |
 
 ---
 
@@ -250,13 +256,13 @@ migrando de Claude a DeepSeek en producción y revalidando el golden set complet
 
 **93 componentes inventariados.**
 
-| Estado | Componentes | |
-|---|---|---|
-| ✅ **Operando** | **64** | 69 % |
-| ⚠️ **Parcial** | 18 | 19 % |
-| 🔧 **Sin interfaz** (motor listo, inalcanzable) | 4 | 4 % |
-| ⏳ **Bloqueado por un insumo externo** | 6 | 6 % |
-| ❌ **No construido** | 1 | 1 % |
+| Estado | Componentes | | v1.1 |
+|---|---|---|---|
+| ✅ **Operando** | **65** | 70 % | 64 |
+| ⚠️ **Parcial** | 18 | 19 % | 18 |
+| 🔧 **Sin interfaz** (motor listo, inalcanzable) | 4 | 4 % | 4 |
+| ⏳ **Bloqueado por un insumo externo** | 6 | 6 % | 6 |
+| ❌ **No construido** | **0** | 0 % | 1 |
 
 > **Regla de conteo, declarada para que el número sea reproducible:** se cuenta **una fila por
 > componente** de las tablas de las secciones 1 a 8. La tabla de *capacidades exigidas por el contrato*
@@ -264,10 +270,19 @@ migrando de Claude a DeepSeek en producción y revalidando el golden set complet
 > contados, y sumarla los duplicaría. La v1.0 mezclaba las dos cosas —de ahí que reportara 88 con
 > 3 «no construidos»— y su total no se podía reproducir contando el documento. Corregido acá.
 
-El único componente **no construido** es **Gemini**. A nivel de *capacidad contractual* falta también
-la **cascada entre los tres modelos**, que figura en la tabla de la sección 8 y depende del mismo
-insumo externo que Gemini: juntas son la mayor concentración de incumplimiento literal del contrato.
-El **correo electrónico** salió de esta lista el 30-jul.
+**No queda ningún componente sin construir.** Gemini y la cascada entre proveedores —que eran la
+mayor concentración de incumplimiento literal del contrato— se cerraron el 30-jul en cuanto el cliente
+entregó la credencial de Google; el correo electrónico había salido de la lista esa misma madrugada.
+
+Lo que queda no es código faltante, sino **tres cosas de naturaleza distinta**, y conviene no
+confundirlas en la reunión:
+1. **Módulos construidos y probados que el usuario no puede alcanzar** (facturación, cartera,
+   inventario): faltan 5–7 semanas de interfaz.
+2. **Piezas detenidas por un tercero**: App Review de Meta, verificación de Google, habilitación DIAN,
+   y el crédito de la cuenta de Anthropic.
+3. **Una capacidad que sigue parcial por decisión técnica**: el enrutamiento *por consulta* necesita
+   antes la comparativa de calidad entre modelos, que ahora sí se puede correr (~1 día). Sin esos
+   datos, cualquier regla de asignación sería inventada.
 
 ### Lo que se desbloquea con configuración (minutos, sin desarrollo)
 

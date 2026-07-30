@@ -1,4 +1,4 @@
-# Estado del Milestone 2 — TUVET IA · corte 2026-07-30, 07:00
+# Estado del Milestone 2 — TUVET IA · corte 2026-07-30, 10:15
 
 > Tercera pasada de auditoría sobre el checklist de `auditoriatuvetmilestone2.md` (46 ítems, 7
 > secciones). Verificado contra el código en `master` (`4ae1b3e`), el backend desplegado en Railway, el
@@ -18,8 +18,8 @@
 | 5 | Capa agéntica | 70 % | 75 % | **75 %** |
 | 6 | Formalidades de entrega | 30 % | 75 % | **75 %** |
 | 4 | Componentes presentados | 25 % | 50 % | **55 %** |
-| 1 | Integración IA | 45 % | 45 % | **45 %** |
-| | **Global** | **~50 %** | ~70 % | **~74 %** |
+| 1 | Integración IA | 45 % | 45 % | **75 %** ▲30 |
+| | **Global** | **~50 %** | ~70 % | **~78 %** |
 
 ## Qué cambió en esta pasada (00:15 → 07:00)
 
@@ -42,21 +42,26 @@ documentado), el harness de calidad (que pasó de un banco a once y encontró de
 —que estaba inerte y ahora corre **456 pruebas**— y el correo electrónico, que era un stub vacío y hoy
 envía por SMTP y lee respuestas por IMAP.
 
-**Lo que NO se movió, y es donde está concentrado el incumplimiento:** la §1. Gemini sigue sin existir,
-la cascada entre proveedores y el routing dinámico siguen sin implementarse. Es el bloque que **no
-depende sólo de esfuerzo** — necesita una cuenta de Google con crédito y crédito de producción de
-Anthropic.
+**La §1 dejó de ser el agujero.** El cliente entregó la credencial de Google el 30-jul y con eso se
+cerraron los dos incumplimientos literales que quedaban: **Gemini está integrado y operando en
+producción**, y **la cascada entre proveedores existe, está configurada y verificada contra los
+proveedores reales**. Lo único que sigue dependiendo de un insumo externo es Claude: su cuenta **no
+tiene crédito**, así que no puede entrar a la cadena.
 
 ---
 
-## 1. Integración IA — ⚠️ 45 % (sin cambios)
+## 1. Integración IA — ⚠️ 75 % (▲ 30 el 30-jul)
 
-**[1.1] ❌ NO EXISTE — Gemini**
-Evidencia: búsqueda de `gemini`, `generativeai`, `@google/genai`, `GOOGLE_API_KEY` en todo el
-repositorio (`.json`, `.toml`, `.ts`, `.py`, lockfiles) → **cero coincidencias**. Ni dependencia, ni
-cliente, ni variable de entorno.
-Gap: la integración completa. Es incumplimiento literal de la cláusula.
-Esfuerzo: 2–3 días de integración. **Bloqueador externo: cuenta de Google Cloud con crédito.**
+**[1.1] ✅ CUMPLE — Gemini** *(era ❌ NO EXISTE; cerrado el 30-jul)*
+Evidencia: `app/generation/llm_client.py` (proveedor `google`), `GEMINI_API_KEY` y `GEMINI_MODEL`
+**configuradas en Railway production**, y verificación contra el proveedor real: responde en 4,0 s.
+Se integró por el endpoint **compatible con OpenAI** de Gemini, así que reusa el cuerpo HTTP que ya
+existía: **cero dependencias nuevas**.
+> Un detalle que habría roto una demostración: el cliente enviaba `thinking: {"type":"disabled"}`
+> fijo en cada petición. Es un parámetro de DeepSeek y **Gemini lo rechaza con HTTP 400**
+> (`Unknown name "thinking"`). Apuntar el cliente existente a Gemini habría fallado el **100 %** de
+> las llamadas. Ahora los parámetros son por proveedor, con una prueba que fija que el cuerpo
+> enviado al primario **no cambió**.
 
 **[1.2] ✅ CUMPLE — DeepSeek**
 Evidencia: `athos-service/app/generation/llm_client.py` (cliente OpenAI-compatible),
@@ -70,20 +75,40 @@ Gap: `ANTHROPIC_API_KEY` **no está en Railway** — el backend no puede usar Cl
 una key de producción (no de crédito de prueba).
 **Bloqueador externo: crédito de producción de Anthropic.**
 
-**[1.4] ❌ NO EXISTE — Lógica de cascada entre modelos**
-Evidencia: `llm_client.py` expone `_anthropic_complete/_stream` y `_openai_complete/_stream`; **no hay
-un solo `fallback`, `retry` con cambio de proveedor ni `except` que degrade a otro modelo**. El
-proveedor se elige por variable de entorno y si falla, falla.
-> ⚠️ **Ojo con la homonimia, y es importante para la reunión:** la "cascada de retrieval"
-> (`app/retrieval/cascade.py`) es un pipeline de recuperación de documentos y **no es esto**. No debe
-> presentarse como evidencia de cumplimiento de 1.4.
-Esfuerzo: 2–3 días, y depende de 1.1 y 1.3 para tener a quién degradar.
+**[1.4] ✅ CUMPLE — Lógica de cascada entre modelos** *(era ❌ NO EXISTE; cerrado el 30-jul)*
+Evidencia: `app/generation/provider_cascade.py`, configurada en Railway production
+(`LLM_CASCADE_REDACCION=deepseek-v4-flash@openai,gemini-3.6-flash@google`). Ante error, timeout,
+límite de tasa o saldo agotado del primario, reintenta con el siguiente proveedor. **12 pruebas
+automatizadas** y verificación contra los proveedores reales:
 
-**[1.5] ❌ NO EXISTE — Routing de modelos por costo/velocidad/precisión**
-Evidencia: un único modelo por función, fijado por env var (`LLM_MODEL`, `LLM_LIGHT_MODEL`,
-`JUDGE_MODEL`). No hay lógica que asigne consultas a modelos según criterio.
-Nota honesta: la separación redacción/liviano/juez **es** un reparto por costo, pero es **estático**.
-No es el routing dinámico que pide la cláusula.
+| Escenario | Resultado |
+|---|---|
+| Gemini directo | responde, 4,0 s |
+| Camino feliz | DeepSeek en 1,1 s y **Gemini ni se llama** |
+| Primario caído | Gemini toma el relevo, 3,9 s |
+| Streaming con primario caído | el chat sigue respondiendo |
+| Sin configurar | usa el proveedor de siempre |
+
+Dos decisiones de diseño que conviene poder explicar:
+- **En streaming la alternativa sólo entra ANTES del primer token.** Si el proveedor se cae a mitad,
+  se corta como se cortaba antes: coser dos modelos daría media recomendación de uno y media de
+  otro, sin coherencia clínica. Es el peor resultado posible y se evita a propósito.
+- **Anthropic NO está en la cadena** mientras su cuenta no tenga crédito: cada intento suyo
+  agregaría una llamada fallida y su latencia antes de llegar al proveedor que sí responde.
+
+> ⚠️ **Ojo con la homonimia, y sigue siendo importante para la reunión:** la "cascada de retrieval"
+> (`app/retrieval/cascade.py`) es un pipeline de recuperación de documentos y **no es esto**. La
+> evidencia de cumplimiento de 1.4 es `provider_cascade.py`, no aquélla.
+
+**[1.5] ⚠️ PARCIAL — Routing de modelos** *(era ❌ NO EXISTE)*
+Evidencia: `provider_cascade.py` rutea **por tipo de tarea** con cadenas independientes y
+configurables — `LLM_CASCADE_REDACCION` (chat y nota: calidad primero) y `LLM_CASCADE_LIVIANO`
+(A→B, juez, auditores: costo y volumen primero), hoy con modelos distintos en producción.
+Gap, dicho sin adornos: eso es **routing por tarea, y estático**. La cláusula pide asignar **cada
+consulta** según costo, velocidad y precisión, y para eso hace falta primero la comparativa entre
+modelos del ítem 2.5 — sin datos de calidad por modelo, cualquier regla de asignación sería
+inventada.
+Esfuerzo: 2 días **después** de 2.5.
 
 **[1.6] ✅ CUMPLE — System prompts definidos y versionados**
 Evidencia: 7 prompts en el repositorio, versionados en git y con su justificación de diseño en el
@@ -105,7 +130,11 @@ Agent connections: ✅ operando (17 tools, ciclo de aprobación, `athos_actions`
 Evidencia: `app/config.py:74`, `deepgram_api_key`, modelo `nova-2`. Operando. (Salvedad en 4.6.)
 
 **[1.10] ⚠️ PARCIAL — Variables de producción de las 3 APIs**
-DeepSeek ✅ en Railway. Anthropic ⚠️ sólo en Vercel, ausente en Railway. Gemini ❌ no existe.
+Verificado hoy leyendo las **31 variables reales** de Railway production: DeepSeek ✅
+(`LLM_API_KEY`, `LLM_MODEL=deepseek-v4-flash`), Gemini ✅ (`GEMINI_API_KEY`,
+`GEMINI_MODEL=gemini-3.6-flash`). **`ANTHROPIC_API_KEY` no está en Railway** — se confirma por
+lectura directa, no por inferencia. Y aun poniéndola, **la cuenta no tiene crédito**: una
+credencial sin saldo no hace que Claude opere.
 
 ---
 
@@ -172,12 +201,15 @@ JavaScript, la rueda a `2026-03-02` — la cita se agendaba otro día sin avisar
 Gap declarado en el documento: la lógica **autenticada** del ciclo aprobar→ejecutar está verificada por
 inspección, no por test (el borde de autenticación sí está cubierto por la suite e2e).
 
-**[2.5] ❌ NO EXISTE — Pruebas comparativas entre modelos**
+**[2.5] ❌ NO EXISTE — Pruebas comparativas entre modelos, pero ya está DESBLOQUEADA**
 Evidencia: se compararon **modelos de juez** (`juez_calibrar.py`: el liviano gana al grande, que suma
 1 caso pero duplica la sobre-abstención) y **variantes de prompt** a 40 casos pareados. **No** existe
-la comparativa Gemini vs DeepSeek vs Claude que pide el contrato, porque falta Gemini (1.1) y Claude
-en el backend (1.3).
-Esfuerzo: 2 días **después** de 1.1 y 1.3.
+la comparativa Gemini vs DeepSeek vs Claude que pide el contrato.
+**Lo que cambió el 30-jul:** ya no está bloqueada por falta de proveedor. Con Gemini operando, la
+comparativa DeepSeek vs Gemini se puede correr **hoy** con el banco que ya existe
+(`respuestas_ab.py` es pareado y acepta cualquier modelo). Claude sigue fuera por falta de crédito.
+Esfuerzo: **1 día** para DeepSeek vs Gemini. **Es además el prerrequisito del routing dinámico
+(1.5)**, así que conviene hacerla antes que cualquier otra cosa de la §1.
 
 **[2.6] ✅ CUMPLE — Latencia**
 Evidencia: `scripts/calidad/latencia_e2e.py`, medido con el pipeline real desde fuera del datacenter
