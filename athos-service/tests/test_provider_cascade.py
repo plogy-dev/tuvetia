@@ -141,3 +141,16 @@ def test_stream_NO_reintenta_si_ya_emitio_texto(monkeypatch):
         raise AssertionError("deberia propagar el corte en vez de coser dos respuestas")
     assert recibido == ["El diagnostico probable es"]
     assert llamados == ["a@openai"]           # la alternativa NO se llamo
+
+
+def test_el_cuerpo_del_proveedor_de_siempre_no_cambio(monkeypatch):
+    """La garantia que hace seguro desplegar esto con demos en vivo: para el proveedor primario el
+    cuerpo de la peticion es EXACTAMENTE el de antes.
+
+    `thinking: {"type": "disabled"}` se movio a `_extra_body()` para poder omitirlo en Gemini, que lo
+    rechaza con HTTP 400. Este test fija que ese movimiento no alterio lo que se le manda a DeepSeek.
+    """
+    from app.generation.llm_client import LLMClient
+
+    assert LLMClient(provider="openai")._extra_body() == {"thinking": {"type": "disabled"}}
+    assert LLMClient(provider="google")._extra_body() == {}       # Gemini lo rechazaria con 400
