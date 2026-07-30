@@ -1,4 +1,5 @@
 import { runCarteraForAllClinics } from "@/lib/cartera/run-all"
+import { syncEmailRepliesForAllClinics } from "@/lib/email/sync"
 
 // Barrido de cartera: recorre las clínicas con recordatorios activos, programa los pasos que
 // falten y despacha los vencidos. El motor ya existía y estaba cubierto por tests, pero no tenía
@@ -34,7 +35,20 @@ export async function GET(req: Request) {
 
   try {
     const result = await runCarteraForAllClinics()
-    return Response.json({ ok: true, ...result })
+
+    // Lectura de respuestas por correo, EN EL MISMO CRON a propósito: el plan Hobby de Vercel
+    // permite 2 crons y los 2 cupos están usados (este y purge-audio). El correo no tiene webhook
+    // (a diferencia de WhatsApp), así que este barrido es su única vía de entrada. Si falla, no
+    // tumba el resultado de cartera: se reporta aparte.
+    let email: Awaited<ReturnType<typeof syncEmailRepliesForAllClinics>> | { error: string }
+    try {
+      email = await syncEmailRepliesForAllClinics()
+    } catch (e) {
+      email = { error: e instanceof Error ? e.message : "barrido de correo fallido" }
+      console.error("cron/cartera email-sync:", email.error)
+    }
+
+    return Response.json({ ok: true, ...result, email })
   } catch (e) {
     // Incluye el aborto por zona horaria incorrecta (assertBusinessTimezone): preferimos un 500
     // ruidoso y ningún envío, antes que despachar cobranzas en el horario equivocado.

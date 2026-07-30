@@ -19,6 +19,7 @@ import {
   saveEmailIntegration,
   type EmailCredentials,
 } from './integrations';
+import { verifyImap } from './imap';
 import { verifySmtp } from './smtp';
 
 export type EmailActionState = { ok: true } | { ok: false; error: string } | null;
@@ -87,7 +88,15 @@ export async function connectEmailAction(
       connected_at: null,
       credential: d.credential,
     };
-    const check = await verifySmtp(trial);
+    // SMTP e IMAP en paralelo: la misma App Password sirve para los dos, pero IMAP puede estar
+    // deshabilitado por separado en la cuenta — y sin IMAP las respuestas del cliente no se leen.
+    // Verificar los dos ACÁ evita descubrirlo recién en el primer barrido del cron.
+    const [smtpCheck, imapCheck] = await Promise.all([verifySmtp(trial), verifyImap(trial)]);
+    const check = !smtpCheck.ok
+      ? smtpCheck
+      : !imapCheck.ok
+        ? { ok: false as const, error: `IMAP: ${imapCheck.error ?? 'no disponible'}. Activá IMAP en Gmail (Configuración → Reenvío y correo POP/IMAP).` }
+        : smtpCheck;
 
     // 2) Se guarda SIEMPRE (cifrada): si falló, en 'error' con el motivo — el vet corrige la
     //    contraseña sin re-tipear todo; si pasó, 'connected'.
