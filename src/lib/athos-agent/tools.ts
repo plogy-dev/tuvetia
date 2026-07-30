@@ -296,7 +296,7 @@ export function buildAthosTools(supabase: SB, ctx: AgentContext) {
 
     search_clinical_evidence: tool({
       description:
-        "Busca en la literatura veterinaria de Tuvetia (corpus con fuentes reales). Devuelve extractos con fuente y locator — cita SOLO esto. Si passed=false, no hay evidencia suficiente: dilo.",
+        "Busca en la literatura veterinaria de Tuvetia (corpus con fuentes reales). Devuelve extractos con fuente y locator — cita SOLO esto. Guiate por evidence_level, NO por passed (que está saturado): 'sufficient' = respondé citando; 'limited' = respondé declarando que la literatura no cubre el cuadro; 'none' = abstenete, no cites nada.",
       inputSchema: z.object({
         question: z.string().min(3).describe("Pregunta clínica, en español"),
         species: z.string().optional().describe("Especie del paciente si se conoce (perro, gato…)"),
@@ -317,7 +317,13 @@ export function buildAthosTools(supabase: SB, ctx: AgentContext) {
             signal: AbortSignal.timeout(20_000),
           })
           if (!res.ok) return { error: `Servicio de literatura respondió ${res.status}` }
-          return (await res.json()) as unknown
+          const body = (await res.json()) as Record<string, unknown>
+          // El backend siempre manda evidence_level, pero durante una ventana de deploy desfasado
+          // (front nuevo, athos-service viejo) podría faltar. Se normaliza para que el modelo nunca
+          // se quede sin banda. Default 'sufficient' = falla ABIERTA, igual que el juez del backend:
+          // ante un fallo de infraestructura no se le niega la literatura al vet.
+          const band = typeof body.evidence_level === "string" ? body.evidence_level : "sufficient"
+          return { ...body, evidence_level: band }
         } catch {
           return { error: "No se pudo consultar la literatura (timeout o red)." }
         }
