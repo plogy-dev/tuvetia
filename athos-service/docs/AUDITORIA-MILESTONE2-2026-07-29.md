@@ -636,7 +636,20 @@ base de producción y las 32 variables de Railway). **Gap:** confirmar acceso al
 que es el único entorno que no se pudo auditar y donde viven las keys de IA del front y
 `SUPABASE_SERVICE_ROLE_KEY`.
 
-### [6.3] ⚠️ PARCIAL — Documentación técnica
+### [6.3] ✅ CORREGIDO en lo esencial (2026-07-29, commit `d6782eb`) — Documentación técnica
+
+> Se cerraron los cuatro huecos que impedían que un dev nuevo trabajara: **`.env.example`** en la raíz
+> (30 variables agrupadas, cada bloque con qué se rompe si falta; el `.gitignore` la excluía y se
+> agregó la excepción), **`docs/ARQUITECTURA.md`** (las cuatro decisiones que explican el código, los
+> cuatro clientes de Supabase y cuándo usar el que se salta la RLS, el ciclo de aprobación),
+> **`docs/API.md`** (las 22 rutas con método, autenticación y uso de `service_role`, extraído del
+> código) y el **`README.md`** reescrito (arranque real con el prerrequisito de Node ≥22.12, cómo
+> verificar, mapa del repo y tabla de "si vas a tocar X, leé Y"). Los 17 enlaces internos verificados.
+>
+> ⏳ **Queda el manual de usuario**, que conviene esperar al rediseño de la ficha del paciente para no
+> documentar pantallas que van a cambiar.
+
+*Diagnóstico original:*
 
 **Evidencia:** 19 documentos, ~3.100 líneas. Fuerte en backend y despliegue
 (`tuvetia_rag_documento_final.md` 380 líneas de arquitectura del RAG, `SETUP.md` 358, `DEPLOY.md` 152,
