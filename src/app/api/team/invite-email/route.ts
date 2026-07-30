@@ -2,6 +2,7 @@ import { NextResponse } from "next/server"
 
 import { createClient } from "@/lib/supabase/server"
 import { createAdminClient } from "@/lib/supabase/admin"
+import { getAppBaseUrl } from "@/lib/base-url"
 
 // Envío best-effort del email de invitación (misma infra SMTP del magic link, vía
 // auth.admin.inviteUserByEmail). Si falla (p.ej. el email ya tiene cuenta), no pasa nada:
@@ -40,9 +41,17 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Invitación no encontrada" }, { status: 404 })
     }
 
-    const origin = new URL(req.url).origin
+    // El destino tiene que ser /auth/callback, NO /invitar/<token> directo: esa página sólo lee la
+    // sesión con getUser() y no canjea el `?code=` de PKCE que trae el enlace del correo. Al
+    // aterrizar ahí sin sesión, el invitado veía "Inicia sesión o crea tu cuenta" — el enlace del
+    // correo "no hacía nada" (los 2 intentos fallidos que reportó el cliente). /auth/callback hace
+    // el exchangeCodeForSession y después redirige al `next`, que valida contra open redirect.
+    // Y el origin sale de getAppBaseUrl(): `new URL(req.url).origin` daba el dominio del deployment
+    // de preview, que no está en la allow-list de Redirect URLs de Supabase.
+    const base = getAppBaseUrl()
+    const next = encodeURIComponent(`/invitar/${body.token}`)
     const { error } = await admin.auth.admin.inviteUserByEmail(invitation.email, {
-      redirectTo: `${origin}/invitar/${body.token}`,
+      redirectTo: `${base}/auth/callback?next=${next}`,
     })
     // Falla típica: el email ya tiene cuenta -> no es un error para nosotros (usará el link).
     return NextResponse.json({ sent: !error, reason: error?.message ?? null })

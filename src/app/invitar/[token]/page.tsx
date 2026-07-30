@@ -100,9 +100,13 @@ export default async function InvitarPage({ params }: { params: Promise<{ token:
           Tu sesión actual es <b>{user.email}</b>. Cerrá sesión e ingresá con el correo invitado
           para aceptar.
         </p>
-        <Button variant="outline" render={<Link href={`/?next=${next}`} />}>
-          Cambiar de cuenta
-        </Button>
+        {/* Cierra la sesión de verdad: antes sólo navegaba al inicio y el usuario volvía acá
+            autenticado con la misma cuenta, sin salida. POST para que el prefetch no lo dispare. */}
+        <form action={`/auth/signout?next=/login%3Fnext%3D${next}`} method="post">
+          <Button type="submit" variant="outline">
+            Cerrar sesión y cambiar de cuenta
+          </Button>
+        </form>
       </>,
     )
   }
