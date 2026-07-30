@@ -1,20 +1,20 @@
-﻿import 'server-only';
+import 'server-only';
 
-// Adaptador de mensajerÃ­a REAL de cartera. Reemplaza a SimulatedMessaging
-// detrÃ¡s del puerto MessagingPort SIN tocar el scheduler.
+// Adaptador de mensajería REAL de cartera. Reemplaza a SimulatedMessaging
+// detrás del puerto MessagingPort SIN tocar el scheduler.
 //
-// AdaptaciÃ³n del port (contrato Â§5):
-//   Â· WhatsApp â†’ sendWhatsAppText de @/lib/whatsapp/send-message (el ÃšNICO
+// Adaptación del port (contrato §5):
+//   · WhatsApp → sendWhatsAppText de @/lib/whatsapp/send-message (el ÚNICO
 //     camino de salida del destino; el transporte ya aplica cadencia humana).
 //     SIN plantillas Meta: el texto del recordatorio llega ya redactado en
 //     msg.body. El saliente queda registrado en whatsapp_messages por el
 //     propio sendWhatsAppText (agent_mode 'auto', sent_by null = sistema).
-//   Â· Email â†’ sendEmail de @/lib/email/smtp con las credenciales cifradas de la
-//     clÃ­nica. connectedChannels lo reporta sÃ³lo si la integraciÃ³n estÃ¡ en
+//   · Email → sendEmail de @/lib/email/smtp con las credenciales cifradas de la
+//     clínica. connectedChannels lo reporta sólo si la integración está en
 //     'connected'; si no, el scheduler salta el canal con log, como antes.
 //
-// Nunca decide A QUIÃ‰N ni CUÃNDO contactar (eso es del gate Ley 2300 en el
-// dominio): solo materializa el envÃ­o que el despachador ya autorizÃ³.
+// Nunca decide A QUIÉN ni CUÁNDO contactar (eso es del gate Ley 2300 en el
+// dominio): solo materializa el envío que el despachador ya autorizó.
 
 import { loadEmailCredentials } from '@/lib/email/integrations';
 import { sendEmail } from '@/lib/email/smtp';
@@ -39,26 +39,26 @@ export class RealMessaging implements MessagingPort {
       loadEmailCredentials(this.clinicId),
     ]);
     if (integ && integ.status === 'connected') channels.push('WHATSAPP');
-    // El correo se reporta conectado sÃ³lo si la clÃ­nica lo conectÃ³ de verdad. Si no, se salta con
-    // log â€” igual que antes, pero ahora por ausencia de configuraciÃ³n y no por diseÃ±o.
+    // El correo se reporta conectado sólo si la clínica lo conectó de verdad. Si no, se salta con
+    // log — igual que antes, pero ahora por ausencia de configuración y no por diseño.
     if (correo) channels.push('EMAIL');
     else
       console.log(
-        `[cartera/channels] clinic=${this.clinicId} canal EMAIL omitido: sin integraciÃ³n de correo`,
+        `[cartera/channels] clinic=${this.clinicId} canal EMAIL omitido: sin integración de correo`,
       );
     return channels;
   }
 
   async send(msg: OutboundMessage): Promise<SendResult> {
-    if (!msg.to?.trim()) return fail('Destino vacÃ­o');
+    if (!msg.to?.trim()) return fail('Destino vacío');
     try {
       if (msg.channel === 'EMAIL') return await this.sendEmail(msg);
       return await this.sendWhatsApp(msg);
     } catch (e) {
-      const message = e instanceof Error ? e.message : 'Error de envÃ­o';
-      // "WhatsApp no estÃ¡ conectado" â†’ transitorio (no perder el recordatorio:
+      const message = e instanceof Error ? e.message : 'Error de envío';
+      // "WhatsApp no está conectado" → transitorio (no perder el recordatorio:
       // el despachador reprograma en vez de omitir).
-      const transient = /no estÃ¡ conectado|no esta conectado/i.test(message);
+      const transient = /no está conectado|no esta conectado/i.test(message);
       return fail(message, transient);
     }
   }
@@ -66,19 +66,19 @@ export class RealMessaging implements MessagingPort {
   /**
    * Recordatorio de cobranza por correo.
    *
-   * Se apoya en el mismo transporte que ya usa la facturaciÃ³n (`@/lib/email/smtp`), que devuelve
-   * `transient` distinguiendo un fallo de red o un lÃ­mite del proveedor â€”reprogramableâ€” de una
-   * credencial rechazada. El despachador usa esa distinciÃ³n para no perder el recordatorio.
+   * Se apoya en el mismo transporte que ya usa la facturación (`@/lib/email/smtp`), que devuelve
+   * `transient` distinguiendo un fallo de red o un límite del proveedor —reprogramable— de una
+   * credencial rechazada. El despachador usa esa distinción para no perder el recordatorio.
    *
-   * El asunto y el cuerpo llegan ya redactados en `msg`: este adaptador NO decide quÃ© decir, ni a
-   * quiÃ©n, ni cuÃ¡ndo â€” eso es del gate de la Ley 2300 en el dominio.
+   * El asunto y el cuerpo llegan ya redactados en `msg`: este adaptador NO decide qué decir, ni a
+   * quién, ni cuándo — eso es del gate de la Ley 2300 en el dominio.
    */
   private async sendEmail(msg: OutboundMessage): Promise<SendResult> {
     const creds = await loadEmailCredentials(this.clinicId);
-    if (!creds) return fail('sin integraciÃ³n de correo en esta clÃ­nica');
+    if (!creds) return fail('sin integración de correo en esta clínica');
 
-    // Message-ID propio: es la raÃ­z del hilo y lo que permite reconocer la respuesta del titular
-    // cuando entra por IMAP. Sin Ã©l, la respuesta llegarÃ­a como un correo suelto sin conversaciÃ³n.
+    // Message-ID propio: es la raíz del hilo y lo que permite reconocer la respuesta del titular
+    // cuando entra por IMAP. Sin él, la respuesta llegaría como un correo suelto sin conversación.
     const messageId = buildMessageId(msg.invoiceId ?? this.clinicId, creds.from_email, `${Date.now()}`);
     const r = await sendEmail(creds, {
       to: msg.to,
@@ -86,14 +86,14 @@ export class RealMessaging implements MessagingPort {
       text: msg.body,
       messageId,
     });
-    if (!r.ok) return fail(r.error ?? 'Error de envÃ­o de correo', r.transient ?? false);
+    if (!r.ok) return fail(r.error ?? 'Error de envío de correo', r.transient ?? false);
     return { ok: true, provider: 'email', providerMessageId: r.messageId, status: 'ENVIADO' };
   }
 
   private async sendWhatsApp(msg: OutboundMessage): Promise<SendResult> {
     const { waMessageId } = await sendWhatsAppText(this.clinicId, msg.to, msg.body, {
       ownerId: msg.ownerId ?? null,
-      sentBy: null, // lo enviÃ³ el motor de cartera, no un humano
+      sentBy: null, // lo envió el motor de cartera, no un humano
       agentMode: 'auto',
     });
     return { ok: true, provider: 'whatsapp', providerMessageId: waMessageId, status: 'ENVIADO' };
@@ -101,7 +101,7 @@ export class RealMessaging implements MessagingPort {
 }
 
 /**
- * FÃ¡brica del puerto de mensajerÃ­a del despachador. Real por defecto; simulado
+ * Fábrica del puerto de mensajería del despachador. Real por defecto; simulado
  * si CARTERA_MESSAGING_SIMULATED='1' (E2E/local sin credenciales reales).
  */
 export function getMessagingPort(clinicId: string): MessagingPort {

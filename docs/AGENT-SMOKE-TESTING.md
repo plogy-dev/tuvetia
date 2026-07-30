@@ -95,9 +95,17 @@ npx tsc --noEmit
 npm test -- src/lib/athos-agent/__tests__/agent-smoke.test.ts
 ```
 
-⚠️ **Node ≥ 22.12.** Con 22.11 vitest no arranca (`ERR_REQUIRE_ESM` al cargar `vitest.config.ts`);
-es un problema del entorno, no de la suite. El CI usa `node-version: 22`, que resuelve a la última
-22.x y sí cumple.
+**Node ≥ 22.12** o, con 22.11, exportar `NODE_OPTIONS=--experimental-require-module`:
+
+```bash
+NODE_OPTIONS=--experimental-require-module npm test     # sirve en Node 22.11
+```
+
+El fallo con 22.11 es `ERR_REQUIRE_ESM` al cargar `vitest.config.ts`: `require()` de un módulo ESM
+llegó sin flag en 22.12, y en 22.11 existe detrás de esa bandera. Es del entorno, no de la suite.
+Durante días se dio por imposible correr las pruebas del front en local y se dependió del CI para
+todo; con el flag corren las **267** en unos 40 s. El CI usa `node-version: 22`, que resuelve a la
+última 22.x y no lo necesita.
 
 ## Lo que estas pruebas NO cubren
 

@@ -16,7 +16,7 @@ Datos en **Supabase** (Postgres + pgvector), con aislamiento por clínica vía R
 
 ## Arrancar en local
 
-**Prerrequisitos:** Node **≥ 22.12** (`vite` y `rolldown` lo exigen; con 22.11 los tests no corren),
+**Prerrequisitos:** Node **≥ 22.12** (`vite` y `rolldown` lo exigen). Con 22.11 los tests igual corren anteponiendo `NODE_OPTIONS=--experimental-require-module`,
 y Python 3.13 + [uv](https://docs.astral.sh/uv/) sólo si vas a tocar el backend.
 
 ```bash
