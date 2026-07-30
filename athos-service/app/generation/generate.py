@@ -147,8 +147,12 @@ def parse_note_response(text: str, literature: list[RetrievedChunk]) -> tuple[SO
             seen.add(cid)
     # Reemplaza las referencias crudas por marcadores [n] (n = posición en `verified`).
     idx = {c.chunk_id.lower(): i + 1 for i, c in enumerate(verified)}
+    # El subjetivo también pasa por acá. No debería citar literatura —es el relato del dueño— pero el
+    # modelo lo hace igual, y al quedar fuera el `chunk_id` crudo sobrevivía: medido el 2026-07-29,
+    # una nota llegó con `[2fa4dac8-2a34-4d03-85d7-f44f93780c34]` visible en la S de la historia
+    # clínica. `_renumber_refs` lo convierte en `[n]` si mapea a una cita y lo borra si no.
     soap = SOAP(
-        subjective=soap.subjective,
+        subjective=_renumber_refs(soap.subjective, idx),
         objective=_renumber_refs(soap.objective, idx),
         assessment=_renumber_refs(soap.assessment, idx),
         plan=_renumber_refs(soap.plan, idx),

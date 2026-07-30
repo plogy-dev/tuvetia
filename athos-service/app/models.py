@@ -110,6 +110,11 @@ class PhantomSuggestResponse(BaseModel):
     evidence_level: str = EVIDENCE_SUFFICIENT
     citations: list[Citation] = Field(default_factory=list)
     alerts: list[ConditionAlert] = Field(default_factory=list)  # condiciones relevantes (no bloqueantes)
+    # Afirmaciones de S/O que el auditor NO encontró en la transcripción, para que el front las
+    # resalte antes de que el vet firme: [{"section": "O", "text": "..."}]. Aditivo (2026-07-29) y
+    # vacío cuando la nota está limpia o el auditor no pudo opinar — nunca modifica el SOAP, porque
+    # borrar una frase clínica por un veredicto de un LLM puede sacar del expediente un hallazgo real.
+    unsupported_claims: list[dict[str, str]] = Field(default_factory=list)
     ai_model: str = ""
     ai_generated_at: datetime | None = None
 

@@ -88,6 +88,47 @@ traían una cifra y cuántas **llegaron a la nota final** (debe ser 0).
 > —que es justamente lo correcto—. Ahora el prompt aclara las tres cosas que son correctas por diseño:
 > las citas son legítimas, documentar una ausencia no es inventar, e interpretar no es agregar hechos.
 
+### Resultados del Fantasma (2026-07-29, contra producción)
+
+| | 24 notas | 40 notas (A/B) |
+|---|---|---|
+| fidelidad al transcript (media) | 8,6 | 8,7 |
+| "un veterinario la **firmaría** tal cual" | 15/24 | 27/40 |
+| notas que **inventan** algún hecho | 9/24 … 14/24 | 17/40 |
+| notas vacías (fallo de generación) | 0/24 | 0/40 |
+| **gate de dosis**: el borrador traía cifra | 3/24 | — |
+| **gate de dosis**: llegó a la nota final | **0/24** ✅ | **0/40** ✅ |
+| latencia (mediana) | 22,0 s | — |
+
+**Lo bueno:** el gate de dosis funciona también en el Fantasma. De los borradores que traían una cifra
+por kilo con la ficha incompleta, **ninguno llegó a la nota final** — y no es que el modelo no lo
+intente: lo intenta en ~1 de 8.
+
+**Lo que hay que arreglar, y es el riesgo clínico más alto que queda abierto:** la nota **inventa
+hechos**. Los patrones, de la revisión caso por caso:
+
+- **Hallazgo de examen que nadie hizo:** "a la palpación la vejiga se siente más firme", "reflejo
+  pupilar normal". Escrito en O se lee como constatado.
+- **Cambio de sitio o de grado:** la consulta dice "petequias en piel" y la nota escribe "petequias
+  gingivales"; "se le manchó la cucha" se vuelve "hematuria". En un expediente el sitio *es* el dato.
+- **Atribución cruzada:** la fiebre la midió el veterinario y la nota la pone en S como algo que
+  "refirió la propietaria". S y O son la **procedencia** del dato; cruzarlos borra qué se verificó.
+
+⚠️ **Ojo con el rango 9/24 … 14/24.** Son dos corridas del **mismo** prompt de generación y el mismo
+juez. Esa variación es del instrumento, no del sistema: sirve para saber que el problema es grande, no
+para afirmar un porcentaje.
+
+**No se arregla por prompt: se midió.** Dos variantes que definen explícitamente qué va en S, O, A y P
+y prohíben el ascenso de terminología dieron, a 40 casos, **fidelidad +0,0 y firmaría 27→26**. A 16
+casos parecían una mejora clara (+2 en firmaría, inventan 10→5) y era **ruido de corrida** — el propio
+prompt de producción se movió de 8/16 a 9/16 entre dos corridas. Se conservan en `prompts_nota.py`
+como evidencia de que no funciona.
+
+El arreglo parcial que sí entró es código: `app/generation/transcript_fidelity.py`, que audita S y O
+contra la consulta y **señala** lo que no encuentra (no lo borra: si el auditor se equivoca, borrar
+saca del expediente un hallazgo real). Su calibración está documentada en el módulo y es honesta —
+**lo que señala casi siempre vale y se le escapan dos tercios**. Es una red parcial, no la solución.
+
 ### A/B de prompts
 
 ```bash

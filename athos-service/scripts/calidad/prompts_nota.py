@@ -6,6 +6,24 @@ código. Las variantes son texto plano acá.
 """
 from app.generation.generate import CLINICAL_SYSTEM_PROMPT
 
+# ⚠️ RECHAZADAS LAS DOS. Se conservan como EVIDENCIA DE QUE EL PROMPT NO ARREGLA ESTO, igual que
+# `CITAS_ESTRICTAS` en `prompts_variantes.py`. Que no las vuelva a probar nadie sin leer esto:
+#
+#   n=16:  firmaría 8 -> 10,  notas que inventan 10 -> 5,  estructura +0,5,  seguridad +0,6
+#   n=40:  firmaría 27 -> 26, notas que inventan 17 -> 14, fidelidad +0,0
+#          y caso a caso: 16 mejoran, 14 empeoran, 10 empatan
+#
+# La corrida de 16 parecía una mejora clara y era RUIDO. Se vio de otra forma, que es la que conviene
+# recordar: el propio `actual` se movió entre corridas (firmaría 8/16 y después 9/16) sobre el mismo
+# prompt y el mismo banco. Cuando la variación de una rama sola es del tamaño del efecto que se
+# busca, 16 casos no alcanzan para decidir nada. A 40 el efecto desaparece.
+#
+# Lo que el A/B sí dejó medido, y es el hallazgo que importa: **17 de 40 notas inventan algún hecho**,
+# y con la variante 14 de 40. El defecto es real y consistente (inventa hallazgos de examen físico:
+# palpaciones que nadie hizo, "reflejo pupilar normal" cuando nadie lo evaluó, síntomas atribuidos al
+# dueño que dijo otra cosa) y **no se corrige por prompt**. Como todo lo demás en este proyecto, la
+# regla dura necesita código: ver `app/generation/transcript_fidelity.py`.
+#
 # El bloque que se INSERTA antes de las instrucciones de formato JSON. El prompt de producción no
 # define en ningún momento qué significan S, O, A y P — y eso explica los dos defectos medidos el
 # 2026-07-29 sobre 16 notas:

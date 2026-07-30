@@ -35,6 +35,7 @@ from app.generation.citation_fidelity import check_fidelity, drop_and_renumber  
 from app.generation.dose_guard import has_dose, patient_data_complete, redact_doses  # noqa: E402
 from app.generation.evidence_judge import judge_evidence  # noqa: E402
 from app.generation.generate import generate_note  # noqa: E402
+from app.generation.transcript_fidelity import check_note_fidelity  # noqa: E402
 from app.models import PatientContext  # noqa: E402
 from app.retrieval.cascade import build_and_retrieve  # noqa: E402
 from scripts.calidad.respuestas_eval import _judge_client, _muestra, _parse_json  # noqa: E402
@@ -122,6 +123,10 @@ def evalua(caso: dict) -> dict:
             citations = [c for i, c in enumerate(citations, 1) if i not in fid.unfaithful]
             fid_descartadas = sorted(fid.unfaithful)
 
+    # Auditor de fidelidad contra el transcript: no corrige la nota, la señala. Se mide acá para
+    # calibrarlo — un auditor que marca de más se vuelve ruido que el vet aprende a ignorar.
+    fid_nota = check_note_fidelity(soap.subjective, soap.objective, transcript)
+
     fila = {
         "id": caso["id"], "banda": verdict.band, "passed": passed,
         "n_citas": len(citations), "fid_descartadas": fid_descartadas,
@@ -132,6 +137,10 @@ def evalua(caso: dict) -> dict:
                  "assessment": soap.assessment, "plan": soap.plan},
         "vacio": not (soap.assessment or "").strip(),
         "seg_retrieval": round(t_retrieval, 1), "seg_generacion": round(t_generacion, 1),
+        "nota_fid_juzgada": fid_nota.judged,
+        "nota_fid_n_claims": fid_nota.n_claims,
+        "nota_fid_senaladas": fid_nota.as_payload(),
+        "nota_fid_seg": round(fid_nota.seconds, 1),
     }
     raw = JUDGE.complete(RUBRICA_SYSTEM, _rubrica_user(transcript, soap),
                          max_tokens=JUDGE_MAX_TOKENS)
@@ -202,6 +211,34 @@ def main() -> None:
           f"{sum(1 for f in filas if f['dosis_visible_al_final'])}/{len(filas)}  <-- debe ser 0")
     print(f"  latencia (mediana)                   : "
           f"{statistics.median([f['seg_retrieval'] + f['seg_generacion'] for f in filas]):.1f}s")
+
+    # Auditor de fidelidad contra el transcript. Lo que se busca al calibrar: que señale las notas que
+    # el juez marca como inventoras y NO las que están limpias. Un auditor que marca en todas es
+    # ruido que el veterinario aprende a ignorar, y entonces no sirve para nada.
+    juzgadas = [f for f in filas if f.get("nota_fid_juzgada")]
+    if juzgadas:
+        con_senal = [f for f in juzgadas if f["nota_fid_senaladas"]]
+        total_claims = sum(f["nota_fid_n_claims"] for f in juzgadas)
+        total_senal = sum(len(f["nota_fid_senaladas"]) for f in juzgadas)
+        print("\n  AUDITOR DE FIDELIDAD DE LA NOTA (contra el transcript)")
+        print(f"    notas auditadas                    : {len(juzgadas)}/{len(filas)}")
+        print(f"    notas con alguna afirmación señalada: {len(con_senal)}/{len(juzgadas)}")
+        print(f"    afirmaciones señaladas             : {total_senal}/{total_claims} "
+              f"({100 * total_senal / total_claims:.0f}%)" if total_claims else "")
+        print(f"    latencia del auditor (mediana)     : "
+              f"{statistics.median([f['nota_fid_seg'] for f in juzgadas]):.1f}s")
+        # Cruce con el juez de calidad: ¿el auditor encuentra lo que el juez llama invento?
+        if con_rub:
+            juez_inventa = {f["id"] for f in con_rub if f["rubrica"].get("inventado")}
+            aud_senala = {f["id"] for f in con_senal}
+            print(f"    coincide con el juez               : "
+                  f"{len(juez_inventa & aud_senala)} de {len(juez_inventa)} que el juez marca")
+            print(f"    señala notas que el juez ve limpias: "
+                  f"{len(aud_senala - juez_inventa)} de {len(juzgadas) - len(juez_inventa)} limpias")
+        print("\n    LO SEÑALADO (revisar a mano: ¿es invento o es falso positivo?):")
+        for f in con_senal[:8]:
+            for s in f["nota_fid_senaladas"][:2]:
+                print(f"      {f['id']:26} [{s['section']}] {s['text'][:96]}")
 
     peores = sorted(con_rub, key=lambda f: f["rubrica"].get("fidelidad", 10))[:5]
     if peores:

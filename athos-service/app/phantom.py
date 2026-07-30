@@ -20,6 +20,7 @@ from app.generation.condition_alerts import detect_conditions, explain_condition
 from app.generation.dose_guard import patient_data_complete, redact_doses
 from app.generation.evidence_judge import judge_evidence
 from app.generation.generate import EmptyNoteError, generate_note
+from app.generation.transcript_fidelity import check_note_fidelity
 from app.models import EVIDENCE_NONE, PhantomSuggestResponse
 from app.patient_context import load_patient_context
 from app.retrieval.cascade import build_and_retrieve
@@ -154,6 +155,15 @@ def suggest(consultation_id: str, clinic_id: str, user_id: str | None = None) ->
             citations = [c for i, c in enumerate(citations, 1) if i not in fid.unfaithful]
             log.info("fidelidad de citas (Fantasma): %s de %s fuentes descartadas",
                      len(fid.unfaithful), total)
+    # Fidelidad de la NOTA contra el TRANSCRIPT: ¿lo que S y O afirman se dijo en la consulta? Es el
+    # riesgo más alto de todo el sistema — medido, 17 de 40 notas afirmaban un hallazgo de examen que
+    # nadie hizo — y no se arregla por prompt (se probaron dos variantes, ver scripts/calidad).
+    # NO corrige la nota, la SEÑALA: si el auditor se equivoca, borrar una frase saca del expediente
+    # un hallazgo real. La nota es un borrador que el vet aprueba; esto le dice qué revisar antes.
+    fid_nota = check_note_fidelity(soap.subjective, soap.objective, transcript_text)
+    if fid_nota.unsupported:
+        log.info("fidelidad de nota (Fantasma): %s de %s afirmaciones sin respaldo en la consulta",
+                 len(fid_nota.unsupported), fid_nota.n_claims)
     # Honestidad del payload: aunque el retrieval pase el umbral, si la generación no ancló NINGUNA
     # cita (la literatura recuperada no sustentaba el caso), no afirmamos evidencia suficiente. Así
     # el flag es consistente con la nota (citations=[] <-> insufficient_evidence=True).
@@ -184,5 +194,6 @@ def suggest(consultation_id: str, clinic_id: str, user_id: str | None = None) ->
         allergy_gate_triggered=gate_triggered, allergy_transcript_flag=allergy_flag,
         insufficient_evidence=insufficient, evidence_level=evidence_level,
         citations=citations, alerts=alerts,
+        unsupported_claims=fid_nota.as_payload(),
         ai_model=model, ai_generated_at=ai_at,
     )

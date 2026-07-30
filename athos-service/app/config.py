@@ -63,6 +63,14 @@ class Settings(BaseSettings):
     # Rollback sin redespliegue: `FIDELITY_ENABLED=false` en Railway.
     fidelity_enabled: bool = True
 
+    # Fidelidad de la NOTA contra el TRANSCRIPT (`transcript_fidelity.py`). Distinto del de arriba:
+    # ese audita el assessment contra la literatura, éste audita S y O contra lo que se dijo en la
+    # consulta. Medido el 2026-07-29 sobre 40 transcripciones: **17 de 40 notas afirman al menos un
+    # hecho que la consulta no contiene** (palpaciones que nadie hizo, reflejos que nadie evaluó,
+    # síntomas atribuidos a la boca equivocada). No corrige la nota: la señala, para que el
+    # veterinario lo arregle antes de firmar. Rollback: `TRANSCRIPT_FIDELITY_ENABLED=false`.
+    transcript_fidelity_enabled: bool = True
+
     # STT — Modo Fantasma (ADR-0016: Deepgram Nova, batch + diarización)
     deepgram_api_key: str = ""
     stt_model: str = "nova-2"

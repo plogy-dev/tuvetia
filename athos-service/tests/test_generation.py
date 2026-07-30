@@ -3,7 +3,7 @@ import json
 
 import app.generation.generate as gen
 from app.generation.generate import build_note_prompt, parse_note_response, generate_note
-from app.models import PatientContext
+from app.models import PatientContext, RetrievedChunk
 
 
 def _patient():
@@ -120,3 +120,27 @@ def test_generate_note_acepta_system_prompt_alternativo(monkeypatch, sample_chun
     monkeypatch.setattr(gen.LLMClient, "complete", fake)
     generate_note("x", sample_chunks, _patient(), [], system_prompt="PROMPT DE PRUEBA")
     assert vistos == ["PROMPT DE PRUEBA"]
+
+
+def test_el_subjetivo_no_conserva_chunk_id_crudos():
+    """Un UUID crudo visible en la S es basura ilegible en la historia clinica.
+
+    El subjetivo no deberia citar literatura —es el relato del dueno— pero el modelo lo hace igual, y
+    quedaba fuera del renumerado. Medido el 2026-07-29: una nota llego con el chunk_id completo
+    escrito en la S. El que mapea a una cita se vuelve [1]; el que no existe en la literatura se borra.
+    """
+    presente = "2fa4dac8-2a34-4d03-85d7-f44f93780c34"
+    fantasma = "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"
+    chunks = [RetrievedChunk(chunk_id=presente, doc_id="PM1", content="x", locator="L",
+                             source="PubMed", score=0.9, metadata={"is_current": True})]
+    text = json.dumps({
+        "soap": {"subjective": f"El dueno refiere vomitos desde el martes [{presente}] "
+                               f"y decaimiento [{fantasma}].",
+                 "objective": "", "assessment": "compatible con Y", "plan": "observar"},
+        "citations": [{"chunk_id": presente, "doc_id": "PM1"}],
+        "allergy_transcript_flag": False,
+    })
+    soap, _cites, _flag = parse_note_response(text, chunks)
+    assert presente not in soap.subjective        # el UUID crudo no sobrevive
+    assert fantasma not in soap.subjective        # el que no existe se borra, no se deja escrito
+    assert "[1]" in soap.subjective               # el que si mapea queda como cita legible
