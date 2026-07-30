@@ -68,16 +68,12 @@ export default async function SettingsPage() {
     .order("weekday")
     .order("opens_at")
 
-  // Equipo: miembros de la clínica (RLS: profiles de la clínica) + invitaciones pendientes
-  // (RLS: solo el admin las ve; para un vet llega vacío).
+  // Equipo: miembros de la clínica (RPC get_clinic_members: el email vive en auth.users, que
+  // PostgREST no expone directo) + invitaciones pendientes (RLS: solo el admin las ve; para un
+  // vet llega vacío).
   const isAdmin = p?.role === "admin"
-  // clinic_id explícito (defensa en profundidad, no solo RLS): jamás listar perfiles ajenos.
   const { data: memberRows } = p?.clinic_id
-    ? await supabase
-        .from("profiles")
-        .select("id, full_name, role")
-        .eq("clinic_id", p.clinic_id)
-        .order("full_name")
+    ? await supabase.rpc("get_clinic_members")
     : { data: null }
   const { data: inviteRows } = await supabase
     .from("invitations")
@@ -114,7 +110,12 @@ export default async function SettingsPage() {
             <b>administrador</b> puede invitar o revocar.
           </HelpTip>
         </div>
-        <TeamSettings isAdmin={isAdmin} members={members} invitations={pendingInvitations} />
+        <TeamSettings
+          isAdmin={isAdmin}
+          members={members}
+          invitations={pendingInvitations}
+          currentUserId={user?.id ?? ""}
+        />
       </div>
 
       {/* WhatsApp de la clínica (Kapso, multi-tenant) */}

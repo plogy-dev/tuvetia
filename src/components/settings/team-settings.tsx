@@ -3,10 +3,12 @@
 // Equipo de la clínica (Settings): miembros, invitaciones pendientes y "Invitar colega".
 // Crear invitación = RPC create_invitation (solo admins, valida en BD) -> link para compartir
 // (WhatsApp/como sea) + intento de email automático best-effort (/api/team/invite-email).
+// Quitar miembro = RPC remove_clinic_member (solo admins, valida en BD: no a uno mismo, no al
+// único admin restante).
 
 import { useState } from "react"
 import { useRouter } from "next/navigation"
-import { Copy, Loader2, Mail, Trash2, UserPlus } from "lucide-react"
+import { Copy, Loader2, Mail, Trash2, UserPlus, UserX } from "lucide-react"
 import { toast } from "sonner"
 
 import { createClient } from "@/lib/supabase/client"
@@ -24,23 +26,35 @@ import {
 
 const ROLE_LABELS: Record<string, string> = { admin: "Administrador", vet: "Veterinario" }
 
-export type TeamMember = { id: string; full_name: string | null; role: string }
+export type TeamMember = { id: string; full_name: string | null; email: string; role: string }
 export type PendingInvitation = { id: string; email: string; role: string; expires_at: string }
+
+function initialsOf(name: string | null, fallback: string) {
+  const source = name?.trim() || fallback
+  return source
+    .split(/\s+/)
+    .slice(0, 2)
+    .map((s) => s[0]?.toUpperCase())
+    .join("")
+}
 
 export function TeamSettings({
   isAdmin,
   members,
   invitations,
+  currentUserId,
 }: {
   isAdmin: boolean
   members: TeamMember[]
   invitations: PendingInvitation[]
+  currentUserId: string
 }) {
   const router = useRouter()
   const [supabase] = useState(() => createClient())
   const [email, setEmail] = useState("")
   const [role, setRole] = useState<"vet" | "admin">("vet")
   const [creating, setCreating] = useState(false)
+  const [removingId, setRemovingId] = useState<string | null>(null)
   const [inviteLink, setInviteLink] = useState<string | null>(null)
 
   async function invite(e: React.FormEvent) {
@@ -86,16 +100,62 @@ export function TeamSettings({
     }
   }
 
+  async function removeMember(member: TeamMember) {
+    const ok = window.confirm(
+      `¿Quitar a ${member.full_name ?? member.email} de la clínica? Deja de ver pacientes, consultas y agenda de tu equipo.`,
+    )
+    if (!ok) return
+    setRemovingId(member.id)
+    const { error } = await supabase.rpc("remove_clinic_member", { p_member_id: member.id })
+    setRemovingId(null)
+    if (error) toast.error(`No se pudo quitar: ${error.message}`)
+    else {
+      toast.success(`${member.full_name ?? member.email} ya no pertenece a la clínica`)
+      router.refresh()
+    }
+  }
+
   return (
     <div className="flex flex-col gap-4">
       {/* Miembros */}
-      <ul className="flex flex-col gap-1.5 text-sm">
-        {members.map((m) => (
-          <li key={m.id} className="flex items-center justify-between gap-2">
-            <span className="font-medium">{m.full_name ?? "—"}</span>
-            <span className="text-xs text-muted-foreground">{ROLE_LABELS[m.role] ?? m.role}</span>
-          </li>
-        ))}
+      <ul className="flex flex-col gap-1">
+        {members.map((m) => {
+          const isSelf = m.id === currentUserId
+          return (
+            <li key={m.id} className="group flex items-center gap-3 rounded-lg px-1.5 py-1.5 -mx-1.5 hover:bg-accent/50">
+              <div className="flex size-8 shrink-0 items-center justify-center rounded-full bg-primary/10 text-xs font-semibold text-primary">
+                {initialsOf(m.full_name, m.email)}
+              </div>
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center gap-1.5 text-sm font-medium">
+                  <span className="truncate">{m.full_name ?? m.email}</span>
+                  {isSelf && <span className="shrink-0 text-xs font-normal text-muted-foreground">(vos)</span>}
+                </div>
+                <div className="truncate text-xs text-muted-foreground">{m.email}</div>
+              </div>
+              <span className="shrink-0 rounded-full bg-muted px-2 py-0.5 text-xs text-muted-foreground">
+                {ROLE_LABELS[m.role] ?? m.role}
+              </span>
+              {isAdmin && (
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  className="shrink-0 text-muted-foreground opacity-0 group-hover:opacity-100 hover:text-destructive focus-visible:opacity-100 disabled:opacity-0"
+                  onClick={() => removeMember(m)}
+                  disabled={isSelf || removingId === m.id}
+                  aria-label={isSelf ? "No podés quitarte a vos mismo" : `Quitar a ${m.full_name ?? m.email} de la clínica`}
+                  title={isSelf ? "No podés quitarte a vos mismo" : "Quitar de la clínica"}
+                >
+                  {removingId === m.id ? (
+                    <Loader2 className="size-3.5 animate-spin" />
+                  ) : (
+                    <UserX className="size-3.5" />
+                  )}
+                </Button>
+              )}
+            </li>
+          )
+        })}
       </ul>
 
       {isAdmin && (
