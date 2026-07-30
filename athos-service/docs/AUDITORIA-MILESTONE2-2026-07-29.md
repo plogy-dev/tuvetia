@@ -508,7 +508,18 @@ conversaciones y paginación. **El dato está guardado y es recuperable.**
 
 ### [4.6] ⚠️ PARCIAL — Transcripción de consultas (1 de 3 defectos corregido)
 
-**(a) Roles invertidos — es una heurística codificada.** `app/transcription.py:29`:
+**(a) Roles invertidos — ✅ CORREGIDO (2026-07-29, commit `05d1bd0`).** El rol ya no se supone: se
+**infiere del contenido** en `app/speaker_roles.py`, determinístico y sin LLM. En español hay
+marcadores confiables — quien dice "doctor" o "mi perro" es el dueño; quien dice "vamos a palpar",
+"voy a revisarlo" o pide un hemograma es el clínico. Se puntúa el texto completo de cada hablante
+para que un marcador aislado no decida por todo el diálogo, y **cuando no hay señal suficiente no se
+inventa**: se marca `role_inferred: false` para que la UI pueda ofrecer el intercambio manual.
+Verificado contra producción (`scripts/calidad/transcripts_reetiquetar.py`, dry-run): de las 5
+transcripciones con segmentos, **1 estaba invertida** y la corrección es evidente al leerla.
+⏳ **El backfill NO se ejecutó** — modifica datos clínicos existentes y requiere autorización; el
+script queda con dry-run por defecto. 11 tests nuevos.
+
+*Diagnóstico original:* `app/transcription.py:29` tenía:
 `SPEAKER_LABELS = {0: "Veterinario", 1: "Titular"}`, con el comentario que lo admite: *"Deepgram
 devuelve índices de hablante, no roles. Asumimos que el hablante 0 es el veterinario"*. Deepgram
 asigna `speaker 0` a **quien habla primero**, y en consulta real el titular suele abrir ("Doctor, mi
