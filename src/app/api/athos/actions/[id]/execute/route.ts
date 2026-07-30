@@ -3,6 +3,7 @@ import { NextResponse } from "next/server"
 import { createClient } from "@/lib/supabase/server"
 import { createAdminClient } from "@/lib/supabase/admin"
 import { pushAppointment } from "@/lib/google-calendar"
+import { validarPayload } from "@/lib/athos-agent/payload-schemas"
 import { sendWhatsAppText } from "@/lib/whatsapp/send-message"
 
 export const runtime = "nodejs"
@@ -64,7 +65,16 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
   }
 
   const body = (await req.json().catch(() => ({}))) as { payload_override?: Record<string, unknown> }
-  const payload = { ...action.payload, ...(body.payload_override ?? {}) }
+  // El vet puede editar la propuesta antes de aprobarla — esa es la intención. Pero entre proponer y
+  // ejecutar el payload sale del servidor y vuelve, y nada volvía a mirarlo: se revalida contra el
+  // esquema de lo que esa tool guarda. Además el parseo DESCARTA los campos desconocidos, así que un
+  // `clinic_id` o un `vet_id` agregados al override no llegan a la RPC.
+  const revision = validarPayload(action.tool_name, {
+    ...action.payload,
+    ...(body.payload_override ?? {}),
+  })
+  if (!revision.ok) return NextResponse.json({ error: revision.error }, { status: 400 })
+  const payload = revision.payload
 
   // RESERVA ATÓMICA antes de despachar. El chequeo de status de arriba es un TOCTOU: entre leer
   // y ejecutar puede colarse otra request (doble clic en "Aprobar", reintento del navegador) y

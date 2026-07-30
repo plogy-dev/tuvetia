@@ -173,11 +173,16 @@ class EmptyNoteError(RuntimeError):
 
 def generate_note(transcript: str, literature: list[RetrievedChunk], patient: PatientContext,
                   severe_allergens: list[str],
-                  system_prompt: str | None = None) -> tuple[SOAP, list[Citation], bool]:
+                  system_prompt: str | None = None,
+                  task: str = REDACCION) -> tuple[SOAP, list[Citation], bool]:
     """Genera la nota SOAP (Modo Fantasma) en una sola llamada. Usa LLMClient(LLM_MODEL).
 
     Devuelve (soap, citations, allergy_transcript_flag). El gate DURO (allergy_gate_triggered) y el
     insufficient_evidence los calcula Athos aparte (determinístico), no el modelo.
+
+    `task` es el ROUTING POR CONSULTA (cláusula 1.5): el Fantasma pasa `DIFICIL` cuando el juez
+    dictaminó cobertura *limitada*, y esa cadena puede apuntar a un modelo distinto — el que mide
+    mejor en fidelidad. Ver `provider_cascade.task_para_banda`.
 
     Lanza `EmptyNoteError` si el modelo no devuelve una nota utilizable ni al reintentar.
     """
@@ -191,7 +196,7 @@ def generate_note(transcript: str, literature: list[RetrievedChunk], patient: Pa
         # parseo caía a una nota vacía. 4000 da margen para que el JSON cierre completo.
         # Cascada entre proveedores: si el primario se cae, responde la alternativa.
         # Sin `LLM_CASCADE_REDACCION` configurado se comporta igual que `LLMClient()`.
-        text = ProviderCascade(REDACCION).complete(system, user, max_tokens=4000)
+        text = ProviderCascade(task).complete(system, user, max_tokens=4000)
         soap, citations, model_flag = parse_note_response(text, literature)
         if soap.subjective.strip() or soap.objective.strip() or soap.assessment.strip():
             break
