@@ -39,6 +39,12 @@ export function FinanceTable({ items }: { items: FinanceItem[] }) {
   const [error, setError] = useState<string | null>(null);
 
   function remove(item: FinanceItem) {
+    // Mismo criterio que ImportBatchesList: borrar dinero registrado es irreversible y el icono
+    // vive a 4px del lápiz de editar — un clic mal puesto no puede borrar sin preguntar.
+    const label = item.kind === 'EGRESO' ? 'este egreso' : 'este ingreso';
+    if (!window.confirm(`¿Eliminar ${label} (${item.concept})? No se puede deshacer.`)) {
+      return;
+    }
     setError(null);
     startTransition(async () => {
       const r =

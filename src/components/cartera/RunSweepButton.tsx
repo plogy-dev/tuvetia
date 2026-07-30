@@ -16,7 +16,15 @@ export function RunSweepButton() {
       <button
         type="button"
         disabled={isPending}
-        onClick={() =>
+        onClick={() => {
+          // Este botón CONTACTA CLIENTES de verdad (WhatsApp/correo a deudores) — en un flujo
+          // regulado por la Ley 2300, un clic accidental no puede disparar envíos sin preguntar.
+          if (
+            !window.confirm(
+              'Se enviarán ahora los recordatorios de cobro pendientes a los titulares (WhatsApp/correo). ¿Ejecutar el barrido?',
+            )
+          )
+            return;
           startTransition(async () => {
             setMsg(null);
             const r = await runSweepNowAction();
@@ -28,8 +36,8 @@ export function RunSweepButton() {
             } else {
               setMsg(r.error);
             }
-          })
-        }
+          });
+        }}
         className="inline-flex items-center gap-2 rounded-lg border border-line bg-surface px-3 py-2 text-sm text-fg-muted hover:bg-surface-2 hover:text-fg transition disabled:opacity-60"
       >
         <RefreshCw className={`size-4 ${isPending ? 'animate-spin' : ''}`} aria-hidden />

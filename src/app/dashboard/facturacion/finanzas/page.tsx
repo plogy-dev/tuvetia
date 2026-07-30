@@ -109,7 +109,9 @@ export default async function FinanzasPage({
       editExpense = {
         id: e.id,
         category: e.category,
-        amountPesos: Math.round(e.amount_cents / 100),
+        // División exacta, sin Math.round: redondear aquí trunca los centavos y guardar el
+        // formulario sin tocar nada persistiría un importe distinto al registrado.
+        amountPesos: e.amount_cents / 100,
         expenseDate: e.expense_date,
         method: e.method,
         supplierId: e.supplier_id,
@@ -123,7 +125,8 @@ export default async function FinanzasPage({
       editIncome = {
         id: p.id,
         method: p.method,
-        amountPesos: Math.round(p.amount_cents / 100),
+        amountPesos: p.amount_cents / 100, // exacto — ver nota en editExpense
+
         receivedDate: dateKeyBogota(p.received_at),
         note: p.note,
       };
@@ -269,13 +272,17 @@ export default async function FinanzasPage({
           <FinanceBars data={bars} />
         </div>
 
-        {/* Alta/edición de movimientos */}
+        {/* Alta/edición de movimientos. El key por registro es OBLIGATORIO: los campos son no
+            controlados (defaultValue), y sin key React reconcilia el formulario al pasar de editar
+            A a editar B — el id oculto cambia a B pero los importes en pantalla siguen siendo los
+            de A, y guardar persiste los valores de A sobre el registro B. */}
         {editIncome || editExpense ? (
           <div className="mb-6">
             {editIncome ? (
-              <IncomeForm today={today} initial={editIncome} closeHref={hrefWith()} />
+              <IncomeForm key={`ing-${editIncome.id}`} today={today} initial={editIncome} closeHref={hrefWith()} />
             ) : (
               <ExpenseForm
+                key={`egr-${editExpense!.id}`}
                 suppliers={suppliers}
                 today={today}
                 initial={editExpense}
@@ -285,8 +292,8 @@ export default async function FinanzasPage({
           </div>
         ) : (
           <div className="mb-6 flex flex-wrap gap-3">
-            <ExpenseForm suppliers={suppliers} today={today} />
-            <IncomeForm today={today} />
+            <ExpenseForm key="egr-nuevo" suppliers={suppliers} today={today} />
+            <IncomeForm key="ing-nuevo" today={today} />
           </div>
         )}
 

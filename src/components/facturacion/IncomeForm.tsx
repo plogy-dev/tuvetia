@@ -92,7 +92,7 @@ export function IncomeForm({
           name="amountPesos"
           type="number"
           min={1}
-          step={100}
+          step="any"
           required
           defaultValue={initial?.amountPesos}
           className={inputCls}
