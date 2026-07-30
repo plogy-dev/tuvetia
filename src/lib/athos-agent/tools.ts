@@ -17,13 +17,55 @@ import { proposeAction, type AgentContext } from "./actions"
 type SB = SupabaseClient
 
 const TZ_OFFSET = "-05:00"
+// Mismo offset en minutos, para aritmética. Colombia no tiene horario de verano, así que es fijo:
+// si algún día se soportara otra zona, estos dos tienen que moverse juntos.
+const TZ_OFFSET_MINUTES = -300
 
 export function localToIso(date: string, time: string): string {
   return `${date}T${time}:00${TZ_OFFSET}`
 }
 
-function addMinutesIso(iso: string, minutes: number): string {
-  return new Date(new Date(iso).getTime() + minutes * 60_000).toISOString()
+/**
+ * Rango [from, to) en ISO a partir de fecha + hora LOCAL del vet. Devuelve null si el instante no
+ * existe.
+ *
+ * Por qué la guarda: el regex del inputSchema valida FORMATO, no calendario. `2026-02-30` y `99:99`
+ * pasan `/^\d{4}-\d{2}-\d{2}$/` y `/^\d{2}:\d{2}$/` sin problema, y revientan en `new Date()` como
+ * Invalid Date. Los modelos producen ese tipo de fecha con más frecuencia de la que uno espera
+ * (febrero 30, mes 13). La versión anterior hacía `new Date(NaN).toISOString()` y lanzaba
+ * `RangeError: Invalid time value`: el turno del agente se caía entero, sin mensaje útil para el vet.
+ * Ahora el tool devuelve un error legible y el modelo puede corregir la fecha y reintentar.
+ *
+ * `minutes` no finito se trata como 0 en vez de propagar NaN: el schema tiene default, pero el tool
+ * no debería depender de que alguien lo haya aplicado.
+ */
+function localRange(
+  date: string,
+  time: string,
+  minutes: number,
+): { from: string; to: string } | null {
+  const from = localToIso(date, time)
+  const fromMs = new Date(from).getTime()
+  if (!Number.isFinite(fromMs)) return null // mes 13, hora 99:99…
+
+  // ROUND-TRIP, y es lo que de verdad importa: `2026-02-30` NO es Invalid Date. JavaScript la
+  // RUEDA en silencio a 2026-03-02, igual que `2026-02-29` (2026 no es bisiesto) → 2026-03-01.
+  // Sin esta comprobación la cita se agendaba OTRO DÍA sin que nadie se enterara — corrupción
+  // silenciosa, peor que un error. Se reconstruye la fecha local y se exige que sea la pedida.
+  const localMs = fromMs + TZ_OFFSET_MINUTES * 60_000
+  const back = new Date(localMs)
+  const ymd = `${back.getUTCFullYear()}-${String(back.getUTCMonth() + 1).padStart(2, "0")}-${String(back.getUTCDate()).padStart(2, "0")}`
+  if (ymd !== date) return null
+
+  const mins = Number.isFinite(minutes) ? minutes : 0
+  return { from, to: new Date(fromMs + mins * 60_000).toISOString() }
+}
+
+/** Mensaje único para el modelo cuando la fecha no existe (no se repite el texto en cada tool). */
+function invalidDateError(date: string, time?: string) {
+  return {
+    error: `Fecha u hora inválida: ${date}${time ? ` ${time}` : ""}. Verificá que el día exista en el calendario (por ejemplo, febrero no tiene 30) y reintentá.`,
+  }
 }
 
 const digits = (s: string) => s.replace(/\D/g, "")
@@ -134,8 +176,9 @@ export function buildAthosTools(supabase: SB, ctx: AgentContext) {
         "Citas de la clínica en un día (YYYY-MM-DD, hora local). Úsala para responder '¿qué tengo mañana?' o para encontrar el id de una cita antes de proponer moverla.",
       inputSchema: z.object({ date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/) }),
       execute: async ({ date }) => {
-        const from = localToIso(date, "00:00")
-        const to = addMinutesIso(from, 24 * 60)
+        const day = localRange(date, "00:00", 24 * 60)
+        if (!day) return invalidDateError(date)
+        const { from, to } = day
         const { data, error } = await supabase
           .from("appointments")
           .select("id, title, reason, status, starts_at, ends_at, patient:patients(name), owner:owners(full_name)")
@@ -170,6 +213,10 @@ export function buildAthosTools(supabase: SB, ctx: AgentContext) {
         duration_min: z.number().int().min(5).max(240).optional().describe("Duración deseada (default: slot de la clínica)"),
       }),
       execute: async ({ date, duration_min }) => {
+        const day = localRange(date, "00:00", 24 * 60)
+        // Sin la guarda, un `2026-02-30` daba weekday=NaN y una consulta con rango inválido:
+        // el vet recibía "no hay horarios" en vez de saber que la fecha no existe.
+        if (!day) return invalidDateError(date)
         const weekday = new Date(`${date}T12:00:00${TZ_OFFSET}`).getUTCDay()
         const [{ data: hours, error: hErr }, apptsRes] = await Promise.all([
           supabase
@@ -180,8 +227,8 @@ export function buildAthosTools(supabase: SB, ctx: AgentContext) {
           supabase
             .from("appointments")
             .select("starts_at, ends_at, status")
-            .gte("starts_at", localToIso(date, "00:00"))
-            .lt("starts_at", addMinutesIso(localToIso(date, "00:00"), 24 * 60))
+            .gte("starts_at", day.from)
+            .lt("starts_at", day.to)
             .neq("status", "canceled"),
         ])
         if (hErr) return { error: hErr.message }
@@ -364,14 +411,16 @@ export function buildAthosTools(supabase: SB, ctx: AgentContext) {
         notes: z.string().nullable().optional(),
       }),
       execute: async ({ title, date, time, duration_min, patient_id, owner_id, reason, notes }) => {
-        const starts_at = localToIso(date, time)
+        // Antes esto lanzaba RangeError con una fecha imposible y se caía el turno del agente.
+        const slot = localRange(date, time, duration_min ?? 30)
+        if (!slot) return invalidDateError(date, time)
         return proposeAction(
           ctx,
           "create_appointment",
           {
             title,
-            starts_at,
-            ends_at: addMinutesIso(starts_at, duration_min),
+            starts_at: slot.from,
+            ends_at: slot.to,
             patient_id: patient_id ?? null,
             owner_id: owner_id ?? null,
             reason: reason ?? null,
