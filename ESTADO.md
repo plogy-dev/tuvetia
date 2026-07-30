@@ -322,16 +322,17 @@ vets estén en ese dominio, acceso de admin a la consola y a Google Cloud, y SPF
   abierta), paginación real en listados (hoy guardas de escala con `limit`).
 - **Trámite Meta Tech Provider** (admin): checklist en `WHATSAPP.md` §Trámite.
 - Re-registrar el webhook de Kapso con el secreto en HEADER y borrar el fallback de query param.
-- **UI de facturación/cartera**: el motor está completo y testeado, pero `/dashboard/facturacion/*`
-  no existe. Hoy el módulo es inalcanzable desde la app.
-- ⚠️ **`xlsx@0.18.5`** tiene prototype pollution + ReDoS y *no hay fix en npm* (SheetJS se mudó a su
-  propio CDN). En el import de pacientes corre client-side (cada quien parsea su propio archivo),
-  pero facturación lo usa **server-side** en `import/parse.ts` → resolver **antes** de exponer ese
-  módulo con UI.
-- **Cartera consume la cuota diaria del asistente clínico**: sus envíos van con `agent_mode='auto'`
-  (`cartera/channels.ts`, `cartera/wa-router.ts`) y el contador de `auto-reply.ts` filtra por ese
-  mismo valor. Una clínica con cobranza activa puede agotar `auto_daily_limit` y dejar mudo al
-  asistente clínico. Faltaría un `agent_mode` propio (p. ej. `'cartera'`) o cuotas separadas.
+- ⚠️ **`xlsx@0.18.5`** (prototype pollution + ReDoS, sin fix en npm — SheetJS se mudó a su CDN).
+  Estado 2026-07-30, tras portar la UI de facturación: el código server-side que lo usa quedó
+  **empaquetado pero neutralizado con DOS guardas incondicionales** en la frontera de las server
+  actions — `ingestRecipeAction` rechaza `kind='excel'` (foto y texto siguen activos) y
+  `createImportPreview` devuelve "deshabilitado temporalmente" antes de tocar el archivo
+  (`XLSX_IMPORT_ENABLED = false`, constante de CÓDIGO a propósito: un flag de env permitiría
+  rehabilitar el parser vulnerable sin reemplazar la lib). `/inventario/importar` es una página que
+  explica el porqué. Se levanta reemplazando la lib (candidatos: exceljs o el SheetJS mantenido del
+  CDN) y editando esas dos guardas. El import de pacientes sigue client-side (riesgo autoinfligido).
+- **Cartera consume la cuota diaria del asistente clínico**: ~~pendiente~~ **corregido en PR #30**
+  (los frenos cuentan sobre `athos_actions` con `source='auto'`, que cartera no escribe).
 - **Cartera se queda con el mensaje aunque no sea de cobranza**: si el titular tiene una factura
   cobrable y respondió a un recordatorio reciente, `applyCarteraInbound` devuelve `handled: true`
   incluso cuando el intent cae en `OTRO`, así que el modo auto general nunca ve el mensaje. No se
