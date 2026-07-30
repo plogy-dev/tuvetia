@@ -220,15 +220,32 @@ tools) — ver 2.4.
    que responden con confianza sin literatura **bajaron de 9/10 a 5/10**, se abstiene en 2 y declara
    evidencia limitada en 3, **sin aumentar la sobre-abstención** (2/24 positivos).
 
-**Matiz importante y verificado:** la métrica cruda **sobreestima el problema**. Un árbitro fuerte
-confirmó que en **5 de los 10 "negativos" la literatura SÍ alcanza** (8-9 sobre 10): el banco los
-eligió por ausencia del descriptor MeSH exacto, pero el corpus tiene el tema bajo otro descriptor
-(no hay `Impetigo` pero sí `Pyoderma`; `Rheumatic Heart Disease` es un término humano y lo que hay es
-enfermedad valvular canina, que es el cuadro real). **Los 5 casos que hoy siguen respondiendo con
-confianza son exactamente esos 5.** Es decir: la abstención quedó alineada con el criterio correcto.
-**Gap:** rehacer el banco de negativos con validación clínica (no por ausencia de tag) para poder
-medir la abstención sin ese sesgo.
-**Esfuerzo estimado:** 1–2 días (rehacer los 42 negativos con revisión veterinaria).
+**⚠️ ACTUALIZACIÓN (misma fecha, más tarde): el instrumento de medición estaba roto, y se arregló.**
+Se validaron los **42 negativos** con un árbitro fuerte: **24 (57 %) NO eran negativos** — el corpus
+cubre el tema bajo otro descriptor, con puntaje 8-9/10 (no hay `Impetigo` pero sí el tratamiento del
+impétigo con clorhexidina; no hay `Exophthalmos` pero sí las patologías retrobulbares que lo causan).
+En esos 24 casos **responder era lo correcto**. Toda medición previa de la abstención —incluido el
+«0 activaciones en 187 casos» del reporte del cliente— se hizo con un banco que no medía lo que decía
+medir.
+
+**El número real, con el banco depurado a 18 negativos válidos** (`ampliado_negativos_validado.json`
+vía `negativos_validar.py`) y medición **pareada** (`juez_calibrar.py`):
+
+| juez | acierta en negativos | sobre-abstiene en positivos |
+|---|---|---|
+| **liviano (el de producción)** | **11/18 · 61 %** | **1/16 · 6 %** |
+| grande (`deepseek-v4-pro`) | 12/18 · 67 % | 2/16 · 12 % |
+
+**La abstención funciona razonablemente**: 61 % de aciertos con sólo 6 % de daño colateral. "Acierta"
+incluye la banda `limited` (responde declarando evidencia limitada), que cumple la función de avisar
+al veterinario; contando sólo la abstención dura serían 3/18.
+
+Y **el modelo grande queda descartado con instrumento válido**: gana un solo caso en negativos y
+**duplica la sobre-abstención**. Confirma la reversión que ya se había hecho.
+**Gap:** ampliar el banco de negativos válidos (hoy 18) antes de tocar los cortes
+`JUDGE_ABSTAIN_MAX`/`JUDGE_LIMITED_MAX` — con n=18 calibrarlos sería sobreajustar, el mismo error que
+ya costó una reversión.
+**Esfuerzo estimado:** 1–2 días (ampliar el banco; el instrumento de medición ya está construido).
 
 ### [2.3] ⚠️ PARCIAL — Citas de fuentes correctas (el hallazgo más grave que queda)
 
@@ -253,17 +270,33 @@ estrictas, que **empeoró todas las dimensiones** y subió las citas de 6 a 8 po
 "en caso de duda, sostiene", y validar a mano una muestra de descartes antes de encenderlo.
 **Esfuerzo estimado:** 2–3 días (calibración + validación manual + medición).
 
-### [2.4] ❌ NO EXISTE — Agent smoke testing documentado
+### [2.4] ⚠️ PARCIAL — Agent smoke testing (construido el 2026-07-29)
 
 **Evidencia:** el backend tiene **150 tests** que pasan (`athos-service/tests`, verificado hoy) y
 `ruff` limpio. El front tiene 20 archivos de test, **todos de facturación/cartera**: cero tests sobre
 `src/lib/athos-agent/` (las 17 tools, el loop del agente, la aprobación de acciones). **No existe
 ningún documento de smoke testing** del agente con resultados (búsqueda de `smoke` en los `.md`: sólo
 2 menciones no relacionadas).
-**Gap:** falta (a) suite de smoke del agente — cada tool ejercitada contra datos de prueba, el ciclo
-proponer→aprobar→ejecutar, y los límites (rate limit, expiración, doble ejecución); (b) el documento
-de resultados que exige el entregable.
-**Esfuerzo estimado:** 2–3 días.
+**✅ Construido el 2026-07-29:** `src/lib/athos-agent/__tests__/agent-smoke.test.ts` cubre los
+**invariantes de seguridad** de la capa agéntica, que es lo que un auditor querría ver:
+- `risk:"approval"` **siempre** — no existe camino de auto-aprobación.
+- La propuesta nace sin `status` ni `executed_at`: nunca se crea ya ejecutada.
+- El `clinic_id` sale del **contexto de sesión, no del payload** — la clínica no es inyectable aunque
+  el modelo la ponga en los argumentos (test explícito con `clinic_id: "clinic-DE-OTRO"`).
+- Trazabilidad: `created_by` y `proposed_by_model` quedan registrados; en modo auto `created_by` es
+  `null` y no se atribuye a un veterinario.
+- Si el insert falla, devuelve error legible y **no finge** que se propuso.
+- **Inventario cerrado: exactamente las 17 tools esperadas**, cada una con `inputSchema`, y **las 7 de
+  escritura terminan en una propuesta** (se ejercitan una por una verificando que insertan con
+  `risk:"approval"`).
+- `localToIso` fija el offset de Colombia, así que una cita de las 23:30 no se corre de día.
+
+**Gap que queda:** (a) el job del front del CI **no se pudo ejecutar en la máquina de desarrollo**
+(Node 22.11 local vs `>=22.12` que exigen `vite`/`rolldown`); los tests están escritos y el
+type-check pasa sin errores, y su primera corrida en GitHub Actions es la validación real; (b) falta
+cubrir el ciclo `proponer→aprobar→ejecutar` de la ruta HTTP (requiere mockear el cliente de sesión) y
+los límites (expiración, doble ejecución, rate limit); (c) el documento formal de resultados.
+**Esfuerzo estimado restante:** 1–1,5 días.
 
 ### [2.5] ❌ NO EXISTE — Pruebas comparativas de calidad entre modelos
 

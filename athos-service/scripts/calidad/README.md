@@ -19,6 +19,9 @@ descriptor MeSH en su `metadata->mesh`?
 `tests/golden/ampliado_negativos.json` (42 casos) es el control negativo: consultas sobre
 condiciones **ausentes del corpus o con 1-3 chunks**. Athos debería abstenerse en éstas.
 
+> 🔴 **El banco de negativos estaba 57 % mal construido. USAR
+> `ampliado_negativos_validado.json` (18 casos).** Ver §El instrumento estaba roto, abajo.
+
 > **Limitación consciente:** el banco mide RECUPERACIÓN de la literatura correcta, no si la
 > redacción final es clínicamente buena. Además la etiqueta "el chunk lleva ese descriptor" es
 > estricta: un pasaje puede responder la consulta sin llevar ese tag exacto, así que las cifras
@@ -311,6 +314,57 @@ Al mirar los desacuerdos del juez se ve que buena parte del solapamiento es **ru
 los positivos que puntúa bajo (Distemper, Lymphoma, Tick Infestations) son condiciones que el
 retrieval **no trae** aunque el corpus las tenga — el juez acierta. Mide "¿los pasajes recuperados
 cubren la consulta?", que es justo lo que la abstención debe decidir.
+
+### 🔴 El instrumento estaba roto: 24 de los 42 negativos no eran negativos (2026-07-29)
+
+```bash
+python scripts/calidad/negativos_validar.py          # valida el banco con un árbitro fuerte
+```
+
+Los negativos se eligieron por **ausencia del descriptor MeSH** en el corpus. Ese criterio es
+equivocado: el corpus tiene el tema **bajo otro descriptor**. Validados los 42 con un árbitro fuerte
+al que se le pregunta una sola cosa —*con estos pasajes, ¿un veterinario podría fundamentar una
+respuesta?*—, el resultado es contundente:
+
+| | |
+|---|---|
+| negativos **reales** (el árbitro confirma que no alcanza) | **18** (mediana 2/10) |
+| **falsos negativos** (el corpus sí cubre el tema) | **24 · 57 %**, con puntaje 8–9/10 |
+
+Ejemplos de los falsos: no hay `Impetigo` en el corpus pero **sí el tratamiento del impétigo canino
+con clorhexidina**; no hay `Exophthalmos` pero sí **las patologías retrobulbares que lo causan**; no
+hay `Pancytopenia` pero sí **sus causas y diagnóstico en perros**. En esos 24 casos **responder era
+lo correcto**, no un fallo.
+
+**Consecuencia:** toda medición previa de la abstención se hizo con un instrumento que no medía lo
+que decía medir — incluido el «0 activaciones en 187 casos» y las dos corridas que llevaron a adoptar
+y revertir `JUDGE_MODEL` el mismo día. No estaban mal ejecutadas; el banco estaba mal.
+
+**El número real, con el banco depurado a 18 casos** (`juez_calibrar.py`, comparación **pareada**: un
+solo retrieval por caso reusado para todas las configuraciones):
+
+| juez | acierta en negativos | sobre-abstiene en positivos | latencia |
+|---|---|---|---|
+| **liviano (producción)** | **11/18 · 61 %** | **1/16 · 6 %** | 1,7 s |
+| grande (`deepseek-v4-pro`) | 12/18 · 67 % | **2/16 · 12 %** | 2,8 s |
+
+**La abstención funciona mejor de lo que sugería la primera lectura.** "Acierta" cuenta `none` (se
+calla) y `limited` (responde declarando que la evidencia es limitada): las dos cumplen la función de
+avisarle al veterinario. Contando sólo la abstención dura son 3/18, y de ahí venía el «17 %» — pero
+la banda `limited` es una respuesta honesta, no un fallo.
+
+**Y el modelo grande queda descartado, ahora con instrumento válido:** gana **un solo caso** en
+negativos (+6 pp) y a cambio **duplica la sobre-abstención** (6 % → 12 %), con la abstención dura
+pasando de 3 a 6 casos. Confirma la reversión que ya se había hecho por otra vía.
+
+Los desacuerdos entre ambos modelos muestran que el juez es **intrínsecamente ruidoso caso a caso**
+(en `neg-brain-diseases-metabolic-inborn` el liviano puntúa 3 y el grande 9, seis puntos de
+diferencia), aunque en agregado el liviano se sostiene. **Por eso no se tocan los cortes
+`JUDGE_ABSTAIN_MAX`/`JUDGE_LIMITED_MAX` con n=18:** sería sobreajustar a una muestra chica, el mismo
+error que costó la reversión anterior. Para moverlos hace falta ampliar el banco de negativos
+válidos.
+
+*Los 24 falsos negativos no se borran: son candidatos a **positivos**, porque el corpus sí los cubre.*
 
 ### Por qué el juez "dejó de discriminar" contra producción (2026-07-29)
 
