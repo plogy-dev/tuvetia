@@ -167,6 +167,55 @@ def _veredictos(raw: str) -> dict[int, bool]:
     return rescatados
 
 
+def _limpiar_huecos(texto: str) -> str:
+    """Borrar un marcador deja basura tipográfica: espacio doble ('A  B') o espacio antes de la
+    puntuación ('babesiosis .'). Se colapsa sin tocar los saltos de línea, que estructuran el SOAP."""
+    texto = re.sub(r"[ \t]{2,}", " ", texto)
+    return re.sub(r"[ \t]+([.,;:])", r"\1", texto)
+
+
+def strip_markers(texto: str, quitar: frozenset[int] | set[int]) -> str:
+    """Quita del texto los marcadores `[n]` de las fuentes que el auditor descartó.
+
+    Sin esto el sistema queda incoherente: la lista de referencias pierde la fuente 3 pero el texto
+    sigue diciendo "...según la literatura [3]", y el veterinario ve una cita que no puede abrir —
+    que es exactamente la desconfianza que el auditor viene a evitar. Un `[1][3]` del que sólo cae
+    el 3 conserva el 1.
+    """
+    if not texto or not quitar:
+        return texto or ""
+
+    def repl(m: "re.Match[str]") -> str:
+        nums = [int(x) for x in re.split(r"\s*,\s*", m.group(1))]
+        quedan = [n for n in nums if n not in quitar]
+        return "".join(f"[{n}]" for n in quedan)
+
+    return _limpiar_huecos(_CITA_RE.sub(repl, texto))
+
+
+def drop_and_renumber(texto: str, quitar: frozenset[int] | set[int], total: int) -> str:
+    """Quita los marcadores descartados y RENUMERA los que quedan, de 1 a N sin huecos.
+
+    Lo necesita el Fantasma: ahí el `[n]` del SOAP es la posición en la lista de `citations`, así que
+    si la cita 2 de 5 se cae, las siguientes tienen que correrse ([3]->[2], [4]->[3]...). En el chat
+    no hace falta renumerar porque el `[n]` indexa la literatura ofrecida, que no cambia.
+    """
+    if not texto or not quitar:
+        return texto or ""
+    nuevo_de = {}
+    siguiente = 1
+    for n in range(1, total + 1):
+        if n not in quitar:
+            nuevo_de[n] = siguiente
+            siguiente += 1
+
+    def repl(m: "re.Match[str]") -> str:
+        nums = [int(x) for x in re.split(r"\s*,\s*", m.group(1))]
+        return "".join(f"[{nuevo_de[n]}]" for n in nums if n in nuevo_de)
+
+    return _limpiar_huecos(_CITA_RE.sub(repl, texto))
+
+
 def check_fidelity(answer: str, literature: list[RetrievedChunk]) -> FidelityReport:
     """Audita las citas de `answer`. NUNCA lanza: ante cualquier problema falla abierta."""
     s = get_settings()

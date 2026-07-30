@@ -3,7 +3,7 @@ import pytest
 
 import app.generation.citation_fidelity as cf
 from app.generation.citation_fidelity import (
-    EMPTY_REPORT, check_fidelity, extract_claims)
+    EMPTY_REPORT, check_fidelity, drop_and_renumber, extract_claims, strip_markers)
 from app.models import RetrievedChunk
 
 
@@ -163,6 +163,63 @@ def test_ignora_veredictos_con_forma_invalida(auditor_activo, monkeypatch):
               "La respuesta al tratamiento es rápida en casi todos los casos [3].")
     rep = check_fidelity(answer, _lit())
     assert rep.judged is True and 3 in rep.unfaithful
+
+
+# --- strip_markers: coherencia entre el texto y la lista de referencias ---
+
+def test_quita_el_marcador_de_la_fuente_descartada():
+    """Si la fuente cae de las referencias, su [n] no puede quedarse en el texto: el vet vería una
+    cita que no puede abrir."""
+    t = "La anemia es constante [1]. La respuesta es rápida en 24h [3]."
+    assert strip_markers(t, {3}) == "La anemia es constante [1]. La respuesta es rápida en 24h."
+
+
+def test_conserva_las_fuentes_que_siguen_validas_en_una_cita_multiple():
+    t = "Perros con obstrucción presentan este cuadro [1][3][4]."
+    assert strip_markers(t, {3}) == "Perros con obstrucción presentan este cuadro [1][4]."
+
+
+def test_cita_multiple_con_comas():
+    t = "Este cuadro se ha descrito [1, 3, 4] en la literatura."
+    assert strip_markers(t, {1, 4}) == "Este cuadro se ha descrito [3] en la literatura."
+
+
+def test_no_toca_nada_si_no_hay_descartes():
+    t = "La anemia hemolítica es constante [1][2]."
+    assert strip_markers(t, set()) == t
+    assert strip_markers(t, frozenset()) == t
+
+
+def test_limpia_el_espacio_que_queda_antes_de_la_puntuacion():
+    assert strip_markers("es sugestivo de babesiosis [2] .", {2}) == "es sugestivo de babesiosis."
+
+
+def test_texto_vacio():
+    assert strip_markers("", {1}) == ""
+    assert strip_markers(None, {1}) == ""
+
+
+# --- drop_and_renumber: el Fantasma numera por posición en la lista de citas ---
+
+def test_renumera_sin_huecos_al_caer_una_cita():
+    """Si cae la 2 de 5, las siguientes se corren: [3]->[2], [4]->[3], [5]->[4]."""
+    t = "Uno [1]. Dos [2]. Tres [3]. Cuatro [4]. Cinco [5]."
+    assert drop_and_renumber(t, {2}, 5) == "Uno [1]. Dos. Tres [2]. Cuatro [3]. Cinco [4]."
+
+
+def test_renumera_con_varias_caidas():
+    t = "A [1] B [2] C [3] D [4]"
+    assert drop_and_renumber(t, {1, 3}, 4) == "A B [1] C D [2]"
+
+
+def test_renumera_cita_multiple():
+    t = "Se ha descrito [1][2][3] en perros."
+    assert drop_and_renumber(t, {2}, 3) == "Se ha descrito [1][2] en perros."
+
+
+def test_renumerar_sin_descartes_no_cambia_nada():
+    t = "Uno [1]. Dos [2]."
+    assert drop_and_renumber(t, set(), 2) == t
 
 
 def test_el_flag_lo_apaga(auditor_activo, monkeypatch):

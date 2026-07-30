@@ -12,7 +12,7 @@ import threading
 import time
 
 from app.config import get_settings
-from app.generation.citation_fidelity import check_fidelity
+from app.generation.citation_fidelity import check_fidelity, strip_markers
 from app.generation.dose_guard import (
     DOSE_NOTICE, patient_data_complete, redact_doses, split_safe_tail)
 from app.generation.evidence_judge import ABSTAIN_MESSAGE, LIMITED_NOTICE, judge_evidence
@@ -348,10 +348,16 @@ def stream_answer(question: str, patient_id: str, clinic_id: str, user_id: str |
                  fidelity.n_claims, len(fidelity.unfaithful), fidelity.seconds)
     citations = _cited_from_answer(answer, literature, drop=fidelity.unfaithful)
     if patient_id:
-        # Se guarda lo que el vet REALMENTE vio: si el gate tapó una dosis, la historia del hilo no
-        # puede conservar la cifra (si no, reaparece como contexto en el próximo turno).
-        visto = redact_doses(answer)[0] if not dosing_ok else answer
+        # Se guarda lo que el vet DEBERÍA haber visto: sin la cifra de dosis que el gate tapó (si no,
+        # reaparece como contexto en el próximo turno) y sin los marcadores de las fuentes que el
+        # auditor descartó (si no, el hilo conserva citas que ya no tienen referencia detrás).
+        visto = answer if dosing_ok else redact_doses(answer)[0]
+        visto = strip_markers(visto, fidelity.unfaithful)
         log_message(clinic_id, None, patient_id, "assistant", visto)
+    # `unverified_sources` es aditivo para el front: son los `[n]` que quedaron escritos en el texto
+    # ya emitido pero cuya fuente el auditor descartó. El chat es streaming, así que el texto no se
+    # puede reescribir hacia atrás — el front debería atenuarlos o quitarlos al recibir este evento.
     yield _sse({"type": "done", "citations": [c.model_dump() for c in citations],
                 "allergy_gate_triggered": gate, "insufficient_evidence": False,
-                "evidence_level": level, "ai_model": get_settings().llm_model})
+                "evidence_level": level, "ai_model": get_settings().llm_model,
+                "unverified_sources": sorted(fidelity.unfaithful)})

@@ -5,6 +5,7 @@ clínica), corre la cascada, aplica el gate DURO de alergia (desde `allergies`, 
 genera la nota en UNA sola llamada, verifica citas, inserta `clinical_notes` (draft) y la
 trazabilidad, y devuelve el payload. `clinic_id` siempre explícito (service_role se salta RLS).
 """
+import logging
 import time
 from datetime import datetime, timezone
 
@@ -14,6 +15,7 @@ from psycopg.types.json import Json
 from app.config import get_settings
 from app.db import fetch_all, get_conn
 from app.generation.allergy_gate import evaluate_gate
+from app.generation.citation_fidelity import check_fidelity, drop_and_renumber
 from app.generation.condition_alerts import detect_conditions, explain_conditions
 from app.generation.dose_guard import patient_data_complete, redact_doses
 from app.generation.evidence_judge import judge_evidence
@@ -22,6 +24,8 @@ from app.models import EVIDENCE_NONE, PhantomSuggestResponse
 from app.patient_context import load_patient_context
 from app.retrieval.cascade import build_and_retrieve
 from app.trace.logs import log_answer, log_retrieval
+
+log = logging.getLogger(__name__)
 
 
 def _load_consultation(clinic_id: str, consultation_id: str) -> dict | None:
@@ -123,6 +127,23 @@ def suggest(consultation_id: str, clinic_id: str, user_id: str | None = None) ->
     if not patient_data_complete(patient.species, patient.weight_kg, patient.age_years):
         soap = soap.model_copy(update={"plan": redact_doses(soap.plan)[0],
                                        "assessment": redact_doses(soap.assessment)[0]})
+    # Fidelidad de las citas: ¿el pasaje citado sostiene lo afirmado? Acá importa MÁS que en el chat,
+    # porque esta nota la firma el veterinario y entra a la historia clínica. El Fantasma es asíncrono
+    # (nadie espera el primer token), así que el ~1,7s del auditor no le cuesta a nadie.
+    # El `[n]` del SOAP indexa la lista de `citations`, no la literatura: se audita contra esos chunks
+    # y, al caer una, hay que RENUMERAR para no dejar huecos ni marcadores sin referencia detrás.
+    if citations:
+        por_id = {c.chunk_id: c for c in chunks}
+        citados = [por_id[c.chunk_id] for c in citations if c.chunk_id in por_id]
+        fid = check_fidelity(f"{soap.assessment}\n{soap.plan}", citados)
+        if fid.judged and fid.unfaithful:
+            total = len(citations)
+            soap = soap.model_copy(update={
+                "assessment": drop_and_renumber(soap.assessment, fid.unfaithful, total),
+                "plan": drop_and_renumber(soap.plan, fid.unfaithful, total)})
+            citations = [c for i, c in enumerate(citations, 1) if i not in fid.unfaithful]
+            log.info("fidelidad de citas (Fantasma): %s de %s fuentes descartadas",
+                     len(fid.unfaithful), total)
     # Honestidad del payload: aunque el retrieval pase el umbral, si la generación no ancló NINGUNA
     # cita (la literatura recuperada no sustentaba el caso), no afirmamos evidencia suficiente. Así
     # el flag es consistente con la nota (citations=[] <-> insufficient_evidence=True).
