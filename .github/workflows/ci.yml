@@ -1,0 +1,60 @@
+# CI del monorepo.
+#
+# Vive en la RAÍZ a propósito. Hasta el 2026-07-29 el único workflow estaba en
+# `athos-service/.github/workflows/ci.yml`, pero GitHub Actions sólo lee `.github/workflows/` del
+# raíz del repositorio y `athos-service/` no es un repo propio: ese workflow nunca se registró, así
+# que los 140 tests del backend y los 186 del front NO corrían en ningún push ni PR (hallazgo §7.1
+# de la auditoría del Milestone 2).
+#
+# Cada job filtra por `paths` para no correr el backend cuando sólo cambió el front y al revés.
+name: CI
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+
+# Un push nuevo sobre la misma rama cancela la corrida anterior: ahorra minutos y da feedback del
+# último commit, que es el que importa.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  backend:
+    name: athos-service (ruff + pytest)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: athos-service
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v3
+        with:
+          enable-cache: true
+      - run: uv sync --dev
+      - name: ruff
+        run: uv run ruff check .
+      - name: pytest
+        # Los tests de integración se auto-skipean sin DB (fixture `require_db`), así que la suite
+        # corre sin secretos. Cuando se agreguen los de Supabase de dev, dejarán de skipearse.
+        run: uv run pytest -q
+
+  # ⚠️ Este job NO se pudo verificar en la máquina de desarrollo: npm no instala el binario nativo de
+  # rolldown en Windows (npm/cli#4828), así que vitest no arranca localmente. En ubuntu-latest se
+  # instala el binario correcto. Su primera corrida en GitHub es la validación real; si sale rojo,
+  # el problema está acá y no en los tests.
+  frontend:
+    name: front (lint + vitest)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: lint
+        run: npm run lint
+      - name: vitest
+        run: npm test

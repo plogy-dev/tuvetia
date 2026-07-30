@@ -12,12 +12,16 @@ Mide varias señales candidatas para decidir, y muestra cuál separa de verdad:
   rerank_p3      : 3er mejor score (¿hay VARIOS documentos pertinentes, no uno de casualidad?)
   mesh_no_especie: ¿algún chunk comparte un MeSH de la consulta que NO sea de especie?
 """
-import json, os, sys, time
+import json
+import os
+import sys
+import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
 SCRATCH = os.path.dirname(os.path.abspath(__file__))  # datos del banco, junto a estos scripts
 BASE = os.path.dirname(os.path.dirname(SCRATCH))  # scripts/calidad -> athos-service
-sys.path.insert(0, BASE); os.chdir(BASE)
+sys.path.insert(0, BASE)
+os.chdir(BASE)
 
 from app.config import get_settings                       # noqa: E402
 from app.generation.llm_client import LLMClient           # noqa: E402

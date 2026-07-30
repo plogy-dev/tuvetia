@@ -7,12 +7,17 @@ Reanudable: saltea los descriptores que ya estén en el jsonl.
 
 Uso: python glosario_generar.py [--limite N] [--min-chunks N]
 """
-import argparse, json, os, sys, time
+import argparse
+import json
+import os
+import sys
+import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
 SCRATCH = os.path.dirname(os.path.abspath(__file__))  # datos del banco, junto a estos scripts
 BASE = os.path.dirname(os.path.dirname(SCRATCH))  # scripts/calidad -> athos-service
-sys.path.insert(0, BASE); os.chdir(BASE)
+sys.path.insert(0, BASE)
+os.chdir(BASE)
 
 from app.config import get_settings          # noqa: E402
 from app.generation.llm_client import LLMClient  # noqa: E402
@@ -82,8 +87,10 @@ def main():
     if os.path.exists(PROPUESTO):
         with open(PROPUESTO, encoding="utf-8") as f:
             for line in f:
-                try: hechos.add(json.loads(line)["en"])
-                except Exception: pass  # noqa: BLE001 — línea a medias de una corrida cortada
+                try:
+                    hechos.add(json.loads(line)["en"])
+                except Exception:  # noqa: BLE001 — línea a medias de una corrida cortada
+                    pass
     pendientes = [t for t, _ in candidatos if t not in hechos]
     if args.limite:
         pendientes = pendientes[:args.limite]
@@ -94,7 +101,7 @@ def main():
     lotes = [pendientes[i:i+LOTE] for i in range(0, len(pendientes), LOTE)]
     escritos = vacios = 0
     with open(PROPUESTO, "a", encoding="utf-8") as out, ThreadPoolExecutor(max_workers=WORKERS) as ex:
-        futs = {ex.submit(pedir, l, modelo): l for l in lotes}
+        futs = {ex.submit(pedir, lote, modelo): lote for lote in lotes}
         for i, fut in enumerate(as_completed(futs), 1):
             lote = futs[fut]
             try:

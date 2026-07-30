@@ -13,12 +13,16 @@ Guardas determinísticas (cada una nace de un riesgo real del retrieval):
 
 Uso: python glosario_validar.py [--max-chunks N] [--out archivo.json]
 """
-import argparse, json, os, sys
+import argparse
+import json
+import os
+import sys
 from collections import Counter, defaultdict
 
 SCRATCH = os.path.dirname(os.path.abspath(__file__))  # datos del banco, junto a estos scripts
 BASE = os.path.dirname(os.path.dirname(SCRATCH))  # scripts/calidad -> athos-service
-sys.path.insert(0, BASE); os.chdir(BASE)
+sys.path.insert(0, BASE)
+os.chdir(BASE)
 
 import psycopg  # noqa: E402
 from app.config import get_settings  # noqa: E402
@@ -50,7 +54,8 @@ def main():
     with open(os.path.join(SCRATCH, "corpus_mesh_clasificado.tsv"), encoding="utf-8") as f:
         for line in f:
             p = line.rstrip("\n").split("\t")
-            freq[p[0]] = int(p[1]); clase[p[0]] = p[2]
+            freq[p[0]] = int(p[1])
+            clase[p[0]] = p[2]
             arbol[p[0]] = [t for t in (p[3].split(",") if len(p) > 3 else []) if t]
 
     # Ramas que NO son "algo que el vet busca" aunque cuelguen de C: metodología de investigación
@@ -74,8 +79,10 @@ def main():
     propuesto = []
     with open(os.path.join(SCRATCH, "glosario_propuesto.jsonl"), encoding="utf-8") as f:
         for line in f:
-            try: propuesto.append(json.loads(line))
-            except Exception: pass  # noqa: BLE001 — línea a medias de una corrida cortada
+            try:
+                propuesto.append(json.loads(line))
+            except Exception:  # noqa: BLE001 — línea a medias de una corrida cortada
+                pass
 
     # Lo ya approved manda: nunca lo pisamos.
     conn = psycopg.connect(get_settings().database_url)
@@ -99,11 +106,14 @@ def main():
             for syn in r.get(registro) or []:
                 n = _normalize(syn)
                 if not n:
-                    rechazos["vacio"] += 1; continue
+                    rechazos["vacio"] += 1
+                    continue
                 if len(n) < MIN_LEN:
-                    rechazos["muy_corto"] += 1; continue
+                    rechazos["muy_corto"] += 1
+                    continue
                 if n in GENERICAS:
-                    rechazos["generica"] += 1; continue
+                    rechazos["generica"] += 1
+                    continue
                 if n in ya_approved:
                     if ya_approved[n] != en:
                         rechazos["choca_con_curado"] += 1
@@ -111,7 +121,8 @@ def main():
                         rechazos["ya_existe"] += 1
                     continue
                 if any(prev == n for prev, _ in limpio[en]):
-                    rechazos["duplicado"] += 1; continue
+                    rechazos["duplicado"] += 1
+                    continue
                 por_syn[n].add(en)
                 limpio[en].append((n, registro))
 
@@ -122,7 +133,8 @@ def main():
     dueno = {}
     for n, ens in por_syn.items():
         if len(ens) == 1:
-            dueno[n] = next(iter(ens)); continue
+            dueno[n] = next(iter(ens))
+            continue
         exactos = [e for e in ens if _normalize(e) == n]
         dueno[n] = exactos[0] if exactos else max(ens, key=lambda e: freq.get(e, 0))
 

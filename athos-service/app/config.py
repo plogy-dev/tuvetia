@@ -35,14 +35,14 @@ class Settings(BaseSettings):
     # plausibilidad temática: ni el score determinístico, ni el del reranker, ni el nº de citas lo
     # hacen (medido sobre 187 casos). Ver app/generation/evidence_judge.py.
     judge_enabled: bool = True
-    # Si vacío cae a llm_light_model (el mismo del A->B). ⚠️ MEDIDO 2026-07-29: con el modelo LIVIANO
-    # el juez es demasiado blando — de los negativos donde un árbitro fuerte confirma que la
-    # literatura NO alcanza, el liviano falló 4 de 5 (premia que los pasajes MENCIONEN la entidad en
-    # vez de exigir que RESPONDAN al caso). Apuntándolo al modelo grande, los casos que responden con
-    # confianza sin literatura bajan de 9/10 a 5/10 — que es exactamente el número correcto, porque
-    # en los otros 5 la literatura sí alcanzaba — y la sobre-abstención NO sube (2/24). El juez corre
-    # EN PARALELO con la redacción, así que los ~0,4s extra no se pagan.
-    # → En producción se setea `JUDGE_MODEL` al modelo grande (variable de Railway, sin redeploy).
+    # Si vacío cae a llm_light_model (el mismo del A->B). ⚠️ NO apuntarlo al modelo grande sin volver
+    # a medir: se probó el 2026-07-29 y se REVIRTIÓ. La primera corrida bajaba los negativos que
+    # responden con confianza de 9/10 a 5/10, pero la segunda no lo reprodujo (8/10) y la
+    # sobre-abstención se triplicó (2/24 -> 5/24) — con el agravante de que en 3 de esos 5 casos el
+    # descriptor objetivo SÍ estaba en la literatura ofrecida: el juez grande puntuó 0 sobre
+    # literatura correcta. Una abstención indebida daña tanto como la falta de abstención.
+    # El arreglo real es rehacer el banco de negativos con validación clínica y recién entonces
+    # calibrar los cortes. Detalle: `scripts/calidad/README.md` §JUDGE_MODEL probado y revertido.
     judge_model: str = ""
     judge_abstain_max: int = 2             # puntaje <= -> abstención dura
     judge_limited_max: int = 5             # puntaje <= -> se responde declarando evidencia limitada

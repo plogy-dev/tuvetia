@@ -12,12 +12,17 @@ buena. Es exactamente lo que hace falta para medir el rerank.
 
 Salida: golden_ampliado.json
 """
-import argparse, json, os, sys, time
+import argparse
+import json
+import os
+import sys
+import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
 SCRATCH = os.path.dirname(os.path.abspath(__file__))  # datos del banco, junto a estos scripts
 BASE = os.path.dirname(os.path.dirname(SCRATCH))  # scripts/calidad -> athos-service
-sys.path.insert(0, BASE); os.chdir(BASE)
+sys.path.insert(0, BASE)
+os.chdir(BASE)
 
 from app.config import get_settings              # noqa: E402
 from app.generation.llm_client import LLMClient  # noqa: E402

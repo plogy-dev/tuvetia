@@ -128,6 +128,43 @@ def test_marca_solo_la_fuente_que_nunca_sostuvo_nada(auditor_activo, monkeypatch
     assert 3 in rep.unfaithful            # sólo apareció en la que no sostiene
 
 
+def test_rescata_veredictos_de_un_json_truncado(auditor_activo, monkeypatch):
+    """Con 12 afirmaciones el JSON se truncaba y se perdía la auditoría ENTERA de la respuesta.
+    Ahora se rescatan los veredictos que quedaron completos."""
+    class Truncado:
+        def __init__(self, *a, **k):
+            pass
+
+        def complete(self, *a, **k):
+            # se corta a mitad del tercer veredicto, sin cerrar el objeto
+            return ('{"veredictos": [{"n": 1, "sostiene": true}, {"n": 2, "sostiene": false}, '
+                    '{"n": 3, "sost')
+
+    monkeypatch.setattr(cf, "LLMClient", Truncado)
+    answer = ("La anemia hemolítica es un hallazgo constante en la babesiosis canina [1]. "
+              "La respuesta al tratamiento suele darse en 24 horas según la literatura [3]. "
+              "El pronóstico a largo plazo es reservado en casos crónicos [4].")
+    rep = check_fidelity(answer, _lit())
+    assert rep.judged is True          # no se pierde la auditoría por el truncamiento
+    assert 3 in rep.unfaithful         # el veredicto negativo rescatado se aplicó
+    assert 1 not in rep.unfaithful     # el positivo también se respetó
+
+
+def test_ignora_veredictos_con_forma_invalida(auditor_activo, monkeypatch):
+    class Raro:
+        def __init__(self, *a, **k):
+            pass
+
+        def complete(self, *a, **k):
+            return '{"veredictos": [{"n": "x", "sostiene": "quizas"}, {"n": 2, "sostiene": false}]}'
+
+    monkeypatch.setattr(cf, "LLMClient", Raro)
+    answer = ("La anemia hemolítica es un hallazgo constante en la babesiosis [1]. "
+              "La respuesta al tratamiento es rápida en casi todos los casos [3].")
+    rep = check_fidelity(answer, _lit())
+    assert rep.judged is True and 3 in rep.unfaithful
+
+
 def test_el_flag_lo_apaga(auditor_activo, monkeypatch):
     """Con el auditor encendido por el fixture, volver a apagarlo debe cortocircuitar."""
     monkeypatch.setattr(cf, "get_settings", lambda: type("S", (), {

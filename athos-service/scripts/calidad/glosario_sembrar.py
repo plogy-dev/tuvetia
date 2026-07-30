@@ -11,11 +11,15 @@ Uso:
   python glosario_sembrar.py --aprobar-tanda 150 # promueve una tanda a approved
   python glosario_sembrar.py --revertir-tanda    # devuelve a candidate lo aprobado por este script
 """
-import argparse, json, os, sys
+import argparse
+import json
+import os
+import sys
 
 SCRATCH = os.path.dirname(os.path.abspath(__file__))  # datos del banco, junto a estos scripts
 BASE = os.path.dirname(os.path.dirname(SCRATCH))  # scripts/calidad -> athos-service
-sys.path.insert(0, BASE); os.chdir(BASE)
+sys.path.insert(0, BASE)
+os.chdir(BASE)
 
 import psycopg  # noqa: E402
 from app.config import get_settings  # noqa: E402
@@ -37,7 +41,8 @@ def main():
         cur.execute("update public.glossary_synonym set review_status='candidate' "
                     "where origin=%s and review_status='approved'", (ORIGEN,))
         n = cur.rowcount
-        conn.commit(); conn.close()
+        conn.commit()
+        conn.close()
         print(f"revertidos a candidate: {n:,} sinónimos (origin={ORIGEN})")
         return
 
@@ -83,7 +88,8 @@ def main():
         else:
             cur.execute("insert into public.glossary_term (canonical_en, mesh_id, review_status) "
                         "values (%s,%s,'candidate') returning id", (en, mesh))
-            term_id = cur.fetchone()[0]; nuevos_t += 1
+            term_id = cur.fetchone()[0]
+            nuevos_t += 1
         for s in item["sinonimos"]:
             cur.execute("select 1 from public.glossary_synonym where term_id=%s and lower(text)=lower(%s)",
                         (term_id, s["syn"]))

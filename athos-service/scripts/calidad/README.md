@@ -350,21 +350,37 @@ específicamente gangliogliomas caninos"); el árbitro exige que **respondan al 
 el diagnóstico diferencial ni el manejo de una masa cerebral con estos signos"). Es la misma
 distinción que el juez debía hacer y que el modelo flash no hace.
 
-**Arreglo, de una variable — MEDIDO Y ADOPTADO:** `JUDGE_MODEL` apuntado al modelo grande.
+### ⛔ `JUDGE_MODEL` al modelo grande: PROBADO Y REVERTIDO (2026-07-29)
 
-| negativos (10) | juez liviano | juez grande |
+La primera corrida sugería que apuntar `JUDGE_MODEL` al modelo grande resolvía la abstención: los
+negativos que respondían con confianza bajaban de 9/10 a 5/10 sin subir la sobre-abstención (2/24).
+**La segunda corrida, con la misma configuración, no lo reprodujo:**
+
+| | juez liviano (2 corridas) | juez grande (2 corridas) |
 |---|---|---|
-| se abstuvo | 0-1 | **2** |
-| respondió declarando evidencia limitada | 1 | **3** |
-| **respondió con confianza** | **8-9** | **5** |
-| sobre-abstención en positivos | 2/24 | **2/24** (no sube) |
-| latencia del juez | 1,7 s | 2,1 s (corre en paralelo: no se paga) |
+| negativos que responden con confianza | 9/10 · 8/10 | **5/10 · 8/10** |
+| **sobre-abstención en positivos** | 0/24 · 2/24 | **2/24 · 5/24** |
+| uso de la banda `limited` en negativos | 1 · 1 | 3 · **0** |
 
-Los 5 que siguen respondiendo con confianza son **exactamente** los 5 donde el árbitro dijo que la
-literatura sí alcanza. O sea que el juez grande queda alineado con el criterio correcto.
+Y al abrir los 5 casos de sobre-abstención de la última corrida, **la causa es el juez, no el
+retrieval**: los 5 abstuvieron por veredicto del juez con puntaje 0,0–1,0, y en **3 de ellos el
+descriptor MeSH objetivo SÍ estaba en la literatura ofrecida**. Es decir: el juez grande puntúa 0
+sobre literatura que contiene el tema correcto.
 
-Se setea como variable de Railway (sin redeploy). Rollback: borrar `JUDGE_MODEL` y vuelve al liviano;
-`JUDGE_ENABLED=false` apaga el juez entero.
+**Por qué se revirtió:** una abstención indebida le dice al veterinario "no hay evidencia
+suficiente" cuando sí la había — es un daño directo a la utilidad, tan grave como el fallo inverso.
+Con una ganancia que no se reproduce y un costo que se triplica, **la evidencia no sostiene el
+cambio**. `JUDGE_MODEL` se eliminó de Railway; el juez volvió al modelo liviano.
+
+**Lo que sigue siendo cierto del diagnóstico** (§Por qué el juez dejó de discriminar): el juez
+liviano *es* blando, y el árbitro fuerte confirmó que la mitad de los "negativos" no son negativos.
+El arreglo correcto no es cambiar el modelo del juez a ciegas, sino **rehacer el banco de negativos
+con validación clínica** para poder medir sin ese sesgo, y recién entonces calibrar los cortes
+(`JUDGE_ABSTAIN_MAX` / `JUDGE_LIMITED_MAX`) con una muestra que no oscile.
+
+> **Lección metodológica, otra vez la misma:** una corrida no pareada de 24+10 casos no distingue una
+> mejora de la variabilidad. Esta decisión se tomó con una corrida y se revirtió con la segunda.
+> Cualquier cambio en el juez necesita repetición o pareo antes de ir a producción.
 
 ### Ya implementada (2026-07-28)
 

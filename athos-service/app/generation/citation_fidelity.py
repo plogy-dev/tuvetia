@@ -34,7 +34,10 @@ log = logging.getLogger(__name__)
 
 PASSAGE_CHARS = 900       # por pasaje en el prompt del verificador
 MAX_CLAIMS = 12           # tope de afirmaciones a verificar (acota costo y latencia)
-MAX_TOKENS = 500
+# Con 12 afirmaciones el JSON de veredictos ronda los 360 tokens: 500 quedaba al filo y en
+# producción se truncó ("Expecting ',' delimiter"), lo que hacía perder la auditoría COMPLETA de esa
+# respuesta. 900 da margen; `_veredictos` además tolera un cierre incompleto.
+MAX_TOKENS = 900
 
 # Calibración del umbral. La primera versión pedía "¿el pasaje sostiene la afirmación tal como está
 # escrita?" y con eso descartaba el 58% de las referencias, incluso en respuestas que el juez de
@@ -128,6 +131,42 @@ def _build_prompt(claims: list[Claim], literature: list[RetrievedChunk]) -> str:
     return "\n\n".join(bloques)
 
 
+# Un veredicto suelto dentro del JSON: {"n": 3, "sostiene": false}. Se usa para rescatar los
+# veredictos completos cuando la respuesta se truncó y el objeto entero no parsea.
+_VEREDICTO_RE = re.compile(
+    r'"n"\s*:\s*(\d{1,2})\s*,\s*"sostiene"\s*:\s*(true|false)', re.IGNORECASE)
+
+
+def _veredictos(raw: str) -> dict[int, bool]:
+    """Extrae {índice_0_based: sostiene} de la respuesta del verificador.
+
+    Intenta el JSON completo y, si está truncado o mal formado, rescata los veredictos que sí
+    quedaron enteros. Perder los últimos veredictos degrada la auditoría de esa respuesta; perder
+    TODOS por una coma faltante la anula, que es lo que pasaba antes.
+    """
+    m = re.search(r"\{.*\}", raw or "", re.S)
+    if m:
+        try:
+            data = json.loads(m.group(0))
+            lista = data.get("veredictos")
+            if isinstance(lista, list):
+                out = {}
+                for v in lista:
+                    if isinstance(v, dict) and isinstance(v.get("sostiene"), bool):
+                        try:
+                            out[int(v.get("n", 0)) - 1] = v["sostiene"]
+                        except (TypeError, ValueError):
+                            continue
+                if out:
+                    return out
+        except json.JSONDecodeError:
+            pass
+    rescatados = {int(n) - 1: (s.lower() == "true") for n, s in _VEREDICTO_RE.findall(raw or "")}
+    if rescatados:
+        log.info("fidelidad de citas: JSON incompleto, %s veredictos rescatados", len(rescatados))
+    return rescatados
+
+
 def check_fidelity(answer: str, literature: list[RetrievedChunk]) -> FidelityReport:
     """Audita las citas de `answer`. NUNCA lanza: ante cualquier problema falla abierta."""
     s = get_settings()
@@ -141,23 +180,18 @@ def check_fidelity(answer: str, literature: list[RetrievedChunk]) -> FidelityRep
     try:
         raw = LLMClient(model=s.llm_light_model).complete(
             VERIFY_SYSTEM, _build_prompt(claims, literature), max_tokens=MAX_TOKENS)
-        m = re.search(r"\{.*\}", raw, re.S)
-        if not m:
-            raise ValueError("la respuesta del verificador no trae JSON")
-        data = json.loads(m.group(0))
-        if not isinstance(data.get("veredictos"), list):
+        veredictos = _veredictos(raw)
+        if not veredictos:
             # Sin veredictos no se verificó nada. Devolver "todo bien" sería afirmar una revisión
             # que no ocurrió: hay que caer a judged=False y conservar las citas.
-            raise ValueError("el verificador no devolvió veredictos")
+            raise ValueError("el verificador no devolvió veredictos utilizables")
+        negativos = {n for n, sostiene in veredictos.items() if sostiene is False}
         malas: set[int] = set()
-        for v in data.get("veredictos") or []:
-            idx = int(v.get("n", 0)) - 1
-            if 0 <= idx < len(claims) and v.get("sostiene") is False:
+        for idx in negativos:
+            if 0 <= idx < len(claims):
                 malas.update(claims[idx].sources)
         # Una fuente que sostiene ALGUNA afirmación no es infiel: sólo cae la que nunca sostuvo nada.
-        buenas = {n for i, c in enumerate(claims) for n in c.sources
-                  if not any(int(v.get("n", 0)) - 1 == i and v.get("sostiene") is False
-                             for v in (data.get("veredictos") or []))}
+        buenas = {n for i, c in enumerate(claims) for n in c.sources if i not in negativos}
         return FidelityReport(unfaithful=frozenset(malas - buenas), judged=True,
                               seconds=time.monotonic() - t0, n_claims=len(claims))
     except Exception as e:  # noqa: BLE001 — el auditor nunca rompe la respuesta

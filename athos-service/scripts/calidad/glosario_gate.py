@@ -11,11 +11,15 @@ Se corre ANTES y DESPUÉS de aprobar cada tanda y se comparan las dos salidas.
 
 Uso: python glosario_gate.py --etiqueta antes|despues
 """
-import argparse, json, os, sys
+import argparse
+import json
+import os
+import sys
 
 SCRATCH = os.path.dirname(os.path.abspath(__file__))  # datos del banco, junto a estos scripts
 BASE = os.path.dirname(os.path.dirname(SCRATCH))  # scripts/calidad -> athos-service
-sys.path.insert(0, BASE); os.chdir(BASE)
+sys.path.insert(0, BASE)
+os.chdir(BASE)
 
 from app.glossary.resolve import clear_synonym_cache, resolve_concepts  # noqa: E402
 from app.retrieval.query_builder import MIN_CONFIDENT_CONCEPTS  # noqa: E402
