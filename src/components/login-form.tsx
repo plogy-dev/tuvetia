@@ -47,6 +47,7 @@ export function LoginForm({
   const [email, setEmail] = useState("")
   const [loading, setLoading] = useState(false)
   const [googleLoading, setGoogleLoading] = useState(false)
+  const [microsoftLoading, setMicrosoftLoading] = useState(false)
   const [error, setError] = useState<string | null>(
     authError ? authFailureMessage(authReason) : null,
   )
@@ -107,6 +108,26 @@ export function LoginForm({
     if (error) {
       setError(error.message)
       setGoogleLoading(false)
+    }
+  }
+
+  async function handleMicrosoft() {
+    setError(null)
+    setMicrosoftLoading(true)
+    const supabase = createClient()
+    const { error } = await supabase.auth.signInWithOAuth({
+      provider: "azure",
+      options: {
+        scopes: "email",
+        redirectTo: `${window.location.origin}/auth/callback${(() => {
+          const next = new URLSearchParams(window.location.search).get("next")
+          return next ? `?next=${encodeURIComponent(next)}` : ""
+        })()}`,
+      },
+    })
+    if (error) {
+      setError(error.message)
+      setMicrosoftLoading(false)
     }
   }
 
@@ -185,6 +206,26 @@ export function LoginForm({
                 </svg>
               )}
               Continuar con Google
+            </Button>
+          </Field>
+          <Field>
+            <Button
+              variant="outline"
+              type="button"
+              onClick={handleMicrosoft}
+              disabled={microsoftLoading}
+            >
+              {microsoftLoading ? (
+                <Loader2Icon className="animate-spin" />
+              ) : (
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 23 23" width="16" height="16" aria-hidden>
+                  <path fill="#f25022" d="M1 1h10v10H1z" />
+                  <path fill="#00a4ef" d="M1 12h10v10H1z" />
+                  <path fill="#7fba00" d="M12 1h10v10H12z" />
+                  <path fill="#ffb900" d="M12 12h10v10H12z" />
+                </svg>
+              )}
+              Continuar con Microsoft
             </Button>
           </Field>
         </FieldGroup>
