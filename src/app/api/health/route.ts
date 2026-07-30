@@ -29,16 +29,20 @@ export async function GET(req: Request) {
   const tokenKeyValid = Boolean(tokenKey) && Buffer.from(tokenKey ?? "", "base64").length === 32
 
   // Al menos un proveedor de WhatsApp tiene que estar cableado, o Comunicaciones no envía nada.
+  // Nombres verificados uno por uno contra el código: `EVOLUTION_BASE_URL` (no ..._API_URL, que fue
+  // el primer intento y habría reportado Evolution como sin configurar estándolo).
   const whatsappProviders = {
     kapso: set("KAPSO_API_KEY") && set("KAPSO_WEBHOOK_SECRET"),
     meta: set("META_APP_ID") && set("META_APP_SECRET"),
-    evolution: set("EVOLUTION_API_URL") && set("EVOLUTION_WEBHOOK_TOKEN"),
+    evolution: set("EVOLUTION_BASE_URL") && set("EVOLUTION_API_KEY") && set("EVOLUTION_WEBHOOK_TOKEN"),
   }
 
   const checks = {
     // Sin esto no hay escrituras del agente, ni webhooks, ni crons, ni feed ICS.
     supabase_service_role: set("SUPABASE_SERVICE_ROLE_KEY"),
-    // El agente (17 tools), el modo auto y la visión de facturas usan Anthropic.
+    // El agente (17 tools), el modo auto y la visión de facturas usan Anthropic. Ojo: este nombre no
+    // aparece en nuestro código — lo lee `@ai-sdk/anthropic` del entorno por convención. Justamente
+    // por eso hace falta chequearlo acá: un grep del repo no lo encuentra y pasa desapercibido.
     anthropic_key: set("ANTHROPIC_API_KEY"),
     // Los dos crons: barrido de cartera y purga de audio.
     cron_secret: true, // si llegamos acá, existe y coincide
