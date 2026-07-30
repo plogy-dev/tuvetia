@@ -47,13 +47,15 @@ export function SignupForm({
     setLoading(true)
 
     const supabase = createClient()
-    // Propaga ?next= (p.ej. /invitar/<token>) para volver ahí tras confirmar el magic link.
-    const next = new URLSearchParams(window.location.search).get("next")
+    // Propaga ?next= (p.ej. /invitar/<token>) para volver ahí tras confirmar el magic link. Siempre
+    // con valor (default /dashboard): la plantilla de email en Supabase le agrega &token_hash=&type=
+    // al final de esta URL, y necesita que ya tenga un "?" — nunca queda vacía.
+    const next = new URLSearchParams(window.location.search).get("next") ?? "/dashboard"
     const { error } = await supabase.auth.signInWithOtp({
       email,
       options: {
         shouldCreateUser: true,
-        emailRedirectTo: `${window.location.origin}/auth/confirm${next ? `?next=${encodeURIComponent(next)}` : ""}`,
+        emailRedirectTo: `${window.location.origin}/auth/confirm?next=${encodeURIComponent(next)}`,
         data: {
           full_name: fullName,
           phone,
