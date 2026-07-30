@@ -66,9 +66,10 @@ def test_no_duplica_la_misma_fuente_en_una_afirmacion():
 
 # --- check_fidelity: falla abierta y contrato ---
 
-def test_apagado_por_defecto():
-    """En producción viene en false (descarta el 58% de las referencias sin calibrar)."""
-    assert check_fidelity("algo compatible con lo que sea [1].", _lit()) is EMPTY_REPORT
+def test_encendido_por_defecto(monkeypatch):
+    """Tras calibrarlo (descarta 18%, ninguna respuesta queda sin fuentes) viene encendido."""
+    from app.config import get_settings
+    assert get_settings().fidelity_enabled is True
 
 
 def test_falla_abierta_si_el_llm_revienta(auditor_activo, monkeypatch):

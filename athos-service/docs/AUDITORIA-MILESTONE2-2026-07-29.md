@@ -659,10 +659,20 @@ server-side en el import de facturación — hay que resolverlo antes de exponer
 5. **`xlsx` vulnerable server-side** — bloquea exponer facturación.
 
 **6 riesgos clínicos / de confianza:** el auditor de fidelidad de citas apagado (§2.3); el agente que
-nunca se abstiene (§5.1); la cobranza que agota la cuota diaria del asistente clínico y lo deja mudo;
-respuestas duplicadas de WhatsApp por reintento de webhook; cartera que se queda con mensajes que no
-son de cobranza; y el riesgo de baneo del número por usar Evolution API (protocolo no oficial), con
-el trámite Meta Tech Provider pendiente.
+nunca se abstiene (§5.1); ~~la cobranza que agota la cuota diaria del asistente clínico y lo deja
+mudo~~; ~~respuestas duplicadas de WhatsApp por reintento de webhook~~; cartera que se queda con
+mensajes que no son de cobranza; y el riesgo de baneo del número por usar Evolution API (protocolo no
+oficial), con el trámite Meta Tech Provider pendiente.
+
+> ✅ **Cerrados el 2026-07-29 a las 16:47** (commit `a64cfdc`, mergeado en `c848e28`): los dos riesgos
+> tachados. La cuota del modo auto ahora se cuenta sobre `athos_actions` con `source='auto'`, que
+> cartera no toca, así que **cada subsistema gasta la suya**; y la idempotencia del entrante pasó a
+> compare-and-set con la columna nueva `whatsapp_messages.auto_reply_claimed_at` (migración `0038`),
+> de modo que un reintento del webhook **ya no puede provocar una segunda respuesta al titular**. Es
+> el mismo patrón que se usó en las acciones de Athos.
+>
+> **Nota de numeración:** la próxima migración disponible es la **`0039`** (`0037` fue el fix de la
+> policy de logos y `0038` esta reserva del modo auto).
 
 ---
 

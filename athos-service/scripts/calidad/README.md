@@ -143,7 +143,54 @@ Un guard determinístico de cifras habría resuelto un problema que casi no exis
 son semánticos (extrapolar el pasaje, citar tablas como narrativa, cita múltiple decorativa), y eso
 exige LEER: verificación por afirmación con el LLM liviano.
 
-### El auditor de fidelidad existe pero está APAGADO (sin calibrar)
+### Calibración del auditor de fidelidad (2026-07-29, con revisión humana)
+
+```bash
+python scripts/calidad/fidelidad_calibrar.py --entrada respuestas_final.json --n 12 --ver 6
+```
+
+Reusa las respuestas **ya generadas** por `respuestas_eval.py` en vez de volver a llamar al redactor:
+así dos umbrales se comparan sobre EL MISMO texto, que es lo único que los hace comparables. Mide la
+tasa de descarte, marca las respuestas que quedarían sin ninguna referencia e **imprime cada descarte
+junto al pasaje citado**, porque un número agregado no alcanza para decidir un umbral.
+
+| | primera versión | recalibrada |
+|---|---|---|
+| fuentes descartadas | **58 %** (81/140) | **18 %** (16/90) |
+| respuestas que quedan sin ninguna referencia | 1 | **0** |
+| respuestas intactas | — | 4/12 |
+| latencia del auditor | 1,8 s | 1,6 s |
+
+Lo que cambió el prompt: invertir la carga de la prueba (*"EN CASO DE DUDA, LA CITA SOSTIENE"*, y
+decir explícitamente que descartar una cita legítima le quita al veterinario una fuente válida),
+enumerar 6 casos que NO debe marcar y limitar los `false` a 4 casos claros.
+
+**Señal de que el umbral quedó bien:** las respuestas que el juez de calidad puntúa alto quedan
+**intactas** — `ehrlichiosis` (F=8) conserva sus 11 fuentes, `hip-dysplasia-canine` (F=8) sus 7,
+`parasitemia` (F=7) sus 9. Los descartes se concentran en las de fundamentación baja
+(`craniosynostoses` F=4 pierde 3 de 8).
+
+#### Revisión humana de los 6 descartes impresos
+
+| caso | fuente | veredicto | por qué |
+|---|---|---|---|
+| `heart-valve-diseases` | [1] | ✅ correcto | la afirmación habla de síncope y arritmia; el pasaje son generalidades sobre tratamiento de MMVD, no menciona ninguno de los dos |
+| `craniosynostoses` | [1] | ✅ correcto | la afirmación es sobre siringomielia; el pasaje es la **demografía de los encuestados** de un estudio de dueños (edad, país, género) |
+| `intervertebral-disc-degeneration` | [3] | ✅ correcto | la afirmación es sobre signos clínicos de mielopatía; el pasaje es **embriología y anatomía** del disco |
+| `intestinal-diseases` | [6] | ✅ defendible | el pasaje sí respalda que el cuadro es típico (con cifras), pero **no** el pronóstico favorable que la afirmación agrega |
+| `flea-infestations` | [6] | ⚠️ discutible | el pasaje relaciona la paja en descomposición con *Pelodera*; sostiene la idea de limpieza ambiental sólo de forma tangencial |
+| `rickettsia-infections` | [8] | ❌ **falso positivo** | la afirmación es "se ha reportado coinfección" y el pasaje trae cifras de *R. conorii* **y** *E. canis* en el mismo estudio: sí la respalda |
+
+**4 de 6 claramente correctos, 1 defendible, 1 falso positivo.** El único error tenía un patrón
+identificable — un conjunto de datos que prueba la **coocurrencia** de dos entidades — y se corrigió
+añadiendo esa excepción al prompt, distinguiéndola del caso legítimo (una tabla de valores **no**
+puede sostener un pronóstico, pero **sí** la existencia o la frecuencia de un hallazgo).
+
+**Decisión: se enciende.** El intercambio es favorable para el mandato de confianza clínica — se
+retiran ~13 citas engañosas por cada ~3 legítimas, ninguna respuesta queda sin fuentes, y es
+reversible con `FIDELITY_ENABLED=false` sin redespliegue.
+
+### Historia: por qué estuvo apagado
 
 `app/generation/citation_fidelity.py` parte la respuesta en afirmaciones citadas y le pregunta al
 LLM liviano, por cada una, si el pasaje la sostiene; las fuentes que nunca sostuvieron nada no se

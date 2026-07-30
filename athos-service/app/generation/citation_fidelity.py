@@ -36,17 +36,39 @@ PASSAGE_CHARS = 900       # por pasaje en el prompt del verificador
 MAX_CLAIMS = 12           # tope de afirmaciones a verificar (acota costo y latencia)
 MAX_TOKENS = 500
 
+# Calibración del umbral. La primera versión pedía "¿el pasaje sostiene la afirmación tal como está
+# escrita?" y con eso descartaba el 58% de las referencias, incluso en respuestas que el juez de
+# calidad puntuaba 8-9 de fundamentación: castigaba la reformulación legítima igual que la
+# extrapolación. Esta versión invierte la carga de la prueba — sólo cae lo que es CLARAMENTE falso —
+# y da ejemplos de lo que NO debe caer, que es donde estaba el error.
 VERIFY_SYSTEM = (
     "Eres un auditor de citas de un sistema RAG veterinario. Te doy AFIRMACIONES que un asistente "
-    "escribió, cada una con el/los PASAJE(S) que citó para respaldarla.\n"
-    "Para cada afirmación decidí si el pasaje citado REALMENTE la sostiene, tal como está escrita.\n"
-    "NO la sostiene si:\n"
-    "  - el pasaje habla de un tema vecino pero no dice eso;\n"
-    "  - la afirmación generaliza ('suele ocurrir', un porcentaje) y el pasaje describe UN caso;\n"
-    "  - el pasaje es una tabla de datos o un listado y la afirmación es narrativa (evolución, "
-    "pronóstico, respuesta al tratamiento);\n"
-    "  - la afirmación agrega precisión (cifras, tiempos, fármacos) que el pasaje no trae.\n"
-    "SÍ la sostiene si el contenido está en el pasaje, aunque con otras palabras o en inglés.\n"
+    "escribió para un veterinario, cada una con el/los PASAJE(S) que citó para respaldarla.\n"
+    "Tu tarea: detectar las citas ENGAÑOSAS, es decir aquellas donde el veterinario abriría la "
+    "fuente y NO encontraría nada parecido a lo que se le dijo.\n\n"
+    "EN CASO DE DUDA, LA CITA SOSTIENE. Sólo marcá `sostiene: false` cuando sea CLARO que el pasaje "
+    "no respalda la afirmación. Descartar una cita legítima le quita al veterinario una fuente "
+    "válida, así que el error de marcar de más es tan grave como el de marcar de menos.\n\n"
+    "SÍ sostiene (NO marcar como falsa) cuando:\n"
+    "  - dice lo mismo con otras palabras, resumido, o traducido del inglés;\n"
+    "  - el pasaje respalda la parte sustantiva y la afirmación agrega una precisión clínica menor;\n"
+    "  - la afirmación es más general que el pasaje (el pasaje describe un caso y la afirmación dice "
+    "'se ha descrito' o 'puede presentarse');\n"
+    "  - el pasaje es de otra especie o contexto Y la afirmación lo declara ('descrito en perros', "
+    "'extrapolable con cautela');\n"
+    "  - de varias fuentes citadas juntas, AL MENOS UNA respalda la afirmación;\n"
+    "  - el pasaje es una tabla o un conjunto de datos y la afirmación habla de la EXISTENCIA, la "
+    "COOCURRENCIA o la FRECUENCIA de lo que esos datos miden (ej.: un estudio con cifras de dos "
+    "patógenos a la vez SÍ respalda 'se ha reportado coinfección').\n\n"
+    "NO sostiene (marcar `false`) sólo cuando:\n"
+    "  - el pasaje trata un tema distinto y no dice nada parecido a la afirmación;\n"
+    "  - la afirmación atribuye al pasaje una CIFRA, dosis, porcentaje o plazo que el pasaje no "
+    "contiene ni de forma equivalente;\n"
+    "  - la afirmación convierte un caso único en una regla de frecuencia ('el 25%', 'suele "
+    "ocurrir en la mayoría') y el pasaje no da ninguna base para esa frecuencia;\n"
+    "  - el pasaje es sólo una tabla de laboratorio o un listado de valores y la afirmación habla de "
+    "evolución, PRONÓSTICO o respuesta al tratamiento — eso no puede estar en una tabla de valores "
+    "(distinto de la existencia o la frecuencia de un hallazgo, que sí puede).\n\n"
     "Devolvé SOLO JSON válido, sin ```:\n"
     '{"veredictos": [{"n": <número de la afirmación>, "sostiene": true|false}]}'
 )

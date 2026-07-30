@@ -53,13 +53,15 @@ class Settings(BaseSettings):
     # citaban al menos un pasaje que no. Corre DESPUÉS de la respuesta (no suma latencia al primer
     # token) y sólo filtra las referencias del payload. Ver app/generation/citation_fidelity.py.
     #
-    # ⚠️ APAGADO POR DEFECTO: funciona (1,8s, 8,7 afirmaciones por respuesta) pero está SIN CALIBRAR
-    # — medido contra producción descarta el **58% de las referencias** (81 de 140), incluso en
-    # respuestas que el juez de calidad puntúa con fundamentación 8-9, y deja una respuesta sin
-    # ninguna referencia. Su prompt es demasiado severo: castiga la reformulación legítima igual que
-    # la extrapolación. Encenderlo con `FIDELITY_ENABLED=true` sólo después de recalibrar el umbral
-    # (exigir "claramente no sostiene" en vez de "no sostiene literalmente").
-    fidelity_enabled: bool = False
+    # ENCENDIDO tras calibrar (2026-07-29). La primera versión descartaba el **58%** de las
+    # referencias — castigaba la reformulación legítima igual que la extrapolación — y quedó apagada.
+    # Recalibrado el umbral ("en caso de duda, la cita sostiene" + 6 casos que no debe marcar):
+    # descarta el **18%** (16 de 90), **ninguna** respuesta queda sin referencias, y las respuestas
+    # que el juez de calidad puntúa 8 de fundamentación quedan intactas. Se revisaron a mano 6
+    # descartes: 4 claramente correctos, 1 defendible, 1 falso positivo (ya corregido en el prompt).
+    # Detalle y tabla de la revisión: `scripts/calidad/README.md` §Calibración del auditor.
+    # Rollback sin redespliegue: `FIDELITY_ENABLED=false` en Railway.
+    fidelity_enabled: bool = True
 
     # STT — Modo Fantasma (ADR-0016: Deepgram Nova, batch + diarización)
     deepgram_api_key: str = ""
