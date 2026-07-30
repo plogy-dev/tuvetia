@@ -197,3 +197,29 @@ def test_suggest_no_inserta_nota_cuando_la_generacion_falla(monkeypatch):
         assert e.status_code == 502
     else:
         raise AssertionError("suggest() no propago el fallo de generacion como HTTPException")
+
+
+def test_suggest_marca_las_cifras_sin_citar_del_analisis_y_el_plan(monkeypatch):
+    """El analisis y el plan tambien se revisan: `citation_fidelity` solo alcanza a las frases CON
+    cita, y quedaba afuera lo ejecutable sin citar.
+
+    Medido sobre 40 notas: el plan afirmaba cifras de incidencia como "vomitos (6.3% de los casos con
+    fluralaner)" sin ninguna fuente detras. No se censura: se marca para que el vet lo revise.
+    """
+    captured: dict = {}
+    _patch_common(monkeypatch, passed=True, captured=captured)
+
+    def _gen(*a, **k):
+        return (SOAP(subjective="", objective="",
+                     assessment="El cuadro es compatible con dermatitis por pulgas.",
+                     plan="Se observan vomitos en 6.3% de los casos tratados con fluralaner."),
+                [], False)
+
+    monkeypatch.setattr(phantom, "generate_note", _gen)
+    resp = phantom.suggest("cons-1", "clinic-a")
+
+    ap = [u for u in resp.unsupported_claims if u.get("section") == "A/P"]
+    assert ap, "la cifra sin citar del plan deberia quedar marcada para revision"
+    assert "6.3" in ap[0]["text"]
+    # Y el SOAP NO se toca: es una historia clinica, no se reescribe por un veredicto.
+    assert "6.3" in resp.soap.plan

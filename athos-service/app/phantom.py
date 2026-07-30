@@ -21,6 +21,7 @@ from app.generation.dose_guard import patient_data_complete, redact_doses
 from app.generation.evidence_judge import judge_evidence
 from app.generation.generate import EmptyNoteError, generate_note
 from app.generation.transcript_fidelity import check_note_fidelity, repair_sections
+from app.generation.undeclared import find_undeclared
 from app.models import EVIDENCE_NONE, PhantomSuggestResponse
 from app.patient_context import load_patient_context
 from app.retrieval.cascade import build_and_retrieve
@@ -170,6 +171,15 @@ def suggest(consultation_id: str, clinic_id: str, user_id: str | None = None) ->
     if fid_nota.unsupported:
         log.info("fidelidad de nota (Fantasma): %s de %s afirmaciones sin respaldo en la consulta",
                  len(fid_nota.unsupported), fid_nota.n_claims)
+    # S y O se auditan contra la CONSULTA (arriba). El análisis y el plan se auditan contra la
+    # LITERATURA por `citation_fidelity`, pero eso sólo alcanza a las frases CON cita — y quedaba
+    # afuera lo ejecutable sin citar. Medido sobre 40 notas: el plan afirmaba cifras de incidencia
+    # como "vómitos (6.3% de los casos con fluralaner)" sin ninguna fuente detrás. Es el mismo
+    # detector del chat: no censura, marca para que el vet lo revise antes de firmar.
+    revisar_ap = [{"section": "A/P", "text": u["texto"], "tipo": u["tipo"]}
+                  for u in find_undeclared(f"{soap.assessment}\n{soap.plan}")]
+    if revisar_ap:
+        log.info("Fantasma: %s afirmaciones ejecutables sin citar en análisis/plan", len(revisar_ap))
     # Honestidad del payload: aunque el retrieval pase el umbral, si la generación no ancló NINGUNA
     # cita (la literatura recuperada no sustentaba el caso), no afirmamos evidencia suficiente. Así
     # el flag es consistente con la nota (citations=[] <-> insufficient_evidence=True).
@@ -200,6 +210,6 @@ def suggest(consultation_id: str, clinic_id: str, user_id: str | None = None) ->
         allergy_gate_triggered=gate_triggered, allergy_transcript_flag=allergy_flag,
         insufficient_evidence=insufficient, evidence_level=evidence_level,
         citations=citations, alerts=alerts,
-        unsupported_claims=fid_nota.as_payload(),
+        unsupported_claims=fid_nota.as_payload() + revisar_ap,
         ai_model=model, ai_generated_at=ai_at,
     )
