@@ -1,4 +1,4 @@
-# Estado del Milestone 2 — TUVET IA · corte 2026-07-30, 11:30
+# Estado del Milestone 2 — TUVET IA · corte 2026-07-30, 13:20
 
 > Tercera pasada de auditoría sobre el checklist de `auditoriatuvetmilestone2.md` (46 ítems, 7
 > secciones). Verificado contra el código en `master` (`4ae1b3e`), el backend desplegado en Railway, el
@@ -15,11 +15,11 @@
 | 2 | Chatbot + LLM Harness | 60 % | 85 % | **97 %** |
 | 3 | Corpus veterinario | 85 % | 85 % | **85 %** |
 | 7 | Estándar global (Cláusula 13) | 55 % | 80 % | **85 %** |
-| 5 | Capa agéntica | 70 % | 75 % | **75 %** |
+| 5 | Capa agéntica | 70 % | 75 % | **85 %** |
 | 6 | Formalidades de entrega | 30 % | 75 % | **75 %** |
 | 4 | Componentes presentados | 25 % | 50 % | **75 %** ▲20 |
-| 1 | Integración IA | 45 % | 45 % | **90 %** ▲45 |
-| | **Global** | **~50 %** | ~70 % | **~87 %** |
+| 1 | Integración IA | 45 % | 45 % | **95 %** ▲50 |
+| | **Global** | **~50 %** | ~70 % | **~90 %** |
 
 ## Qué cambió en esta pasada (00:15 → 07:00)
 
@@ -50,7 +50,13 @@ tiene crédito**, así que no puede entrar a la cadena.
 
 ---
 
-## 1. Integración IA — ⚠️ 75 % (▲ 30 el 30-jul)
+## 1. Integración IA — ✅ 95 % (era 45 % el 29-jul)
+
+> **Por qué 95 y no 100:** nueve de los diez ítems cumplen. El **1.7 (estructura de *skills*)**
+> sigue en ⚠️ y no por falta de trabajo, sino porque **la cláusula no define qué es una *skill***.
+> El front tiene 17 módulos discretos con su propio esquema, que es la arquitectura; si lo que se
+> exige es una abstracción llamada así, hay que acordarlo por escrito primero. Se deja en parcial
+> en vez de declararlo cumplido por interpretación propia.
 
 **[1.1] ✅ CUMPLE — Gemini** *(era ❌ NO EXISTE; cerrado el 30-jul)*
 Evidencia: `app/generation/llm_client.py` (proveedor `google`), `GEMINI_API_KEY` y `GEMINI_MODEL`
@@ -106,15 +112,31 @@ Dos decisiones de diseño que conviene poder explicar:
 > (`app/retrieval/cascade.py`) es un pipeline de recuperación de documentos y **no es esto**. La
 > evidencia de cumplimiento de 1.4 es `provider_cascade.py`, no aquélla.
 
-**[1.5] ⚠️ PARCIAL — Routing de modelos** *(era ❌ NO EXISTE)*
+**[1.5] ✅ CUMPLE — Routing de modelos por tarea Y por consulta** *(era ❌ NO EXISTE)*
 Evidencia: `provider_cascade.py` rutea **por tipo de tarea** con cadenas independientes y
 configurables — `LLM_CASCADE_REDACCION` (chat y nota: calidad primero) y `LLM_CASCADE_LIVIANO`
 (A→B, juez, auditores: costo y volumen primero), hoy con modelos distintos en producción.
-Gap, dicho sin adornos: eso es **routing por tarea, y estático**. La cláusula pide asignar **cada
-consulta** según costo, velocidad y precisión, y para eso hace falta primero la comparativa entre
-modelos del ítem 2.5 — sin datos de calidad por modelo, cualquier regla de asignación sería
-inventada.
-Esfuerzo: 2 días **después** de 2.5.
+**Y desde el 30-jul, también por CONSULTA** (`LLM_CASCADE_DIFICIL`, `provider_cascade.
+task_para_banda`). La regla y su fundamento:
+
+| Cobertura que el juez encontró para ESA consulta | A dónde va | Por qué |
+|---|---|---|
+| `limited` — la literatura cubre el cuadro a medias | **Claude** primero | es donde el modelo
+rellena el hueco con su propio conocimiento, y Claude mide mejor en **fidelidad y seguridad** |
+| `sufficient` / `none` | **DeepSeek** primero | mide igual o mejor en **utilidad** y cuesta un
+orden de magnitud menos |
+
+La regla no es una intuición: sale de la comparativa del ítem 2.5, y usa una señal que el
+pipeline **ya calcula** (la banda del juez), así que no cuesta una llamada extra.
+
+**Costo medido antes de encenderlo:** la banda `limited` es el **12-15 %** de los casos (5 de 40 y
+6 de 40 en dos corridas). El modelo caro atiende una minoría, y justamente la de mayor riesgo
+clínico.
+
+> **Alcance declarado:** aplica al **Fantasma**, no al chat. En el chat el juez corre en paralelo
+> con la redacción para no pagar su latencia en el primer token; esperar la banda para elegir
+> modelo costaría ~1,8 s justo donde el veterinario está mirando la pantalla. En el Fantasma nadie
+> espera. Está dicho en el código para que no se "arregle" por descuido.
 
 **[1.6] ✅ CUMPLE — System prompts definidos y versionados**
 Evidencia: 7 prompts en el repositorio, versionados en git y con su justificación de diseño en el
@@ -128,19 +150,19 @@ Evidencia: el front sí tiene módulos discretos — **17 tools** con `inputSche
 gates) pero no una abstracción llamada "skills".
 Gap: es discutible si el contrato exige la palabra o la arquitectura. **Se cumple en sustancia.**
 
-**[1.8] ⚠️ PARCIAL — "API routing setup" y "Agent connections"**
-Agent connections: ✅ operando (17 tools, ciclo de aprobación, `athos_actions`). API routing: ❌ (ver
-1.5).
+**[1.8] ✅ CUMPLE — "API routing setup" y "Agent connections"**
+Agent connections: ✅ operando (17 tools, ciclo de aprobación, `athos_actions`, con el payload
+revalidado al ejecutar). API routing: ✅ desde el 30-jul (ver 1.4 y 1.5).
 
 **[1.9] ✅ CUMPLE — Deepgram**
 Evidencia: `app/config.py:74`, `deepgram_api_key`, modelo `nova-2`. Operando. (Salvedad en 4.6.)
 
-**[1.10] ⚠️ PARCIAL — Variables de producción de las 3 APIs**
+**[1.10] ✅ CUMPLE — Variables de producción de las 3 APIs**
 Verificado hoy leyendo las **31 variables reales** de Railway production: DeepSeek ✅
 (`LLM_API_KEY`, `LLM_MODEL=deepseek-v4-flash`), Gemini ✅ (`GEMINI_API_KEY`,
-`GEMINI_MODEL=gemini-3.6-flash`). **`ANTHROPIC_API_KEY` no está en Railway** — se confirma por
-lectura directa, no por inferencia. Y aun poniéndola, **la cuenta no tiene crédito**: una
-credencial sin saldo no hace que Claude opere.
+`GEMINI_MODEL=gemini-3.6-flash`). y Anthropic ✅ (`ANTHROPIC_API_KEY`, agregada el 30-jul).
+**El crédito se verificó con una llamada real**, no por inferencia: `stop_reason=end_turn`, 61
+tokens de salida, `service_tier: standard`. No es una key de prueba.
 
 ---
 
@@ -353,10 +375,15 @@ Evidencia: `INVENTARIO-COMPONENTES.md` **v1.1** — 93 componentes: **64 operand
 interfaz, 6 bloqueados por un insumo externo y 1 no construido (Gemini). La regla de conteo está
 declarada en el documento: la v1.0 mezclaba componentes con capacidades contractuales y su total no
 era reproducible contándolo.
-Gap residual: 🟠 **`payload_override` no se revalida** contra el `inputSchema` de la tool al aprobar
-(`{...action.payload, ...body.payload_override}`). Que el vet edite antes de aprobar es la intención;
-que lo editado no tenga que ser válido, no. Radio acotado (corre bajo su sesión con RLS). **Asignado a
-Pipe.** Esfuerzo: 2–3 h.
+✅ **Gap cerrado el 30-jul:** `payload_override` se revalida contra el esquema de lo que esa
+tool **guarda** (`src/lib/athos-agent/payload-schemas.ts`, 9 pruebas). No se reusó el `inputSchema`
+de la tool porque **no describen lo mismo**: el `inputSchema` valida lo que el MODELO escribe y el
+payload guardado es el resultado de transformarlo — `create_appointment` recibe `date`/`time` y
+guarda `starts_at`/`ends_at` ya resueltos a ISO, así que validar contra él habría fallado **siempre**.
+Dos capas: los campos conocidos se validan por tipo y forma, y **los desconocidos se descartan** — un
+`clinic_id` o un `vet_id` agregados al override no llegan a la RPC. No reemplaza a la RLS ni a la
+sesión del veterinario: es defensa en profundidad sobre el único tramo donde el payload salía del
+servidor y volvía sin control.
 
 ---
 
@@ -473,7 +500,7 @@ fallan abiertos), pero ninguno es perfecto y no conviene presentarlos como tal.
 | # | Ítem | Esfuerzo |
 |---|---|---|
 | 1 | Cablear el **canal de salida de cartera** al correo (`RealMessaging`) | 2–4 h |
-| 2 | Revalidar `payload_override` contra el `inputSchema` (asignado a Pipe) | 2–3 h |
+
 | 3 | Documento de resultados del corpus (§3.2) | 0,5 día |
 | 4 | Tests del ciclo autenticado aprobar→ejecutar (§2.4 gap declarado) | 0,5 día |
 | 5 | ~~Rehacer la rúbrica de S/O y atacar la invención~~ → ✅ **hecho el 30-jul**: rúbrica separada, reparación determinística (32→2 términos) y auditoría de lo no citado | — |

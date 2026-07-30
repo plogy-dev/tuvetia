@@ -1,8 +1,8 @@
 # Inventario de componentes — TUVET IA
 
 **Contrato:** COT-2026-TUV-001 · **Documento exigido por:** Otrosí N.° 1, numeral 2.1
-**Fecha de corte:** 30 de julio de 2026, 11:30 · **Versión:** 1.3
-**Repositorio:** `plogy-dev/tuvetia`, rama `master` · **Commit de corte:** `5cd027b`
+**Fecha de corte:** 30 de julio de 2026, 13:20 · **Versión:** 1.4
+**Repositorio:** `plogy-dev/tuvetia`, rama `master` · **Commit de corte:** `a507043`
 
 > **Cambios de la v1.2 a esta v1.3 (mismo día, 11:30):** entraron **las 16 rutas de la interfaz de
 > facturación, cartera e inventario** y **Claude quedó operando en el backend** con crédito
@@ -255,7 +255,7 @@ migrando de Claude a DeepSeek en producción y revalidando el golden set complet
 | Prompts versionados | ⚠️ Parcial — el historial es Git; no se guarda la versión junto a cada respuesta |
 | Estructura de habilidades (*skills*) | ⚠️ Parcial — 17 herramientas con esquema; sin agrupación por dominio |
 | **Cascada entre modelos** | ✅ **Construida y operando** — `app/generation/provider_cascade.py`, configurada en Railway. Ante caída, timeout o saldo agotado del primario responde el siguiente. Anthropic queda fuera de la cadena hasta que su cuenta tenga crédito |
-| **Enrutamiento dinámico por consulta** | ⚠️ Parcial — hay cadenas independientes y configurables por tarea (redacción vs. liviano), pero la asignación sigue siendo estática. El routing por consulta necesita antes la comparativa de calidad entre modelos |
+| **Enrutamiento dinámico por consulta** | ✅ **Operando** *(30-jul)* — cadenas por tarea, y además por CONSULTA: cuando el juez dictamina cobertura `limited` la nota escala al modelo que mide mejor en fidelidad. Es el 12-15 % de los casos, medido antes de encenderlo |
 | Pruebas comparativas entre modelos | ✅ **Corridas y publicadas** — `athos-service/docs/COMPARATIVA-MODELOS-2026-07-30.md`. DeepSeek gana 24-2 a Gemini; contra Claude el resultado depende del juez (21-2 vs 16-14), y sólo se reporta lo que sobrevive a los dos |
 
 ---
@@ -315,8 +315,6 @@ Lo que queda es de dos naturalezas, y conviene no confundirlas en la reunión:
 1. **Cablear el canal de salida de cartera al correo** (2–4 h). Hoy las facturas salen por correo y las
    respuestas entran por IMAP, pero los recordatorios de cobranza siguen siendo sólo WhatsApp porque
    `RealMessaging` conserva el `email_no_configurado` anterior.
-2. **Revalidar `payload_override`** contra el esquema de la herramienta al aprobar una acción del
-   agente (2–3 h).
 
 ### Lo que depende de terceros
 

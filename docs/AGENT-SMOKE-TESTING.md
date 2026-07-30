@@ -117,11 +117,10 @@ Se declara explícitamente para que nadie lea la suite como más cobertura de la
    atiende sin sesión. Lo que queda sin automatizar es lo que pasa **con** sesión: la reserva atómica
    `proposed→approved` contra el doble clic, el 409 en lo ya procesado y el 410 en lo expirado. Está
    verificado **por inspección de código** y es correcto; falta la prueba.
-2. **`payload_override` no se revalida.** La ruta hace `{...action.payload, ...body.payload_override}`
-   sin volver a pasar el resultado por el `inputSchema` de la tool. El veterinario puede editar el
-   payload antes de aprobar —que es la intención— pero nada obliga a que lo editado siga siendo
-   válido. El radio de daño está acotado porque la ejecución corre bajo su propia sesión y RLS, pero
-   el esquema de la tool queda salteado. **Asignado a Pipe** (abierto al 29-jul 22:45).
+2. ~~`payload_override` no se revalida.~~ ✅ **Cerrado el 30-jul**: se revalida contra el esquema de
+   lo que la tool **guarda** (`payload-schemas.ts`, 9 pruebas), y los campos desconocidos se
+   descartan. No se reusó el `inputSchema` porque describe lo que el modelo escribe, no lo que se
+   guarda — validar contra él habría fallado siempre.
 3. **La calidad de las decisiones del modelo.** Nada acá mide si el agente elige la tool correcta o
    interpreta bien al veterinario. Eso lo miden los bancos de `athos-service/scripts/calidad/`, que
    son otro instrumento y otro documento.
