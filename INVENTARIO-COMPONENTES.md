@@ -1,8 +1,16 @@
 # Inventario de componentes — TUVET IA
 
 **Contrato:** COT-2026-TUV-001 · **Documento exigido por:** Otrosí N.° 1, numeral 2.1
-**Fecha de corte:** 30 de julio de 2026 · **Versión:** 1.0
-**Repositorio:** `plogy-dev/tuvetia`, rama `master` · **Commit de corte:** `31db27a`
+**Fecha de corte:** 30 de julio de 2026, 07:00 · **Versión:** 1.1
+**Repositorio:** `plogy-dev/tuvetia`, rama `master` · **Commit de corte:** `4ae1b3e`
+
+> **Cambios de la v1.0 (corte `31db27a`) a esta v1.1:** 93 componentes y **64 operando** (69 %). Se
+> corrigió además la regla de conteo, que en la v1.0 no era reproducible — ver el Resumen. Se movieron
+> cinco filas: el **correo electrónico** dejó de ser un stub y ahora envía por
+> SMTP y lee respuestas por IMAP; la **purga de audio de la Ley 1581 ya corre** (se verificó que
+> `CRON_SECRET` está configurada en Vercel); la **integración continua** pasó de "sin validar" a verde
+> con una suite e2e contra producción; y se agregaron cuatro componentes de garantía clínica y
+> verificación del despliegue. El detalle está en `athos-service/docs/ESTADO-MILESTONE2-2026-07-30.md`.
 
 ---
 
@@ -59,15 +67,26 @@ automatizadas.
 | Garantía | Qué impide | Dónde vive | Estado |
 |---|---|---|---|
 | **Gate de alergia severa** | Que se proponga un plan sin advertir una alergia severa registrada | `app/generation/allergy_gate.py` | ✅ Operando |
-| **Gate de dosis** | Que llegue una cifra de dosis sin especie, peso y edad confirmados. **Medido: 0 de 24 respuestas** | `app/generation/dose_guard.py` | ✅ Operando |
+| **Gate de dosis** | Que llegue una cifra de dosis sin especie, peso y edad confirmados. **Medido: de 40 notas, 8 borradores traían una cifra y 0 llegaron a la nota final** | `app/generation/dose_guard.py` | ✅ Operando |
 | **Procedencia de citas** | Que el modelo invente una fuente: si el `[n]` no está en lo recuperado, se descarta | `app/generation/citations.py` | ✅ Operando |
 | **Fidelidad de citas** | Que se cite un pasaje que no sostiene lo afirmado. Descarta el 18 % de referencias | `app/generation/citation_fidelity.py` | ⚠️ Parcial — reduce el problema, no lo elimina |
+| **Reparación de la nota** | Que la nota nombre un signo clínico que la consulta no contiene ("se siente grande el hígado" escrito como "hepatomegalia palpable"). Detección determinística con el glosario y reescritura con las palabras de la consulta. **Medido: términos sin respaldo de 32 a 2 sobre 40 notas; el texto creció 15 %, no se borró nada** | `app/generation/transcript_fidelity.py` | ✅ Operando *(30-jul)* |
+| **Auditoría de la nota contra la consulta** | Que S y O afirmen un hallazgo que nadie constató. Señala sin borrar: la decisión es del veterinario que firma | ídem | ⚠️ Parcial — **precisión 0,78 y recall 0,47**: lo que señala casi siempre vale, y se le escapa la mitad |
+| **Afirmaciones ejecutables sin declarar** | Que un fármaco o una cifra se presenten como establecidos sin cita ni aviso. **Medido: 30 casos en 34 respuestas del chat; 14 en 12 de 40 notas** | `app/generation/undeclared.py` | ✅ Operando *(30-jul)* |
 | **Juez de evidencia** | Que responda con seguridad sin literatura que lo respalde. Bandas: se abstiene / declara evidencia limitada / responde | `app/generation/evidence_judge.py` | ⚠️ Parcial — acierta en 61 % de los casos sin cobertura |
 | **Aprobación humana** | Que una nota entre a la historia clínica sin que el veterinario la apruebe | `clinical_notes.status: draft → approved` | ✅ Operando |
 
+> **Cómo se verifican estas garantías, y por qué importa la distinción.** Las que dicen *Medido* se
+> comprueban con una **propiedad contable del texto** —cuántas cifras de dosis sobreviven, cuántos
+> términos no aparecen en la consulta—, así que el número es reproducible por cualquiera. Las que
+> dicen *precisión* y *recall* dependen del juicio de un modelo evaluador y por eso llevan su margen
+> declarado. La diferencia no es cosmética: el juez que puntúa en abstracto dio, **sobre el mismo
+> prompt y el mismo banco**, seis resultados distintos entre 8/16 y 27/40 — un ruido de ±7 sobre 40.
+> Ninguna cifra de este documento se apoya en él sin decirlo.
+
 ### 1.2 Banco de calidad (LLM Harness)
 
-Herramientas de evaluación y control de calidad. **27 scripts** en `athos-service/scripts/calidad/`,
+Herramientas de evaluación y control de calidad. **34 scripts** en `athos-service/scripts/calidad/`,
 documentados en su propio `README.md`.
 
 | Componente | Qué mide | Estado |
@@ -76,11 +95,20 @@ documentados en su propio `README.md`.
 | Banco de recuperación | 146 casos anclados al corpus (`hit@15` 83,6 %) | ✅ Operando |
 | Banco de negativos **validado** | 18 casos verificados como sin cobertura real | ✅ Operando |
 | Banco de calidad de **respuestas** | Rúbrica de 5 dimensiones juzgada por un modelo distinto del redactor | ✅ Operando |
-| Comparación A/B de prompts | Pareada, sobre la misma literatura recuperada | ✅ Operando |
+| Banco de calidad de la **nota clínica** | Replica el Modo Fantasma completo **sin escribir en el expediente de nadie**; separa la fabricación en S/O de los señalamientos sobre el plan | ✅ Operando *(30-jul)* |
+| Comparación A/B de prompts y de **estrategias de generación** | Pareada: el retrieval corre una vez y las dos variantes redactan sobre la misma literatura | ✅ Operando |
+| Calibración del auditor contra verdad-de-terreno | Compara modelos de auditor sobre las mismas notas, sin volver a generarlas | ✅ Operando *(30-jul)* |
 | Medición de latencia | End-to-end y de servidor | ✅ Operando |
 | Diagnóstico de recuperación | Localiza en qué paso de la cascada se pierde un caso | ✅ Operando |
-| Pruebas automatizadas del backend | **173 pruebas** + linter, verdes | ✅ Operando |
-| Integración continua | Ejecuta backend y front en cada push y PR | ⚠️ Parcial — el job del front se valida en su primera corrida |
+| Pruebas automatizadas | **199 del backend + 257 del front = 456**, más linter y verificación de tipos | ✅ Operando |
+| Integración continua | `ruff` + `pytest` en el backend; tipos + linter + pruebas + compilación en el front, en cada push y PR | ✅ Operando *(verde; el job del front se validó el 29-jul)* |
+| Smoke e2e contra el despliegue real | Cada 6 horas verifica por HTTP que las rutas privadas estén cerradas, que las APIs rechacen a un anónimo y que el backend responda | ✅ Operando *(30-jul)* |
+
+> **Lo que el banco encontró, que es la razón de que exista:** 24 de 42 casos del banco de negativos
+> no eran negativos (el instrumento estaba roto y toda medición de abstención anterior medía otra
+> cosa); 18 de 24 respuestas citaban un pasaje que no sostenía la afirmación; la nota del Fantasma se
+> guardaba **vacía** en 1 de 16 casos sin avisar; y un `chunk_id` crudo quedaba visible en el
+> subjetivo de la historia clínica. Ninguno de los cuatro era detectable por inspección.
 
 ---
 
@@ -94,7 +122,7 @@ documentados en su propio `README.md`.
 | Titulares (dueños) | `/dashboard/owners` | ✅ Operando |
 | Consultas: listado y detalle | `/dashboard/consultas`, `/dashboard/consultas/[id]` | ✅ Operando |
 | Grabación con consentimiento (Ley 1581) | `src/components/consultation-recorder.tsx`, `consents` | ✅ Operando |
-| Audio reproducible y purga a 4 días | `consultation-audios` + `/api/cron/purge-audio` | ⏳ **Bloqueado** — sin `CRON_SECRET` en Vercel la purga devuelve 503 y **la retención no corre** |
+| Audio reproducible y purga a 4 días | `consultation-audios` + `/api/cron/purge-audio` | ✅ Operando *(desbloqueado el 30-jul: se verificó que `CRON_SECRET` está configurada en Vercel — `/api/health` responde 401 y no 503, y esa diferencia sólo ocurre si la variable existe)* |
 | Alergias, medicación y vacunas | dentro de la ficha | ✅ Operando |
 | Exportación de datos | `/api/export` | ✅ Operando |
 | Panel de inicio con métricas | `/dashboard` | ✅ Operando |
@@ -147,7 +175,17 @@ documentados en su propio `README.md`.
 | Conexión oficial de Meta (embebida) | `/api/whatsapp/exchange` | ⏳ **Bloqueado** — trámite de App Review de Meta, 2 a 6 semanas |
 | Conexión vía Kapso | `/api/whatsapp/connect` | ⚠️ Parcial — **redirige fuera de la plataforma** |
 | Invitaciones de equipo | `/api/team/invite-email`, `/invitar/[token]` | ⚠️ Parcial — código corregido el 29-jul; falta ajustar la plantilla de correo en Supabase |
-| **Correo electrónico / Gmail** | `src/lib/facturacion/email.ts` | ❌ **No construido** — es un stub declarado que siempre devuelve `email_no_configurado` |
+| **Correo electrónico — envío por SMTP** | `src/lib/email/smtp.ts`, `integrations.ts`, credenciales cifradas en `crypto.ts` | ✅ Operando *(30-jul; era un stub)* |
+| **Correo electrónico — lectura de respuestas por IMAP** | `src/lib/email/imap.ts`, `sync.ts`, `threading.ts` | ✅ Operando *(30-jul)* |
+| **Conexión de correo desde la aplicación** | `/dashboard/settings` → `src/components/settings/email-settings.tsx` | ✅ Operando *(30-jul)* |
+| Envío de facturas por correo | `src/lib/facturacion/email.ts` | ✅ Operando *(30-jul)* |
+| Recordatorios de cobranza por correo | `src/lib/cartera/channels.ts` | ⚠️ Parcial — **el canal de salida sigue devolviendo `email_no_configurado`**: la cobranza sale sólo por WhatsApp aunque el correo ya funcione |
+| **Chequeo de configuración del despliegue** | `GET /api/health` — responde qué está cableado en producción **sin revelar ningún valor** (sólo booleanos, protegido con `CRON_SECRET`) | ✅ Operando *(30-jul)* |
+
+> **Por qué el chequeo de configuración es un componente y no una utilidad:** el problema que resolvió
+> la auditoría es que las variables faltantes **apagan funciones enteras en silencio** — sin
+> `CRON_SECRET` la retención de audio de la Ley 1581 dejaba de correr sin ningún error visible. Ahora
+> el estado de producción se comprueba desde afuera en una petición.
 
 ---
 
@@ -164,7 +202,7 @@ producción; el usuario no puede alcanzar el módulo desde la aplicación.
 | Compras, proveedores y gastos | ídem | 🔧 Sin interfaz |
 | Importación desde Excel/CSV | `src/lib/facturacion/import/` | ⏳ Bloqueado — la librería `xlsx` tiene vulnerabilidades **sin corrección publicada** |
 | Proveedor de facturación electrónica | `src/lib/facturacion/fiscal/sandbox.ts` | ⏳ Bloqueado — **es un entorno de pruebas**; sin habilitación DIAN no hay validez fiscal |
-| Tarea programada de cobranza | `/api/cron/cartera` | ⏳ Bloqueado — sin `CRON_SECRET` |
+| Tarea programada de cobranza | `/api/cron/cartera` + barrido cada 15 min por GitHub Actions (`cartera-sweep.yml`) | ⚠️ Parcial — el disparo ya corre (`CRON_SECRET` configurada), pero **el canal de correo de salida no está cableado**: sólo sale por WhatsApp |
 
 ---
 
@@ -210,25 +248,46 @@ migrando de Claude a DeepSeek en producción y revalidando el golden set complet
 
 ## Resumen
 
-**88 componentes inventariados.**
+**93 componentes inventariados.**
 
 | Estado | Componentes | |
 |---|---|---|
-| ✅ **Operando** | **53** | 60 % |
-| ⚠️ **Parcial** | 20 | 23 % |
-| 🔧 **Sin interfaz** (motor listo, inalcanzable) | 4 | 5 % |
-| ⏳ **Bloqueado por un insumo externo** | 8 | 9 % |
-| ❌ **No construido** | 3 | 3 % |
+| ✅ **Operando** | **64** | 69 % |
+| ⚠️ **Parcial** | 18 | 19 % |
+| 🔧 **Sin interfaz** (motor listo, inalcanzable) | 4 | 4 % |
+| ⏳ **Bloqueado por un insumo externo** | 6 | 6 % |
+| ❌ **No construido** | 1 | 1 % |
 
-Los 3 no construidos son: **Gemini**, la **cascada entre modelos** y el **correo electrónico**.
+> **Regla de conteo, declarada para que el número sea reproducible:** se cuenta **una fila por
+> componente** de las tablas de las secciones 1 a 8. La tabla de *capacidades exigidas por el contrato*
+> de la sección 8 **no se cuenta**: es una vista de cumplimiento sobre componentes que ya están
+> contados, y sumarla los duplicaría. La v1.0 mezclaba las dos cosas —de ahí que reportara 88 con
+> 3 «no construidos»— y su total no se podía reproducir contando el documento. Corregido acá.
 
-### Lo que se desbloquea con configuración (horas, sin desarrollo)
+El único componente **no construido** es **Gemini**. A nivel de *capacidad contractual* falta también
+la **cascada entre los tres modelos**, que figura en la tabla de la sección 8 y depende del mismo
+insumo externo que Gemini: juntas son la mayor concentración de incumplimiento literal del contrato.
+El **correo electrónico** salió de esta lista el 30-jul.
 
-1. **`CRON_SECRET` en Vercel** → restablece la purga de audio y con ella la retención de 4 días de la
-   Ley 1581, que **hoy no corre**. También habilita la cobranza automática.
+### Lo que se desbloquea con configuración (minutos, sin desarrollo)
+
+1. ~~`CRON_SECRET` en Vercel~~ → ✅ **RESUELTO.** Verificado el 30-jul: `/api/health` responde 401 y no
+   503, y esa diferencia sólo ocurre si la variable existe. Con eso **la retención de audio de la Ley
+   1581 volvió a correr** y el barrido de cobranza también.
 2. **`SUPABASE_SERVICE_ROLE_KEY` en Vercel** → habilita las 7 acciones de escritura del agente y el
-   ciclo de aprobación completo.
+   ciclo de aprobación completo. **No se pudo verificar desde afuera** porque el valor de
+   `CRON_SECRET` en Vercel no es el que tenemos. Para confirmarlo en 30 segundos y sin exponer nada:
+   `curl -H "Authorization: Bearer $CRON_SECRET" https://tuvetia.vercel.app/api/health` — devuelve
+   **sólo booleanos**, ni valores ni prefijos ni longitudes.
 3. **Plantilla de correo en Supabase** → cierra el último defecto de las invitaciones.
+
+### Lo que se cierra en horas de desarrollo
+
+1. **Cablear el canal de salida de cartera al correo** (2–4 h). Hoy las facturas salen por correo y las
+   respuestas entran por IMAP, pero los recordatorios de cobranza siguen siendo sólo WhatsApp porque
+   `RealMessaging` conserva el `email_no_configurado` anterior.
+2. **Revalidar `payload_override`** contra el esquema de la herramienta al aprobar una acción del
+   agente (2–3 h).
 
 ### Lo que depende de terceros
 
@@ -244,12 +303,24 @@ Los 3 no construidos son: **Gemini**, la **cascada entre modelos** y el **correo
 ### Lo que requiere decisión de alcance
 
 - **Interfaz de facturación, cartera e inventario**: 5 a 7 semanas de desarrollo. El motor está
-  completo y probado; falta toda la capa de presentación.
-- **Correo electrónico**: 6 a 9 días más la verificación del dominio.
+  completo y probado; falta toda la capa de presentación. **Es la decisión más urgente**: si se
+  mantiene en el Milestone 2, compite por los mismos días que la calidad clínica.
+- **Transcripción en tiempo real**: 3 a 5 días. Hoy es por lotes.
 - **Definición de "estructura de habilidades"**: fijarla por escrito cambia la estimación entre un día
   y una reescritura.
+
+### Lo que sigue abierto en la calidad clínica
+
+Se declara para que nadie lea este inventario como más garantía de la que da. La nota del Modo Fantasma
+**es un borrador que el veterinario aprueba**, y con las mitigaciones del 30-jul los puntos dudosos le
+llegan señalados. Pero el juez de calidad sigue detectando un hallazgo afirmado sin respaldo en S u O
+en **~15 de 40 notas**, y ese número es en parte real y en parte del propio juez: no se pudo separar
+con más precisión porque el instrumento tiene ±7 de ruido sobre 40. Lo que sí es verificable sin
+opinión de nadie es que **los términos clínicos que la nota nombra y la consulta no contiene bajaron de
+32 a 2**.
 
 ---
 
 *Documento preparado por el equipo técnico. El detalle de cada verificación, con archivo y línea, está
-en `athos-service/docs/AUDITORIA-MILESTONE2-2026-07-29.md`.*
+en `athos-service/docs/ESTADO-MILESTONE2-2026-07-30.md` (estado actual) y en
+`athos-service/docs/AUDITORIA-MILESTONE2-2026-07-29.md` (auditoría ítem por ítem).*
