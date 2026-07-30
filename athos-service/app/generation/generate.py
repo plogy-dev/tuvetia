@@ -8,12 +8,15 @@ respuesta (`parse_note_response`) son determinísticos y se prueban sin LLM; `ge
 orquesta la (única) llamada al modelo en el medio.
 """
 import json
+import logging
 import re
 
 from app.generation.allergy_gate import transcript_mentions_allergy
 from app.generation.citations import verify_citations
 from app.generation.llm_client import LLMClient
 from app.models import SOAP, Citation, PatientContext, RetrievedChunk
+
+log = logging.getLogger(__name__)
 
 _MAX_CHUNK_CHARS = 1200  # presupuesto acotado por chunk en el prompt
 
@@ -53,8 +56,14 @@ def _format_literature(literature: list[RetrievedChunk]) -> str:
 
 
 def build_note_prompt(transcript: str, literature: list[RetrievedChunk], patient: PatientContext,
-                      severe_allergens: list[str]) -> tuple[str, str]:
-    """Arma (system, user) para la nota SOAP. Determinístico y testeable sin LLM."""
+                      severe_allergens: list[str],
+                      system_prompt: str | None = None) -> tuple[str, str]:
+    """Arma (system, user) para la nota SOAP. Determinístico y testeable sin LLM.
+
+    `system_prompt` sustituye el de producción — es el punto de entrada del A/B de prompts
+    (`scripts/calidad/phantom_ab.py`), que corre variantes en paralelo y por eso necesita pasarlo como
+    argumento y no mutar el global del módulo.
+    """
     ficha = (f"- especie: {patient.species or '?'}; peso: {patient.weight_kg or '?'} kg; "
              f"edad: {patient.age_years or '?'} años")
     alergias = ", ".join(severe_allergens) if severe_allergens else "ninguna conocida"
@@ -67,7 +76,7 @@ def build_note_prompt(transcript: str, literature: list[RetrievedChunk], patient
         "LITERATURA RECUPERADA (cita SOLO estos chunk_id):\n"
         f"{_format_literature(literature)}"
     )
-    return CLINICAL_SYSTEM_PROMPT, user
+    return (system_prompt or CLINICAL_SYSTEM_PROMPT), user
 
 
 def _extract_json(text: str) -> dict:
@@ -147,18 +156,43 @@ def parse_note_response(text: str, literature: list[RetrievedChunk]) -> tuple[SO
     return soap, verified, bool(data.get("allergy_transcript_flag", False))
 
 
+class EmptyNoteError(RuntimeError):
+    """El modelo no devolvió una nota utilizable (respuesta ilegible o vacía).
+
+    Es un error explícito a propósito: sin esto, `_extract_json` devuelve `{}`, el SOAP sale con los
+    cuatro campos en blanco y el Fantasma **inserta una nota vacía en la historia clínica** con
+    `status='draft'`, sin señal de que algo falló. El veterinario abre la consulta y encuentra un
+    borrador en blanco que no distingue entre "Athos falló" y "no había nada que decir". Medido el
+    2026-07-29 sobre 16 transcripciones: pasó en 1 de 16 (`scripts/calidad/phantom_eval.py`).
+    """
+
+
 def generate_note(transcript: str, literature: list[RetrievedChunk], patient: PatientContext,
-                  severe_allergens: list[str]) -> tuple[SOAP, list[Citation], bool]:
+                  severe_allergens: list[str],
+                  system_prompt: str | None = None) -> tuple[SOAP, list[Citation], bool]:
     """Genera la nota SOAP (Modo Fantasma) en una sola llamada. Usa LLMClient(LLM_MODEL).
 
     Devuelve (soap, citations, allergy_transcript_flag). El gate DURO (allergy_gate_triggered) y el
     insufficient_evidence los calcula Athos aparte (determinístico), no el modelo.
+
+    Lanza `EmptyNoteError` si el modelo no devuelve una nota utilizable ni al reintentar.
     """
-    system, user = build_note_prompt(transcript, literature, patient, severe_allergens)
-    # La nota SOAP + citas puede ser larga; 2000 truncaba el JSON (stop_reason=max_tokens) y el
-    # parseo caía a una nota vacía. 4000 da margen para que el JSON cierre completo.
-    text = LLMClient().complete(system, user, max_tokens=4000)
-    soap, citations, model_flag = parse_note_response(text, literature)
+    system, user = build_note_prompt(transcript, literature, patient, severe_allergens,
+                                     system_prompt)
+    # El fallo es transitorio: medido, la misma transcripción que salió vacía generó bien en los dos
+    # reintentos siguientes. Un reintento convierte el fallo duro en éxito; el segundo vacío ya no se
+    # tapa, se levanta.
+    for intento in (1, 2):
+        # La nota SOAP + citas puede ser larga; 2000 truncaba el JSON (stop_reason=max_tokens) y el
+        # parseo caía a una nota vacía. 4000 da margen para que el JSON cierre completo.
+        text = LLMClient().complete(system, user, max_tokens=4000)
+        soap, citations, model_flag = parse_note_response(text, literature)
+        if soap.subjective.strip() or soap.objective.strip() or soap.assessment.strip():
+            break
+        log.warning("nota vacía del modelo (intento %s de 2): %s chars de respuesta",
+                    intento, len(text or ""))
+    else:
+        raise EmptyNoteError("el modelo no devolvió una nota SOAP utilizable en 2 intentos")
     # Backstop determinístico: el flag del modelo es no-determinístico y de él depende la única
     # señal de una alergia dicha en la consulta sin fila en `allergies`. OR con el escaneo del texto.
     allergy_flag = model_flag or transcript_mentions_allergy(transcript)

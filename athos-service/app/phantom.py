@@ -19,7 +19,7 @@ from app.generation.citation_fidelity import check_fidelity, drop_and_renumber
 from app.generation.condition_alerts import detect_conditions, explain_conditions
 from app.generation.dose_guard import patient_data_complete, redact_doses
 from app.generation.evidence_judge import judge_evidence
-from app.generation.generate import generate_note
+from app.generation.generate import EmptyNoteError, generate_note
 from app.models import EVIDENCE_NONE, PhantomSuggestResponse
 from app.patient_context import load_patient_context
 from app.retrieval.cascade import build_and_retrieve
@@ -120,7 +120,17 @@ def suggest(consultation_id: str, clinic_id: str, user_id: str | None = None) ->
 
     # B->A: sin evidencia suficiente -> nota del transcript SIN literatura (insufficient_evidence)
     literature = chunks if passed and not verdict.abstains else []
-    soap, citations, allergy_flag = generate_note(transcript_text, literature, patient, severe)
+    # Si el modelo no devuelve una nota utilizable, se corta acá: NO se inserta la fila. Una nota en
+    # blanco en la historia clínica es peor que un error — el vet no puede distinguirla de "no había
+    # nada que decir", y queda un borrador fantasma asociado a la consulta.
+    try:
+        soap, citations, allergy_flag = generate_note(transcript_text, literature, patient, severe)
+    except EmptyNoteError as e:
+        log.error("Fantasma sin nota utilizable para consulta %s: %s", consultation_id, e)
+        raise HTTPException(
+            status_code=502,
+            detail="el modelo no devolvió una nota utilizable; reintentá cerrar la consulta",
+        ) from e
     # Gate de dosis (regla nº4): con la ficha incompleta, ninguna cifra por peso entra a la nota.
     # Va acá y no en el prompt porque medido el prompt no la cumple (ver app/generation/dose_guard).
     # La nota es un borrador que el vet aprueba: una dosis sin verificar no puede llegar a firmarse.

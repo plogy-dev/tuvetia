@@ -9,6 +9,8 @@ Test unitario puro: mockea todo el I/O (loaders, cascada, gate, generación, ins
 La lógica del gate contra la DB real ya está cubierta en test_allergy_gate/test_cross_tenant.
 """
 import app.phantom as phantom
+from fastapi import HTTPException
+from app.generation.generate import EmptyNoteError
 from app.generation.evidence_judge import EvidenceVerdict
 from app.models import (EVIDENCE_LIMITED, EVIDENCE_NONE, EVIDENCE_SUFFICIENT, SOAP, Citation,
                         PatientContext, RetrievedChunk, StructuredQuery)
@@ -168,3 +170,30 @@ def test_suggest_nivel_reportado_es_el_efectivo(monkeypatch):
 
     assert resp.insufficient_evidence is True
     assert resp.evidence_level == EVIDENCE_NONE
+
+
+def test_suggest_no_inserta_nota_cuando_la_generacion_falla(monkeypatch):
+    """Si el modelo no devuelve una nota utilizable, NO se crea la fila en `clinical_notes`.
+
+    Una nota en blanco en la historia clinica es peor que un error: el veterinario no puede
+    distinguirla de "no habia nada que decir" y queda un borrador fantasma colgado de la consulta.
+    """
+    captured: dict = {}
+    _patch_common(monkeypatch, passed=True, captured=captured)
+
+    def revienta(*a, **k):
+        raise EmptyNoteError("el modelo no devolvio una nota SOAP utilizable en 2 intentos")
+
+    monkeypatch.setattr(phantom, "generate_note", revienta)
+
+    def no_insertar(*a, **k):
+        raise AssertionError("se inserto una nota a pesar de que la generacion fallo")
+
+    monkeypatch.setattr(phantom, "_insert_note", no_insertar)
+
+    try:
+        phantom.suggest("cons-1", "clinic-a")
+    except HTTPException as e:
+        assert e.status_code == 502
+    else:
+        raise AssertionError("suggest() no propago el fallo de generacion como HTTPException")

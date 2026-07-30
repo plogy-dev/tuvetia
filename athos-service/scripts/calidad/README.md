@@ -57,6 +57,37 @@ seguiría esta recomendación tal cual?*
 En los **negativos** (condiciones ausentes del corpus) lo correcto es callar o declarar el límite;
 responder con confianza es el modo de falla más peligroso que puede tener el sistema.
 
+## Calidad de la NOTA del Fantasma (2026-07-29)
+
+```bash
+python scripts/calidad/phantom_eval.py --etiqueta baseline --n 16 \
+       --juez-modelo deepseek-v4-pro --juez-proveedor openai
+```
+
+Todo lo anterior mide el **chat**. La nota SOAP del Fantasma es el artefacto de **mayor riesgo** del
+sistema — el veterinario la firma y queda en la historia clínica del paciente — y no tenía medición
+propia.
+
+**Y lo que hay que medir es distinto.** En el chat el fallo grave es citar flojo; en una nota clínica
+es **inventar un hallazgo**: si dice "abdomen doloroso a la palpación" y en el transcript nadie palpó,
+eso es una historia clínica falsa, con consecuencias legales y no sólo de calidad. Por eso la
+dimensión central acá es la **fidelidad al transcript**, que el banco del chat no evalúa.
+
+Rúbrica 0-10: `fidelidad` (¿todo hecho afirmado está en el transcript?), `estructura` (¿respeta el
+SOAP, o mezcla lo que dijo el dueño con los hallazgos del examen?), `completitud`, `seguridad` y
+`utilidad`, más el binario **"¿un veterinario la firmaría tal cual, sin corregirla?"**.
+
+Replica el pipeline real de `phantom.suggest()` —retrieval, juez, generación, gate de dosis, auditor
+de citas— llamando a las mismas funciones, **sin `_insert_note`**: mide producción sin crear notas de
+prueba en el expediente de nadie. También reporta el gate de dosis en dos tiempos: cuántos borradores
+traían una cifra y cuántas **llegaron a la nota final** (debe ser 0).
+
+> ⚠️ **La primera versión de la rúbrica daba números falsos** y conviene no repetir el error: el juez
+> marcaba las citas `[1]`, `[3]` como "hechos inventados" porque nunca se le dijo que la nota se apoya
+> en literatura recuperada aparte, y marcaba como invento el señalar que falta el peso del paciente
+> —que es justamente lo correcto—. Ahora el prompt aclara las tres cosas que son correctas por diseño:
+> las citas son legítimas, documentar una ausencia no es inventar, e interpretar no es agregar hechos.
+
 ### A/B de prompts
 
 ```bash

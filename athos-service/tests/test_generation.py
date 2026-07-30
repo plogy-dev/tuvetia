@@ -70,3 +70,53 @@ def test_generate_note_backstop_rescata_flag_que_el_modelo_pierde(monkeypatch, s
     transcript = "vomito y diarrea; ojo: alergia severa a la penicilina, evitar betalactamicos"
     _, _, flag = generate_note(transcript, sample_chunks, _patient(), [])
     assert flag is True
+
+
+def test_generate_note_reintenta_cuando_el_modelo_devuelve_basura(monkeypatch, sample_chunks):
+    """El fallo es transitorio: si el primer intento sale ilegible, el segundo salva la nota.
+
+    Medido el 2026-07-29: 1 de 16 transcripciones devolvio una nota vacia, y la misma transcripcion
+    genero bien en los dos reintentos siguientes.
+    """
+    buena = json.dumps({
+        "soap": {"subjective": "vomito agudo", "assessment": "compatible con Y", "plan": "observar"},
+        "citations": [], "allergy_transcript_flag": False,
+    })
+    respuestas = iter(["lo siento, no puedo", buena])
+
+    monkeypatch.setattr(gen.LLMClient, "complete",
+                        lambda self, system, user, max_tokens=2000: next(respuestas))
+    soap, _cites, _flag = generate_note("el perro vomita", sample_chunks, _patient(), [])
+    assert soap.assessment == "compatible con Y"
+
+
+def test_generate_note_no_devuelve_nota_vacia_en_silencio(monkeypatch, sample_chunks):
+    """La regresion que importa: una respuesta ilegible NO puede volverse una nota en blanco.
+
+    Sin esto, `_extract_json` devuelve {}, el SOAP sale con los cuatro campos vacios y el Fantasma
+    inserta la nota en la historia clinica con status='draft'. El veterinario abre la consulta y
+    encuentra un borrador en blanco que no distingue entre "Athos fallo" y "no habia nada que decir".
+    """
+    monkeypatch.setattr(gen.LLMClient, "complete",
+                        lambda self, system, user, max_tokens=2000: "no es JSON ni lo sera")
+    try:
+        generate_note("el perro vomita", sample_chunks, _patient(), [])
+    except gen.EmptyNoteError:
+        pass
+    else:
+        raise AssertionError("una respuesta ilegible produjo una nota sin levantar EmptyNoteError")
+
+
+def test_generate_note_acepta_system_prompt_alternativo(monkeypatch, sample_chunks):
+    """El seam del A/B de prompts (`scripts/calidad/phantom_ab.py`) tiene que llegar al modelo."""
+    vistos = []
+    canned = json.dumps({"soap": {"assessment": "a"}, "citations": [],
+                         "allergy_transcript_flag": False})
+
+    def fake(self, system, user, max_tokens=2000):
+        vistos.append(system)
+        return canned
+
+    monkeypatch.setattr(gen.LLMClient, "complete", fake)
+    generate_note("x", sample_chunks, _patient(), [], system_prompt="PROMPT DE PRUEBA")
+    assert vistos == ["PROMPT DE PRUEBA"]
