@@ -35,13 +35,13 @@ clasificación de nuestra parte: etiquetaba la métrica como si fuera el estado 
 | 6 | Correo / comunicaciones | ✅ | 8 pruebas | nada | — |
 | 7 | Google Calendar bidireccional | 🔑 | ida ✅ / vuelta manual | **2 credenciales en Vercel** | tuyo, 5 min |
 | 8 | Transcripción | 🚧 | 2 de 3 defectos | pasar de lotes a streaming | nuestro, 3–5 días |
-| 9 | Invitaciones de equipo | 🔑 | 4 bugs corregidos | **enviar una invitación real** | tuyo, 2 min |
+| 9 | Invitaciones de equipo | ✅ | **aceptada en producción** | un caso residual (§9) | — |
 | 10 | Historial de conversaciones | ✅ | — | nada | — |
 
-**7 entregados y verificados · 2 esperando 7 minutos tuyos · 1 con desarrollo pendiente · 0 incumplidos.**
+**8 entregados y verificados · 1 esperando 5 minutos tuyos · 1 con desarrollo pendiente · 0 incumplidos.**
 
-Con esos 7 minutos tuyos son **9 de 10**. El único trabajo de desarrollo que queda en la lista es la
-transcripción en vivo.
+Con esas 2 credenciales de Google son **9 de 10**. El único trabajo de desarrollo que queda en la
+lista es la transcripción en vivo.
 
 ---
 
@@ -227,9 +227,41 @@ orden de habla**, con la etiqueta **horneada** en `full_text`. Ahora el rol se i
 **Fecha:** 3 pantallas formateaban en UTC porque los componentes de servidor corren en UTC en Vercel.
 Ancladas a `America/Bogotá`, con pruebas que fuerzan `TZ=UTC` para que no vuelva.
 
-## 9 · Invitaciones de equipo — 🔑 entregado, esperando 2 minutos tuyos
+## 9 · Invitaciones de equipo — ✅ **verificado en producción hoy**
 
-**Cuatro bugs corregidos, de dos personas:**
+**Se envió una invitación real y se aceptó.** La traza en la base de producción, no por lectura de
+código:
+
+| Evidencia | Valor |
+|---|---|
+| Invitación creada | `6bc9ef2f-…` · 2026-07-30 **21:27:17** UTC · rol `vet` |
+| **Aceptada** | 2026-07-30 **21:27:48** UTC — **31 segundos después** |
+| **Membresía creada** | `db27b141-…` en *Clínica de Jesús Licett*, `created_at` **21:27:48.776659** |
+| Perfil vinculado | `clinic_id` y `role=vet` asignados |
+
+La membresía y el `accepted_at` comparten timestamp **al microsegundo**: es la misma transacción de la
+RPC `accept_invitation`. No es una fila que ya estuviera ahí.
+
+**Y se ejercitó el camino difícil sin querer:** el invitado ya pertenecía a **otra** clínica desde el
+27-jul. La rama multi-clínica (*"ADD, no reemplaza"*) funcionó — conservó la membresía anterior y
+agregó la nueva. Ese era el caso con más riesgo de pisar datos.
+
+### El caso residual, para que quede dicho
+
+El correo invitado **ya tenía cuenta** (Google, desde el 15-jul), así que `inviteUserByEmail` no creó
+usuario — `auth.users.invited_at` quedó en `None`. Lo que **no** se ejercitó, entonces, es el camino de
+alguien **sin cuenta**: recibir el correo, y que el enlace establezca sesión vía `/auth/callback`.
+
+Importa decirlo porque **3 de los 4 bugs corregidos viven en ese camino** (el `redirectTo`, el origen
+del dominio efímero y el `?next=` vacío). Están verificados por lectura y por la corrección del
+`redirectTo` que ahora apunta a `/auth/callback`, pero no por una corrida real.
+
+**Cómo se cierra del todo:** invitar una dirección que **no tenga cuenta** en la plataforma. Dos
+minutos, y ya no queda nada de este punto.
+
+---
+
+**Los cuatro bugs corregidos, de dos personas:**
 
 | Bug | Quién |
 |---|---|
@@ -238,11 +270,8 @@ Ancladas a `America/Bogotá`, con pruebas que fuerzan `TZ=UTC` para que no vuelv
 | `/auth/signout` era `GET`: el prefetch de un `<Link>` **cerraba la sesión solo** | nosotros |
 | `?next=` podía quedar vacío y la plantilla de Supabase concatena `&token_hash=` sobre él | Santiago |
 
-**Falta para el 100 %: enviar una invitación real y hacer clic en el enlace. Dos minutos.**
-
-> **Por qué no lo doy por cerrado sin eso:** los cuatro bugs están verificados por lectura, pero el
-> fallo original era de **integración entre el código y la plantilla de correo de Supabase**, y eso no
-> se comprueba leyendo. Nadie ha enviado una invitación desde que se corrigieron.
+> **Por qué hacía falta la prueba real:** el fallo original era de **integración entre el código y la
+> plantilla de correo de Supabase**, y eso no se comprueba leyendo. Ya se comprobó corriendo.
 
 ## 10 · Historial de conversaciones — ✅ 100 %
 
@@ -254,12 +283,13 @@ Los datos **existían desde el inicio** en `athos_messages` — nunca se perdier
 
 ## Resumen de lo que falta, por dueño
 
-### Tuyo — 7 minutos en total
+### Tuyo — 5 minutos
 
 | Qué | Cierra | Tiempo |
 |---|---|---|
-| **Enviar una invitación real** y hacer clic | punto 9 → ✅ | 2 min |
+| ~~Enviar una invitación real~~ | punto 9 → ✅ | **HECHO 30-jul 21:27 UTC** |
 | **`GOOGLE_CLIENT_ID` + `GOOGLE_CLIENT_SECRET` en Vercel** | punto 7 → 90 % | 5 min |
+| *(opcional)* invitar un correo **sin cuenta** | cierra el caso residual del 9 | 2 min |
 
 Con esas dos cosas: **9 de 10 entregados y verificados.**
 
