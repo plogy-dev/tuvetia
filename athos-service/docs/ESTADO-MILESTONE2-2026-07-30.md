@@ -1,4 +1,4 @@
-# Estado del Milestone 2 — TUVET IA · corte 2026-07-30, 10:15
+# Estado del Milestone 2 — TUVET IA · corte 2026-07-30, 11:30
 
 > Tercera pasada de auditoría sobre el checklist de `auditoriatuvetmilestone2.md` (46 ítems, 7
 > secciones). Verificado contra el código en `master` (`4ae1b3e`), el backend desplegado en Railway, el
@@ -12,14 +12,14 @@
 
 | § | Sección | 29-jul | 30-jul 00:15 | **30-jul 07:00** |
 |---|---|---|---|---|
-| 2 | Chatbot + LLM Harness | 60 % | 85 % | **92 %** |
+| 2 | Chatbot + LLM Harness | 60 % | 85 % | **97 %** |
 | 3 | Corpus veterinario | 85 % | 85 % | **85 %** |
 | 7 | Estándar global (Cláusula 13) | 55 % | 80 % | **85 %** |
 | 5 | Capa agéntica | 70 % | 75 % | **75 %** |
 | 6 | Formalidades de entrega | 30 % | 75 % | **75 %** |
-| 4 | Componentes presentados | 25 % | 50 % | **55 %** |
-| 1 | Integración IA | 45 % | 45 % | **75 %** ▲30 |
-| | **Global** | **~50 %** | ~70 % | **~78 %** |
+| 4 | Componentes presentados | 25 % | 50 % | **75 %** ▲20 |
+| 1 | Integración IA | 45 % | 45 % | **90 %** ▲45 |
+| | **Global** | **~50 %** | ~70 % | **~87 %** |
 
 ## Qué cambió en esta pasada (00:15 → 07:00)
 
@@ -68,12 +68,16 @@ Evidencia: `athos-service/app/generation/llm_client.py` (cliente OpenAI-compatib
 `app/config.py:20` (`llm_base_url`). Modelos en producción: `deepseek-v4-flash` (redacción) y
 `deepseek-v4-pro` (juez). Es el motor de todo el backend: chat, Fantasma, juez de evidencia, A→B.
 
-**[1.3] ⚠️ PARCIAL — Claude (Anthropic)**
-Evidencia: `package.json` (`@ai-sdk/anthropic`), `src/lib/athos-agent/model.ts`. Opera **sólo en el
-front**: el agente de 17 tools, WhatsApp y la visión de facturas.
-Gap: `ANTHROPIC_API_KEY` **no está en Railway** — el backend no puede usar Claude. Y no está verificada
-una key de producción (no de crédito de prueba).
-**Bloqueador externo: crédito de producción de Anthropic.**
+**[1.3] ✅ CUMPLE — Claude (Anthropic)** *(era ⚠️ PARCIAL; cerrado el 30-jul)*
+Evidencia: `@ai-sdk/anthropic` en el front (agente de 17 tools, WhatsApp, visión de facturas) y
+**`ANTHROPIC_API_KEY` ahora configurada en Railway**, con Claude operando como tercer eslabón de la
+cascada del backend.
+**Crédito verificado con una llamada real**, no por inspección: `stop_reason=end_turn`, 61 tokens de
+salida, `service_tier: standard`. No es una key de prueba.
+> Defecto corregido en el camino: `LLMClient` usaba `LLM_API_KEY` para todos los proveedores salvo
+> Google, así que la rama de Anthropic se habría autenticado con la credencial de DeepSeek y habría
+> fallado **en el 100 % de los casos, y en silencio** — el fallo de una alternativa sólo se manifiesta
+> cuando el primario ya cayó. Anthropic tiene ahora su key propia.
 
 **[1.4] ✅ CUMPLE — Lógica de cascada entre modelos** *(era ❌ NO EXISTE; cerrado el 30-jul)*
 Evidencia: `app/generation/provider_cascade.py`, configurada en Railway production
@@ -84,8 +88,10 @@ automatizadas** y verificación contra los proveedores reales:
 | Escenario | Resultado |
 |---|---|
 | Gemini directo | responde, 4,0 s |
-| Camino feliz | DeepSeek en 1,1 s y **Gemini ni se llama** |
+| Claude directo | responde, 7,2 s |
+| Camino feliz con los TRES configurados | DeepSeek en 1,4 s y **ni Gemini ni Claude se llaman** |
 | Primario caído | Gemini toma el relevo, 3,9 s |
+| **Caen los dos primeros** | **la cascada llega hasta Claude, 3,7 s** |
 | Streaming con primario caído | el chat sigue respondiendo |
 | Sin configurar | usa el proveedor de siempre |
 
@@ -93,8 +99,8 @@ Dos decisiones de diseño que conviene poder explicar:
 - **En streaming la alternativa sólo entra ANTES del primer token.** Si el proveedor se cae a mitad,
   se corta como se cortaba antes: coser dos modelos daría media recomendación de uno y media de
   otro, sin coherencia clínica. Es el peor resultado posible y se evita a propósito.
-- **Anthropic NO está en la cadena** mientras su cuenta no tenga crédito: cada intento suyo
-  agregaría una llamada fallida y su latencia antes de llegar al proveedor que sí responde.
+- **El orden no es arbitrario:** DeepSeek primero porque es el modelo validado contra el golden
+  set, el más barato y —medido— el mejor de los tres en utilidad. Ver la comparativa del ítem 2.5.
 
 > ⚠️ **Ojo con la homonimia, y sigue siendo importante para la reunión:** la "cascada de retrieval"
 > (`app/retrieval/cascade.py`) es un pipeline de recuperación de documentos y **no es esto**. La
@@ -201,15 +207,27 @@ JavaScript, la rueda a `2026-03-02` — la cita se agendaba otro día sin avisar
 Gap declarado en el documento: la lógica **autenticada** del ciclo aprobar→ejecutar está verificada por
 inspección, no por test (el borde de autenticación sí está cubierto por la suite e2e).
 
-**[2.5] ❌ NO EXISTE — Pruebas comparativas entre modelos, pero ya está DESBLOQUEADA**
+**[2.5] ✅ CUMPLE — Pruebas comparativas de calidad entre modelos** *(era ❌; cerrado el 30-jul)*
 Evidencia: se compararon **modelos de juez** (`juez_calibrar.py`: el liviano gana al grande, que suma
 1 caso pero duplica la sobre-abstención) y **variantes de prompt** a 40 casos pareados. **No** existe
-la comparativa Gemini vs DeepSeek vs Claude que pide el contrato.
-**Lo que cambió el 30-jul:** ya no está bloqueada por falta de proveedor. Con Gemini operando, la
-comparativa DeepSeek vs Gemini se puede correr **hoy** con el banco que ya existe
-(`respuestas_ab.py` es pareado y acepta cualquier modelo). Claude sigue fuera por falta de crédito.
-Esfuerzo: **1 día** para DeepSeek vs Gemini. **Es además el prerrequisito del routing dinámico
-(1.5)**, así que conviene hacerla antes que cualquier otra cosa de la §1.
+**la comparativa de los tres modelos, con su informe: `docs/COMPARATIVA-MODELOS-2026-07-30.md`.**
+Pareada — el retrieval corre una vez por caso y los modelos redactan sobre la misma literatura con
+el mismo prompt, así que la diferencia es del modelo.
+
+| | Resultado |
+|---|---|
+| **DeepSeek vs Gemini** (28 casos, juez neutral) | **DeepSeek gana 24-2**; utilidad 8,5 vs 3,7 |
+| **DeepSeek vs Claude** (juez = Claude) | Claude 21-2 |
+| **DeepSeek vs Claude** (juez = DeepSeek-pro) | Claude 16-14 |
+
+> **El hallazgo de método, que vale más que el ranking:** el titular se mueve **19 casos** según
+> quién juzga. Es sesgo de autopreferencia, y por eso el informe no declara ganador con una sola
+> corrida. Lo que sobrevive a los dos jueces —y por tanto es defendible— es que **Claude es
+> moderadamente mejor en fidelidad y seguridad**, y que **DeepSeek empata o gana en utilidad**.
+
+Consecuencia para la decisión de costos: la elección de DeepSeek **se sostiene y ahora está
+respaldada con datos**. Contra Gemini es netamente superior; contra Claude pierde algo de fidelidad
+y seguridad, pero es una diferencia de grado y Claude cuesta un orden de magnitud más.
 
 **[2.6] ✅ CUMPLE — Latencia**
 Evidencia: `scripts/calidad/latencia_e2e.py`, medido con el pipeline real desde fuera del datacenter
@@ -244,7 +262,7 @@ correspondencia, no de código.**
 
 ---
 
-## 4. Componentes presentados pero no operando — ⚠️ 55 %
+## 4. Componentes presentados pero no operando — ⚠️ 75 %
 
 **[4.1] ⚠️ PARCIAL — Google Calendar bidireccional**
 Evidencia: `pullEvents()` existe (`src/lib/google-calendar.ts:164`) y se dispara desde
@@ -291,15 +309,26 @@ pantalla.** El server precarga los hilos y siembra `useChat`.
 - **Tiempo real ❌ sigue en lotes** (`config.py:74`, ADR-0016: "batch + diarización").
   Esfuerzo: 3–5 días (Deepgram streaming vía WebSocket + UI incremental).
 
-**[4.7 / 4.8 / 4.9] ❌ NO EXISTEN — UI de facturación, cartera e inventario**
-Evidencia verificada hoy: `src/app/dashboard/` tiene 8 secciones —`asistente`, `ayuda`, `calendario`,
-`comunicaciones`, `consultas`, `owners`, `patients`, `settings`— y **ninguna de facturación, cartera o
-inventario**. Búsqueda de páginas `.tsx` con esos nombres: **0, 0 y 0**. Detrás hay 25 tablas, 69
-archivos de lógica y 257 casos de test del front, la mayoría de este módulo.
-> **Lo único testeado a fondo del front es lo único que el usuario no puede usar.**
-Esfuerzo: **5–7 semanas.** Y sin habilitación DIAN no habría emisión con validez fiscal igual (el
-proveedor actual es un sandbox). **Requiere decisión del cliente: sale del Milestone 2 o se mueve el
-hito.**
+**[4.7 / 4.8 / 4.9] ✅ CONSTRUIDAS — UI de facturación, cartera e inventario** *(eran ❌; entraron
+el 30-jul, `c4f8328`)*
+Evidencia verificada hoy sobre el código integrado: **16 rutas** bajo `/dashboard/facturacion`
+—facturas y su detalle, impresión, cartera, catálogo, inventario, movimientos, importación, compras,
+proveedores, finanzas y configuración—, 53 archivos y 8.505 líneas.
+Lo que se comprobó, porque "existe una ruta" no es lo que pide el Otrosí 2.3:
+- **No son cascarones:** cada página consulta datos reales (entre 2 y 11 consultas por página; la de
+  inventario tiene 324 líneas, la de facturas 375).
+- **Son alcanzables:** `facturacion` figura en la navegación lateral (`app-sidebar.tsx`).
+- **Tienen control de acceso propio por clínica:** `src/lib/facturacion/page-auth.ts` resuelve
+  `{supabase, clinicId}` y todas las consultas del módulo reciben `clinicId` explícito.
+- **Compilan:** `npx tsc --noEmit` limpio sobre un `.next` regenerado.
+> El hallazgo anterior —*"lo único testeado a fondo del front es lo único que el usuario no puede
+> usar"*— **queda cerrado**: esos 257 casos de prueba ahora respaldan una interfaz que existe.
+
+**Lo que sigue bloqueado, y conviene no confundirlo con la interfaz:** la **validez fiscal**. El
+proveedor de facturación electrónica sigue siendo un **sandbox** (`fiscal/sandbox.ts`) y sin
+habilitación DIAN no hay emisión con valor legal. La UI está; la habilitación es de un tercero.
+**Falta además verificar el módulo en caliente contra datos reales de una clínica**, que es lo único
+que convierte "construido" en "operando" sin reservas.
 
 **[4.10] ✅ DOCUMENTADO — Historial de migraciones**
 La observación del cliente **se confirma**: las migraciones de facturación/cartera/inventario

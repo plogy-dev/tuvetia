@@ -1,10 +1,16 @@
 # Inventario de componentes — TUVET IA
 
 **Contrato:** COT-2026-TUV-001 · **Documento exigido por:** Otrosí N.° 1, numeral 2.1
-**Fecha de corte:** 30 de julio de 2026, 10:15 · **Versión:** 1.2
-**Repositorio:** `plogy-dev/tuvetia`, rama `master` · **Commit de corte:** `2d72c6d`
+**Fecha de corte:** 30 de julio de 2026, 11:30 · **Versión:** 1.3
+**Repositorio:** `plogy-dev/tuvetia`, rama `master` · **Commit de corte:** `5cd027b`
 
-> **Cambios de la v1.1 a esta v1.2 (mismo día, 10:15):** el cliente entregó la credencial de Google
+> **Cambios de la v1.2 a esta v1.3 (mismo día, 11:30):** entraron **las 16 rutas de la interfaz de
+> facturación, cartera e inventario** y **Claude quedó operando en el backend** con crédito
+> verificado. Con eso la categoría **«sin interfaz» baja a CERO** — era exactamente la observación
+> del cliente sobre «componentes presentados pero no operando»— y se publicó la **comparativa de
+> calidad entre los tres modelos**. 70 componentes operando de 93.
+>
+> **Cambios de la v1.1 a la v1.2 (10:15):** el cliente entregó la credencial de Google
 > y con eso **Gemini quedó integrado y operando en producción**, junto con la **cascada entre
 > proveedores**. Eran los dos únicos incumplimientos literales del contrato que quedaban en pie;
 > con esto **no queda ningún componente sin construir**. Claude sigue sin operar en el backend, pero
@@ -197,15 +203,17 @@ documentados en su propio `README.md`.
 
 ## 6. Facturación, cartera e inventario
 
-**25 tablas y 69 archivos de dominio con 186 pruebas. Cero interfaz.** El esquema está aplicado en
-producción; el usuario no puede alcanzar el módulo desde la aplicación.
+**16 rutas operando desde el 30-jul.** Eran 25 tablas y 69 archivos de dominio **sin una sola
+pantalla**; ahora el módulo es alcanzable desde la navegación, cada página consulta datos reales y
+tiene control de acceso por clínica. Lo que sigue bloqueado es la **validez fiscal**, no la
+interfaz.
 
 | Componente | Dónde vive | Estado |
 |---|---|---|
-| Núcleo fiscal (facturas, notas crédito, numeración DIAN) | `src/lib/facturacion/` | 🔧 Sin interfaz |
-| Motor de cartera con límites de la Ley 2300 | `src/lib/cartera/` | 🔧 Sin interfaz |
-| Catálogo e inventario por lotes | `src/lib/facturacion/` | 🔧 Sin interfaz |
-| Compras, proveedores y gastos | ídem | 🔧 Sin interfaz |
+| Núcleo fiscal (facturas, notas crédito, numeración DIAN) | `src/lib/facturacion/` + `/dashboard/facturacion`, `/nueva`, `/[id]`, `/[id]/imprimir` | ✅ Operando *(30-jul)* |
+| Motor de cartera con límites de la Ley 2300 | `src/lib/cartera/` + `/dashboard/facturacion/cartera` | ✅ Operando *(30-jul)* |
+| Catálogo e inventario por lotes | `/dashboard/facturacion/catalogo`, `/inventario`, `/inventario/movimientos` | ✅ Operando *(30-jul)* |
+| Compras, proveedores y gastos | `/dashboard/facturacion/compras`, `/compras/proveedores`, `/finanzas` | ✅ Operando *(30-jul)* |
 | Importación desde Excel/CSV | `src/lib/facturacion/import/` | ⏳ Bloqueado — la librería `xlsx` tiene vulnerabilidades **sin corrección publicada** |
 | Proveedor de facturación electrónica | `src/lib/facturacion/fiscal/sandbox.ts` | ⏳ Bloqueado — **es un entorno de pruebas**; sin habilitación DIAN no hay validez fiscal |
 | Tarea programada de cobranza | `/api/cron/cartera` + barrido cada 15 min por GitHub Actions (`cartera-sweep.yml`) | ⚠️ Parcial — el disparo ya corre (`CRON_SECRET` configurada), pero **el canal de correo de salida no está cableado**: sólo sale por WhatsApp |
@@ -231,7 +239,7 @@ producción; el usuario no puede alcanzar el módulo desde la aplicación.
 | Proveedor | Rol | Estado |
 |---|---|---|
 | **DeepSeek** | Redacción, distilación, juez de evidencia y auditoría de citas — todo el backend | ✅ Operando |
-| **Claude (Anthropic)** | Agente con herramientas, WhatsApp y lectura de documentos — en el front | ⚠️ Parcial — **no opera en el backend**. Verificado leyendo las 31 variables de Railway: `ANTHROPIC_API_KEY` no está. Y la cuenta **no tiene crédito**, así que la credencial por sí sola no lo pondría a operar |
+| **Claude (Anthropic)** | Agente con herramientas, WhatsApp y lectura de documentos en el front, y **tercer eslabón de la cascada** en el backend | ✅ Operando *(30-jul: key en Railway y crédito verificado con una llamada real — `stop_reason=end_turn`, tier estándar)* |
 | **Gemini** | Alternativa de la cascada en redacción y en el camino liviano | ✅ Operando *(30-jul: integrado por su endpoint compatible con OpenAI, key en Railway, verificado contra el proveedor real)* |
 | Cohere | Vectores semánticos y reranking | ✅ Operando |
 | Deepgram | Transcripción de voz | ✅ Operando |
@@ -248,7 +256,7 @@ migrando de Claude a DeepSeek en producción y revalidando el golden set complet
 | Estructura de habilidades (*skills*) | ⚠️ Parcial — 17 herramientas con esquema; sin agrupación por dominio |
 | **Cascada entre modelos** | ✅ **Construida y operando** — `app/generation/provider_cascade.py`, configurada en Railway. Ante caída, timeout o saldo agotado del primario responde el siguiente. Anthropic queda fuera de la cadena hasta que su cuenta tenga crédito |
 | **Enrutamiento dinámico por consulta** | ⚠️ Parcial — hay cadenas independientes y configurables por tarea (redacción vs. liviano), pero la asignación sigue siendo estática. El routing por consulta necesita antes la comparativa de calidad entre modelos |
-| Pruebas comparativas entre modelos | ⚠️ Parcial — la herramienta existe desde el 22-jul y **ya no está bloqueada**: con Gemini operando, la comparativa DeepSeek vs Gemini se puede correr con el banco pareado que ya existe. Falta correrla y publicar el informe (~1 día) |
+| Pruebas comparativas entre modelos | ✅ **Corridas y publicadas** — `athos-service/docs/COMPARATIVA-MODELOS-2026-07-30.md`. DeepSeek gana 24-2 a Gemini; contra Claude el resultado depende del juez (21-2 vs 16-14), y sólo se reporta lo que sobrevive a los dos |
 
 ---
 
@@ -256,13 +264,13 @@ migrando de Claude a DeepSeek en producción y revalidando el golden set complet
 
 **93 componentes inventariados.**
 
-| Estado | Componentes | | v1.1 |
-|---|---|---|---|
-| ✅ **Operando** | **65** | 70 % | 64 |
-| ⚠️ **Parcial** | 18 | 19 % | 18 |
-| 🔧 **Sin interfaz** (motor listo, inalcanzable) | 4 | 4 % | 4 |
-| ⏳ **Bloqueado por un insumo externo** | 6 | 6 % | 6 |
-| ❌ **No construido** | **0** | 0 % | 1 |
+| Estado | Componentes | | v1.2 | v1.1 |
+|---|---|---|---|---|
+| ✅ **Operando** | **70** | 75 % | 65 | 64 |
+| ⚠️ **Parcial** | 17 | 18 % | 18 | 18 |
+| 🔧 **Sin interfaz** (motor listo, inalcanzable) | **0** | 0 % | 4 | 4 |
+| ⏳ **Bloqueado por un insumo externo** | 6 | 6 % | 6 | 6 |
+| ❌ **No construido** | **0** | 0 % | 0 | 1 |
 
 > **Regla de conteo, declarada para que el número sea reproducible:** se cuenta **una fila por
 > componente** de las tablas de las secciones 1 a 8. La tabla de *capacidades exigidas por el contrato*
@@ -270,19 +278,25 @@ migrando de Claude a DeepSeek en producción y revalidando el golden set complet
 > contados, y sumarla los duplicaría. La v1.0 mezclaba las dos cosas —de ahí que reportara 88 con
 > 3 «no construidos»— y su total no se podía reproducir contando el documento. Corregido acá.
 
-**No queda ningún componente sin construir.** Gemini y la cascada entre proveedores —que eran la
-mayor concentración de incumplimiento literal del contrato— se cerraron el 30-jul en cuanto el cliente
-entregó la credencial de Google; el correo electrónico había salido de la lista esa misma madrugada.
+**No queda ningún componente sin construir, ni ninguno construido que el usuario no pueda alcanzar.**
+Las dos categorías que sostenían la observación del cliente —«no construido» y «sin interfaz»— están
+en cero. En 24 horas se cerraron: el correo electrónico, Gemini, la cascada entre los tres modelos, la
+comparativa de calidad entre modelos y las 16 rutas de facturación, cartera e inventario.
 
-Lo que queda no es código faltante, sino **tres cosas de naturaleza distinta**, y conviene no
-confundirlas en la reunión:
-1. **Módulos construidos y probados que el usuario no puede alcanzar** (facturación, cartera,
-   inventario): faltan 5–7 semanas de interfaz.
-2. **Piezas detenidas por un tercero**: App Review de Meta, verificación de Google, habilitación DIAN,
-   y el crédito de la cuenta de Anthropic.
-3. **Una capacidad que sigue parcial por decisión técnica**: el enrutamiento *por consulta* necesita
-   antes la comparativa de calidad entre modelos, que ahora sí se puede correr (~1 día). Sin esos
-   datos, cualquier regla de asignación sería inventada.
+Lo que queda es de dos naturalezas, y conviene no confundirlas en la reunión:
+
+1. **Detenido por un tercero, no por nosotros:** App Review de Meta (2–6 semanas), verificación de
+   Google para el calendario (~10 días), **habilitación DIAN** para que la facturación tenga validez
+   fiscal, y la corrección del paquete `xlsx` para la importación desde Excel.
+2. **Limitaciones declaradas de lo que sí opera:** la transcripción es por lotes y no en vivo; el
+   enrutamiento entre modelos es por tarea y no por consulta; el auditor de la nota clínica atrapa la
+   mitad de los casos; y falta el manual de usuario.
+
+> ⚠️ **Una distinción que hay que sostener con honestidad el 3-ago:** que la **interfaz** de
+> facturación exista no significa que se pueda **facturar con validez fiscal**. El proveedor sigue
+> siendo un entorno de pruebas y eso depende de la DIAN. Y el módulo todavía **no se ha verificado en
+> caliente contra datos reales de una clínica**, que es lo único que convierte «construido» en
+> «operando» sin reservas.
 
 ### Lo que se desbloquea con configuración (minutos, sin desarrollo)
 
