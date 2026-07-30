@@ -263,6 +263,51 @@ como están: la BD las ordena por su timestamp real, no por el prefijo del archi
 > proyecto principal** (por MCP, 28-jul noche). O sea que el esquema vive en producción desde antes
 > que el código que lo usa — incluido el de facturación, que todavía no entró. No las reapliques.
 
+## Correo: por qué SMTP/IMAP y no la API de Gmail (decisión 2026-07-30)
+
+Verificado contra la documentación de Google y de Microsoft, no de memoria:
+
+- Leer el buzón con la **API de Gmail** exige `gmail.readonly`/`gmail.modify`, que Google clasifica
+  como **RESTRINGIDO**. Para una app *External* eso implica verificación **+ evaluación de seguridad
+  de terceros (CASA)**: meses y con costo.
+- Las **App Passwords están exceptuadas** del requisito de OAuth. Google, textual: *"You will no
+  longer use a password for access (**with the exception of app passwords**)"*. Siguen sirviendo para
+  SMTP **e IMAP** después de la transición de marzo 2025.
+- Por eso el transporte es **SMTP para enviar + IMAP para leer**: enviar y leer, sin ninguna revisión.
+- Y es la base correcta para **Outlook**: IMAP es un estándar, así que la implementación de lectura
+  se reusa. La API de Gmail solo serviría para Gmail y obligaría a una segunda implementación con
+  Microsoft Graph.
+- ⚠️ **Outlook NO admite contraseña**: Microsoft deshabilitó basic auth en todos los tenants y
+  *"no one (you or Microsoft support) can re-enable"* — incluye las app passwords. Outlook necesita
+  OAuth (Entra app). La buena noticia: Microsoft **no** exige el equivalente a CASA, así que su
+  trámite es notablemente más liviano que el de Google.
+
+### 📋 BACKLOG — Opción A: app OAuth "Internal" de Workspace (plan B del correo)
+
+Guardado a pedido, **no descartado**. Google: *"For apps used only internally by your Google
+Workspace organization, scopes aren't listed on the consent screen and use of restricted or sensitive
+scopes **doesn't require further review by Google**"*. O sea que con Workspace se pueden usar los
+scopes restringidos sin revisión.
+
+**Cuándo activarlo:**
+1. Si un admin de Workspace **desactiva las App Passwords** a nivel organización → el camino actual
+   se cae y este es el reemplazo.
+2. Si se necesita **push** en vez de polling (la API de Gmail tiene notificaciones; IMAP no).
+
+**Lo que hay que saber antes de elegirlo:** *"Internal"* significa usuarios de la misma organización
+que **el proyecto de Google Cloud donde vive la app OAuth**. O sea que la app **no puede vivir en
+nuestro proyecto**: tiene que estar en el del cliente. Consecuencia — **un setup por Workspace**, con
+credenciales de ellos. No generaliza a multi-tenant: cada clínica nueva con otro dominio necesita que
+su admin cree la app. Habría que guardar credenciales de Google **por clínica**, no una global en env.
+
+**Variante preferible si se activa:** *service account con domain-wide delegation*. El admin autoriza
+una vez en la consola (Security → API controls → Domain-wide delegation), no hay consentimiento por
+usuario ni refresh tokens que expiren — mucho mejor para un cron que recorre hilos. Y el módulo de
+envío/lectura no cambia: solo la capa que obtiene el token.
+
+**Qué pedirle al cliente si se activa:** que confirme Workspace con dominio propio, que **todos** los
+vets estén en ese dominio, acceso de admin a la consola y a Google Cloud, y SPF/DKIM configurados.
+
 ## Pendientes conocidos
 - ⚠️ **Template de email "Magic Link" en Supabase** (config, no código): debe emitir
   `{{ .SiteURL }}/auth/confirm?token_hash={{ .TokenHash }}&type=email&next=/dashboard`. Si sigue
