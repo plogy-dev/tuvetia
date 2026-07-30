@@ -22,6 +22,12 @@ class Settings(BaseSettings):
     llm_light_model: str = "claude-haiku-4-5"
     llm_api_key: str = ""
 
+    # Key propia de Anthropic. Si esta vacia cae a `llm_api_key`, que es como funcionaba cuando
+    # anthropic era el proveedor primario. Hace falta separarla para que la CASCADA pueda usar
+    # Claude como alternativa mientras el primario sigue siendo DeepSeek: si no, la rama de
+    # Anthropic intentaria autenticarse con la key de DeepSeek y fallaria siempre.
+    anthropic_api_key: str = ""
+
     # --- Gemini (Google). Key y base URL propias para que convivan con el proveedor primario sin
     # pisarle las variables: hoy el primario es DeepSeek y Gemini entra como alternativa. ---
     gemini_api_key: str = ""
@@ -39,6 +45,24 @@ class Settings(BaseSettings):
     # como estaba. Ejemplo: "deepseek-v4-flash@openai,gemini-3.6-flash@google".
     llm_cascade_redaccion: str = ""        # chat y nota del Fantasma
     llm_cascade_liviano: str = ""          # A->B, juez de evidencia, auditores
+    # ROUTING POR CONSULTA (1.5), no sólo por tarea: cadena que se usa cuando el juez de evidencia
+    # dictamina cobertura **limitada**. Vacío = se usa `llm_cascade_redaccion` para todo, o sea el
+    # comportamiento anterior.
+    #
+    # Por qué la banda `limited` y no otra señal: es el caso donde la literatura cubre el cuadro sólo
+    # a medias, que es exactamente donde el modelo tiende a rellenar el hueco con su propio
+    # conocimiento — el fallo que más caro sale en una nota clínica. Y es una señal que el pipeline YA
+    # calcula, así que no cuesta una llamada extra.
+    #
+    # A quién mandar ahí lo dice la comparativa medida (`docs/COMPARATIVA-MODELOS-2026-07-30.md`):
+    # Claude es mejor en **fidelidad y seguridad** con los dos jueces sesgados en direcciones
+    # opuestas, y DeepSeek empata o gana en utilidad. Traducido: el caso fácil se queda en el barato,
+    # el caso donde la fidelidad manda escala al que mide mejor en fidelidad.
+    #
+    # ⚠️ Sólo aplica al **Fantasma**. En el chat el juez corre EN PARALELO con la redacción para no
+    # pagar su latencia en el primer token; esperar la banda para elegir modelo costaría esos ~1,8s
+    # justo donde el veterinario está mirando la pantalla. En el Fantasma nadie espera.
+    llm_cascade_dificil: str = ""
     # Tope de intentos por si alguien configura una lista larga: acota la latencia del peor caso.
     llm_cascade_max_intentos: int = 3
 

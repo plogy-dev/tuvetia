@@ -67,6 +67,22 @@ def _comparar_user(question: str, literature, resp_a: str, resp_b: str) -> str:
             f"RESPUESTA A:\n{resp_a.strip()}\n\nRESPUESTA B:\n{resp_b.strip()}")
 
 
+def _rama(spec: str) -> tuple[str, str | None, str | None]:
+    """Interpreta una rama del A/B: variante de PROMPT o especificación de MODELO.
+
+    - "clinico"                  -> compara PROMPTS con el redactor de producción (lo de siempre)
+    - "gemini-3.6-flash@google"  -> compara MODELOS con el prompt de producción
+
+    Lo segundo es lo que pide el ítem 2.5 del contrato (pruebas comparativas de calidad entre
+    modelos), y estuvo bloqueado hasta el 30-jul porque sólo había un proveedor con el que comparar.
+    Devuelve (variante_de_prompt, modelo, proveedor).
+    """
+    if "@" in spec:
+        modelo, _, proveedor = spec.partition("@")
+        return "actual", modelo.strip(), proveedor.strip().lower()
+    return spec, None, None
+
+
 def evaluar_caso(caso: dict, nombre_a: str, nombre_b: str) -> dict | None:
     query, chunks, passed = build_and_retrieve(caso["query"], caso.get("especie"))
     literature = chunks[:CHAT_LIT_LIMIT]
@@ -76,10 +92,15 @@ def evaluar_caso(caso: dict, nombre_a: str, nombre_b: str) -> dict | None:
 
     paciente = PatientContext(patient_id="", species=caso.get("especie"))
     user = _chat_prompt(caso["query"], literature, paciente, [])
-    redactor = LLMClient()
     resp = {}
     for nombre in (nombre_a, nombre_b):
-        resp[nombre] = redactor.complete(VARIANTES[nombre], user, max_tokens=CHAT_MAX_TOKENS)
+        # Cada rama puede ser una variante de prompt (mismo modelo) o un modelo distinto (mismo
+        # prompt). En los dos casos la LITERATURA es la misma: el retrieval corrió una sola vez
+        # arriba, así que la diferencia que quede es de lo que se está comparando y no del azar
+        # de la recuperación.
+        variante, modelo, proveedor = _rama(nombre)
+        redactor = LLMClient(model=modelo, provider=proveedor)
+        resp[nombre] = redactor.complete(VARIANTES[variante], user, max_tokens=CHAT_MAX_TOKENS)
 
     raw = JUDGE.complete(
         COMPARA_SYSTEM,
@@ -99,8 +120,11 @@ def evaluar_caso(caso: dict, nombre_a: str, nombre_b: str) -> dict | None:
 
 def main() -> None:
     ap = argparse.ArgumentParser()
-    ap.add_argument("--a", default="actual", choices=sorted(VARIANTES))
-    ap.add_argument("--b", default="clinico", choices=sorted(VARIANTES))
+    # Sin `choices`: una rama puede ser una variante de prompt o un "modelo@proveedor".
+    ap.add_argument("--a", default="actual",
+                    help=f"variante de prompt ({', '.join(sorted(VARIANTES))}) o modelo@proveedor")
+    ap.add_argument("--b", default="clinico",
+                    help="idem; p. ej. gemini-3.6-flash@google para comparar MODELOS")
     ap.add_argument("--n", type=int, default=16)
     ap.add_argument("--workers", type=int, default=3)
     ap.add_argument("--juez-modelo", default=None)

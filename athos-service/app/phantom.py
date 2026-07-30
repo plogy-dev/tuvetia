@@ -20,6 +20,7 @@ from app.generation.condition_alerts import detect_conditions, explain_condition
 from app.generation.dose_guard import patient_data_complete, redact_doses
 from app.generation.evidence_judge import judge_evidence
 from app.generation.generate import EmptyNoteError, generate_note
+from app.generation.provider_cascade import task_para_banda
 from app.generation.transcript_fidelity import check_note_fidelity, repair_sections
 from app.generation.undeclared import find_undeclared
 from app.models import EVIDENCE_NONE, PhantomSuggestResponse
@@ -126,7 +127,13 @@ def suggest(consultation_id: str, clinic_id: str, user_id: str | None = None) ->
     # blanco en la historia clínica es peor que un error — el vet no puede distinguirla de "no había
     # nada que decir", y queda un borrador fantasma asociado a la consulta.
     try:
-        soap, citations, allergy_flag = generate_note(transcript_text, literature, patient, severe)
+        # ROUTING POR CONSULTA (1.5): con cobertura `limited` la literatura cubre el cuadro sólo a
+        # medias, que es donde el modelo tiende a rellenar el hueco con su propio conocimiento. Ahí
+        # se escala al modelo que mide mejor en FIDELIDAD; en el resto se queda en el barato, que mide
+        # mejor en utilidad. Acá se puede hacer porque el juez ya corrió (en el chat corre en paralelo
+        # y esperar su veredicto costaría latencia justo en el primer token).
+        soap, citations, allergy_flag = generate_note(
+            transcript_text, literature, patient, severe, task=task_para_banda(verdict.band))
     except EmptyNoteError as e:
         log.error("Fantasma sin nota utilizable para consulta %s: %s", consultation_id, e)
         raise HTTPException(

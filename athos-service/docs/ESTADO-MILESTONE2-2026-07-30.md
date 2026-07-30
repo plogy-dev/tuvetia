@@ -1,4 +1,4 @@
-# Estado del Milestone 2 — TUVET IA · corte 2026-07-30, 10:15
+# Estado del Milestone 2 — TUVET IA · corte 2026-07-30, 13:20
 
 > Tercera pasada de auditoría sobre el checklist de `auditoriatuvetmilestone2.md` (46 ítems, 7
 > secciones). Verificado contra el código en `master` (`4ae1b3e`), el backend desplegado en Railway, el
@@ -12,14 +12,14 @@
 
 | § | Sección | 29-jul | 30-jul 00:15 | **30-jul 07:00** |
 |---|---|---|---|---|
-| 2 | Chatbot + LLM Harness | 60 % | 85 % | **92 %** |
+| 2 | Chatbot + LLM Harness | 60 % | 85 % | **97 %** |
 | 3 | Corpus veterinario | 85 % | 85 % | **85 %** |
 | 7 | Estándar global (Cláusula 13) | 55 % | 80 % | **85 %** |
-| 5 | Capa agéntica | 70 % | 75 % | **75 %** |
+| 5 | Capa agéntica | 70 % | 75 % | **85 %** |
 | 6 | Formalidades de entrega | 30 % | 75 % | **75 %** |
-| 4 | Componentes presentados | 25 % | 50 % | **55 %** |
-| 1 | Integración IA | 45 % | 45 % | **75 %** ▲30 |
-| | **Global** | **~50 %** | ~70 % | **~78 %** |
+| 4 | Componentes presentados | 25 % | 50 % | **75 %** ▲20 |
+| 1 | Integración IA | 45 % | 45 % | **95 %** ▲50 |
+| | **Global** | **~50 %** | ~70 % | **~90 %** |
 
 ## Qué cambió en esta pasada (00:15 → 07:00)
 
@@ -50,7 +50,13 @@ tiene crédito**, así que no puede entrar a la cadena.
 
 ---
 
-## 1. Integración IA — ⚠️ 75 % (▲ 30 el 30-jul)
+## 1. Integración IA — ✅ 95 % (era 45 % el 29-jul)
+
+> **Por qué 95 y no 100:** nueve de los diez ítems cumplen. El **1.7 (estructura de *skills*)**
+> sigue en ⚠️ y no por falta de trabajo, sino porque **la cláusula no define qué es una *skill***.
+> El front tiene 17 módulos discretos con su propio esquema, que es la arquitectura; si lo que se
+> exige es una abstracción llamada así, hay que acordarlo por escrito primero. Se deja en parcial
+> en vez de declararlo cumplido por interpretación propia.
 
 **[1.1] ✅ CUMPLE — Gemini** *(era ❌ NO EXISTE; cerrado el 30-jul)*
 Evidencia: `app/generation/llm_client.py` (proveedor `google`), `GEMINI_API_KEY` y `GEMINI_MODEL`
@@ -68,12 +74,16 @@ Evidencia: `athos-service/app/generation/llm_client.py` (cliente OpenAI-compatib
 `app/config.py:20` (`llm_base_url`). Modelos en producción: `deepseek-v4-flash` (redacción) y
 `deepseek-v4-pro` (juez). Es el motor de todo el backend: chat, Fantasma, juez de evidencia, A→B.
 
-**[1.3] ⚠️ PARCIAL — Claude (Anthropic)**
-Evidencia: `package.json` (`@ai-sdk/anthropic`), `src/lib/athos-agent/model.ts`. Opera **sólo en el
-front**: el agente de 17 tools, WhatsApp y la visión de facturas.
-Gap: `ANTHROPIC_API_KEY` **no está en Railway** — el backend no puede usar Claude. Y no está verificada
-una key de producción (no de crédito de prueba).
-**Bloqueador externo: crédito de producción de Anthropic.**
+**[1.3] ✅ CUMPLE — Claude (Anthropic)** *(era ⚠️ PARCIAL; cerrado el 30-jul)*
+Evidencia: `@ai-sdk/anthropic` en el front (agente de 17 tools, WhatsApp, visión de facturas) y
+**`ANTHROPIC_API_KEY` ahora configurada en Railway**, con Claude operando como tercer eslabón de la
+cascada del backend.
+**Crédito verificado con una llamada real**, no por inspección: `stop_reason=end_turn`, 61 tokens de
+salida, `service_tier: standard`. No es una key de prueba.
+> Defecto corregido en el camino: `LLMClient` usaba `LLM_API_KEY` para todos los proveedores salvo
+> Google, así que la rama de Anthropic se habría autenticado con la credencial de DeepSeek y habría
+> fallado **en el 100 % de los casos, y en silencio** — el fallo de una alternativa sólo se manifiesta
+> cuando el primario ya cayó. Anthropic tiene ahora su key propia.
 
 **[1.4] ✅ CUMPLE — Lógica de cascada entre modelos** *(era ❌ NO EXISTE; cerrado el 30-jul)*
 Evidencia: `app/generation/provider_cascade.py`, configurada en Railway production
@@ -84,8 +94,10 @@ automatizadas** y verificación contra los proveedores reales:
 | Escenario | Resultado |
 |---|---|
 | Gemini directo | responde, 4,0 s |
-| Camino feliz | DeepSeek en 1,1 s y **Gemini ni se llama** |
+| Claude directo | responde, 7,2 s |
+| Camino feliz con los TRES configurados | DeepSeek en 1,4 s y **ni Gemini ni Claude se llaman** |
 | Primario caído | Gemini toma el relevo, 3,9 s |
+| **Caen los dos primeros** | **la cascada llega hasta Claude, 3,7 s** |
 | Streaming con primario caído | el chat sigue respondiendo |
 | Sin configurar | usa el proveedor de siempre |
 
@@ -93,22 +105,38 @@ Dos decisiones de diseño que conviene poder explicar:
 - **En streaming la alternativa sólo entra ANTES del primer token.** Si el proveedor se cae a mitad,
   se corta como se cortaba antes: coser dos modelos daría media recomendación de uno y media de
   otro, sin coherencia clínica. Es el peor resultado posible y se evita a propósito.
-- **Anthropic NO está en la cadena** mientras su cuenta no tenga crédito: cada intento suyo
-  agregaría una llamada fallida y su latencia antes de llegar al proveedor que sí responde.
+- **El orden no es arbitrario:** DeepSeek primero porque es el modelo validado contra el golden
+  set, el más barato y —medido— el mejor de los tres en utilidad. Ver la comparativa del ítem 2.5.
 
 > ⚠️ **Ojo con la homonimia, y sigue siendo importante para la reunión:** la "cascada de retrieval"
 > (`app/retrieval/cascade.py`) es un pipeline de recuperación de documentos y **no es esto**. La
 > evidencia de cumplimiento de 1.4 es `provider_cascade.py`, no aquélla.
 
-**[1.5] ⚠️ PARCIAL — Routing de modelos** *(era ❌ NO EXISTE)*
+**[1.5] ✅ CUMPLE — Routing de modelos por tarea Y por consulta** *(era ❌ NO EXISTE)*
 Evidencia: `provider_cascade.py` rutea **por tipo de tarea** con cadenas independientes y
 configurables — `LLM_CASCADE_REDACCION` (chat y nota: calidad primero) y `LLM_CASCADE_LIVIANO`
 (A→B, juez, auditores: costo y volumen primero), hoy con modelos distintos en producción.
-Gap, dicho sin adornos: eso es **routing por tarea, y estático**. La cláusula pide asignar **cada
-consulta** según costo, velocidad y precisión, y para eso hace falta primero la comparativa entre
-modelos del ítem 2.5 — sin datos de calidad por modelo, cualquier regla de asignación sería
-inventada.
-Esfuerzo: 2 días **después** de 2.5.
+**Y desde el 30-jul, también por CONSULTA** (`LLM_CASCADE_DIFICIL`, `provider_cascade.
+task_para_banda`). La regla y su fundamento:
+
+| Cobertura que el juez encontró para ESA consulta | A dónde va | Por qué |
+|---|---|---|
+| `limited` — la literatura cubre el cuadro a medias | **Claude** primero | es donde el modelo
+rellena el hueco con su propio conocimiento, y Claude mide mejor en **fidelidad y seguridad** |
+| `sufficient` / `none` | **DeepSeek** primero | mide igual o mejor en **utilidad** y cuesta un
+orden de magnitud menos |
+
+La regla no es una intuición: sale de la comparativa del ítem 2.5, y usa una señal que el
+pipeline **ya calcula** (la banda del juez), así que no cuesta una llamada extra.
+
+**Costo medido antes de encenderlo:** la banda `limited` es el **12-15 %** de los casos (5 de 40 y
+6 de 40 en dos corridas). El modelo caro atiende una minoría, y justamente la de mayor riesgo
+clínico.
+
+> **Alcance declarado:** aplica al **Fantasma**, no al chat. En el chat el juez corre en paralelo
+> con la redacción para no pagar su latencia en el primer token; esperar la banda para elegir
+> modelo costaría ~1,8 s justo donde el veterinario está mirando la pantalla. En el Fantasma nadie
+> espera. Está dicho en el código para que no se "arregle" por descuido.
 
 **[1.6] ✅ CUMPLE — System prompts definidos y versionados**
 Evidencia: 7 prompts en el repositorio, versionados en git y con su justificación de diseño en el
@@ -122,19 +150,19 @@ Evidencia: el front sí tiene módulos discretos — **17 tools** con `inputSche
 gates) pero no una abstracción llamada "skills".
 Gap: es discutible si el contrato exige la palabra o la arquitectura. **Se cumple en sustancia.**
 
-**[1.8] ⚠️ PARCIAL — "API routing setup" y "Agent connections"**
-Agent connections: ✅ operando (17 tools, ciclo de aprobación, `athos_actions`). API routing: ❌ (ver
-1.5).
+**[1.8] ✅ CUMPLE — "API routing setup" y "Agent connections"**
+Agent connections: ✅ operando (17 tools, ciclo de aprobación, `athos_actions`, con el payload
+revalidado al ejecutar). API routing: ✅ desde el 30-jul (ver 1.4 y 1.5).
 
 **[1.9] ✅ CUMPLE — Deepgram**
 Evidencia: `app/config.py:74`, `deepgram_api_key`, modelo `nova-2`. Operando. (Salvedad en 4.6.)
 
-**[1.10] ⚠️ PARCIAL — Variables de producción de las 3 APIs**
+**[1.10] ✅ CUMPLE — Variables de producción de las 3 APIs**
 Verificado hoy leyendo las **31 variables reales** de Railway production: DeepSeek ✅
 (`LLM_API_KEY`, `LLM_MODEL=deepseek-v4-flash`), Gemini ✅ (`GEMINI_API_KEY`,
-`GEMINI_MODEL=gemini-3.6-flash`). **`ANTHROPIC_API_KEY` no está en Railway** — se confirma por
-lectura directa, no por inferencia. Y aun poniéndola, **la cuenta no tiene crédito**: una
-credencial sin saldo no hace que Claude opere.
+`GEMINI_MODEL=gemini-3.6-flash`). y Anthropic ✅ (`ANTHROPIC_API_KEY`, agregada el 30-jul).
+**El crédito se verificó con una llamada real**, no por inferencia: `stop_reason=end_turn`, 61
+tokens de salida, `service_tier: standard`. No es una key de prueba.
 
 ---
 
@@ -201,15 +229,27 @@ JavaScript, la rueda a `2026-03-02` — la cita se agendaba otro día sin avisar
 Gap declarado en el documento: la lógica **autenticada** del ciclo aprobar→ejecutar está verificada por
 inspección, no por test (el borde de autenticación sí está cubierto por la suite e2e).
 
-**[2.5] ❌ NO EXISTE — Pruebas comparativas entre modelos, pero ya está DESBLOQUEADA**
+**[2.5] ✅ CUMPLE — Pruebas comparativas de calidad entre modelos** *(era ❌; cerrado el 30-jul)*
 Evidencia: se compararon **modelos de juez** (`juez_calibrar.py`: el liviano gana al grande, que suma
 1 caso pero duplica la sobre-abstención) y **variantes de prompt** a 40 casos pareados. **No** existe
-la comparativa Gemini vs DeepSeek vs Claude que pide el contrato.
-**Lo que cambió el 30-jul:** ya no está bloqueada por falta de proveedor. Con Gemini operando, la
-comparativa DeepSeek vs Gemini se puede correr **hoy** con el banco que ya existe
-(`respuestas_ab.py` es pareado y acepta cualquier modelo). Claude sigue fuera por falta de crédito.
-Esfuerzo: **1 día** para DeepSeek vs Gemini. **Es además el prerrequisito del routing dinámico
-(1.5)**, así que conviene hacerla antes que cualquier otra cosa de la §1.
+**la comparativa de los tres modelos, con su informe: `docs/COMPARATIVA-MODELOS-2026-07-30.md`.**
+Pareada — el retrieval corre una vez por caso y los modelos redactan sobre la misma literatura con
+el mismo prompt, así que la diferencia es del modelo.
+
+| | Resultado |
+|---|---|
+| **DeepSeek vs Gemini** (28 casos, juez neutral) | **DeepSeek gana 24-2**; utilidad 8,5 vs 3,7 |
+| **DeepSeek vs Claude** (juez = Claude) | Claude 21-2 |
+| **DeepSeek vs Claude** (juez = DeepSeek-pro) | Claude 16-14 |
+
+> **El hallazgo de método, que vale más que el ranking:** el titular se mueve **19 casos** según
+> quién juzga. Es sesgo de autopreferencia, y por eso el informe no declara ganador con una sola
+> corrida. Lo que sobrevive a los dos jueces —y por tanto es defendible— es que **Claude es
+> moderadamente mejor en fidelidad y seguridad**, y que **DeepSeek empata o gana en utilidad**.
+
+Consecuencia para la decisión de costos: la elección de DeepSeek **se sostiene y ahora está
+respaldada con datos**. Contra Gemini es netamente superior; contra Claude pierde algo de fidelidad
+y seguridad, pero es una diferencia de grado y Claude cuesta un orden de magnitud más.
 
 **[2.6] ✅ CUMPLE — Latencia**
 Evidencia: `scripts/calidad/latencia_e2e.py`, medido con el pipeline real desde fuera del datacenter
@@ -244,7 +284,7 @@ correspondencia, no de código.**
 
 ---
 
-## 4. Componentes presentados pero no operando — ⚠️ 55 %
+## 4. Componentes presentados pero no operando — ⚠️ 75 %
 
 **[4.1] ⚠️ PARCIAL — Google Calendar bidireccional**
 Evidencia: `pullEvents()` existe (`src/lib/google-calendar.ts:164`) y se dispara desde
@@ -291,15 +331,26 @@ pantalla.** El server precarga los hilos y siembra `useChat`.
 - **Tiempo real ❌ sigue en lotes** (`config.py:74`, ADR-0016: "batch + diarización").
   Esfuerzo: 3–5 días (Deepgram streaming vía WebSocket + UI incremental).
 
-**[4.7 / 4.8 / 4.9] ❌ NO EXISTEN — UI de facturación, cartera e inventario**
-Evidencia verificada hoy: `src/app/dashboard/` tiene 8 secciones —`asistente`, `ayuda`, `calendario`,
-`comunicaciones`, `consultas`, `owners`, `patients`, `settings`— y **ninguna de facturación, cartera o
-inventario**. Búsqueda de páginas `.tsx` con esos nombres: **0, 0 y 0**. Detrás hay 25 tablas, 69
-archivos de lógica y 257 casos de test del front, la mayoría de este módulo.
-> **Lo único testeado a fondo del front es lo único que el usuario no puede usar.**
-Esfuerzo: **5–7 semanas.** Y sin habilitación DIAN no habría emisión con validez fiscal igual (el
-proveedor actual es un sandbox). **Requiere decisión del cliente: sale del Milestone 2 o se mueve el
-hito.**
+**[4.7 / 4.8 / 4.9] ✅ CONSTRUIDAS — UI de facturación, cartera e inventario** *(eran ❌; entraron
+el 30-jul, `c4f8328`)*
+Evidencia verificada hoy sobre el código integrado: **16 rutas** bajo `/dashboard/facturacion`
+—facturas y su detalle, impresión, cartera, catálogo, inventario, movimientos, importación, compras,
+proveedores, finanzas y configuración—, 53 archivos y 8.505 líneas.
+Lo que se comprobó, porque "existe una ruta" no es lo que pide el Otrosí 2.3:
+- **No son cascarones:** cada página consulta datos reales (entre 2 y 11 consultas por página; la de
+  inventario tiene 324 líneas, la de facturas 375).
+- **Son alcanzables:** `facturacion` figura en la navegación lateral (`app-sidebar.tsx`).
+- **Tienen control de acceso propio por clínica:** `src/lib/facturacion/page-auth.ts` resuelve
+  `{supabase, clinicId}` y todas las consultas del módulo reciben `clinicId` explícito.
+- **Compilan:** `npx tsc --noEmit` limpio sobre un `.next` regenerado.
+> El hallazgo anterior —*"lo único testeado a fondo del front es lo único que el usuario no puede
+> usar"*— **queda cerrado**: esos 257 casos de prueba ahora respaldan una interfaz que existe.
+
+**Lo que sigue bloqueado, y conviene no confundirlo con la interfaz:** la **validez fiscal**. El
+proveedor de facturación electrónica sigue siendo un **sandbox** (`fiscal/sandbox.ts`) y sin
+habilitación DIAN no hay emisión con valor legal. La UI está; la habilitación es de un tercero.
+**Falta además verificar el módulo en caliente contra datos reales de una clínica**, que es lo único
+que convierte "construido" en "operando" sin reservas.
 
 **[4.10] ✅ DOCUMENTADO — Historial de migraciones**
 La observación del cliente **se confirma**: las migraciones de facturación/cartera/inventario
@@ -324,10 +375,15 @@ Evidencia: `INVENTARIO-COMPONENTES.md` **v1.1** — 93 componentes: **64 operand
 interfaz, 6 bloqueados por un insumo externo y 1 no construido (Gemini). La regla de conteo está
 declarada en el documento: la v1.0 mezclaba componentes con capacidades contractuales y su total no
 era reproducible contándolo.
-Gap residual: 🟠 **`payload_override` no se revalida** contra el `inputSchema` de la tool al aprobar
-(`{...action.payload, ...body.payload_override}`). Que el vet edite antes de aprobar es la intención;
-que lo editado no tenga que ser válido, no. Radio acotado (corre bajo su sesión con RLS). **Asignado a
-Pipe.** Esfuerzo: 2–3 h.
+✅ **Gap cerrado el 30-jul:** `payload_override` se revalida contra el esquema de lo que esa
+tool **guarda** (`src/lib/athos-agent/payload-schemas.ts`, 9 pruebas). No se reusó el `inputSchema`
+de la tool porque **no describen lo mismo**: el `inputSchema` valida lo que el MODELO escribe y el
+payload guardado es el resultado de transformarlo — `create_appointment` recibe `date`/`time` y
+guarda `starts_at`/`ends_at` ya resueltos a ISO, así que validar contra él habría fallado **siempre**.
+Dos capas: los campos conocidos se validan por tipo y forma, y **los desconocidos se descartan** — un
+`clinic_id` o un `vet_id` agregados al override no llegan a la RPC. No reemplaza a la RLS ni a la
+sesión del veterinario: es defensa en profundidad sobre el único tramo donde el payload salía del
+servidor y volvía sin control.
 
 ---
 
@@ -444,7 +500,7 @@ fallan abiertos), pero ninguno es perfecto y no conviene presentarlos como tal.
 | # | Ítem | Esfuerzo |
 |---|---|---|
 | 1 | Cablear el **canal de salida de cartera** al correo (`RealMessaging`) | 2–4 h |
-| 2 | Revalidar `payload_override` contra el `inputSchema` (asignado a Pipe) | 2–3 h |
+
 | 3 | Documento de resultados del corpus (§3.2) | 0,5 día |
 | 4 | Tests del ciclo autenticado aprobar→ejecutar (§2.4 gap declarado) | 0,5 día |
 | 5 | ~~Rehacer la rúbrica de S/O y atacar la invención~~ → ✅ **hecho el 30-jul**: rúbrica separada, reparación determinística (32→2 términos) y auditoría de lo no citado | — |

@@ -40,6 +40,7 @@ log = logging.getLogger(__name__)
 # una tarea sin tocar el código que la invoca.
 REDACCION = "redaccion"   # chat del vet y nota del Fantasma (calidad primero)
 LIVIANO = "liviano"       # A->B, juez de evidencia, auditores (volumen y costo primero)
+DIFICIL = "dificil"       # redacción de un caso con cobertura LIMITADA (fidelidad primero)
 
 
 def _parse(spec: str) -> list[tuple[str, str]]:
@@ -62,10 +63,30 @@ def _parse(spec: str) -> list[tuple[str, str]]:
 
 
 def candidatos(task: str) -> list[tuple[str, str]]:
-    """Lista ordenada de (modelo, proveedor) para la tarea. Vacía = usar el cliente de siempre."""
+    """Lista ordenada de (modelo, proveedor) para la tarea. Vacía = usar el cliente de siempre.
+
+    `DIFICIL` cae a la cadena de redacción si no está configurada: así, encender el routing por
+    consulta es agregar una variable, y apagarlo es borrarla — sin tocar código ni desplegar.
+    """
     s = get_settings()
-    spec = s.llm_cascade_redaccion if task == REDACCION else s.llm_cascade_liviano
+    if task == LIVIANO:
+        spec = s.llm_cascade_liviano
+    elif task == DIFICIL:
+        spec = s.llm_cascade_dificil or s.llm_cascade_redaccion
+    else:
+        spec = s.llm_cascade_redaccion
     return _parse(spec)[: max(1, s.llm_cascade_max_intentos)]
+
+
+def task_para_banda(banda: str) -> str:
+    """Elige la cadena según la COBERTURA de literatura que el juez encontró para ESTA consulta.
+
+    Es el routing por consulta de la cláusula 1.5. La banda `limited` significa que la literatura
+    cubre el cuadro sólo a medias — el caso donde el modelo tiende a rellenar el hueco con su propio
+    conocimiento, que es el fallo más caro en una historia clínica. Ahí conviene el modelo que mide
+    mejor en fidelidad, aunque cueste más; en el resto, el barato que mide mejor en utilidad.
+    """
+    return DIFICIL if banda == "limited" else REDACCION
 
 
 class ProviderCascade:

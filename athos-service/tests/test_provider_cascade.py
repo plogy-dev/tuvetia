@@ -154,3 +154,37 @@ def test_el_cuerpo_del_proveedor_de_siempre_no_cambio(monkeypatch):
 
     assert LLMClient(provider="openai")._extra_body() == {"thinking": {"type": "disabled"}}
     assert LLMClient(provider="google")._extra_body() == {}       # Gemini lo rechazaria con 400
+
+
+def test_routing_por_consulta_manda_lo_dificil_a_su_propia_cadena(monkeypatch):
+    """Clausula 1.5: no solo routing por TAREA, sino por CONSULTA.
+
+    La banda `limited` significa que la literatura cubre el cuadro a medias — el caso donde el modelo
+    tiende a rellenar el hueco con su propio conocimiento, que es el fallo mas caro en una historia
+    clinica. Ahi se escala al modelo que mide mejor en fidelidad (ver COMPARATIVA-MODELOS).
+    """
+    from app.generation.provider_cascade import DIFICIL, task_para_banda
+
+    assert task_para_banda("limited") == DIFICIL
+    assert task_para_banda("sufficient") == REDACCION
+    assert task_para_banda("none") == REDACCION      # sin literatura no hay a quien escalar
+
+    _cascada(monkeypatch, redaccion="barato@openai")
+    monkeypatch.setattr(pc.get_settings(), "llm_cascade_dificil", "fiel@anthropic", raising=False)
+    llamados = _fake_client(monkeypatch, {"barato@openai": "B", "fiel@anthropic": "F"})
+
+    assert ProviderCascade(task_para_banda("sufficient")).complete("s", "u") == "B"
+    assert ProviderCascade(task_para_banda("limited")).complete("s", "u") == "F"
+    assert llamados == ["barato@openai", "fiel@anthropic"]
+
+
+def test_sin_cadena_dificil_configurada_el_caso_dificil_usa_la_de_siempre(monkeypatch):
+    """Encender el routing por consulta es agregar una variable; apagarlo, borrarla. Sin ella el
+    comportamiento es identico al anterior, que es lo que lo hace seguro de desplegar."""
+    from app.generation.provider_cascade import DIFICIL
+
+    _cascada(monkeypatch, redaccion="barato@openai")
+    monkeypatch.setattr(pc.get_settings(), "llm_cascade_dificil", "", raising=False)
+    llamados = _fake_client(monkeypatch, {"barato@openai": "B"})
+    assert ProviderCascade(DIFICIL).complete("s", "u") == "B"
+    assert llamados == ["barato@openai"]

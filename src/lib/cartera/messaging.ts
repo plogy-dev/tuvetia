@@ -15,12 +15,12 @@ export interface OutboundMessage {
   to: string;
   /** step_kind en minúsculas — idempotencia/logging. */
   template: string;
-  /** Texto ya redactado (cuerpo del WhatsApp / futuro email). */
+  /** Texto ya redactado (cuerpo del WhatsApp o del correo). */
   body: string;
   /** Contexto para los adaptadores reales (vínculos, registro del saliente). */
   invoiceId?: string | null;
   ownerId?: string | null;
-  /** Asunto del correo (reservado para cuando exista email). */
+  /** Asunto del correo. Si viene vacío, el adaptador usa uno por defecto. */
   subject?: string | null;
 }
 

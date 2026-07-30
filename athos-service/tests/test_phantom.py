@@ -31,7 +31,7 @@ def _patch_common(monkeypatch, *, passed: bool, captured: dict) -> None:
     # gate DURO: Luna tiene alergia severa -> True (contra DB se prueba en test_allergy_gate)
     monkeypatch.setattr(phantom, "evaluate_gate", lambda c, p: (True, ["pollo"]))
 
-    def fake_generate_note(transcript, literature, patient, severe):
+    def fake_generate_note(transcript, literature, patient, severe, **_kw):
         captured["gen_literature"] = literature
         return (
             SOAP(subjective="vomita", objective="TPR normal",
@@ -78,7 +78,7 @@ def test_suggest_persiste_alertas_de_condicion(monkeypatch):
     captured: dict = {}
     _patch_common(monkeypatch, passed=True, captured=captured)
 
-    def _gen_diabetes(transcript, literature, patient, severe):
+    def _gen_diabetes(transcript, literature, patient, severe, **_kw):
         return (SOAP(assessment="cuadro compatible con diabetes mellitus"),
                 [Citation(chunk_id="c1", doc_id="PM1")], False)
 
@@ -99,7 +99,7 @@ def test_suggest_passed_pero_sin_citas_es_insuficiente(monkeypatch):
     captured: dict = {}
     _patch_common(monkeypatch, passed=True, captured=captured)
 
-    def _gen_sin_citas(transcript, literature, patient, severe):
+    def _gen_sin_citas(transcript, literature, patient, severe, **_kw):
         return (SOAP(assessment="no hay evidencia específica en la literatura"), [], False)
 
     monkeypatch.setattr(phantom, "generate_note", _gen_sin_citas)
@@ -164,7 +164,7 @@ def test_suggest_nivel_reportado_es_el_efectivo(monkeypatch):
     captured: dict = {}
     _patch_common(monkeypatch, passed=True, captured=captured)
     monkeypatch.setattr(phantom, "generate_note",
-                        lambda t, lit, p, s: (SOAP(assessment="sin respaldo"), [], False))
+                        lambda t, lit, p, s, **_kw: (SOAP(assessment="sin respaldo"), [], False))
 
     resp = phantom.suggest("cons-1", "clinic-a")
 
