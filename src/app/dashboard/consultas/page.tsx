@@ -4,6 +4,7 @@ import { ChevronDownIcon, ChevronRightIcon, GhostIcon, SearchIcon } from "lucide
 import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
 import { createClient } from "@/lib/supabase/server"
+import { bogotaDate } from "@/lib/date-utils"
 import { DataError } from "@/components/data-error"
 import { NewConsultationDrawer } from "@/components/new-consultation-drawer"
 
@@ -43,13 +44,9 @@ type PatientGroup = {
   latest: number
 }
 
-function fmtDate(iso: string): string {
-  return new Date(iso).toLocaleDateString("es-CO", {
-    day: "2-digit",
-    month: "short",
-    year: "numeric",
-  })
-}
+// Anclada a America/Bogota: este es un server component y el runtime de Vercel es UTC, así que sin
+// `timeZone` una consulta de las 19:00 se mostraba con la fecha del día siguiente.
+const fmtDate = bogotaDate
 
 // Construye la URL de la sección preservando los demás filtros activos.
 function hrefWith(p: { orden?: string; q?: string; nota?: string }): string {

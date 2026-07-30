@@ -17,3 +17,32 @@ export function bogotaTimeOf(iso: string): string {
     hour12: false,
   }).format(new Date(iso));
 }
+
+// Formateo para las pantallas clínicas. Va acá y no inline en cada página porque el defecto que
+// esto corrige nace de omitir `timeZone`: los server components de Next corren en UTC en Vercel, así
+// que una consulta de las 19:00 en Bogotá se renderizaba **con la fecha del día siguiente**. El
+// veterinario veía la consulta de ayer fechada hoy. Cualquier fecha que se le muestre al usuario
+// tiene que pasar por acá.
+
+/** "01 ago 2026" — fecha de un instante ISO, vista desde Bogotá. */
+export function bogotaDate(iso: string): string {
+  return new Intl.DateTimeFormat('es-CO', {
+    timeZone: 'America/Bogota',
+    day: '2-digit',
+    month: 'short',
+    year: 'numeric',
+  }).format(new Date(iso));
+}
+
+/** "01 ago 2026, 19:30" — fecha y hora de un instante ISO, vistas desde Bogotá. */
+export function bogotaDateTime(iso: string): string {
+  return new Intl.DateTimeFormat('es-CO', {
+    timeZone: 'America/Bogota',
+    day: '2-digit',
+    month: 'short',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+  }).format(new Date(iso));
+}

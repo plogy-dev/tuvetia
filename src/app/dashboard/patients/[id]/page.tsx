@@ -4,6 +4,7 @@ import { AlertTriangle, ArrowLeft, CalendarDays, PawPrint, Pill, Syringe } from 
 
 import { fmtAgeLong } from "@/lib/age"
 import { createClient } from "@/lib/supabase/server"
+import { bogotaDateTime } from "@/lib/date-utils"
 import {
   PatientAttachments,
   type PatientAttachment,
@@ -49,16 +50,11 @@ type Allergy = { id: string; allergen: string; severity: string; reaction: strin
 type Medication = { id: string; drug_name: string; dose: string; frequency: string | null; is_chronic: boolean; end_date: string | null }
 type Vaccine = { id: string; vaccine_name: string; administered_at: string; next_dose_at: string | null }
 
-const DATE_FMT: Intl.DateTimeFormatOptions = {
-  day: "2-digit",
-  month: "short",
-  year: "numeric",
-  hour: "2-digit",
-  minute: "2-digit",
-}
+// Anclada a America/Bogota: este es un server component y el runtime de Vercel es UTC, así que sin
+// `timeZone` una consulta o una vacuna de las 19:00 se mostraba con la fecha del día siguiente.
 function fmtDate(iso: string | null): string {
   if (!iso) return "—"
-  return new Date(iso).toLocaleString("es-CO", DATE_FMT)
+  return bogotaDateTime(iso)
 }
 
 

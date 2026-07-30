@@ -11,14 +11,18 @@ export type UpcomingAppointment = {
   patient: { name: string } | null
 }
 
+// Anclada a America/Bogota: se renderiza en el servidor (runtime UTC en Vercel), así que sin
+// `timeZone` una cita de las 19:00 aparecía en el día siguiente y a la hora equivocada.
 function fmt(iso: string): string {
-  return new Date(iso).toLocaleString("es-CO", {
+  return new Intl.DateTimeFormat("es-CO", {
+    timeZone: "America/Bogota",
     weekday: "short",
     day: "2-digit",
     month: "short",
     hour: "2-digit",
     minute: "2-digit",
-  })
+    hour12: false,
+  }).format(new Date(iso))
 }
 
 export function UpcomingAppointments({ appointments }: { appointments: UpcomingAppointment[] }) {
