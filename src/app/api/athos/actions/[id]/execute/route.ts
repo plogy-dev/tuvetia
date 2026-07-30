@@ -30,13 +30,28 @@ type ActionRow = {
  * conecto Google, o la API responde mal, se registra y se sigue — romper la aprobacion de una accion
  * por una copia en un calendario externo seria desproporcionado.
  */
-async function pushToGoogle(userId: string, appointmentId: unknown): Promise<string | null> {
-  if (typeof appointmentId !== "string" || !appointmentId) return null
+async function pushToGoogle(
+  userId: string,
+  appointmentId: unknown,
+): Promise<{ googleEventId: string | null; aviso: string | null }> {
+  if (typeof appointmentId !== "string" || !appointmentId)
+    return { googleEventId: null, aviso: null }
   try {
-    return await pushAppointment(userId, appointmentId)
+    const googleEventId = await pushAppointment(userId, appointmentId)
+    if (googleEventId) return { googleEventId, aviso: null }
+    // `pushAppointment` devuelve null cuando el veterinario no conectó Google. No es un fallo, pero
+    // el vet TIENE que enterarse: si no, la cita no aparece en su teléfono y no hay forma de saber
+    // por qué. Pasó en producción el 30-jul y fue exactamente esa la pregunta.
+    return {
+      googleEventId: null,
+      aviso: "La cita quedó en la agenda de la plataforma. No se copió a Google Calendar porque no está conectado.",
+    }
   } catch (e) {
     console.error("[athos/execute] no se pudo empujar la cita a Google Calendar:", e)
-    return null
+    return {
+      googleEventId: null,
+      aviso: "La cita quedó en la agenda de la plataforma, pero no se pudo copiar a Google Calendar.",
+    }
   }
 }
 
@@ -154,8 +169,12 @@ async function dispatch(
       // NO bloquea: si el veterinario no conectó Google, o la API falla, la cita YA está creada en la
       // plataforma y eso es lo que importa. Perder la copia en Google es recuperable con el botón
       // "Sincronizar"; perder la cita no.
-      const googleEventId = await pushToGoogle(userId, appointmentId)
-      return { appointment_id: appointmentId, google_event_id: googleEventId }
+      const { googleEventId, aviso } = await pushToGoogle(userId, appointmentId)
+      return {
+        appointment_id: appointmentId,
+        google_event_id: googleEventId,
+        ...(aviso ? { aviso, aviso_enlace: "/dashboard/calendario" } : {}),
+      }
     }
 
     case "update_appointment": {

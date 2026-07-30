@@ -6,6 +6,7 @@
 
 import { useState } from "react"
 import { CalendarPlus, Check, ClipboardEdit, Loader2, MessageCircle, PawPrint, Sparkles, UserPlus, X } from "lucide-react"
+import Link from "next/link"
 import { toast } from "sonner"
 
 import { Button } from "@/components/ui/button"
@@ -53,6 +54,7 @@ export function ActionApprovalCard({
   const [body, setBody] = useState(editable ? String(action.payload.body ?? "") : "")
   const [busy, setBusy] = useState<"execute" | "reject" | null>(null)
   const [resolved, setResolved] = useState<string | null>(action.status !== "proposed" ? action.status : null)
+  const [aviso, setAviso] = useState<{ texto: string; enlace: string | null } | null>(null)
 
   async function act(kind: "execute" | "reject") {
     setBusy(kind)
@@ -66,12 +68,24 @@ export function ActionApprovalCard({
             : {},
         ),
       })
-      const json = (await res.json().catch(() => ({}))) as { error?: string }
+      const json = (await res.json().catch(() => ({}))) as {
+        error?: string
+        result?: { aviso?: string; aviso_enlace?: string }
+      }
       if (!res.ok) throw new Error(json.error ?? `HTTP ${res.status}`)
       const status = kind === "execute" ? "executed" : "rejected"
       setResolved(status)
       onResolved?.(action.id, status)
-      toast.success(kind === "execute" ? "Acción ejecutada" : "Propuesta rechazada")
+      // Un aviso NO es un error: la acción se ejecutó. Es algo que el vet necesita saber igual —
+      // p.ej. que la cita no llegó a Google porque no está conectado. Sin esto la cita "desaparece"
+      // de su teléfono y no hay forma de saber por qué.
+      const aviso = json.result?.aviso
+      if (aviso) {
+        setAviso({ texto: aviso, enlace: json.result?.aviso_enlace ?? null })
+        toast.warning(aviso)
+      } else {
+        toast.success(kind === "execute" ? "Acción ejecutada" : "Propuesta rechazada")
+      }
     } catch (e) {
       toast.error((e as Error).message)
       if (kind === "execute") {
@@ -107,7 +121,19 @@ export function ActionApprovalCard({
         />
       )}
       {resolved ? (
-        <p className="mt-2 text-xs font-medium text-fg-muted">{RESOLVED_LABELS[resolved] ?? RESOLVED_LABELS.failed}</p>
+        <>
+          <p className="mt-2 text-xs font-medium text-fg-muted">{RESOLVED_LABELS[resolved] ?? RESOLVED_LABELS.failed}</p>
+          {aviso && (
+            <p className="mt-1 text-xs text-amber-700 dark:text-amber-500">
+              {aviso.texto}{" "}
+              {aviso.enlace && (
+                <Link href={aviso.enlace} className="font-medium underline underline-offset-2">
+                  Conectar Google Calendar
+                </Link>
+              )}
+            </p>
+          )}
+        </>
       ) : (
         <div className="mt-2 flex items-center gap-2">
           <Button size="sm" onClick={() => act("execute")} disabled={busy !== null || (editable && !body.trim())}>
