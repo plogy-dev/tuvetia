@@ -1,8 +1,9 @@
-import { Building2, Clock, Download, MessageCircle, User, Users } from "lucide-react"
+import { Building2, Clock, Download, Mail, MessageCircle, User, Users } from "lucide-react"
 import { Button } from "@/components/ui/button"
 
 import { createClient } from "@/lib/supabase/server"
 import { ProfileSettings } from "@/components/settings/profile-settings"
+import { EmailSettings, type EmailIntegrationView } from "@/components/settings/email-settings"
 import { WhatsappSettings } from "@/components/settings/whatsapp-settings"
 import { ClinicHoursSettings, type ClinicHourRow } from "@/components/settings/clinic-hours-settings"
 import {
@@ -51,6 +52,14 @@ export default async function SettingsPage() {
     agent_mode: "auto" | "review" | "paused" | "intervene"
   } | null
   const waStatus = waRow?.status ?? "none"
+
+  // Estado de la conexión de correo (RLS: solo la fila de la clínica; la credencial está revocada
+  // para PostgREST, así que este SELECT jamás puede traerla).
+  const { data: emailRow } = await supabase
+    .from("email_integrations")
+    .select("status, from_email, from_name, last_error, verified_at")
+    .maybeSingle()
+  const email = emailRow as EmailIntegrationView | null
 
   // Horarios de atención (RLS de la clínica) — los usa Athos para citas y respuestas automáticas.
   const { data: hoursRows } = await supabase
@@ -123,6 +132,19 @@ export default async function SettingsPage() {
           initialPhone={waRow?.phone_number ?? null}
           initialAgentMode={waRow?.agent_mode ?? "review"}
         />
+      </div>
+
+      {/* Correo de la clínica (SMTP con contraseña de aplicación; réplica del conn-card del cliente) */}
+      <div className="rounded-xl border bg-card p-4">
+        <div className="mb-3 flex items-center gap-2 text-sm font-semibold">
+          <Mail className="size-4 text-muted-foreground" /> Correo
+          <HelpTip>
+            Con el correo conectado, las <b>facturas</b> salen por email con su enlace de pago y las{" "}
+            <b>respuestas</b> del cliente alimentan la cobranza — igual que WhatsApp. Se usa una{" "}
+            <b>contraseña de aplicación</b> de Gmail, nunca la contraseña de la cuenta.
+          </HelpTip>
+        </div>
+        <EmailSettings integration={email} />
       </div>
 
       {/* Horarios de atención (los usa Athos: citas y respuestas automáticas) */}
