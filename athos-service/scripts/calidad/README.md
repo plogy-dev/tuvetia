@@ -364,7 +364,41 @@ diferencia), aunque en agregado el liviano se sostiene. **Por eso no se tocan lo
 error que costó la reversión anterior. Para moverlos hace falta ampliar el banco de negativos
 válidos.
 
-*Los 24 falsos negativos no se borran: son candidatos a **positivos**, porque el corpus sí los cubre.*
+#### Los falsos negativos reciclados como positivos
+
+```bash
+python scripts/calidad/negativos_reclasificar.py
+```
+
+Los 24 falsos negativos no son basura: son consultas realistas **cuyo tema el corpus cubre**, o sea
+lo que un positivo debe ser. El problema es que su `mesh_target` original no está en el corpus, así
+que el script los **re-ancla** al descriptor más frecuente entre los pasajes que el retrieval trae de
+verdad — el mismo criterio con el que se armó el banco original: la etiqueta sale del corpus, no de
+una opinión.
+
+**De 24, sólo 7 pasaron el filtro**, y eso es a propósito. El primer intento aceptaba descriptores que
+aparecieran en 3 de 12 pasajes y produjo basura: re-ancló `lacrimal-apparatus-diseases` a
+**Retrospective Studies** y `spina-bifida` a **Magnetic Resonance Imaging** — el retrieval trae esos
+descriptores porque casi todo paper veterinario los lleva, no porque describan el cuadro. Un target
+así haría que el banco midiera "¿trajo un paper?" en vez de "¿trajo literatura de esta condición?".
+Se agregó una lista de exclusión de metodología, técnicas de imagen, clases de fármaco y
+procedimientos, y se subió el mínimo a **6 de 12 pasajes**.
+
+Los 7 que sobrevivieron son clínicamente coherentes con su caso:
+
+| caso | target nuevo | pasajes |
+|---|---|---|
+| `neg-impetigo` | `Pyoderma` | **12/12** |
+| `neg-malformations-of-cortical-development` | `Epilepsy` | 12/12 |
+| `neg-ascariasis` | `Intestinal Diseases, Parasitic` | 8/12 |
+| `neg-hepatitis-viral-animal` | `Leptospirosis` *(el diferencial real del caso ictérico)* | 8/12 |
+| `neg-ganglioglioma` | `Seizures` | 8/12 |
+| `neg-abdominal-pain` | `Pancreatitis` | 6/12 |
+| `neg-spina-bifida-cystica` | `Spinal Cord Diseases` | 6/12 |
+
+Salida: **`tests/golden/ampliado_v2.json` (153 casos)**. ⚠️ **No reemplaza a `ampliado.json`**: cambiar
+el banco de referencia rompería la comparabilidad con todas las mediciones históricas. Se usa
+explícitamente cuando se quiera más potencia estadística, y el original sigue siendo la línea base.
 
 ### Por qué el juez "dejó de discriminar" contra producción (2026-07-29)
 
