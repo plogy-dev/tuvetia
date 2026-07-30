@@ -10,6 +10,9 @@ dependencies = [
     "pydantic-settings",
     "python-dotenv",
     "psycopg[binary]",
+    # Pool de conexiones: lo importa app/db.py desde 0806f9a (24-jul) pero nunca se declaro.
+    # Cualquier instalacion limpia fallaba con ModuleNotFoundError; produccion sobrevivia por cache.
+    "psycopg-pool",
     "pgvector",
     "llama-index",
     "httpx",

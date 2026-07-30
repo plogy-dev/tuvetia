@@ -188,3 +188,70 @@ describe("localToIso — la hora local del vet no se corre de día", () => {
     expect(iso.startsWith("2026-08-01")).toBe(true)
   })
 })
+
+describe("fechas imposibles — el tool responde, no se cae", () => {
+  // El inputSchema valida FORMATO con regex, no calendario: "2026-02-30" y "99:99" lo pasan.
+  // Antes, esas fechas llegaban a `new Date(NaN).toISOString()` y lanzaban
+  // `RangeError: Invalid time value`, tumbando el turno del agente sin mensaje útil para el vet.
+  // Los modelos producen febrero 30 y mes 13 con más frecuencia de la que uno espera.
+  const tools = buildAthosTools(fakeSupabase, ctx)
+  // Los tres primeros SÍ son Invalid Date. Los dos últimos NO: JavaScript los rueda en silencio
+  // (2026-02-30 -> 2026-03-02, y 2026 no es bisiesto así que 2026-02-29 -> 2026-03-01). Ese caso es
+  // el peligroso de verdad: sin el round-trip la cita quedaba agendada otro día sin avisar.
+  const IMPOSIBLES = ["2026-13-01", "2026-00-10", "2026-04-31", "2026-02-30", "2026-02-29"]
+
+  function run(nombre: string, args: Record<string, unknown>) {
+    const t = tools[nombre as keyof typeof tools] as unknown as {
+      execute: (a: unknown) => Promise<unknown>
+    }
+    return t.execute(args) as Promise<Record<string, unknown>>
+  }
+
+  for (const date of IMPOSIBLES) {
+    it(`create_appointment devuelve error legible con ${date} (no lanza)`, async () => {
+      const r = await run("create_appointment", { title: "Control", date, time: "10:00", duration_min: 30 })
+      expect(r.error, `${date} debería reportar error`).toContain("Fecha u hora inválida")
+      expect(inserted.length, "no debe proponerse nada con fecha inválida").toBe(0)
+    })
+  }
+
+  it("create_appointment tampoco se cae con una hora imposible", async () => {
+    const r = await run("create_appointment", { title: "Control", date: "2026-08-01", time: "99:99" })
+    expect(r.error).toContain("Fecha u hora inválida")
+    expect(inserted.length).toBe(0)
+  })
+
+  it("create_appointment funciona sin duration_min (el default no viene si nadie aplica el schema)", async () => {
+    const r = await run("create_appointment", { title: "Control", date: "2026-08-01", time: "10:00" })
+    expect(r.error, "una fecha válida no debería dar error").toBeUndefined()
+    expect(inserted.length).toBe(1)
+    // 30 min por defecto: 10:00 -05:00 → 15:00Z, fin 15:30Z.
+    expect((inserted[0].payload as { ends_at: string }).ends_at).toBe("2026-08-01T15:30:00.000Z")
+  })
+
+  it("las tools de LECTURA por día también responden en vez de lanzar", async () => {
+    for (const nombre of ["list_appointments_on_day", "list_available_slots"]) {
+      const r = await run(nombre, { date: "2026-02-30" })
+      expect(r.error, `${nombre} debería reportar la fecha inválida`).toContain("Fecha u hora inválida")
+    }
+  })
+})
+
+describe("el rodaje silencioso de fechas — el caso que no era un crash", () => {
+  const tools = buildAthosTools(fakeSupabase, ctx)
+
+  it("JavaScript rueda 2026-02-30 a marzo sin quejarse (por eso hace falta el round-trip)", () => {
+    // Fija el comportamiento del runtime que motiva la guarda. Si algún día Date empezara a
+    // devolver Invalid Date acá, este test avisa que la guarda ya no es necesaria por este motivo.
+    const t = new Date("2026-02-30T00:00:00-05:00").getTime()
+    expect(Number.isFinite(t)).toBe(true)
+    expect(new Date(t).toISOString()).toBe("2026-03-02T05:00:00.000Z")
+  })
+
+  it("una cita pedida para el 30 de febrero NO se agenda el 2 de marzo", async () => {
+    const t = tools.create_appointment as unknown as { execute: (a: unknown) => Promise<Record<string, unknown>> }
+    const r = await t.execute({ title: "Control", date: "2026-02-30", time: "09:00", duration_min: 30 })
+    expect(r.error).toContain("Fecha u hora inválida")
+    expect(inserted.length, "no debe proponerse una cita en una fecha corrida").toBe(0)
+  })
+})

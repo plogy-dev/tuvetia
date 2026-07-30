@@ -22,8 +22,9 @@ describe("bogotaDate — la fecha no se corre de día", () => {
   it("una consulta de las 19:00 en Bogotá conserva SU día, no el del UTC siguiente", () => {
     // 2026-08-01 19:00 -05:00 === 2026-08-02 00:00 UTC
     const iso = "2026-08-02T00:00:00.000Z"
-    expect(bogotaDate(iso)).toContain("01")
-    expect(bogotaDate(iso)).not.toContain("02")
+    // Se ancla al DÍA, no a un substring: `not.toContain("02")` daba falso negativo porque el año
+    // "2026" contiene "02". El formato es "01 de ago de 2026", así que el día va al principio.
+    expect(bogotaDate(iso)).toMatch(/^01\b/)
   })
 
   it("una consulta de las 23:59 en Bogotá sigue siendo del mismo día", () => {
