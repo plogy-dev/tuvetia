@@ -1,6 +1,6 @@
 # Verificación punto por punto — 10 observaciones del cliente
 
-**Corte:** 30 de julio de 2026, 12:00 · **Commit:** `0cb49a2` · **Contrato:** COT-2026-TUV-001
+**Corte:** 30 de julio de 2026, 12:15 · **Commit:** `d31e64c` · **Contrato:** COT-2026-TUV-001
 
 Cada punto se verificó **hoy, contra el código integrado y el entorno desplegado** — no contra la
 documentación previa. Se aplica la regla del Otrosí num. 2.3: *sólo cuenta lo integrado y operando en
@@ -23,13 +23,18 @@ el entorno accesible al cliente*.
 | 3 | Mecanismo de abstención | ⚠️ | ✅ |
 | 4 | Citas de fuentes correctas | ⚠️ | ✅ |
 | 5 | Latencia de minutos → segundos | ✅ | ✅ |
-| 6 | Correo / módulo de comunicaciones | ⚠️ | ✅ |
-| 7 | Google Calendar bidireccional | ⚠️ | ✅ |
+| 6 | Correo / módulo de comunicaciones | ✅ | ✅ |
+| 7 | Google Calendar bidireccional | ✅ | ✅ |
 | 8 | Transcripción: roles / lotes / fecha | ⚠️ | ✅ |
 | 9 | Invitaciones de equipo | ⚠️ | ✅ |
 | 10 | Historial de conversaciones | ✅ | ✅ |
 
-**5 de 10 sin reservas. 5 con una limitación concreta y declarada. Ninguno en ❌.**
+**7 de 10 sin reservas. 3 con una limitación concreta y declarada. Ninguno en ❌.**
+
+> Los puntos **6 y 7** se cerraron a las 12:15 (`d31e64c`), después de que esta misma verificación
+> los dejara a la vista. Los dos eran el mismo tipo de defecto: **un módulo construido y probado que
+> nadie había conectado con quien tenía que usarlo** — se ven como "funciona" hasta que se sigue el
+> camino completo.
 
 ---
 
@@ -131,7 +136,7 @@ como un cuelgue, no como lentitud. Corregido el 28-jul separando las dos ramas d
 
 **Instrumento:** `scripts/calidad/latencia_e2e.py`.
 
-## 6. Correo / módulo de comunicaciones — ⚠️ FUNCIONA, con un cable suelto
+## 6. Correo / módulo de comunicaciones — ✅ FUNCIONA Y ESTÁ DOCUMENTADO
 
 **Era un stub vacío** que devolvía siempre `email_no_configurado`. Hoy:
 
@@ -144,13 +149,23 @@ como un cuelgue, no como lentitud. Corregido el 28-jul separando las dos ramas d
 | Pantalla de conexión | ✅ `/dashboard/settings` |
 | Envío de facturas por correo | ✅ `src/lib/facturacion/email.ts` |
 | Barrido cada 15 min | ✅ GitHub Actions (`cartera-sweep.yml`) |
+| **Recordatorios de cobranza por correo** | ✅ **cerrado 12:15** (`d31e64c`) |
 
-> 🟠 **El cable suelto, verificado hoy:** `src/lib/cartera/channels.ts:37-47` **sigue devolviendo
-> `email_no_configurado`** para el canal de salida de cartera. Es decir: las **facturas** salen por
-> correo y las **respuestas** entran por IMAP, pero los **recordatorios de cobranza** siguen saliendo
-> sólo por WhatsApp. **Esfuerzo: 2 a 4 horas.**
+**Lo que estaba roto y ya no:** `cartera/channels.ts` seguía devolviendo `email_no_configurado` y
+declarando que el canal EMAIL *"nunca figura conectado"* — una decisión de cuando el correo era un
+stub, que quedó fosilizada. El ciclo estaba abierto justo en el medio: las facturas salían y las
+respuestas entraban, pero los recordatorios de cobranza seguían siendo sólo WhatsApp.
 
-## 7. Google Calendar bidireccional — ⚠️ FUNCIONA EN AMBOS SENTIDOS, con dos matices
+Tres cuidados en el arreglo, porque un canal de cobranza no puede fallar en silencio:
+- El canal se reporta conectado **sólo si la clínica conectó el correo de verdad**; si no, se salta
+  con log — como antes, pero por ausencia de configuración y no por diseño.
+- Se propaga `transient`: el despachador distingue un corte de red o un límite del proveedor —que
+  **reprograma**— de una credencial rechazada —que no—. Sin eso, un fallo de red **perdería** el
+  recordatorio en vez de reintentarlo.
+- Cada envío lleva su `Message-ID`, que es la raíz del hilo. Sin él, la respuesta del titular entraría
+  por IMAP como un correo suelto, sin conversación a la que pegarse.
+
+## 7. Google Calendar bidireccional — ✅ FUNCIONA EN AMBOS SENTIDOS
 
 **Corrección a nuestra propia auditoría anterior:** habíamos reportado que sólo existía la traída
 manual. **Es inexacto.** Verificado hoy en el código:
@@ -160,14 +175,18 @@ manual. **Es inexacto.** Verificado hoy en el código:
 | Plataforma → Google (crear cita) | ✅ **automático** — `appointment-calendar.tsx:137` llama a `/api/google/calendar/push` |
 | Plataforma → Google (borrar cita) | ✅ **automático** — línea 153 → `/api/google/calendar/delete` |
 | Google → Plataforma | ⚠️ **manual** — botón "Sincronizar" (`/api/google/calendar/sync`), sin webhook |
+| Citas creadas por **el agente de Athos** | ✅ **cerrado 12:15** (`d31e64c`) |
 
-> 🟠 **El hueco real, verificado hoy:** las citas que crea **el agente de Athos** al aprobarse **no se
-> empujan a Google**. La ruta de ejecución (`/api/athos/actions/[id]/execute`) llama a la RPC
-> `create_appointment` y **no invoca `pushAppointment`**. O sea: una cita creada a mano sí llega a
-> Google; una creada por Athos, no. **Esfuerzo: 2 a 3 horas.**
->
-> **Bloqueador externo** para la sincronización automática Google → plataforma: la verificación de
-> Google (~10 días) para abrir la aplicación al público.
+**Lo que estaba roto y ya no:** la ruta que ejecuta una acción aprobada llamaba a la RPC
+`create_appointment` y ahí terminaba. El síntoma para el veterinario era peor que un error — **una
+cita agendada a mano aparecía en su teléfono y una agendada por Athos no**, sin ninguna señal de por
+qué. Ahora empuja igual, y **no bloquea**: si no conectó Google o la API falla, se registra y se sigue.
+La cita ya está creada en la plataforma; perder la copia en Google se arregla con "Sincronizar",
+perder la cita no.
+
+> ⚠️ **Lo único que queda, y depende de un tercero:** la sincronización **automática** Google →
+> plataforma (hoy es un botón "Sincronizar") necesita la verificación de Google, ~10 días, para abrir
+> la aplicación al público.
 
 ## 8. Transcripción — ⚠️ DOS DE TRES CORREGIDOS
 
@@ -222,17 +241,15 @@ documento, la latencia, y el historial.
 
 **Lo que funciona con una limitación que conviene declarar antes de que la encuentren:**
 
-| # | Limitación | Esfuerzo |
-|---|---|---|
-| 6 | Cobranza por correo: canal de salida sin cablear | **2–4 h** |
-| 7 | Las citas del **agente** no se empujan a Google | **2–3 h** |
-| 9 | Plantilla de Magic Link en el panel de Supabase | **minutos** |
-| 8 | Transcripción en tiempo real | 3–5 días |
-| 3 | Abstención: 61 % de acierto | medición continua |
-| 4 | Fidelidad de citas: ~1 de 6 descartes puede ser falso positivo | medición continua |
+| # | Limitación | Esfuerzo | De quién |
+|---|---|---|---|
+| 9 | Plantilla de Magic Link en el panel de Supabase | **minutos** | configuración, no código |
+| 8 | Transcripción en tiempo real | 3–5 días | nuestro |
+| 3 | Abstención: 61 % de acierto | medición continua | nuestro |
+| 4 | Fidelidad de citas: ~1 de 6 descartes puede ser falso positivo | medición continua | nuestro |
 
-**Los tres primeros suman menos de un día de trabajo** y cierran tres de las diez observaciones por
-completo.
+**El punto 9 se cierra en minutos y no requiere desplegar nada** — es ajustar la plantilla de correo y
+el Site URL en el panel de Supabase Auth. Con eso quedan **8 de 10 sin reservas**.
 
 **Lo que depende de terceros y no de nosotros:** verificación de Google para el calendario automático
 (~10 días), App Review de Meta para WhatsApp oficial (2–6 semanas), habilitación DIAN para la validez
