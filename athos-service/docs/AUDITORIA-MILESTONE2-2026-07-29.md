@@ -291,12 +291,33 @@ ningún documento de smoke testing** del agente con resultados (búsqueda de `sm
   `risk:"approval"`).
 - `localToIso` fija el offset de Colombia, así que una cita de las 23:30 no se corre de día.
 
-**Gap que queda:** (a) el job del front del CI **no se pudo ejecutar en la máquina de desarrollo**
-(Node 22.11 local vs `>=22.12` que exigen `vite`/`rolldown`); los tests están escritos y el
-type-check pasa sin errores, y su primera corrida en GitHub Actions es la validación real; (b) falta
-cubrir el ciclo `proponer→aprobar→ejecutar` de la ruta HTTP (requiere mockear el cliente de sesión) y
-los límites (expiración, doble ejecución, rate limit); (c) el documento formal de resultados.
-**Esfuerzo estimado restante:** 1–1,5 días.
+**✅ Ampliado y documentado el 2026-07-29 noche** (`b1c33cb`, `d0b6f21`). La suite pasó de 12 a **22
+casos** y tiene su documento de resultados: **`docs/AGENT-SMOKE-TESTING.md`** (ítem (c) cerrado). Los
+10 casos nuevos, de Pipe, nacieron de dos defectos reales de la capa agéntica que las pruebas de
+invariantes no habrían encontrado:
+
+1. **Un crash.** Los `inputSchema` validan **formato** con regex, no calendario: `2026-02-30` y
+   `99:99` pasan `/^\d{4}-\d{2}-\d{2}$/`. Llegaban a `new Date(NaN).toISOString()`, que lanza
+   `RangeError` y **tumbaba el turno completo del agente** sin mensaje útil para el veterinario. Los
+   modelos producen febrero 30 y mes 13 más seguido de lo que uno esperaría.
+2. **Corrupción silenciosa, que es la grave.** `2026-02-30` **no** es fecha inválida para JavaScript:
+   la rueda a `2026-03-02` (y `2026-02-29`, porque 2026 no es bisiesto, a `2026-03-01`). Sin
+   comprobación de ida y vuelta **la cita quedaba agendada otro día y nadie se enteraba**. Ahora
+   `localRange()` reconstruye la fecha local y exige que sea la pedida.
+
+**Gap que queda:** (a) el job del front del CI **sigue sin poder correrse en la máquina de
+desarrollo** (Node 22.11 local vs `>=22.12` que exigen `vite`/`rolldown`; falla con `ERR_REQUIRE_ESM`
+al cargar `vitest.config.ts`) — es una limitación del entorno, no de la suite, y GitHub Actions es la
+validación real; (b) falta cubrir con tests el ciclo `proponer→aprobar→ejecutar` de la ruta HTTP —
+está verificado **por inspección** (lectura con la sesión, reserva atómica `proposed→approved` contra
+el doble clic, 409 en lo ya procesado, 410 en lo expirado) pero no automatizado; (c) **cerrado**.
+**Esfuerzo estimado restante:** ~0,5 día (sólo (b)).
+
+⚠️ **Abierto y asignado a Pipe:** `payload_override` no se revalida. La ruta de ejecución hace
+`{...action.payload, ...body.payload_override}` sin volver a pasar el resultado por el `inputSchema`
+de la tool. Que el veterinario pueda editar el payload antes de aprobar es la intención; que lo
+editado no tenga que seguir siendo válido, no. El radio de daño está acotado porque la ejecución corre
+bajo su propia sesión con RLS, pero el esquema de la tool queda salteado.
 
 ### [2.5] ❌ NO EXISTE — Pruebas comparativas de calidad entre modelos
 
@@ -689,6 +710,28 @@ tests del front cubren el único módulo **sin UI**: lo único testeado del fron
 usuario no puede usar.
 **Esfuerzo estimado:** 3–4 h mover el CI a la raíz; 1–1,5 días tests de tools; 1 día smoke e2e.
 **Bloqueadores externos:** el job de backend necesita secretos de Supabase dev en GitHub Actions.
+
+**✅ Cerrado el 2026-07-29** (`f408d3e` mover a la raíz + 31 errores de `ruff`; `fce2a21` los dos
+rojos; `b1c33cb` merge). El workflow vive ahora en `.github/workflows/ci.yml` y el job del front pasó
+de `lint + vitest` a **`typecheck + lint + vitest + build`**.
+
+Lo que dejó a la vista en su primera corrida real vale más que el workflow en sí — **encender el CI
+encontró dos cosas que estaban en `master`**:
+
+1. 🔴 **`psycopg-pool` nunca se declaró como dependencia.** `app/db.py` la importa desde `0806f9a`
+   (24-jul) y no estaba en `pyproject.toml`: **cualquier instalación limpia del backend fallaba con
+   `ModuleNotFoundError`**. Producción sobrevivía por caché de la imagen — es decir, el siguiente
+   build desde cero de Railway se habría caído. Un CI que corre `uv sync` desde cero es exactamente
+   lo que atrapa esto, y por eso llevaba 5 días invisible.
+2. Un **falso negativo en un test de fechas nuestro**: `expect(bogotaDate(iso)).not.toContain("02")`
+   chocaba con el `"2026"` del año. El test era correcto en intención y falso en implementación;
+   ahora se ancla al día (`/^01\b/`). Lo encontró el CI, que es su trabajo.
+
+`typecheck` y `build` no estaban y son los que atajan lo que llega a producción: ni `lint` ni `vitest`
+ven un import roto de una ruta de Next, y eso rompe el deploy. Nota de operación: el job corre
+`npx next typegen` **antes** de `tsc`, porque `next-env.d.ts` está en `.gitignore` y sin él `tsc` falla
+con TS2307 en los imports de imágenes de la landing — pasa en local (donde el archivo existe de un
+build anterior) y revienta en CI, que arranca limpio.
 
 ### [7.2] ❌ NO CUMPLE (facturación/cartera) — Integrada
 
