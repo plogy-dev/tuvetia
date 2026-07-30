@@ -7,6 +7,7 @@ ya tiene transcript del que partir.
 
 `clinic_id` siempre explícito: el microservicio usa service_role y se salta RLS.
 """
+import logging
 import os
 from typing import Any
 
@@ -16,17 +17,22 @@ from psycopg.types.json import Json
 
 from app.config import get_settings
 from app.db import fetch_all, get_conn
+from app.speaker_roles import infer_vet_speaker, label_for
+
+log = logging.getLogger(__name__)
 
 DEEPGRAM_URL = "https://api.deepgram.com/v1/listen"
 AUDIO_BUCKET = "consultation-audios"
 
 # Etiquetas que entiende el parser del front (`parseTranscript` en
 # dashboard/consultas/[id]/page.tsx): "Veterinario:" y "Titular:".
-# HEURÍSTICA: Deepgram devuelve índices de hablante (0,1,...), no roles. Asumimos que
-# el hablante 0 es el veterinario (normalmente inicia la consulta). Los segmentos crudos
-# quedan en `transcripts.segments`, así que si la UI luego permite intercambiar roles,
-# el dato original no se pierde.
-SPEAKER_LABELS = {0: "Veterinario", 1: "Titular"}
+#
+# Deepgram devuelve índices de hablante (0, 1, ...), no roles. Hasta el 2026-07-29 se asumía que el
+# hablante 0 era el veterinario "porque normalmente inicia la consulta" — y es falso: el dueño suele
+# abrir ("Doctor, mi perro no come"), así que **el diálogo entero salía invertido** (§4.6a de la
+# auditoría). Ahora el rol se infiere del CONTENIDO (`app/speaker_roles.py`, determinístico) y esta
+# convención queda sólo como respaldo para cuando no hay señal suficiente.
+FALLBACK_SPEAKER_LABELS = {0: "Veterinario", 1: "Titular"}
 
 
 def _settings_value(name: str, env: str, default: str = "") -> str:
@@ -88,9 +94,12 @@ def _call_deepgram(audio: bytes, mime: str = "audio/webm") -> dict[str, Any]:
 
 
 def build_segments(payload: dict[str, Any]) -> list[dict[str, Any]]:
-    """Agrupa las palabras de Deepgram en turnos por hablante.
+    """Agrupa las palabras de Deepgram en turnos por hablante y les asigna el ROL.
 
-    Devuelve [{speaker, label, start, end, text}]. Función pura -> testeable sin red.
+    Devuelve [{speaker, label, role_inferred, start, end, text}]. Función pura -> testeable sin red.
+
+    El rol se infiere del contenido en una segunda pasada, cuando ya está el texto completo de cada
+    hablante: un marcador aislado no debe decidir por todo el diálogo.
     """
     try:
         alt = payload["results"]["channels"][0]["alternatives"][0]
@@ -107,11 +116,25 @@ def build_segments(payload: dict[str, Any]) -> list[dict[str, Any]]:
         else:
             segments.append({
                 "speaker": speaker,
-                "label": SPEAKER_LABELS.get(speaker, f"Hablante {speaker + 1}"),
                 "start": w.get("start", 0.0),
                 "end": w.get("end", 0.0),
                 "text": text,
             })
+    if not segments:
+        return []
+
+    vet, confiable = infer_vet_speaker(segments)
+    hablantes = len({s["speaker"] for s in segments})
+    for s in segments:
+        if confiable:
+            s["label"] = label_for(s["speaker"], vet, hablantes)
+        else:
+            # Sin señal: se conserva la convención anterior, pero marcada como NO inferida para que
+            # la UI pueda ofrecer el intercambio manual sabiendo que es una suposición.
+            s["label"] = FALLBACK_SPEAKER_LABELS.get(s["speaker"], f"Hablante {s['speaker'] + 1}")
+        s["role_inferred"] = confiable
+    if not confiable:
+        log.info("transcripción: roles NO inferidos (sin marcadores claros); se usó la convención")
     return segments
 
 
