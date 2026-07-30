@@ -2,6 +2,7 @@
 import json
 
 import app.chat as chat
+import app.generation.provider_cascade as pc
 from app.chat import _cited_from_answer, _format_numbered, _thread_history, stream_answer
 from app.generation.evidence_judge import ABSTAIN_MESSAGE, EvidenceVerdict
 from app.models import (EVIDENCE_LIMITED, EVIDENCE_NONE, EVIDENCE_SUFFICIENT, PatientContext,
@@ -102,7 +103,9 @@ def test_stream_answer_inyecta_memoria_y_loguea_ambos_roles(monkeypatch):
             captured["user"] = user
             yield "Compatible con X [1]."
 
-    monkeypatch.setattr(chat, "LLMClient", FakeLLM)
+    # El chat genera vía `ProviderCascade`, que resuelve el cliente en SU módulo: parchear
+    # `chat.LLMClient` ya no lo intercepta y la prueba saldría a la red de verdad.
+    monkeypatch.setattr(pc, "LLMClient", FakeLLM)
 
     events = list(stream_answer("nueva pregunta", "luna", "clinic-a"))
 
@@ -143,7 +146,7 @@ def _run_chat(monkeypatch, *, verdict=None, tokens=("Compatible con gastritis [1
         def stream(self, system, user, max_tokens=1500, history=None):
             yield from tokens
 
-    monkeypatch.setattr(chat, "LLMClient", llm or FakeLLM)
+    monkeypatch.setattr(pc, "LLMClient", llm or FakeLLM)
     events = [json.loads(e[len("data: "):]) for e in stream_answer("¿qué hago?", "luna", "clinic-a")]
     return events, logged
 

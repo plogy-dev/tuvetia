@@ -32,8 +32,12 @@ class _FakeLLM:
 
 
 def _patch_llm(monkeypatch, raw):
-    """El juez importa LLMClient perezosamente desde app.generation.llm_client: se parchea ahí."""
-    import app.generation.llm_client as mod
+    """El juez genera vía `ProviderCascade`, que resuelve el cliente en SU módulo: se parchea ahí.
+
+    Antes se parcheaba `app.generation.llm_client` y funcionaba porque el juez lo importaba
+    directo. Al pasar por la cascada ese parche dejó de interceptar y las pruebas salían a la red.
+    """
+    import app.generation.provider_cascade as mod
     monkeypatch.setattr(mod, "LLMClient", _FakeLLM(raw))
 
 
@@ -100,7 +104,7 @@ def test_judge_sin_literatura_abstiene_sin_llamar_al_llm(monkeypatch):
     """No hay nada que leer: la abstención es determinística y no cuesta un token."""
     def _boom(*a, **k):
         raise AssertionError("no debe llamar al LLM sin literatura")
-    import app.generation.llm_client as mod
+    import app.generation.provider_cascade as mod
     monkeypatch.setattr(mod, "LLMClient", _boom)
     v = judge_evidence("q", [])
     assert v.abstains and v.judged is True
@@ -113,7 +117,7 @@ def test_judge_error_del_proveedor_falla_abierto(monkeypatch):
 
         def complete(self, *a, **k):
             raise RuntimeError("HTTP 503")
-    import app.generation.llm_client as mod
+    import app.generation.provider_cascade as mod
     monkeypatch.setattr(mod, "LLMClient", _Boom)
     v = judge_evidence("q", _chunks())
     assert v.band == EVIDENCE_SUFFICIENT and v.judged is False and v.abstains is False
@@ -142,7 +146,7 @@ def test_judge_apagado_no_llama_al_llm(monkeypatch):
     monkeypatch.setattr(ej.get_settings(), "judge_enabled", False)
     def _boom(*a, **k):
         raise AssertionError("el juez está apagado: no debe llamar al LLM")
-    import app.generation.llm_client as mod
+    import app.generation.provider_cascade as mod
     monkeypatch.setattr(mod, "LLMClient", _boom)
     v = judge_evidence("q", _chunks())
     assert v.band == EVIDENCE_SUFFICIENT and v.judged is False

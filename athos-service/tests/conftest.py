@@ -87,3 +87,31 @@ def seeded_tenants(require_db) -> dict:
     with get_conn() as conn, conn.cursor() as cur:
         cur.execute("delete from public.clinics where id in (%s,%s)", (CLINIC_A, CLINIC_B))
         conn.commit()
+
+
+@pytest.fixture(autouse=True)
+def _sin_red(monkeypatch, request):
+    """Ninguna prueba sale a internet. Falla ruidosamente si alguna lo intenta.
+
+    Existe porque el fallo contrario es SILENCIOSO y ya ocurrió tres veces el 2026-07-30: al meter
+    `ProviderCascade` entre el codigo y `LLMClient`, los mocks que parcheaban el modulo viejo dejaron
+    de interceptar y varias pruebas empezaron a llamar a la API de verdad. Pasaban igual (o fallaban
+    por una razon confusa) y la suite tardaba el doble. Un mock que dejo de aplicar tiene que dar un
+    error claro, no una factura.
+
+    Para una prueba que SI deba salir a la red: marcarla con `@pytest.mark.red`.
+    """
+    if request.node.get_closest_marker("red"):
+        return
+
+    def bloqueado(*a, **k):
+        raise AssertionError(
+            "Esta prueba intento una llamada HTTP real. Casi seguro un mock dejo de aplicar: "
+            "revisa en que modulo se resuelve el cliente (p. ej. `provider_cascade.LLMClient`, "
+            "no `llm_client.LLMClient`). Si la llamada es intencional, marca la prueba con "
+            "@pytest.mark.red."
+        )
+
+    import httpx
+    monkeypatch.setattr(httpx.Client, "send", bloqueado)
+    monkeypatch.setattr(httpx.AsyncClient, "send", bloqueado)

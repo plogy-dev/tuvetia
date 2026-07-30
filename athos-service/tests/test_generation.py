@@ -2,6 +2,7 @@
 import json
 
 import app.generation.generate as gen
+import app.generation.provider_cascade as pc
 from app.generation.generate import build_note_prompt, parse_note_response, generate_note
 from app.models import PatientContext, RetrievedChunk
 
@@ -50,7 +51,7 @@ def test_generate_note_con_llm_mockeado(monkeypatch, sample_chunks):
                        "source": "PubMed"}],
         "allergy_transcript_flag": False,
     })
-    monkeypatch.setattr(gen.LLMClient, "complete",
+    monkeypatch.setattr(pc.LLMClient, "complete",
                         lambda self, system, user, max_tokens=2000: canned)
     soap, cites, flag = generate_note("el perro vomita", sample_chunks, _patient(), ["pollo"])
     assert soap.subjective == "vómito agudo"
@@ -65,7 +66,7 @@ def test_generate_note_backstop_rescata_flag_que_el_modelo_pierde(monkeypatch, s
         "soap": {"assessment": "compatible con gastroenteritis aguda"},
         "citations": [], "allergy_transcript_flag": False,   # el modelo la pierde (flaky)
     })
-    monkeypatch.setattr(gen.LLMClient, "complete",
+    monkeypatch.setattr(pc.LLMClient, "complete",
                         lambda self, system, user, max_tokens=2000: canned)
     transcript = "vomito y diarrea; ojo: alergia severa a la penicilina, evitar betalactamicos"
     _, _, flag = generate_note(transcript, sample_chunks, _patient(), [])
@@ -84,7 +85,7 @@ def test_generate_note_reintenta_cuando_el_modelo_devuelve_basura(monkeypatch, s
     })
     respuestas = iter(["lo siento, no puedo", buena])
 
-    monkeypatch.setattr(gen.LLMClient, "complete",
+    monkeypatch.setattr(pc.LLMClient, "complete",
                         lambda self, system, user, max_tokens=2000: next(respuestas))
     soap, _cites, _flag = generate_note("el perro vomita", sample_chunks, _patient(), [])
     assert soap.assessment == "compatible con Y"
@@ -97,7 +98,7 @@ def test_generate_note_no_devuelve_nota_vacia_en_silencio(monkeypatch, sample_ch
     inserta la nota en la historia clinica con status='draft'. El veterinario abre la consulta y
     encuentra un borrador en blanco que no distingue entre "Athos fallo" y "no habia nada que decir".
     """
-    monkeypatch.setattr(gen.LLMClient, "complete",
+    monkeypatch.setattr(pc.LLMClient, "complete",
                         lambda self, system, user, max_tokens=2000: "no es JSON ni lo sera")
     try:
         generate_note("el perro vomita", sample_chunks, _patient(), [])
@@ -117,7 +118,7 @@ def test_generate_note_acepta_system_prompt_alternativo(monkeypatch, sample_chun
         vistos.append(system)
         return canned
 
-    monkeypatch.setattr(gen.LLMClient, "complete", fake)
+    monkeypatch.setattr(pc.LLMClient, "complete", fake)
     generate_note("x", sample_chunks, _patient(), [], system_prompt="PROMPT DE PRUEBA")
     assert vistos == ["PROMPT DE PRUEBA"]
 

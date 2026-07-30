@@ -122,12 +122,14 @@ def judge_evidence(question: str, chunks: list[RetrievedChunk]) -> EvidenceVerdi
     if not s.judge_enabled:
         return OPEN_VERDICT
     # Import perezoso (evita ciclos y el costo de importar el SDK cuando el juez está apagado).
-    from app.generation.llm_client import LLMClient
+    from app.generation.provider_cascade import LIVIANO, ProviderCascade
     from app.retrieval.query_builder import _extract_json
 
     t0 = time.monotonic()
     try:
-        raw = LLMClient(model=s.judge_model_name).complete(
+        # Cascada entre proveedores: si el primario cae, juzga la alternativa en vez de
+        # fallar abierto (que sería responder sin verificar la cobertura).
+        raw = ProviderCascade(LIVIANO, model=s.judge_model_name).complete(
             JUDGE_SYSTEM, _build_prompt(question, chunks, s.judge_passages),
             max_tokens=JUDGE_MAX_TOKENS)
         data = _extract_json(raw) or {}

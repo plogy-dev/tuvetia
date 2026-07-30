@@ -13,7 +13,7 @@ import re
 
 from app.generation.allergy_gate import transcript_mentions_allergy
 from app.generation.citations import verify_citations
-from app.generation.llm_client import LLMClient
+from app.generation.provider_cascade import REDACCION, ProviderCascade
 from app.models import SOAP, Citation, PatientContext, RetrievedChunk
 
 log = logging.getLogger(__name__)
@@ -189,7 +189,9 @@ def generate_note(transcript: str, literature: list[RetrievedChunk], patient: Pa
     for intento in (1, 2):
         # La nota SOAP + citas puede ser larga; 2000 truncaba el JSON (stop_reason=max_tokens) y el
         # parseo caía a una nota vacía. 4000 da margen para que el JSON cierre completo.
-        text = LLMClient().complete(system, user, max_tokens=4000)
+        # Cascada entre proveedores: si el primario se cae, responde la alternativa.
+        # Sin `LLM_CASCADE_REDACCION` configurado se comporta igual que `LLMClient()`.
+        text = ProviderCascade(REDACCION).complete(system, user, max_tokens=4000)
         soap, citations, model_flag = parse_note_response(text, literature)
         if soap.subjective.strip() or soap.objective.strip() or soap.assessment.strip():
             break

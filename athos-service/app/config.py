@@ -21,6 +21,27 @@ class Settings(BaseSettings):
     llm_model: str = "claude-sonnet-5"
     llm_light_model: str = "claude-haiku-4-5"
     llm_api_key: str = ""
+
+    # --- Gemini (Google). Key y base URL propias para que convivan con el proveedor primario sin
+    # pisarle las variables: hoy el primario es DeepSeek y Gemini entra como alternativa. ---
+    gemini_api_key: str = ""
+    gemini_base_url: str = ""              # vacío -> el endpoint OpenAI-compatible por defecto
+    gemini_model: str = "gemini-3.6-flash"
+    gemini_light_model: str = "gemini-2.5-flash-lite"
+
+    # --- CASCADA ENTRE PROVEEDORES (cláusula 1.4) y ROUTING (1.5) ---
+    # ⚠️ NO confundir con `app/retrieval/cascade.py`, que es la cascada de RECUPERACIÓN de documentos
+    # y no tiene nada que ver: son cosas distintas con nombre parecido, y la auditoría lo señala.
+    #
+    # Formato: "modelo@proveedor,modelo@proveedor,..." en orden de preferencia. El primero es el que
+    # atiende; los siguientes SÓLO se usan si el anterior falla. Vacío = comportamiento de siempre
+    # (un único proveedor, sin alternativas), así que apagar esto devuelve el sistema exactamente a
+    # como estaba. Ejemplo: "deepseek-v4-flash@openai,gemini-3.6-flash@google".
+    llm_cascade_redaccion: str = ""        # chat y nota del Fantasma
+    llm_cascade_liviano: str = ""          # A->B, juez de evidencia, auditores
+    # Tope de intentos por si alguien configura una lista larga: acota la latencia del peor caso.
+    llm_cascade_max_intentos: int = 3
+
     embedding_provider: str = "cohere"
     embedding_model: str = "embed-v4.0"
     embedding_dim: int = 1024

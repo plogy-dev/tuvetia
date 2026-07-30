@@ -18,7 +18,7 @@ from app.generation.dose_guard import (
     DOSE_NOTICE, patient_data_complete, redact_doses, split_safe_tail)
 from app.generation.evidence_judge import ABSTAIN_MESSAGE, LIMITED_NOTICE, judge_evidence
 from app.generation.generate import _MAX_CHUNK_CHARS
-from app.generation.llm_client import LLMClient
+from app.generation.provider_cascade import REDACCION, ProviderCascade
 from app.models import EVIDENCE_NONE, EVIDENCE_SUFFICIENT, Citation, PatientContext
 from app.patient_context import load_patient_context
 from app.retrieval.cascade import build_and_retrieve
@@ -279,7 +279,11 @@ def stream_answer(question: str, patient_id: str, clinic_id: str, user_id: str |
 
     stream = None
     try:
-        stream = LLMClient().stream(system, user, history=history, max_tokens=CHAT_MAX_TOKENS)
+        # Cascada entre proveedores: si el primario falla ANTES del primer token, responde la
+        # alternativa; si falla después, corta como cortaba antes (no se cosen dos respuestas).
+        # Sin `LLM_CASCADE_REDACCION` configurado se comporta igual que `LLMClient()`.
+        stream = ProviderCascade(REDACCION).stream(
+            system, user, history=history, max_tokens=CHAT_MAX_TOKENS)
         for tok in stream:
             parts.append(tok)
             if decided:
