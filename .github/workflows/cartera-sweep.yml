@@ -1,0 +1,46 @@
+# Barrido de cartera + lectura de correo, cada 15 minutos.
+#
+# POR QUÉ EXISTE: el plan Hobby de Vercel permite 2 crons con disparo DIARIO, y los 2 cupos están
+# usados (purge-audio y cartera a las 9:00). Con solo el cron diario, una respuesta por correo del
+# cliente se procesaba una vez al día. Este workflow le pega al MISMO endpoint cada 15 minutos —
+# la salida sin costo que quedó anotada cuando se decidió Hobby. No toca código: el endpoint ya es
+# idempotente y el gate de la Ley 2300 decide si se puede contactar, no el disparador.
+#
+# VENTANA: solo 12:00–23:45 UTC = 7:00–18:45 en Colombia (la ventana legal de contacto es 7–19).
+# Fuera de esa franja el gate reprograma todo de todas formas: dispararlo sería ruido sin efecto.
+# El cron diario de Vercel (14:00 UTC) sigue existiendo como respaldo si GitHub tuviera una pausa —
+# los schedules de Actions no tienen SLA y en repos sin actividad se desactivan a los 60 días.
+#
+# REQUIERE: el secreto CRON_SECRET en Settings → Secrets and variables → Actions, con el MISMO
+# valor que la env de Vercel. Sin él, el job falla con mensaje claro (no en silencio).
+name: Cartera sweep
+
+on:
+  schedule:
+    - cron: "*/15 12-23 * * *"
+  workflow_dispatch: {}
+
+concurrency:
+  group: cartera-sweep
+  cancel-in-progress: false # un barrido en curso se termina; el próximo tick espera
+
+jobs:
+  sweep:
+    runs-on: ubuntu-latest
+    steps:
+      - name: barrido
+        env:
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+        run: |
+          if [ -z "$CRON_SECRET" ]; then
+            echo "::error::Falta el secreto CRON_SECRET en GitHub Actions (Settings → Secrets → Actions). Debe ser el mismo valor que la env de Vercel."
+            exit 1
+          fi
+          # --fail-with-body: si el endpoint responde 4xx/5xx el job sale rojo Y muestra el cuerpo
+          # (que trae el motivo: zona horaria abortada, error de una clínica, etc.).
+          # 2 reintentos con backoff para hipos de red — no para errores de la app.
+          curl --silent --show-error --fail-with-body \
+            --retry 2 --retry-delay 10 \
+            --max-time 300 \
+            -H "Authorization: Bearer $CRON_SECRET" \
+            https://tuvetia.vercel.app/api/cron/cartera
