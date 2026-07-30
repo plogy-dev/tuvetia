@@ -29,6 +29,12 @@ class LLMClient:
             # DeepSeek y Gemini convivir como alternativa sin pisarle las variables.
             self.api_key = api_key if api_key is not None else s.gemini_api_key
             self.base_url = (base_url or s.gemini_base_url or GOOGLE_BASE_URL).rstrip("/")
+        elif self.provider == "anthropic":
+            # Key propia si existe; si no, la general (que es como funcionaba cuando anthropic era el
+            # primario). Sin esto, usar Claude como ALTERNATIVA de la cascada intentaria autenticarse
+            # con la key de DeepSeek y fallaria en el 100% de los casos.
+            self.api_key = api_key if api_key is not None else (s.anthropic_api_key or s.llm_api_key)
+            self.base_url = (base_url if base_url is not None else s.llm_base_url).rstrip("/")
         else:
             self.api_key = api_key if api_key is not None else s.llm_api_key
             self.base_url = (base_url if base_url is not None else s.llm_base_url).rstrip("/")

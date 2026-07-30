@@ -22,6 +22,12 @@ class Settings(BaseSettings):
     llm_light_model: str = "claude-haiku-4-5"
     llm_api_key: str = ""
 
+    # Key propia de Anthropic. Si esta vacia cae a `llm_api_key`, que es como funcionaba cuando
+    # anthropic era el proveedor primario. Hace falta separarla para que la CASCADA pueda usar
+    # Claude como alternativa mientras el primario sigue siendo DeepSeek: si no, la rama de
+    # Anthropic intentaria autenticarse con la key de DeepSeek y fallaria siempre.
+    anthropic_api_key: str = ""
+
     # --- Gemini (Google). Key y base URL propias para que convivan con el proveedor primario sin
     # pisarle las variables: hoy el primario es DeepSeek y Gemini entra como alternativa. ---
     gemini_api_key: str = ""
