@@ -1,0 +1,164 @@
+[
+ {
+  "id": "neg-monieziasis",
+  "mesh_target": "Monieziasis",
+  "especie": "bovino",
+  "query": "Veterinario: Buenas, ¿qué le pasa a la vaquillona? Dueño: Doctora, la veo flaca, come bien pero no engorda, y a veces tiene diarrea. Veterinario: ¿Las heces tienen algo raro, como segmentos blancos o gelatinosos? Dueño: Sí, justo, como arrocito blanco o pequeños gusanos planos. Veterinario: Podría ser monieziasis, una parasitosis intestinal por tenias. Posiblemente haya pasto contaminado en el potrero. Dueño: ¿Es grave? ¿Se contagia a los otros? Veterinario: No es de emergencia, pero puede retrasar el crecimiento. Se contagia si comen pasto con ácaros infectados. Dueño: ¿Cómo se trata? Veterinario: Usamos un antiparasitario específico, como praziquantel o albendazol. Además, rotar el pastoreo ayuda a prevenirlo.",
+  "negativo": true,
+  "arbitro_puntaje": 0,
+  "validado": "2026-07-29"
+ },
+ {
+  "id": "neg-ectromelia-infectious",
+  "mesh_target": "Ectromelia, Infectious",
+  "especie": "ratón",
+  "query": "Veterinario: Buenas tardes, ¿qué le pasa a este ratoncito?\nDueño: Hola, doctor. Noté que una de sus patitas delanteras está como hinchada y no la mueve bien.\nVeterinario: Ya veo. ¿Cuándo empezó esto?\nDueño: Hace unos tres días. También vi que tiene una heridita en el mismo lugar.\nVeterinario: Entiendo. Al examinar, la pata está inflamada y hay una pequeña úlcera. Podría tratarse de una infección viral que afecta los huesos y la piel.\nDueño: ¿Viral? ¿Es algo grave?\nVeterinario: Es posible que sea una enfermedad poco común en roedores, que causa inflamación y, a veces, pérdida de la extremidad. Sujeta a que los análisis confirmen, podría ser un virus de la familia poxvirus.\nDueño: Ay, doctor, ¿se va a curar?\nVeterinario: Depende del diagnóstico exacto. Si es lo que sospecho, el pronóstico es reservado, pero podemos darle tratamiento de soporte y evitar que se propague a otros ratones en su hogar.",
+  "negativo": true,
+  "arbitro_puntaje": 0,
+  "validado": "2026-07-29"
+ },
+ {
+  "id": "neg-encephalomyelitis-enzootic-porcine",
+  "mesh_target": "Encephalomyelitis, Enzootic Porcine",
+  "especie": "cerdo",
+  "query": "Veterinario: Buen día, ¿qué le pasa a este lechón? Dueño: Doctor, desde ayer lo veo raro, como que no camina bien y a veces se cae solo. Veterinario: Entiendo. ¿Ha notado si tiene fiebre o se le para el pelo de punta? Dueño: Sí, se le eriza el lomo y está caliente, como con temblores. Veterinario: Puede ser un problema neurológico. A veces, en cerdos jóvenes, se presenta una inflamación en el sistema nervioso que afecta el movimiento. Dueño: ¿Y eso se cura? Porque otro lechón de la misma camada amaneció muerto ayer. Veterinario: Es posible que sea algo contagioso. Por lo que veo, hay debilidad en las patas traseras y descoordinación. Lo más probable es que sea una encefalitis de origen viral. Dueño: ¿Qué hago? ¿Le doy antibiótico? Veterinario: No, eso no sirve contra virus. Lo mejor es aislarlo, mantenerlo hidratado y evitar que se golpee. Voy a tomar muestras para confirmar.",
+  "negativo": true,
+  "arbitro_puntaje": 0,
+  "validado": "2026-07-29"
+ },
+ {
+  "id": "neg-fascioloidiasis",
+  "mesh_target": "Fascioloidiasis",
+  "especie": "bovinos",
+  "query": "Veterinario: Buen día, don Carlos. ¿Qué le pasa a esta vaquillona? Dueño: Doctora, la noto muy flaca, come poco y a veces parece que le duele la panza. Veterinario: Entiendo. ¿Notó si el pelo está opaco o si tiene diarrea? Dueño: Sí, el pelaje está medio áspero y hace días que bolea líquido verde, no es constante pero sí seguido. Veterinario: Puede ser un problema de parásitos internos, específicamente en el hígado. ¿Usted tiene potreros bajos y húmedos donde pastorea el ganado? Dueño: Sí, ahí donde hay juncos y una lagunita, ella y otras vacas pastan todo el día. Veterinario: Justamente ahí suele haber un caracol que transmite un parásito que se instala en el hígado. La flacura y la diarrea son compatibles con eso. Dueño: ¿Y es grave? ¿Se puede curar? Veterinario: Con medicación antiparasitaria específica y sacándolas de ese potrero por unos meses, suele mejorar. Pero necesitan análisis de heces o ver el hígado en la faena para confirmarlo. Dueño: Dale, hacemos lo que diga. Tráigame la receta y arreglamos el alambrado de la laguna. Veterinario: Perfecto, le preparo el tratamiento y lo aconsejo sobre el manejo de pasturas.",
+  "negativo": true,
+  "arbitro_puntaje": 1,
+  "validado": "2026-07-29"
+ },
+ {
+  "id": "neg-pneumonia-atypical-interstitial-of-cattle",
+  "mesh_target": "Pneumonia, Atypical Interstitial, of Cattle",
+  "especie": "bovino",
+  "query": "Veterinario: Buen día, cuénteme qué le pasa a esta vaca.\nDueño: Doctor, desde hace unos días la noto muy decaída, respira con dificultad y no quiere comer.\nVeterinario: Entiendo. ¿Ha tenido fiebre o ha visto si babea o tose?\nDueño: Sí, parece que tiene fiebre, y a veces tose como seca. También babea un poquito.\nVeterinario: Bien. Al auscultarla oigo ruidos anormales en los pulmones. Esto podría ser una neumonía de tipo atípica, que a veces se da en bovinos por causas infecciosas o ambientales.\nDueño: ¿Y eso es grave? ¿Se puede curar?\nVeterinario: Depende de la causa. Podría ser por bacterias, virus o incluso hongos. Necesitamos hacer análisis para saber. Por ahora le daré medicamentos para la inflamación y antibióticos de amplio espectro, pero hay que monitorearla.\nDueño: ¿Hay algo que yo pueda hacer en el corral?\nVeterinario: Mantenga el lugar limpio y seco, evite el polvo y el amoníaco. Asegúrese de que tenga agua fresca y sombra. Si empeora, llámeme de inmediato.",
+  "negativo": true,
+  "arbitro_puntaje": 2,
+  "validado": "2026-07-29"
+ },
+ {
+  "id": "neg-setariasis",
+  "mesh_target": "Setariasis",
+  "especie": "bovino",
+  "query": "Veterinario: Buenos días, ¿qué le preocupa de este animal?\nDueño: Es que el toro está como medio atontado, voltea en círculos y no come bien. A veces lo veo como si perdiera el equilibrio.\nVeterinario: Entiendo. ¿Notó algo raro en sus ojos o en la cabeza?\nDueño: Sí, hace unos días tenía los ojos como vidriosos y lagrimeaban. Pensé que era conjuntivitis, pero no mejoró con la pomada.\nVeterinario: Puede ser que haya una migración parasitaria hacia el sistema nervioso. ¿Recibió algún antiparasitario recientemente?\nDueño: No, señor. Solo le ponemos sal con minerales.\nVeterinario: Podría tratarse de setariasis, una infestación por nematodos que afecta el cerebro o la médula. ¿Hay otros animales con síntomas similares?\nDueño: No, solo él. ¿Es grave?\nVeterinario: Puede llegar a serlo si no intervenimos. Le sugiero un análisis de líquido cefalorraquídeo para confirmar y luego un tratamiento con ivermectina o levamisol. ¿Le parece?\nDueño: Sí, doctor. Hagamos lo que sea necesario.",
+  "negativo": true,
+  "arbitro_puntaje": 2,
+  "validado": "2026-07-29"
+ },
+ {
+  "id": "neg-brachial-plexus-neuropathies",
+  "mesh_target": "Brachial Plexus Neuropathies",
+  "especie": "perro",
+  "query": "Veterinario: Hola, buenos días. ¿Qué le pasa a Toby?\nDueño: Buenos días, doctor. Desde ayer, Toby no apoya bien la pata delantera derecha. Como que la arrastra.\nVeterinario: Ya veo. ¿Notó si tiene dolor al tocarle el cuello o el hombro?\nDueño: No, no parece que le duela. Pero la pata está como colgando, y a veces tropieza.\nVeterinario: Entiendo. Podría ser un problema en los nervios que van al brazo, algo llamado neuropatía del plexo braquial. Vamos a revisar los reflejos y la sensibilidad.\nDueño: ¿Qué puede haberle pasado? No se golpeó ni nada.\nVeterinario: A veces es por un trauma leve, movimiento brusco o incluso una inflamación. No parece tener fractura. Lo noto con pérdida de reflejo en el miembro.\nDueño: ¿Tiene tratamiento? ¿Podrá volver a caminar bien?\nVeterinario: Posiblemente sí. Depende del grado de lesión. Le recetaré antiinflamatorios y terapia física. En unos días veremos si mejora.",
+  "negativo": true,
+  "arbitro_puntaje": 3,
+  "validado": "2026-07-29"
+ },
+ {
+  "id": "neg-granuloma-pyogenic",
+  "mesh_target": "Granuloma, Pyogenic",
+  "especie": "perro",
+  "query": "Veterinario: Hola, cuénteme qué le pasa a su perro.\nDueño: Doctor, tiene una bolita roja en la pata que no se le va, ya lleva como dos semanas.\nVeterinario: ¿Ha estado lamiéndose mucho esa zona?\nDueño: Sí, todo el tiempo, y a veces sangra un poco.\nVeterinario: Al tacto se siente firme, como una masa pequeña, y tiene una superficie húmeda y enrojecida. Podría tratarse de un granuloma piógeno, que es una reacción inflamatoria por lamido excesivo.\nDueño: ¿Es algo grave? ¿Puede ser cáncer?\nVeterinario: No parece un tumor maligno, pero por el aspecto y la historia, lo más probable es que sea un granuloma. Le recomendaría tomar una muestra para confirmar.\nDueño: ¿Y se cura con algo?\nVeterinario: Sí, generalmente responde bien a limpieza, antibióticos tópicos y evitar que se lama, aunque a veces requiere cirugía menor.",
+  "negativo": true,
+  "arbitro_puntaje": 3,
+  "validado": "2026-07-29"
+ },
+ {
+  "id": "neg-brain-diseases-metabolic-inborn",
+  "mesh_target": "Brain Diseases, Metabolic, Inborn",
+  "especie": "perro",
+  "query": "Veterinario: Buenos días, cuénteme qué le pasa a su perro. Dueño: Hola, doctor. Desde hace unos días, mi perro está como atontado, choca contra las cosas y a veces se queda mirando el vacío. Veterinario: Entiendo. ¿Ha notado si come o bebe menos de lo normal? Dueño: Sí, come poco, pero bebe mucha agua. Y orina más seguido. Veterinario: Eso puede indicar un problema metabólico. ¿Ha tenido episodios de desorientación o de caminar en círculos? Dueño: Sí, varias veces. Una vez se cayó de lado y no podía levantarse. Veterinario: ¿Hay algo en su alimentación o algún cambio reciente? Dueño: No, siempre come el mismo alimento balanceado. Pero el año pasado le diagnosticaron algo en el hígado. Veterinario: Ya veo. Con esos síntomas y antecedentes, podría tratarse de una encefalopatía hepática o un trastorno metabólico congénito. Vamos a hacer análisis de sangre y orina para confirmarlo.",
+  "negativo": true,
+  "arbitro_puntaje": 0,
+  "validado": "2026-07-29"
+ },
+ {
+  "id": "neg-sparganosis",
+  "mesh_target": "Sparganosis",
+  "especie": "perro",
+  "query": "Veterinario: Hola, ¿qué le pasa a su perro? Dueño: Doctor, tiene como una hinchazón extraña en la pata, y a veces se lame mucho. Veterinario: Mmm, veo una masa blanda debajo de la piel, como si hubiera un nódulo. Puede ser un quiste o algo que se haya movido internamente. ¿Ha notado que la zona cambia de tamaño o se desplaza? Dueño: Sí, a veces parece más grande y luego se achica. También ha perdido un poco de pelo alrededor. Veterinario: Entiendo. Esto podría ser una reacción a un parásito que migra en los tejidos, como una forma de tenia que no es común aquí. Tendríamos que tomar una muestra para descartar una infección o una larva enquistada. Dueño: ¿Es grave? Veterinario: Generalmente no es emergencia, pero hay que tratar la causa para evitar que se disemine. Le sugiero hacer una ecografía o una biopsia del nódulo para confirmar. Dueño: De acuerdo, hagamos eso.",
+  "negativo": true,
+  "arbitro_puntaje": 0,
+  "validado": "2026-07-29"
+ },
+ {
+  "id": "neg-cystadenocarcinoma-papillary",
+  "mesh_target": "Cystadenocarcinoma, Papillary",
+  "especie": "perro",
+  "query": "Veterinario: Hola, buenos días. ¿Qué le pasa a su perrita? Dueño: Doctora, tiene como un bultito en el abdomen, justo debajo de la piel, y ha crecido bastante rápido. Veterinario: Ya veo. ¿Notó si le molesta al tocarlo? Dueño: No parece dolerle, pero al palparlo se siente como una masa firme, con varias partes como pequeñas bolitas. Veterinario: Entiendo. ¿Ha tenido alguna cirugía previa o algún otro problema de salud? Dueño: No, está sana, solo tuvo sus crías hace un año. Veterinario: Bien, lo que describo podría tratarse de una masa de tipo papilar, quizás un cistoadenocarcinoma, que son tumores que a veces se forman en glándulas o tejido ovárico. Es posible que sea benigno o maligno, necesitaríamos una ecografía y una biopsia para saberlo. Dueño: ¿Y qué tan grave es? Veterinario: Si es maligno, puede diseminarse, pero con cirugía temprana muchas veces se resuelve. Primero confirmemos con los estudios.",
+  "negativo": true,
+  "arbitro_puntaje": 2,
+  "validado": "2026-07-29"
+ },
+ {
+  "id": "neg-priapism",
+  "mesh_target": "Priapism",
+  "especie": "perro",
+  "query": "Veterinario: Buenos días. Me comentan que Max tiene el pene erecto de forma continua desde hace varias horas, ¿es correcto?\nDueño: Sí, desde ayer a la tarde no se le baja. Está así todo el tiempo, se lame mucho y parece incómodo.\nVeterinario: Entiendo. ¿Notaron si orina con normalidad o si tiene dolor al hacerlo?\nDueño: Orina, pero más despacio, y a veces gime. También noté que el prepucio está como hinchado.\nVeterinario: Muy bien. Esto podría deberse a un priapismo, una erección prolongada sin estímulo sexual. Posiblemente haya un problema neurológico o vascular. ¿Ha tenido golpes en la zona lumbar o la cola?\nDueño: No que yo sepa. Solo se revolcó en el parque hace dos días.\nVeterinario: Vamos a revisar su próstata y hacer análisis de sangre para descartar infecciones o medicamentos que lo causen. También puede requerir sedación para aliviar la erección.",
+  "negativo": true,
+  "arbitro_puntaje": 6,
+  "validado": "2026-07-29"
+ },
+ {
+  "id": "neg-disease",
+  "mesh_target": "Disease",
+  "especie": "perro",
+  "query": "Veterinario: Buenos días, cuénteme, ¿qué le pasa a su perro?\nDueño: Hola, doctor. Desde hace unos días noto que está más decaído y no quiere comer.\nVeterinario: Entiendo. ¿Ha tenido vómitos o diarrea?\nDueño: Sí, ayer vomitó una vez y hoy tuvo diarrea líquida.\nVeterinario: ¿Ha notado si tiene fiebre o respira raro?\nDueño: No le he tomado temperatura, pero parece más caliente de lo normal y respira un poco rápido.\nVeterinario: Podría ser una infección o un problema gastrointestinal. Vamos a revisarlo: auscultaré su corazón y pulmones, y palparé su abdomen. ¿Está de acuerdo?\nDueño: Sí, doctor, por favor.",
+  "negativo": true,
+  "arbitro_puntaje": 2,
+  "validado": "2026-07-29"
+ },
+ {
+  "id": "neg-rheumatic-heart-disease",
+  "mesh_target": "Rheumatic Heart Disease",
+  "especie": "perro",
+  "query": "Veterinario: Hola, ¿cómo está Clif? Cuénteme qué le pasa.\nDueño: Hola, doctor. Últimamente lo noto como más cansado de lo normal. Después de pasear, se echa y jadea mucho.\nVeterinario: Entiendo. ¿Ha tosido en estos días? ¿O ha tenido algún desmayo?\nDueño: Sí, tose un poco, sobre todo en la noche. Pero desmayos no, solo una vez que se tambaleó, pero no sé si es por la edad.\nVeterinario: De acuerdo. Al auscultarlo, noto un soplo cardíaco, un ruido anormal, que podría deberse a una enfermedad de las válvulas del corazón. A veces, el sistema inmune puede inflamar esas válvulas, y eso afecta cómo bombea la sangre.\nDueño: ¿Inflamado? ¿Como una infección?\nVeterinario: Puede ser una respuesta del cuerpo, no necesariamente infecciosa. Con el tiempo, el corazón se cansa y produce tos y fatiga. Recomiendo una ecografía cardíaca para saber con certeza si hay cambios reumáticos en las válvulas.\nDueño: Ojalá no sea grave. ¿Se puede tratar?\nVeterinario: Sí, hay medicamentos que ayudan al corazón a trabajar mejor y a reducir la tos. Primero confirmemos con los estudios.",
+  "negativo": true,
+  "arbitro_puntaje": 0,
+  "validado": "2026-07-29"
+ },
+ {
+  "id": "neg-neoplasms-plasma-cell",
+  "mesh_target": "Neoplasms, Plasma Cell",
+  "especie": "perro",
+  "query": "Veterinario: Hola, ¿qué le pasa a Toby? Dueño: Bueno, tiene como un bulto en la encía que le creció rápido, como del tamaño de una uva, y últimamente come menos. Veterinario: Ya veo. Al palparlo, es blando y no duele, pero está ulcerado. Podría ser una masa reactiva, un tumor benigno o algo más agresivo, como un plasmocitoma. Dueño: ¿Plasmocitoma? ¿Eso es cáncer? Veterinario: Sí, es un tipo de tumor de células plasmáticas, pero en las encías suele ser local y no siempre se propaga. A veces son solitarios y responden bien a la cirugía. Dueño: ¿Y qué más podría ser si no es eso? Veterinario: Podría ser un granuloma o un épulis, pero la velocidad de crecimiento y la apariencia me hacen sospechar más de un plasmocitoma. Voy a tomar una muestra con aguja fina para analizarla. Dueño: ¿Duele mucho el procedimiento? Veterinario: No, es rápido y con anestesia local. Luego veremos si necesita extirpación completa. Dueño: Está bien, hagamos eso. Gracias por explicarme.",
+  "negativo": true,
+  "arbitro_puntaje": 2,
+  "validado": "2026-07-29"
+ },
+ {
+  "id": "neg-autism-spectrum-disorder",
+  "mesh_target": "Autism Spectrum Disorder",
+  "especie": "perro",
+  "query": "Veterinario: Hola, ¿cómo está? Cuénteme qué le pasa a su perro.\nDueño: Mire, doctor, mi perro siempre ha sido un poco raro. No juega con otros perros, solo se queda en una esquina mirando fijo, y le molestan mucho los ruidos fuertes.\nVeterinario: Ya veo, ¿y desde cuándo nota esto?\nDueño: Desde que era cachorro, parecía normal pero después empezó a evitar contacto con personas, y a veces da vueltas en círculos sin parar.\nVeterinario: ¿Ha notado si tiene alguna rutina muy fija, como comer siempre a la misma hora o hacer lo mismo cada día?\nDueño: Sí, exacto. Si cambio su horario de paseo, se estresa mucho y tiembla. También parece que no entiende órdenes, como si estuviera ausente.\nVeterinario: Podría tratarse de un trastorno del neurodesarrollo, algo similar al espectro autista en humanos. Es poco común en perros, pero he visto casos con estos patrones de comportamiento repetitivo y sensibilidad sensorial.\nDueño: ¿Y tiene tratamiento? Porque él es feliz a su manera, pero me preocupa si sufre.\nVeterinario: No es una enfermedad que se cure, pero podemos manejarlo con rutinas estrictas, evitar ruidos y consultar con un etólogo. La clave es no forzarlo socialmente.\nDueño: Gracias, doctor. Lo probaré.",
+  "negativo": true,
+  "arbitro_puntaje": 2,
+  "validado": "2026-07-29"
+ },
+ {
+  "id": "neg-primate-diseases",
+  "mesh_target": "Primate Diseases",
+  "especie": "perro",
+  "query": "Veterinario: Buenas tardes, cuénteme, ¿qué le pasa a Toby?\nDueño: Doctor, mi perro ha estado muy raro. Se rasca mucho la cabeza y tiene como unas costras cerca de los ojos.\nVeterinario: Ya veo. ¿Ha notado si ha tenido contacto con otros animales salvajes o primates, como monos?\nDueño: No, para nada. Solo sale al parque, pero nunca hemos visto algo así.\nVeterinario: Bien. Al examinarlo, veo que tiene lesiones cutáneas que podrían ser por un parásito o una infección, pero en perros es poco común asociarlo con enfermedades de primates. ¿Tiene fiebre o ha vomitado?\nDueño: Sí, anoche vomitó una vez y está más decaído.\nVeterinario: Es posible que sea una reacción alérgica o una dermatitis. Le tomaré muestras de las costras y un análisis de sangre. Podría ser algo que comparta con otros animales, pero en su caso, descartamos primates. Iniciaremos tratamiento para controlar el rascado y la infección.",
+  "negativo": true,
+  "arbitro_puntaje": 2,
+  "validado": "2026-07-29"
+ },
+ {
+  "id": "neg-tongue-diseases",
+  "mesh_target": "Tongue Diseases",
+  "especie": "perro",
+  "query": "Veterinario: Buenos días, ¿qué le pasa a Max? Noté que babea más de lo normal.\nDueño: Sí, doctor. Desde ayer no quiere comer bien y tiene como una especie de baba espesa. También se toca la boca con la pata.\nVeterinario: Entiendo. Al abrirle la boca noté que tiene la lengua un poco inflamada, con una capa blanquecina en la superficie. Podría tratarse de una infección o una irritación.\nDueño: ¿Será por algo que mordió? A veces agarra palos en el parque.\nVeterinario: Es posible. También podría ser una reacción alérgica o incluso una enfermedad autoinmune, aunque menos común. Le voy a tomar una muestra de esa placa para analizarla.\nDueño: ¿Duele mucho? ¿Es grave?\nVeterinario: No parece grave por ahora, pero hay que descartar infecciones bacterianas o fúngicas. Mientras tanto, le recetaré un enjuague suave y una dieta blanda. Si mejora en dos días, seguro fue solo una irritación.\nDueño: Bueno, confío en usted. ¿Puede ser contagioso para otros perros?\nVeterinario: Depende de la causa, pero en general estas lesiones de lengua no suelen ser contagiosas. Eso sí, evite que chupe objetos sucios.",
+  "negativo": true,
+  "arbitro_puntaje": 1,
+  "validado": "2026-07-29"
+ }
+]
