@@ -16,7 +16,7 @@ import {
   SidebarMenuButton,
   SidebarMenuItem,
 } from "@/components/ui/sidebar"
-import { LayoutDashboardIcon, UsersIcon, ContactIcon, CalendarIcon, MessageCircleIcon, Settings2Icon, CircleHelpIcon, BotIcon, GhostIcon } from "lucide-react"
+import { LayoutDashboardIcon, UsersIcon, ContactIcon, CalendarIcon, MessageCircleIcon, ReceiptIcon, Settings2Icon, CircleHelpIcon, BotIcon, GhostIcon } from "lucide-react"
 
 /* Glifo "chispa" de la marca Tuvetia (patrón del Sidebar del cliente). */
 function BrandGlyph({ className }: { className?: string }) {
@@ -70,6 +70,14 @@ const data = {
       url: "/dashboard/comunicaciones",
       icon: (
         <MessageCircleIcon
+        />
+      ),
+    },
+    {
+      title: "Facturación",
+      url: "/dashboard/facturacion",
+      icon: (
+        <ReceiptIcon
         />
       ),
     },

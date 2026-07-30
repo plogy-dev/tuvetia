@@ -468,6 +468,18 @@ export async function ingestRecipeAction(
   try {
     const { supabase, clinicId } = await requireClinic();
     const parsed = IngestSchema.parse(input);
+    // GUARDA (deuda xlsx documentada en ESTADO.md): kind='excel' es la ÚNICA rama que parsea el
+    // archivo con xlsx@0.18.5 en el SERVIDOR, y esa lib tiene prototype pollution + ReDoS sin fix
+    // en npm. La guarda vive ACÁ y no en la UI porque la server action es un endpoint público para
+    // cualquier autenticado: restringir el <input accept> no cierra nada. Imagen y texto (visión /
+    // modelo liviano, sin xlsx) siguen activos. Se levanta cuando se reemplace la lib.
+    if (parsed.kind === 'excel') {
+      return {
+        ok: false,
+        error:
+          'La importación desde Excel está deshabilitada temporalmente. Podés subir una foto de la receta o escribirla como texto.',
+      };
+    }
     const draft = await extractRecipeDraft(parsed);
     // Candidatos: ítems activos que NO son servicios (componentes de consumo).
     const items = await listCatalogItems(supabase, clinicId, {});

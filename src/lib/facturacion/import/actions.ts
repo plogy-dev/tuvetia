@@ -124,6 +124,22 @@ async function buildPreviewBatch(
 export async function createImportPreview(
   formData: FormData,
 ): Promise<ImportResult<PreviewPayload>> {
+  // GUARDA (deuda xlsx, ver ESTADO.md): esta es la ÚNICA action que parsea la planilla del usuario
+  // con xlsx@0.18.5 en el servidor (prototype pollution + ReDoS, sin fix en npm). Quedó registrada
+  // como endpoint al portar ImportBatchesList (importar CUALQUIER export de un módulo 'use server'
+  // registra TODAS sus actions), así que la guarda va acá adentro, antes de tocar el archivo.
+  // createImportPreviewFromCapture (foto/texto vía visión) y revertImport siguen activas — no usan
+  // xlsx. Constante de CÓDIGO y no flag de env, a propósito: un env permitiría rehabilitar el
+  // parser vulnerable sin reemplazar la lib. Se levanta editando esta línea cuando entre el parser
+  // seguro. (El `as boolean` evita que TS marque el resto como inalcanzable y pierda el narrowing.)
+  const XLSX_IMPORT_ENABLED = false as boolean;
+  if (!XLSX_IMPORT_ENABLED) {
+    return {
+      ok: false,
+      error:
+        'La importación desde Excel está deshabilitada temporalmente. Podés cargar el catálogo con una foto de la planilla (Importar con IA) o ítem por ítem.',
+    };
+  }
   try {
     const { supabase, clinicId, userId } = await requireClinic();
     const file = formData.get('file');
