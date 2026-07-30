@@ -10,6 +10,8 @@
 # Fuera de esa franja el gate reprograma todo de todas formas: dispararlo sería ruido sin efecto.
 # El cron diario de Vercel (14:00 UTC) sigue existiendo como respaldo si GitHub tuviera una pausa —
 # los schedules de Actions no tienen SLA y en repos sin actividad se desactivan a los 60 días.
+# CADENCIA REAL: aunque el cron pide */15, GitHub disparó ~1 vez cada 80 min el 2026-07-30 (6 ticks
+# donde tocaban ~32). "Cada 15 minutos" es el piso pedido, no una garantía — no prometerlo en docs.
 #
 # REQUIERE: el secreto CRON_SECRET en Settings → Secrets and variables → Actions, con el MISMO
 # valor que la env de Vercel. Sin él, el job falla con mensaje claro (no en silencio).
@@ -27,6 +29,8 @@ concurrency:
 jobs:
   sweep:
     runs-on: ubuntu-latest
+    permissions:
+      issues: write
     steps:
       - name: barrido
         env:
@@ -44,3 +48,20 @@ jobs:
             --max-time 300 \
             -H "Authorization: Bearer $CRON_SECRET" \
             https://tuvetia.vercel.app/api/cron/cartera
+
+      # Un schedule rojo no se lo muestra GitHub a nadie: 6 fallos consecutivos pasaron
+      # inadvertidos el 2026-07-30 mientras la entrega afirmaba que el barrido corría.
+      # El fallo abre (o comenta) un issue — el único canal de Actions que sí notifica.
+      - name: avisar si falló
+        if: failure()
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          TITLE="Cartera sweep fallando (schedule)"
+          BODY="Corrida fallida: ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
+          NUM=$(gh issue list --repo "$GITHUB_REPOSITORY" --state open --search "in:title \"$TITLE\"" --json number --jq '.[0].number // empty')
+          if [ -n "$NUM" ]; then
+            gh issue comment "$NUM" --repo "$GITHUB_REPOSITORY" --body "$BODY"
+          else
+            gh issue create --repo "$GITHUB_REPOSITORY" --title "$TITLE" --body "$BODY"
+          fi
