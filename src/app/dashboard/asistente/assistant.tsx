@@ -25,6 +25,8 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 
+import type { StoredThreads } from "@/lib/athos-history"
+
 export type AssistantPatient = { id: string; name: string; species: string }
 
 const GENERAL = "__general__" // valor del selector para "Consulta general (sin paciente)"
@@ -182,18 +184,23 @@ function AssistantMessage({ message, streaming }: { message: UIMessage; streamin
 // clinicId entra solo por contrato de props: el agente deriva la clínica de la sesión.
 export function Assistant({
   patients,
+  threads = {},
 }: {
   clinicId: string
   patients: AssistantPatient[]
+  threads?: StoredThreads
 }) {
   const [patientId, setPatientId] = useState<string>(patients[0]?.id ?? GENERAL)
   const [input, setInput] = useState<string>("")
   const threadRef = useRef<HTMLDivElement>(null)
 
-  // useChat contra el agente. Cambiar de paciente cambia el `id` → el hook crea un Chat nuevo
-  // (hilo reseteado), sin estado manual de mensajes.
+  // useChat contra el agente. Cambiar de paciente cambia el `id` → el hook crea un Chat nuevo, y
+  // `messages` lo siembra con la conversación YA guardada de ese paciente. Antes se montaba vacío,
+  // así que al recargar la página el veterinario perdía de vista el hilo aunque siguiera en la base.
+  // La consulta general no tiene historial a propósito: el backend la trata como sin estado.
   const { messages, sendMessage, status, error, stop } = useChat({
     id: `athos-${patientId}`,
+    messages: threads[patientId] ?? [],
     transport,
     onError: (e) => toast.error(`No se pudo consultar a Athos: ${e.message}`),
   })
