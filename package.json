@@ -7,7 +7,9 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "test": "vitest run"
+    "test": "vitest run",
+    "test:e2e": "vitest run --config vitest.e2e.config.ts",
+    "verify": "npx tsc --noEmit && npm run lint && npm test"
   },
   "dependencies": {
     "@ai-sdk/anthropic": "^3.0.103",

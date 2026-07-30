@@ -1,0 +1,50 @@
+# Smoke E2E contra el despliegue real.
+#
+# Va en un workflow APARTE del CI a propósito: el CI valida el código de un PR y tiene que ser
+# rápido y determinista; esto valida que PRODUCCIÓN esté viva y bien configurada, y depende de
+# servicios externos. Mezclarlos haría que un hipo de red tiñera de rojo un PR sano.
+#
+# Triggers:
+#   · schedule    → monitoreo continuo. Detecta lo que un deploy verde no detecta: una variable de
+#                   entorno borrada, un secreto rotado, el backend caído, una función apagada en
+#                   silencio. Es la clase de fallo que la auditoría del Milestone 2 encontró.
+#   · dispatch    → a mano, después de un deploy o de tocar variables en Vercel.
+#
+# No corre en PRs: las ramas tienen su propio preview y la suite apunta a producción.
+name: Smoke E2E
+
+on:
+  schedule:
+    # Cada 6 horas. Suficiente para enterarse el mismo día sin gastar minutos de más.
+    - cron: "0 */6 * * *"
+  workflow_dispatch:
+    inputs:
+      base_url:
+        description: "URL a verificar (default: producción)"
+        required: false
+        default: "https://tuvetia.vercel.app"
+
+concurrency:
+  group: smoke
+  cancel-in-progress: true
+
+jobs:
+  smoke:
+    name: producción · rutas, auth y configuración
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: smoke
+        run: npm run test:e2e
+        env:
+          SMOKE_BASE_URL: ${{ github.event.inputs.base_url || 'https://tuvetia.vercel.app' }}
+          # Habilita el chequeo de configuración de /api/health (qué variables están cableadas).
+          # Sin este secreto la suite corre igual, pero ese test se SALTA — y es el que atrapa un
+          # ANTHROPIC_API_KEY ausente, que apaga el agente sin dejar ningún síntoma visible.
+          # Definir en: Settings → Secrets and variables → Actions → CRON_SECRET
+          SMOKE_CRON_SECRET: ${{ secrets.CRON_SECRET }}
