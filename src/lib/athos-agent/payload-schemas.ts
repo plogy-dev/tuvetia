@@ -84,10 +84,16 @@ export const PAYLOAD_SCHEMAS = {
     patient_id: uuid,
     weight_kg: z.number().positive().max(999).optional(),
     notes_append: z.string().min(1).optional(),
+    // `allergen`, no `substance`: es el nombre que escribe la tool (`tools.ts` → add_allergy) y el
+    // que lee el ejecutor (`execute/route.ts` → allergy.allergen). Con `substance` este esquema
+    // rechazaba TODA propuesta de alergia con "add_allergy.substance: Required" — la alergia nunca
+    // se podía aprobar. Y `severity` es obligatoria, no opcional: la tool ya la exige y la columna
+    // `allergies.severity` es NOT NULL sin default, así que permitir que falte solo movía el fallo
+    // a un error de Postgres a mitad de la ejecución.
     add_allergy: z
       .object({
-        substance: z.string().min(1),
-        severity: z.enum(["mild", "moderate", "severe"]).optional(),
+        allergen: z.string().min(1),
+        severity: z.enum(["mild", "moderate", "severe"]),
         reaction: textoOpcional,
       })
       .optional(),

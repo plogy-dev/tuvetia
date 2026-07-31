@@ -1,11 +1,15 @@
 "use client"
 
-// Pantalla única de onboarding (reemplaza el wizard de 5 pasos): logo + nombre de la clínica.
+// PASO 1 del onboarding: logo + nombre de la clínica.
+//
 // La clínica YA existe en este punto (la crea el trigger de BD on_auth_user_confirmed con un
-// nombre placeholder) — esto solo la personaliza y marca setup_completed_at.
+// nombre placeholder) — esto solo la personaliza. Es el único paso obligatorio del wizard.
+//
+// No marca `setup_completed_at` ni redirige: de eso se encarga el wizard al terminar
+// (`welcome-wizard.tsx`). Así los pasos opcionales que siguen —primer paciente, datos de ejemplo,
+// invitar al equipo— no quedan inalcanzables por cerrar el flujo acá.
 
 import { useRef, useState } from "react"
-import { useRouter } from "next/navigation"
 import { Building2, Loader2, UploadIcon } from "lucide-react"
 import { toast } from "sonner"
 
@@ -21,12 +25,14 @@ export function WorkspaceSetup({
   clinicId,
   initialClinicName,
   initialLogoUrl,
+  onSaved,
 }: {
   clinicId: string
   initialClinicName: string
   initialLogoUrl: string | null
+  /** Lo llama el wizard para avanzar al paso siguiente, con el nombre ya guardado. */
+  onSaved: (clinicName: string) => void
 }) {
-  const router = useRouter()
   const [supabase] = useState(() => createClient())
   const inputRef = useRef<HTMLInputElement>(null)
   const [name, setName] = useState(initialClinicName)
@@ -68,11 +74,8 @@ export function WorkspaceSetup({
         .eq("id", clinicId)
       if (clinicErr) throw new Error(clinicErr.message)
 
-      const { error: setupErr } = await supabase.rpc("mark_setup_completed")
-      if (setupErr) throw new Error(setupErr.message)
-
-      router.push("/dashboard")
-      router.refresh()
+      setBusy(false)
+      onSaved(trimmed)
     } catch (e) {
       toast.error(`No se pudo guardar: ${(e as Error).message}`)
       setBusy(false)
@@ -80,7 +83,9 @@ export function WorkspaceSetup({
   }
 
   return (
-    <div className="mx-auto flex min-h-svh w-full max-w-md flex-col justify-center gap-6 px-6 py-10">
+    // Sin `min-h-svh` ni centrado: el marco lo pone el wizard. Antes este componente era la
+    // pantalla entera y se lo quedaba para él.
+    <div className="flex w-full flex-col gap-6">
       <div className="flex flex-col items-center gap-2 text-center">
         <div className="flex size-10 items-center justify-center rounded-xl bg-primary text-primary-foreground">
           <Building2 className="size-5" />

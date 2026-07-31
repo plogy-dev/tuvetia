@@ -49,6 +49,31 @@ export async function POST(req: Request) {
   } = await supabase.auth.getSession()
 
   const digitsPhone = phone.replace(/\D/g, "")
+
+  // Conversación SIN mensajes: no hay nada que responder, y el agente no debe inventar un primer
+  // contacto — la regla inbound-first de `docs/EVOLUTION.md` ("el agente solo responde entrantes;
+  // no hay envíos masivos ni en frío") es una de las protecciones anti-baneo del número.
+  //
+  // Se corta ACÁ y no en el modelo por dos razones: el modelo ya declinaba (correcto), pero el
+  // error resultante —"Athos no pudo proponer una respuesta"— se lee como una falla del sistema
+  // cuando es la respuesta correcta; y además se ahorra la llamada al LLM.
+  // Mismo criterio de búsqueda que `search_whatsapp_conversation`: los últimos 10 dígitos, que
+  // vienen ya normalizados (solo dígitos), y RLS acota a la clínica.
+  const last10 = digitsPhone.slice(-10)
+  const { count: mensajes } = await supabase
+    .from("whatsapp_messages")
+    .select("id", { count: "exact", head: true })
+    .or(`wa_phone_from.ilike.%${last10},wa_phone_to.ilike.%${last10}`)
+  if (!mensajes) {
+    return NextResponse.json(
+      {
+        error:
+          "Esta conversación todavía no tiene mensajes. Athos redacta a partir de lo que escribió el titular, así que no propone el primer contacto: escríbele tú y podrás pedirle un borrador desde el segundo mensaje.",
+      },
+      { status: 422 },
+    )
+  }
+
   const ctx: AgentContext = {
     userId: user.id,
     clinicId,
@@ -86,8 +111,15 @@ export async function POST(req: Request) {
       }
     }
     if (!draft || !actionId) {
+      // El modelo corrió pero no llamó a `send_whatsapp_message`. Con la conversación vacía ya
+      // cortamos arriba, así que acá es otra cosa: el modelo decidió que no correspondía responder
+      // (p. ej. el último mensaje no pide nada) o se quedó sin pasos. Se dice qué hacer, no solo
+      // que falló.
       return NextResponse.json(
-        { error: "Athos no pudo proponer una respuesta para esta conversación." },
+        {
+          error:
+            "Athos no propuso una respuesta para esta conversación. Suele pasar cuando el último mensaje no pide nada concreto; escribe tú el borrador o dale más contexto.",
+        },
         { status: 502 },
       )
     }
