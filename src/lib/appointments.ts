@@ -65,19 +65,26 @@ export function toEvent(a: AppointmentRow): CalendarEvent {
     id: a.id,
     title: `${who}${a.title}`,
     start,
-    end: clampMidnightEnd(start, end),
+    end: clampToStartDay(start, end),
     resource: a,
   }
 }
 
-// react-big-calendar trata un evento que termina EXACTO a medianoche como si se extendiera al día
-// siguiente (issue conocido de la librería) — aparecía una franja fantasma sobre la grilla del día
-// siguiente, tapando el encabezado. Si terminó justo a las 00:00 del día después de empezar, lo
-// recortamos 1 minuto solo para mostrar (no toca `starts_at`/`ends_at` en BD).
-function clampMidnightEnd(start: Date, end: Date): Date {
-  const isMidnight = end.getHours() === 0 && end.getMinutes() === 0 && end.getSeconds() === 0
-  const crossesDay = end.getTime() > start.getTime() && end.getDate() !== start.getDate()
-  return isMidnight && crossesDay ? new Date(end.getTime() - 60_000) : end
+// react-big-calendar trata cualquier evento cuyo fin cae en un día de calendario distinto al del
+// inicio como si "cruzara" al día siguiente (aunque sea 1 minuto) — lo saca de la grilla horaria y
+// lo muestra en una franja de "evento que abarca varios días" flotando sobre el encabezado, tapando
+// el círculo de "hoy". Ninguna cita de esta app es real multi-día, así que para MOSTRAR (nunca se
+// toca `starts_at`/`ends_at` en BD) recortamos cualquier fin que no caiga en el mismo día del inicio
+// a las 23:59 de ese día — no solo el caso exacto de medianoche (00:00:00).
+function clampToStartDay(start: Date, end: Date): Date {
+  const sameDay =
+    end.getFullYear() === start.getFullYear() &&
+    end.getMonth() === start.getMonth() &&
+    end.getDate() === start.getDate()
+  if (sameDay) return end
+  const endOfStartDay = new Date(start)
+  endOfStartDay.setHours(23, 59, 0, 0)
+  return endOfStartDay.getTime() > start.getTime() ? endOfStartDay : end
 }
 
 // Opción para los <Select> de paciente / titular / veterinario.
