@@ -38,9 +38,11 @@ function PendingProposalsButton() {
   }, [supabase])
 
   return (
+    // `hidden`, no `opacity-0`: con opacidad cero el botón seguía ocupando su hueco y seguía
+    // siendo clicable — un enlace invisible a Comunicaciones en la barra angosta.
     <Button
       size="icon"
-      className="relative size-8 group-data-[collapsible=icon]:opacity-0"
+      className="relative size-8 group-data-[collapsible=icon]:hidden"
       variant="outline"
       title={count > 0 ? `${count} propuesta(s) de Athos pendientes` : "Propuestas de Athos"}
       render={<Link href="/dashboard/comunicaciones" />}

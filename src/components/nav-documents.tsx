@@ -23,7 +23,13 @@ export function NavDocuments({
 }) {
   const pathname = usePathname()
   return (
-    <SidebarGroup className="group-data-[collapsible=icon]:hidden">
+    // Este grupo NO se oculta al colapsar. El `group-data-[collapsible=icon]:hidden` que traía
+    // venía del grupo "Documents" de la plantilla `dashboard-01`, donde era una lista secundaria;
+    // acá contiene Athos y el Modo Fantasma, que son lo primero del producto. Colapsado se
+    // quedaban sin siquiera el icono. `SidebarGroupLabel` ya se desvanece solo en modo icono, y
+    // cada botón tiene `tooltip`, así que en la barra angosta quedan los dos iconos con su nombre
+    // al pasar el ratón — que es justo lo que el modo icono promete.
+    <SidebarGroup>
       <SidebarGroupLabel>{label}</SidebarGroupLabel>
       <SidebarMenu>
         {items.map((item) => {
