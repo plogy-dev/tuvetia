@@ -11,17 +11,20 @@ import {
 
 export function NavDocuments({
   items,
+  label = "Copiloto clínico",
 }: {
   items: {
     name: string
     url: string
     icon: React.ReactNode
   }[]
+  /** Antes era la cadena "AI", en inglés y sin decir nada. */
+  label?: string
 }) {
   const pathname = usePathname()
   return (
     <SidebarGroup className="group-data-[collapsible=icon]:hidden">
-      <SidebarGroupLabel>AI</SidebarGroupLabel>
+      <SidebarGroupLabel>{label}</SidebarGroupLabel>
       <SidebarMenu>
         {items.map((item) => {
           const isActive =

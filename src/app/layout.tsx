@@ -8,6 +8,7 @@ import {
 } from "next/font/google";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { Toaster } from "@/components/ui/sonner";
+import { ThemeProvider } from "@/components/theme-provider";
 import "./globals.css";
 import { cn } from "@/lib/utils";
 
@@ -96,8 +97,10 @@ export default function RootLayout({
         />
       </head>
       <body className="min-h-full flex flex-col">
-        <TooltipProvider>{children}</TooltipProvider>
-        <Toaster richColors closeButton />
+        <ThemeProvider>
+          <TooltipProvider>{children}</TooltipProvider>
+          <Toaster richColors closeButton />
+        </ThemeProvider>
       </body>
     </html>
   );

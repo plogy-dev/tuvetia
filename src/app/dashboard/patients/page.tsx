@@ -21,8 +21,13 @@ function bogotaBounds() {
   }
 }
 
-export default async function PatientsPage() {
+export default async function PatientsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ q?: string }>
+}) {
   const supabase = await createClient()
+  const { q: initialQuery } = await searchParams
 
   const { dayStart, dayEnd, monthStart } = bogotaBounds()
 
@@ -103,7 +108,11 @@ export default async function PatientsPage() {
         ))}
       </div>
 
-      <PatientsExplorer rows={all} listError={Boolean(listError)} />
+      <PatientsExplorer
+        rows={all}
+        listError={Boolean(listError)}
+        initialQuery={initialQuery ?? ""}
+      />
     </div>
   )
 }

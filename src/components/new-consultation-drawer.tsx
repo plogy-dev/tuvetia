@@ -29,7 +29,15 @@ import { CirclePlusIcon, Loader2Icon } from "lucide-react"
 
 type Patient = { id: string; name: string; species: string; owner_id: string | null }
 
-export function NewConsultationDrawer() {
+export function NewConsultationDrawer({
+  trigger,
+  label = "Nueva consulta",
+}: {
+  // Trigger alternativo (p.ej. el botón primario del sidebar); por defecto, el botón compacto que
+  // ya usaba la página de Consultas. Mismo patrón que `CreatePatientDrawer`.
+  trigger?: React.ReactElement
+  label?: string
+} = {}) {
   const isMobile = useIsMobile()
   const router = useRouter()
 
@@ -129,9 +137,9 @@ export function NewConsultationDrawer() {
       onOpenChange={handleOpenChange}
       swipeDirection={isMobile ? "down" : "right"}
     >
-      <DrawerTrigger render={<Button size="sm" />}>
+      <DrawerTrigger render={trigger ?? <Button size="sm" />}>
         <CirclePlusIcon />
-        Nueva consulta
+        <span>{label}</span>
       </DrawerTrigger>
       <DrawerContent>
         <DrawerHeader>

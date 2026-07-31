@@ -56,8 +56,18 @@ function especieBucket(species: string): string {
   return "otros"
 }
 
-export function PatientsExplorer({ rows, listError }: { rows: PatientRow[]; listError: boolean }) {
-  const [q, setQ] = useState("")
+export function PatientsExplorer({
+  rows,
+  listError,
+  initialQuery = "",
+}: {
+  rows: PatientRow[]
+  listError: boolean
+  /** Sólo el valor INICIAL, del `?q=` del buscador global de la cabecera. Teclear sigue sin navegar
+   *  ni re-consultar: la nota de arriba sobre la tormenta de queries sigue vigente. */
+  initialQuery?: string
+}) {
+  const [q, setQ] = useState(initialQuery)
   const [especie, setEspecie] = useState("")
 
   const query = q.trim().toLowerCase()
