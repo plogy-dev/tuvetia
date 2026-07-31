@@ -2,6 +2,7 @@
 
 import * as React from "react"
 
+import { AthosSidebarSection } from "@/components/athos/athos-sidebar-section"
 import { NavClinic } from "@/components/nav-clinic"
 import { NavDocuments } from "@/components/nav-documents"
 import { NavMain } from "@/components/nav-main"
@@ -99,6 +100,8 @@ export function AppSidebar({
       <SidebarContent>
         <NavClinic name={clinic.name} logoUrl={clinic.logoUrl} />
         <NavDocuments label="Copiloto clínico" items={data.copiloto} />
+        {/* Segundo nivel: sólo aparece dentro de Athos y del Modo Fantasma, y se paga solo ahí. */}
+        <AthosSidebarSection />
         <NavMain items={data.navMain} />
         <NavSecondary items={data.navSecondary} className="mt-auto" />
       </SidebarContent>
