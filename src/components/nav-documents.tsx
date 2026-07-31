@@ -1,6 +1,7 @@
 "use client"
 
 import { usePathname } from "next/navigation"
+import { isNavActive } from "@/lib/nav-active"
 import {
   SidebarGroup,
   SidebarGroupLabel,
@@ -33,8 +34,7 @@ export function NavDocuments({
       <SidebarGroupLabel>{label}</SidebarGroupLabel>
       <SidebarMenu>
         {items.map((item) => {
-          const isActive =
-            pathname === item.url || pathname.startsWith(item.url + "/")
+          const isActive = isNavActive(pathname, item.url)
           return (
             <SidebarMenuItem key={item.name}>
               <SidebarMenuButton

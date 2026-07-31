@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button"
 import { CreatePatientDrawer } from "@/components/create-patient-drawer"
 import { NewConsultationDrawer } from "@/components/new-consultation-drawer"
 import { createClient } from "@/lib/supabase/client"
+import { isNavActive } from "@/lib/nav-active"
 import {
   SidebarGroup,
   SidebarGroupContent,
@@ -100,7 +101,7 @@ export function NavMain({
             <SidebarMenuItem key={item.title}>
               <SidebarMenuButton
                 tooltip={item.title}
-                isActive={item.url !== "#" && pathname === item.url}
+                isActive={isNavActive(pathname, item.url)}
                 render={<a href={item.url} />}
               >
                 {item.icon}
