@@ -6,7 +6,11 @@
 ## Principio (léelo una vez y no lo olvides)
 - **Proyecto principal** (compartido / producción): ref `auxlnexhkmtoedrzfsnz`. **NUNCA** se
   desarrolla ni se escribe directamente contra él desde una máquina de dev (MCP incluido).
-- **Proyecto de desarrollo:** `tuvetia-athos-dev` (Supabase **separado**). Aquí se prueba todo.
+- **Proyecto de desarrollo:** `tuvetia-athos-dev`, ref **`gdiiagioiukadifejewv`** (Supabase
+  **separado**, us-west-2). Aquí se prueba todo. **Recreado el 2026-07-31**: el anterior
+  (`ghmpjyuchwkrvnjvdeum`) se borró, y sin él la suite terminó corriendo contra producción.
+  Reconstruirlo cuesta ~1 h porque el esquema es código: `supabase/bootstrap/000_base_schema.sql`
+  y las migraciones de `supabase/migrations/`. La cadena de conexión no va al repo.
 - **`supabase/migrations/*.sql` = única fuente de verdad** de *nuestros* cambios de esquema
   (tablas del RAG: `glossary_*`, `athos_messages`, `rag_retrieval_log`, `rag_answer_log`, e
   índices/ALTERs sobre las tablas base). Fluyen **dev → PR → principal**, aplicando **los mismos
