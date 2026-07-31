@@ -14,6 +14,7 @@ la protección no puede depender de que alguien se acuerde de mirar el `.env`.
 """
 import os
 import re
+import uuid
 
 import pytest
 
@@ -89,14 +90,25 @@ def two_clinics() -> dict:
 
 
 # --- Integración con DB (se salta si no hay DB) ---
-CLINIC_A = "a1a1a1a1-0000-0000-0000-000000000001"
-CLINIC_B = "b2b2b2b2-0000-0000-0000-000000000002"
-OWNER_A = "a1a1a1a1-0000-0000-0000-0000000000a1"
-OWNER_B = "b2b2b2b2-0000-0000-0000-0000000000b1"
-PATIENT_LUNA = "a1a1a1a1-0000-0000-0000-0000000000a2"   # clínica A, perro, alergia severa a pollo
-PATIENT_MICHI = "b2b2b2b2-0000-0000-0000-0000000000b2"  # clínica B, gato
-ALLERGY_SEVERE = "a1a1a1a1-0000-0000-0000-0000000000a3"
-ALLERGY_MILD = "a1a1a1a1-0000-0000-0000-0000000000a4"
+#
+# Los ids se generan POR CORRIDA, no son fijos. Antes lo eran, y contra una base de desarrollo
+# COMPARTIDA eso rompe: si dos personas corren la suite a la vez, el teardown de una hace
+# `delete from clinics` sobre los mismos ids y le borra los datos a la otra a mitad de prueba. El
+# síntoma sería un fallo intermitente e irreproducible — de los que hacen que el equipo deje de
+# creerle a la suite.
+#
+# Se conservan los prefijos `a1a1a1aN` / `b2b2b2bN`: si uno de estos ids aparece en un log, se
+# reconoce al instante como dato de prueba. Sólo cambia la cola.
+_SUFIJO = uuid.uuid4().hex[:12]
+
+CLINIC_A = f"a1a1a1a1-0000-0000-0000-{_SUFIJO}"
+CLINIC_B = f"b2b2b2b2-0000-0000-0000-{_SUFIJO}"
+OWNER_A = f"a1a1a1a2-0000-0000-0000-{_SUFIJO}"
+OWNER_B = f"b2b2b2b3-0000-0000-0000-{_SUFIJO}"
+PATIENT_LUNA = f"a1a1a1a3-0000-0000-0000-{_SUFIJO}"   # clínica A, perro, alergia severa a pollo
+PATIENT_MICHI = f"b2b2b2b4-0000-0000-0000-{_SUFIJO}"  # clínica B, gato
+ALLERGY_SEVERE = f"a1a1a1a4-0000-0000-0000-{_SUFIJO}"
+ALLERGY_MILD = f"a1a1a1a5-0000-0000-0000-{_SUFIJO}"
 
 
 @pytest.fixture
