@@ -33,9 +33,16 @@ export async function GET(req: Request) {
   // el primer intento y habría reportado Evolution como sin configurar estándolo).
   const whatsappProviders = {
     kapso: set("KAPSO_API_KEY") && set("KAPSO_WEBHOOK_SECRET"),
-    meta: set("META_APP_ID") && set("META_APP_SECRET"),
+    // META_WEBHOOK_VERIFY_TOKEN incluido: sin él el challenge de Meta falla, y el test e2e del 403
+    // pasa igual con la variable ausente (cualquier token es "incorrecto" cuando no hay ninguno).
+    meta: set("META_APP_ID") && set("META_APP_SECRET") && set("META_WEBHOOK_VERIFY_TOKEN"),
     evolution: set("EVOLUTION_BASE_URL") && set("EVOLUTION_API_KEY") && set("EVOLUTION_WEBHOOK_TOKEN"),
   }
+
+  // El agente puede correr con Anthropic (default) o DeepSeek según ATHOS_AGENT_PROVIDER
+  // (`src/lib/athos-agent/model.ts`). Chequear siempre ANTHROPIC_API_KEY reportaba ok:true con el
+  // agente sin credencial cuando el proveedor era DeepSeek.
+  const agentProvider = process.env.ATHOS_AGENT_PROVIDER?.trim() || "anthropic"
 
   const checks = {
     // Sin esto no hay escrituras del agente, ni webhooks, ni crons, ni feed ICS.
@@ -44,6 +51,12 @@ export async function GET(req: Request) {
     // aparece en nuestro código — lo lee `@ai-sdk/anthropic` del entorno por convención. Justamente
     // por eso hace falta chequearlo acá: un grep del repo no lo encuentra y pasa desapercibido.
     anthropic_key: set("ANTHROPIC_API_KEY"),
+    // La credencial del proveedor que el agente USA de verdad (puede no ser Anthropic).
+    agent_provider_key:
+      agentProvider === "deepseek" ? set("DEEPSEEK_API_KEY") : set("ANTHROPIC_API_KEY"),
+    // La cobranza en modo simulacro NO envía nada y no deja síntoma: es literalmente el fallo
+    // silencioso que este endpoint existe para atrapar. En producción debe estar apagado.
+    cartera_envio_real: process.env.CARTERA_MESSAGING_SIMULATED !== "1",
     // Los dos crons: barrido de cartera y purga de audio.
     cron_secret: true, // si llegamos acá, existe y coincide
     // La tool de evidencia del agente apunta al backend por esta URL.
