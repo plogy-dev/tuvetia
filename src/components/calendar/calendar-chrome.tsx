@@ -22,9 +22,7 @@ import {
 import type { CalendarEvent } from "@/lib/appointments"
 
 const VIEW_OPTIONS: { value: string; label: string }[] = [
-  { value: "month", label: "Mes" },
   { value: "week", label: "Semana" },
-  { value: "day", label: "Día" },
   { value: "agenda", label: "Agenda" },
 ]
 

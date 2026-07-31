@@ -293,7 +293,7 @@ export function AppointmentCalendar({
           onView={setView}
           date={date}
           onNavigate={setDate}
-          views={[Views.MONTH, Views.WEEK, Views.DAY, Views.AGENDA]}
+          views={[Views.WEEK, Views.AGENDA]}
           onRangeChange={handleRangeChange}
           selectable
           onSelectSlot={handleSelectSlot}
@@ -305,7 +305,6 @@ export function AppointmentCalendar({
           components={{
             toolbar: CalendarToolbar,
             week: { header: DayColumnHeader, event: EventContent },
-            day: { header: DayColumnHeader, event: EventContent },
           }}
           eventPropGetter={(event: CalendarEvent) => ({
             style: { backgroundColor: APPOINTMENT_STATUS[event.resource.status].color, border: "none" },
