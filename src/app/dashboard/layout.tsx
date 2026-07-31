@@ -1,3 +1,4 @@
+import { cookies } from "next/headers"
 import { redirect } from "next/navigation"
 
 import { AppSidebar } from "@/components/app-sidebar"
@@ -52,9 +53,18 @@ export default async function DashboardLayout({
   }
   const sidebarClinic = { name: c?.name ?? "Tuvetia", logoUrl: c?.logo_url ?? null }
 
+  // `ui/sidebar.tsx` guarda el colapso en la cookie `sidebar_state` desde siempre, pero nadie la
+  // leía: `SidebarProvider` se montaba con su `defaultOpen = true` y la barra volvía a abrirse en
+  // cada recarga. El nombre tiene que seguir a `SIDEBAR_COOKIE_NAME`. Por defecto abierta: sólo un
+  // "false" explícito la colapsa.
+  //
+  // No cambia el renderizado: este layout ya era dinámico porque `createClient()` lee cookies.
+  const sidebarOpen = (await cookies()).get("sidebar_state")?.value !== "false"
+
   return (
     <SidebarProvider
       className="app-theme"
+      defaultOpen={sidebarOpen}
       style={
         {
           "--sidebar-width": "calc(var(--spacing) * 72)",

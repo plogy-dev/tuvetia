@@ -17,6 +17,7 @@ import {
   SidebarMenuButton,
   SidebarMenuItem,
 } from "@/components/ui/sidebar"
+import { cn } from "@/lib/utils"
 import {
   BotIcon,
   CalendarIcon,
@@ -77,13 +78,20 @@ const data = {
 export function AppSidebar({
   user,
   clinic,
+  className,
   ...props
 }: React.ComponentProps<typeof Sidebar> & {
   user: { name: string; email: string; avatar: string }
   clinic: { name: string; logoUrl: string | null }
 }) {
   return (
-    <Sidebar collapsible="icon" {...props}>
+    // `app-theme-tokens` es por la variante MÓVIL: ahí el sidebar se pinta dentro de un `SheetContent`
+    // que se portalea a <body>, o sea fuera del `.app-theme` que `dashboard/layout.tsx` pone en el
+    // `SidebarProvider`. Sin esto `--accent` caía al `:root` y los tres puntos de marca de esta barra
+    // —el glifo, el badge `bg-brand` de propuestas y la pestaña activa `border-brand` del panel de
+    // Athos— salían en el brasa de la landing en vez del azul de la app. En escritorio es una
+    // redeclaración de los mismos valores, inofensiva.
+    <Sidebar collapsible="icon" className={cn("app-theme-tokens", className)} {...props}>
       <SidebarHeader>
         <SidebarMenu>
           <SidebarMenuItem>

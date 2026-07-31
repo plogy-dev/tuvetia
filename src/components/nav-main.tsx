@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button"
 import { CreatePatientDrawer } from "@/components/create-patient-drawer"
 import { NewConsultationDrawer } from "@/components/new-consultation-drawer"
 import { createClient } from "@/lib/supabase/client"
+import { isNavActive } from "@/lib/nav-active"
 import {
   SidebarGroup,
   SidebarGroupContent,
@@ -38,9 +39,11 @@ function PendingProposalsButton() {
   }, [supabase])
 
   return (
+    // `hidden`, no `opacity-0`: con opacidad cero el botón seguía ocupando su hueco y seguía
+    // siendo clicable — un enlace invisible a Comunicaciones en la barra angosta.
     <Button
       size="icon"
-      className="relative size-8 group-data-[collapsible=icon]:opacity-0"
+      className="relative size-8 group-data-[collapsible=icon]:hidden"
       variant="outline"
       title={count > 0 ? `${count} propuesta(s) de Athos pendientes` : "Propuestas de Athos"}
       render={<Link href="/dashboard/comunicaciones" />}
@@ -98,7 +101,7 @@ export function NavMain({
             <SidebarMenuItem key={item.title}>
               <SidebarMenuButton
                 tooltip={item.title}
-                isActive={item.url !== "#" && pathname === item.url}
+                isActive={isNavActive(pathname, item.url)}
                 render={<a href={item.url} />}
               >
                 {item.icon}
