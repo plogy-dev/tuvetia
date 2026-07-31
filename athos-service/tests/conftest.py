@@ -103,6 +103,14 @@ ALLERGY_MILD = "a1a1a1a1-0000-0000-0000-0000000000a4"
 def require_db():
     # El guard va ANTES de tocar la conexión: si la DB es la del principal, ni se abre.
     _exigir_db_de_dev()
+
+    # Sin URL configurada se salta SIN intentar conectar. Si no, libpq cae a su valor por defecto
+    # (localhost) y espera el timeout completo por cada prueba: la suite pasaba de 5 s a 10 min en
+    # una máquina limpia — justo la que va a usar quien audite el repo.
+    from app.config import get_settings
+    if not (get_settings().database_url or "").strip():
+        pytest.skip("DATABASE_URL sin configurar: se saltan las pruebas de integración con DB")
+
     try:
         from app.db import fetch_all
         fetch_all("select 1")

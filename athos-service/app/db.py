@@ -39,6 +39,22 @@ def _bajo_pytest() -> bool:
     return "pytest" in sys.modules or bool(os.environ.get("PYTEST_CURRENT_TEST"))
 
 
+def _exigir_url(url: str, cual: str) -> str:
+    """Una URL vacía es un error de configuración: hay que decirlo YA, no en 30 segundos.
+
+    Sin esto, libpq cae a su valor por defecto (localhost) y espera el timeout de conexión completo.
+    En una máquina sin `.env` —la de quien audite el repo— eso convertía la suite de 5 s en 7 min,
+    con cada prueba que roza el glosario esperando 30 s para después degradar en silencio. En
+    producción es peor: una variable mal puesta se manifiesta como lentitud, no como error.
+    """
+    if not (url or "").strip():
+        raise RuntimeError(
+            f"{cual} no está configurada. Sin ella no hay a dónde conectarse "
+            "(libpq caería a localhost y esperaría el timeout completo)."
+        )
+    return url
+
+
 def _vetar_principal_en_tests(url: str) -> None:
     if not _bajo_pytest() or REF_PRINCIPAL not in (url or ""):
         return
@@ -56,7 +72,7 @@ def _get_pool() -> ConnectionPool:
     global _pool
     if _pool is None:
         _vetar_principal_en_tests(get_settings().database_url)
-        _pool = ConnectionPool(get_settings().database_url, min_size=1, max_size=10,
+        _pool = ConnectionPool(_exigir_url(get_settings().database_url, "DATABASE_URL"), min_size=1, max_size=10,
                                max_idle=300, kwargs=_CONN_KWARGS, open=True)
     return _pool
 
@@ -64,7 +80,7 @@ def _get_pool() -> ConnectionPool:
 def _get_corpus_pool() -> ConnectionPool:
     global _corpus_pool
     if _corpus_pool is None:
-        _corpus_pool = ConnectionPool(get_settings().corpus_db_url, min_size=1, max_size=10,
+        _corpus_pool = ConnectionPool(_exigir_url(get_settings().corpus_db_url, "CORPUS_DATABASE_URL"), min_size=1, max_size=10,
                                       max_idle=300, kwargs=_CONN_KWARGS, open=True)
     return _corpus_pool
 
@@ -74,14 +90,14 @@ def get_conn() -> psycopg.Connection:
     timeout (p.ej. la ingesta masiva con statement_timeout=0). El hot-path usa fetch_all/execute (pool).
     """
     _vetar_principal_en_tests(get_settings().database_url)
-    return psycopg.connect(get_settings().database_url, row_factory=dict_row,
+    return psycopg.connect(_exigir_url(get_settings().database_url, "DATABASE_URL"), row_factory=dict_row,
                            options="-c statement_timeout=15000")
 
 
 def get_corpus_conn() -> psycopg.Connection:
     """Conexión NUEVA a la DB del CORPUS/glosario (global, sin datos de paciente). Puede ser un
     proyecto distinto al principal. El hot-path usa fetch_all_corpus/execute_corpus (pool)."""
-    return psycopg.connect(get_settings().corpus_db_url, row_factory=dict_row,
+    return psycopg.connect(_exigir_url(get_settings().corpus_db_url, "CORPUS_DATABASE_URL"), row_factory=dict_row,
                            options="-c statement_timeout=15000")
 
 
