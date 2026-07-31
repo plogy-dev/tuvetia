@@ -229,13 +229,20 @@
    pasa de brasa naranja a azul profundo. Se aplica en la raíz del layout
    autenticado y en las pantallas de auth, para que la LANDING conserve su
    acento brasa intacto. ── */
-.app-theme {
+/* `.app-theme-tokens` es el mismo cambio de acento SIN el grano de papel de abajo. Existe para las
+   superficies que se portalean a <body> y por eso salen del `.app-theme` del layout: ahí `--accent`
+   caía al `:root` y volvía a ser el brasa de la landing. Con `.app-theme` a secas heredarían
+   también el `::before`, que es `position: fixed` a viewport completo — un segundo velo de grano
+   dentro del panel. */
+.app-theme,
+.app-theme-tokens {
   --accent: #0f3557;
   --accent-bright: #164873;
   --brand-deep: #164873;
   --on-brand: #f4f8fc;
 }
-.dark .app-theme {
+.dark .app-theme,
+.dark .app-theme-tokens {
   --accent: #7aa9d4;
   --accent-bright: #8db8de;
   --brand-deep: #8db8de;

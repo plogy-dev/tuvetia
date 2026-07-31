@@ -187,7 +187,12 @@ function Sidebar({
           data-sidebar="sidebar"
           data-slot="sidebar"
           data-mobile="true"
-          className="w-(--sidebar-width) bg-sidebar p-0 text-sidebar-foreground [&>button]:hidden"
+          // `className` se desestructura arriba, así que en esta rama se perdía: la variante móvil
+          // era la única que ignoraba lo que le pasaran. Ahora se fusiona, como en las otras dos.
+          className={cn(
+            "w-(--sidebar-width) bg-sidebar p-0 text-sidebar-foreground [&>button]:hidden",
+            className
+          )}
           style={
             {
               "--sidebar-width": SIDEBAR_WIDTH_MOBILE,
