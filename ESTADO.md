@@ -245,9 +245,9 @@ Plan completo en `~/.claude/plans/claude-varios-ajustes-dame-compiled-grove.md`.
   tiempo constante + la instancia debe existir). Grupos, broadcasts y newsletters se ignoran SIEMPRE.
 - **Facturación y cartera portadas (migraciones `0033`–`0036`)**: núcleo fiscal DIAN, catálogo,
   inventario, compras y gastos + el motor de recaudo con los límites de la Ley 2300. Dominio puro y
-  determinístico con 185 tests. Dinero = enteros en centavos, half-up. ⚠️ **Es solo el motor: no hay
-  UI todavía** — las rutas `/dashboard/facturacion/*` no existen y los `revalidatePath` apuntan a
-  donde vivirán.
+  determinístico con 185 tests. Dinero = enteros en centavos, half-up. **La UI entró el 30-jul**
+  (`bfd5150`, 16 rutas bajo `/dashboard/facturacion/*` — ver la sección de abajo); lo que sigue sin
+  cubrir son pruebas propias de esas rutas (los 185 tests son del dominio, no de la interfaz).
 
 ### ⚠️ Numeración de migraciones (leer antes de crear una nueva)
 Las migraciones de esta tanda se renumeraron a **`0026`–`0036`** el 29-jul, porque `0021`–`0025` ya

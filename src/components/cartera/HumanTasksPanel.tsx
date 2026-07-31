@@ -1,6 +1,6 @@
 'use client';
 
-import { useTransition } from 'react';
+import { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { AlertTriangle, Check, X } from 'lucide-react';
@@ -28,10 +28,18 @@ export type TaskItem = {
 export function HumanTasksPanel({ tasks }: { tasks: TaskItem[] }) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
+  const [error, setError] = useState<string | null>(null);
 
   function resolve(taskId: string, status: 'RESUELTA' | 'DESCARTADA') {
     startTransition(async () => {
-      await resolveHumanTaskAction({ taskId, status });
+      const r = await resolveHumanTaskAction({ taskId, status });
+      // Antes se descartaba el resultado: una tarea que no se resolvía simplemente reaparecía
+      // tras el refresh, sin ninguna pista de por qué.
+      if (!r.ok) {
+        setError(r.error);
+        return;
+      }
+      setError(null);
       router.refresh();
     });
   }
@@ -46,6 +54,11 @@ export function HumanTasksPanel({ tasks }: { tasks: TaskItem[] }) {
 
   return (
     <ul className="space-y-2" data-testid="human-tasks">
+      {error && (
+        <li className="rounded-xl border border-warn bg-surface-2 px-4 py-2 text-xs text-warn">
+          {error}
+        </li>
+      )}
       {tasks.map((t) => (
         <li
           key={t.id}

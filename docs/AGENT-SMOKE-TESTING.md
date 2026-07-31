@@ -126,7 +126,11 @@ Se declara explícitamente para que nadie lea la suite como más cobertura de la
    son otro instrumento y otro documento.
 4. **No hay pruebas contra la base real.** Todo corre con un cliente de Supabase falso. El
    aislamiento por clínica en la base lo cubren los tests cross-tenant del backend
-   (`athos-service/tests/`).
+   (`athos-service/tests/test_cross_tenant.py`). Ojo con la historia de esta garantía: esos tests
+   **se auto-saltaron en CI durante toda su vida** porque el job no montaba ninguna base (auditoría
+   2026-07-30). Desde el 30-jul el job monta un Postgres (`services:` en `ci.yml`) y corren en cada
+   push — si vuelven a aparecer como `s` en la salida de pytest del CI, esta garantía volvió a ser
+   papel.
 
 ## Suite complementaria: smoke e2e contra el despliegue real
 
@@ -148,4 +152,4 @@ agente— y nada de eso da un error visible en la interfaz. Ahora se puede compr
 - `athos-service/docs/AUDITORIA-MILESTONE2-2026-07-29.md` — auditoría de cumplimiento (ítem 2.4)
 - `docs/ARQUITECTURA.md` — el ciclo "el agente propone / el vet ejecuta", con diagrama
 - `docs/API.md` — las 22 rutas, con su mecanismo de autenticación
-- `INVENTARIO-COMPONENTES.md` — inventario formal de los 88 componentes
+- `INVENTARIO-COMPONENTES.md` — inventario formal de componentes (93 en la v1.1; la cifra de 88 era de la v1.0)

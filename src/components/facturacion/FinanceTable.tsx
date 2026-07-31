@@ -39,6 +39,12 @@ export function FinanceTable({ items }: { items: FinanceItem[] }) {
   const [error, setError] = useState<string | null>(null);
 
   function remove(item: FinanceItem) {
+    // Mismo criterio que ImportBatchesList: borrar dinero registrado es irreversible y el icono
+    // vive a 4px del lápiz de editar — un clic mal puesto no puede borrar sin preguntar.
+    const label = item.kind === 'EGRESO' ? 'este egreso' : 'este ingreso';
+    if (!window.confirm(`¿Eliminar ${label} (${item.concept})? No se puede deshacer.`)) {
+      return;
+    }
     setError(null);
     startTransition(async () => {
       const r =
@@ -55,13 +61,21 @@ export function FinanceTable({ items }: { items: FinanceItem[] }) {
 
   function openAttachment(id: string) {
     setError(null);
+    // La ventana se abre DENTRO del gesto del usuario (síncrono). Abrirla después del await la
+    // dejaba fuera del contexto del clic y el bloqueador de popups la mataba en Safari/Chrome
+    // estricto — el clip del comprobante "no hacía nada", sin error. Sin el flag 'noopener' en
+    // esta rama porque hace que window.open devuelva null; el opener se corta a mano.
+    const win = window.open('about:blank', '_blank');
+    if (win) win.opener = null;
     startTransition(async () => {
       const r = await getExpenseAttachmentUrlAction({ id });
       if (!r.ok) {
+        win?.close();
         setError(r.error);
         return;
       }
-      window.open(r.url, '_blank', 'noopener');
+      if (win) win.location.href = r.url;
+      else window.open(r.url, '_blank', 'noopener');
     });
   }
 

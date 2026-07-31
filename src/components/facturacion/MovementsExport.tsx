@@ -14,7 +14,12 @@ export interface MovementCsvRow {
 /** Export CSV client-side de los movimientos visibles (página actual + filtros). */
 export function MovementsExport({ rows }: { rows: MovementCsvRow[] }) {
   function exportCsv() {
-    const esc = (s: string) => (/[;"\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s);
+    // Prefijo de fórmula neutralizado con apóstrofo: nombre de ítem y nota son texto libre, y un
+    // "=..." se ejecuta al abrir el CSV en Excel (CSV injection). Igual que financeCsv.
+    const esc = (s: string) => {
+      const seguro = /^[=+\-@]/.test(s) ? `'${s}` : s;
+      return /[;"\n]/.test(seguro) ? `"${seguro.replace(/"/g, '""')}"` : seguro;
+    };
     const lines = ['Fecha;Ítem;Tipo;Cantidad;Unidad;Nota'];
     for (const r of rows) {
       lines.push(
@@ -25,9 +30,10 @@ export function MovementsExport({ rows }: { rows: MovementCsvRow[] }) {
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `movimientos-inventario-${rows[0]?.date ?? 'periodo'}.csv`;
+    a.download = `movimientos-pagina-${rows[0]?.date ?? 'actual'}.csv`;
     a.click();
-    URL.revokeObjectURL(url);
+    // Revocar de inmediato compite con el inicio de la descarga en Firefox/Safari.
+    setTimeout(() => URL.revokeObjectURL(url), 10_000);
   }
 
   return (
@@ -38,7 +44,9 @@ export function MovementsExport({ rows }: { rows: MovementCsvRow[] }) {
       className="inline-flex items-center gap-1.5 rounded-lg border border-line bg-surface px-3 py-1.5 text-xs text-fg-muted hover:text-fg transition disabled:opacity-50"
     >
       <Download className="size-3.5" aria-hidden />
-      Exportar CSV
+      {/* "esta página": exporta las filas VISIBLES (página + filtros). Decirlo en el botón evita
+          que alguien se lleve 100 filas creyendo que se llevó los 4.000 movimientos del total. */}
+      Exportar esta página (CSV)
     </button>
   );
 }

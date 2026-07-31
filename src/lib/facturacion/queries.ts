@@ -807,6 +807,96 @@ export async function getUnbilledConsultations(
 }
 
 /** Facturas EMITIDAS que todavía no se han enviado al cliente. */
+export interface FacturacionKpis {
+  billedCents: number;
+  collectedCents: number;
+  issuedCount: number;
+  outstandingCents: number;
+  openCount: number;
+  overdueCount: number;
+  draftCount: number;
+}
+
+/**
+ * KPIs de dinero del home, agregados sobre TODAS las facturas que aplican — no sobre una página.
+ * Antes se calculaban en memoria sobre las últimas 100 filas del listado: una clínica con más de
+ * 100 facturas veía "Facturado", "Recaudado" y "Por cobrar" truncados sin ningún aviso.
+ * Las sumas paginan a paso de 1000 porque ese es el max-rows de PostgREST: pedir más filas
+ * devuelve 1000 sin error, que es exactamente la clase de truncamiento silencioso que se arregla.
+ */
+export async function getDashboardKpis(
+  supabase: SupabaseClient,
+  clinicId: string,
+  monthStartIso: string,
+): Promise<FacturacionKpis> {
+  const PAGE = 1000;
+
+  let billedCents = 0;
+  let collectedCents = 0;
+  let issuedCount = 0;
+  for (let from = 0; ; from += PAGE) {
+    const { data, error } = await supabase
+      .from('invoices')
+      .select('total_cents, paid_cents')
+      .eq('clinic_id', clinicId)
+      .eq('status', 'EMITIDA')
+      .gte('issued_at', monthStartIso)
+      .order('id')
+      .range(from, from + PAGE - 1);
+    if (error) throw new Error(`No se pudo sumar lo facturado del mes: ${error.message}`);
+    const rows = (data as { total_cents: number; paid_cents: number }[] | null) ?? [];
+    billedCents += rows.reduce((a, r) => a + r.total_cents, 0);
+    collectedCents += rows.reduce((a, r) => a + r.paid_cents, 0);
+    issuedCount += rows.length;
+    if (rows.length < PAGE) break;
+  }
+
+  let outstandingCents = 0;
+  let openCount = 0;
+  for (let from = 0; ; from += PAGE) {
+    const { data, error } = await supabase
+      .from('invoices')
+      .select('balance_cents')
+      .eq('clinic_id', clinicId)
+      .eq('status', 'EMITIDA')
+      .gt('balance_cents', 0)
+      .order('id')
+      .range(from, from + PAGE - 1);
+    if (error) throw new Error(`No se pudo sumar la cartera abierta: ${error.message}`);
+    const rows = (data as { balance_cents: number }[] | null) ?? [];
+    outstandingCents += rows.reduce((a, r) => a + r.balance_cents, 0);
+    openCount += rows.length;
+    if (rows.length < PAGE) break;
+  }
+
+  const [overdueRes, draftRes] = await Promise.all([
+    supabase
+      .from('invoices')
+      .select('id', { count: 'exact', head: true })
+      .eq('clinic_id', clinicId)
+      .eq('status', 'EMITIDA')
+      .gt('balance_cents', 0)
+      .eq('collection_status', 'VENCIDA'),
+    supabase
+      .from('invoices')
+      .select('id', { count: 'exact', head: true })
+      .eq('clinic_id', clinicId)
+      .eq('status', 'BORRADOR'),
+  ]);
+  if (overdueRes.error) throw new Error(`No se pudo contar vencidas: ${overdueRes.error.message}`);
+  if (draftRes.error) throw new Error(`No se pudo contar borradores: ${draftRes.error.message}`);
+
+  return {
+    billedCents,
+    collectedCents,
+    issuedCount,
+    outstandingCents,
+    openCount,
+    overdueCount: overdueRes.count ?? 0,
+    draftCount: draftRes.count ?? 0,
+  };
+}
+
 export async function getUnsentIssuedCount(
   supabase: SupabaseClient,
   clinicId: string,

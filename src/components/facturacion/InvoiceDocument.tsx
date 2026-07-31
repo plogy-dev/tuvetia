@@ -112,7 +112,16 @@ export function InvoiceDocument({
                 {l.unit !== 'unidad' ? ` ${l.unit}` : ''}
               </td>
               <td className="num">{formatCOP(l.unit_price_cents)}</td>
-              <td className="num">{l.tax_status === 'GRAVADO' ? `${l.tax_rate}%` : 'Excluido'}</td>
+              {/* EXENTO (gravado a 0%) y EXCLUIDO (fuera del IVA) son categorías jurídicamente
+                  distintas en el régimen colombiano — colapsarlas en "Excluido" iba impreso en el
+                  documento que se entrega al cliente. */}
+              <td className="num">
+                {l.tax_status === 'GRAVADO'
+                  ? `${l.tax_rate}%`
+                  : l.tax_status === 'EXENTO'
+                    ? 'Exento (0%)'
+                    : 'Excluido'}
+              </td>
               <td className="num">{formatCOP(l.total_cents)}</td>
             </tr>
           ))}

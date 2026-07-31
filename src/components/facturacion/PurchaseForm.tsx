@@ -1,6 +1,7 @@
 'use client';
 
-import { useState, useTransition } from 'react';
+import { useRef, useState, useTransition } from 'react';
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { AlertTriangle, Plus, RefreshCw, Trash2 } from 'lucide-react';
 import { confirmPurchaseAction, savePurchaseDraft } from '@/lib/facturacion/purchases/actions';
@@ -68,6 +69,8 @@ export function PurchaseForm({
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
+  const savedIdRef = useRef<string | null>(initial?.id ?? null);
+  const [savedDraftId, setSavedDraftId] = useState<string | null>(null);
   const [supplierId, setSupplierId] = useState(initial?.supplierId ?? '');
   const [purchasedOn, setPurchasedOn] = useState(initial?.purchasedOn ?? today);
   const [docNumber, setDocNumber] = useState(initial?.docNumber ?? '');
@@ -79,7 +82,9 @@ export function PurchaseForm({
           key: i,
           catalogItemId: l.catalogItemId,
           qty: String(l.qty),
-          costPesos: String(Math.round(l.unitCostCents / 100)),
+          // División exacta: redondear a pesos truncaba los centavos del costo, y reabrir un
+          // borrador para editarlo cambiaba el importe sin que nadie tocara el campo.
+          costPesos: String(l.unitCostCents / 100),
           lotCode: l.lotCode ?? '',
           expiresOn: l.expiresOn ?? '',
         }))
@@ -108,7 +113,9 @@ export function PurchaseForm({
       // Precarga el costo de compra estimado: último costo de uso × factor.
       costPesos:
         item?.cost_cents != null
-          ? String(Math.round((item.cost_cents * (item.conversion_factor || 1)) / 100))
+          ? // Redondeo al centavo (no al peso): es un estimado, pero no hay razón para tirar
+            // la precisión que el costo guardado sí tiene.
+            String(Math.round(item.cost_cents * (item.conversion_factor || 1)) / 100)
           : '',
     });
   }
@@ -142,7 +149,10 @@ export function PurchaseForm({
 
   function save(confirmAfter: boolean) {
     setError(null);
-    const input = buildInput();
+    // El id del borrador ya guardado viaja en el input: savePurchaseDraft upserta, así que un
+    // reintento (p. ej. tras fallar la confirmación) actualiza el MISMO borrador en vez de crear
+    // uno nuevo por cada clic.
+    const input = { ...buildInput(), id: savedIdRef.current };
     if (input.lines.length === 0) {
       setError('Agrega al menos una línea con producto');
       return;
@@ -153,11 +163,15 @@ export function PurchaseForm({
         setError(r.error);
         return;
       }
+      savedIdRef.current = r.id;
       if (confirmAfter) {
         const c = await confirmPurchaseAction({ id: r.id });
         if (!c.ok) {
-          setError(c.error);
-          router.push(`/dashboard/facturacion/compras/${r.id}`);
+          // Sin router.push: navegar en el mismo tick desmontaba el componente y el error jamás
+          // se pintaba — el usuario aterrizaba en un detalle "BORRADOR" sin explicación. Se queda
+          // aquí, ve el motivo, y puede reintentar (mismo borrador) o abrirlo con el enlace.
+          setSavedDraftId(r.id);
+          setError(`La compra quedó guardada como borrador, pero no se pudo confirmar: ${c.error}`);
           return;
         }
       }
@@ -325,7 +339,20 @@ export function PurchaseForm({
       {error && (
         <p className="flex items-start gap-2 rounded-xl border border-warn bg-surface-2 px-4 py-3 text-sm text-warn">
           <AlertTriangle className="mt-0.5 size-4 shrink-0" aria-hidden />
-          {error}
+          <span>
+            {error}
+            {savedDraftId && (
+              <>
+                {' '}
+                <Link
+                  href={`/dashboard/facturacion/compras/${savedDraftId}`}
+                  className="font-medium underline underline-offset-2"
+                >
+                  Abrir el borrador
+                </Link>
+              </>
+            )}
+          </span>
         </p>
       )}
 

@@ -111,6 +111,13 @@ ALLERGY_SEVERE = f"a1a1a1a4-0000-0000-0000-{_SUFIJO}"
 ALLERGY_MILD = f"a1a1a1a5-0000-0000-0000-{_SUFIJO}"
 
 
+# (El guard que impedía correr contra el principal vivía acá y se eliminó al integrar master el
+# 2026-07-31: `REF_PRINCIPAL` arriba en este mismo archivo hace lo mismo y mejor —tiene escotilla
+# de escape explícita—, y `app/db.py` lo refuerza cortando al ABRIR la conexión, que cubre también
+# las queries que se escapan de un mock. Dos guards para lo mismo, uno sin escotilla, sólo servía
+# para que el override documentado no funcionara.)
+
+
 @pytest.fixture
 def require_db():
     # El guard va ANTES de tocar la conexión: si la DB es la del principal, ni se abre.
@@ -164,6 +171,14 @@ def seeded_tenants(require_db) -> dict:
         conn.commit()
 
 
+class LlamadaRealBloqueada(BaseException):
+    """`BaseException` A PROPÓSITO, no `Exception`: los consumidores de LLM de este repo fallan
+    abierto con `except Exception` (el juez devuelve OPEN_VERDICT, el chat degrada, los auditores
+    devuelven reporte vacío). Con `AssertionError` el guardarraíl quedaba neutralizado justo en los
+    módulos donde el fallo silencioso ya ocurrió tres veces (2026-07-30): la llamada real se
+    bloqueaba, el `except Exception` se la tragaba, y el test seguía verde."""
+
+
 @pytest.fixture(autouse=True)
 def _sin_red(monkeypatch, request):
     """Ninguna prueba sale a internet. Falla ruidosamente si alguna lo intenta.
@@ -190,7 +205,7 @@ def _sin_red(monkeypatch, request):
         # ningun lado. Se distingue por el tipo del cliente, no por la URL.
         if isinstance(self, TestClient):
             return original(self, *a, **k)
-        raise AssertionError(
+        raise LlamadaRealBloqueada(
             "Esta prueba intento una llamada HTTP real. Casi seguro un mock dejo de aplicar: "
             "revisa en que modulo se resuelve el cliente (p. ej. `provider_cascade.LLMClient`, "
             "no `llm_client.LLMClient`). Si la llamada es intencional, marca la prueba con "
@@ -198,7 +213,7 @@ def _sin_red(monkeypatch, request):
         )
 
     def bloqueado_async(*a, **k):
-        raise AssertionError(
+        raise LlamadaRealBloqueada(
             "Esta prueba intento una llamada HTTP real (async). Revisa los mocks o marcala "
             "con @pytest.mark.red."
         )

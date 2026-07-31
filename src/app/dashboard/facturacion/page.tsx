@@ -13,7 +13,9 @@ import {
 import { Button } from '@/components/ui/button';
 import { requireClinicPage } from '@/lib/facturacion/page-auth';
 import {
+  getActiveRange,
   getBillingSettings,
+  getDashboardKpis,
   getUnbilledConsultations,
   getUnsentIssuedCount,
 } from '@/lib/facturacion/queries';
@@ -63,8 +65,18 @@ export default async function FacturacionPage() {
   if (!ctx) return null;
   const { supabase, clinicId } = ctx;
 
-  // Una sola ola: settings y datos del dashboard no dependen entre sí.
-  const [settings, { data }, unbilled, unsentCount] = await Promise.all([
+  // Inicio de mes en Bogotá (UTC-5 fijo, sin DST): la frontera del KPI es la del negocio, no la
+  // del servidor — en Vercel (UTC) el corte de mes caía 5 horas antes.
+  const nowUtc = new Date();
+  const bogota = new Date(nowUtc.getTime() - 5 * 3_600_000);
+  const monthStartIso = new Date(
+    Date.UTC(bogota.getUTCFullYear(), bogota.getUTCMonth(), 1, 5),
+  ).toISOString();
+
+  // Una sola ola: settings y datos del dashboard no dependen entre sí. El listado sigue trayendo
+  // las últimas 100 (es una tabla de recientes); los KPIs de dinero YA NO salen de esas 100 filas
+  // sino de agregados sobre todo el historial (getDashboardKpis).
+  const [settings, { data }, unbilled, unsentCount, kpis] = await Promise.all([
     getBillingSettings(supabase, clinicId),
     supabase
       .from('invoices')
@@ -74,6 +86,7 @@ export default async function FacturacionPage() {
       .limit(100),
     getUnbilledConsultations(supabase, clinicId, { limit: 25 }),
     getUnsentIssuedCount(supabase, clinicId),
+    getDashboardKpis(supabase, clinicId, monthStartIso),
   ]);
   const active = settings?.module_status === 'ACTIVO';
 
@@ -127,19 +140,14 @@ export default async function FacturacionPage() {
   // ── Módulo activo: KPIs + lista + puente CRM ──────────────────────────────
   const invoices = (data as InvoiceWithPayer[] | null) ?? [];
 
-  const monthStart = new Date();
-  monthStart.setDate(1);
-  monthStart.setHours(0, 0, 0, 0);
-  const issuedThisMonth = invoices.filter(
-    (i) => i.status === 'EMITIDA' && i.issued_at && new Date(i.issued_at) >= monthStart,
-  );
-  const billedCents = issuedThisMonth.reduce((a, i) => a + i.total_cents, 0);
-  const collectedCents = issuedThisMonth.reduce((a, i) => a + i.paid_cents, 0);
-  const outstanding = invoices.filter((i) => i.status === 'EMITIDA' && i.balance_cents > 0);
-  const outstandingCents = outstanding.reduce((a, i) => a + i.balance_cents, 0);
-  const overdueCount = outstanding.filter((i) => i.collection_status === 'VENCIDA').length;
-  const drafts = invoices.filter((i) => i.status === 'BORRADOR').length;
-  const sandbox = invoices.length === 0 || invoices.some((i) => i.full_number?.startsWith('S'));
+  const { billedCents, collectedCents, issuedCount, outstandingCents, openCount, overdueCount } =
+    kpis;
+  const drafts = kpis.draftCount;
+  // Una sola fuente de verdad para una afirmación FISCAL: el rango de numeración activo (igual que
+  // configuración). La heurística anterior (startsWith('S') sobre las últimas 100 facturas) daba
+  // falso "sin validez fiscal" con prefijos legítimos tipo SETP y con cero facturas emitidas.
+  const activeRange = await getActiveRange(supabase, clinicId, settings!.default_doc_kind);
+  const sandbox = !activeRange || activeRange.is_sandbox;
 
   // Etiqueta del mes en curso, solo presentación (ej. "julio 2026").
   const now = new Date();
@@ -235,11 +243,7 @@ export default async function FacturacionPage() {
           <StatCard
             label={`Facturado en ${monthName}`}
             value={formatCOP(billedCents)}
-            sub={
-              issuedThisMonth.length === 1
-                ? '1 factura emitida'
-                : `${issuedThisMonth.length} facturas emitidas`
-            }
+            sub={issuedCount === 1 ? '1 factura emitida' : `${issuedCount} facturas emitidas`}
           />
           <StatCard
             label="Recaudado este mes"
@@ -251,9 +255,7 @@ export default async function FacturacionPage() {
             value={formatCOP(outstandingCents)}
             sub={
               <>
-                {outstanding.length === 1
-                  ? '1 factura con saldo'
-                  : `${outstanding.length} facturas con saldo`}
+                {openCount === 1 ? '1 factura con saldo' : `${openCount} facturas con saldo`}
                 {overdueCount > 0 && (
                   <span className="font-medium text-warn">
                     · {overdueCount} {overdueCount === 1 ? 'vencida' : 'vencidas'}

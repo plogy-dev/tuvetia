@@ -111,7 +111,15 @@ export default async function NuevaFacturaPage({ searchParams }: { searchParams:
         .select('id, full_name, id_doc, phone')
         .eq('clinic_id', clinicId)
         .is('deleted_at', null)
-        .or(`full_name.ilike.%${q}%,id_doc.ilike.%${q}%,phone.ilike.%${q}%`)
+        // El argumento de .or() es GRAMÁTICA de filtros PostgREST, no un valor: una coma o un
+        // paréntesis en `q` inyectaría condiciones arbitrarias (la tenancy no se escapa — el
+        // .eq(clinic_id) es un AND aparte — pero sí la semántica de la búsqueda). Se quitan los
+        // metacaracteres; para nombres/cédulas/teléfonos no son entrada legítima.
+        .or(
+          ['full_name', 'id_doc', 'phone']
+            .map((col) => `${col}.ilike.%${q.replace(/[,()"\\]/g, ' ')}%`)
+            .join(','),
+        )
         .limit(8),
     ]);
     patients = (pRes.data as unknown as PatientHit[]) ?? [];

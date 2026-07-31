@@ -18,6 +18,13 @@ from app.embeddings import _tls_context
 GOOGLE_BASE_URL = "https://generativelanguage.googleapis.com/v1beta/openai"
 
 
+class RespuestaVaciaError(RuntimeError):
+    """El proveedor respondió 200 pero sin contenido utilizable (vacío, solo razonamiento, o
+    cortado por max_tokens). Es una clase propia para que quien reintenta pueda distinguirla de un
+    fallo HTTP: `generate_note` la trata como reintentable (medido: la misma transcripción que
+    salió vacía generó bien al reintentar) y la cascada la trata como fallo del candidato."""
+
+
 class LLMClient:
     def __init__(self, model: str | None = None, provider: str | None = None,
                  base_url: str | None = None, api_key: str | None = None):
@@ -133,7 +140,20 @@ class LLMClient:
                 raise RuntimeError(f"LLM {self.model} HTTP {r.status_code}: {r.text[:400]}")
             data = r.json()
         # Ignora `reasoning_content` (solo el `content` final -> JSON limpio para el Phantom).
-        return (data.get("choices") or [{}])[0].get("message", {}).get("content") or ""
+        choice = (data.get("choices") or [{}])[0]
+        content = (choice.get("message") or {}).get("content") or ""
+        finish = choice.get("finish_reason")
+        # Una respuesta vacía o cortada por presupuesto NO es un éxito: devolverla como si lo
+        # fuera impedía que la cascada probara la alternativa (el fallo más probable con Gemini,
+        # que gasta el presupuesto en razonamiento antes del content — medido ~180 tokens para 5
+        # de respuesta). Se levanta y que decida quien llama.
+        if not content.strip():
+            raise RespuestaVaciaError(
+                f"LLM {self.model}: respuesta sin contenido (finish_reason={finish!r})")
+        if finish == "length":
+            raise RespuestaVaciaError(
+                f"LLM {self.model}: respuesta cortada por max_tokens (finish_reason=length)")
+        return content
 
     def _openai_stream(self, system: str, user: str, max_tokens: int, history):
         import json
@@ -152,18 +172,43 @@ class LLMClient:
                 if r.status_code >= 400:
                     body = r.read().decode("utf-8", "replace")[:400]
                     raise RuntimeError(f"LLM {self.model} HTTP {r.status_code}: {body}")
+                emitido = False
+                cerrado = False   # llegó el [DONE] del protocolo
+                finish = None
                 for line in r.iter_lines():
                     line = line.strip()
                     if not line.startswith("data:"):
                         continue
                     payload = line[len("data:"):].strip()
                     if payload == "[DONE]":
+                        cerrado = True
                         break
                     try:
                         obj = json.loads(payload)
                     except json.JSONDecodeError:
                         continue
-                    delta = (obj.get("choices") or [{}])[0].get("delta") or {}
+                    choice = (obj.get("choices") or [{}])[0]
+                    if choice.get("finish_reason"):
+                        finish = choice["finish_reason"]
+                    delta = choice.get("delta") or {}
                     content = delta.get("content")  # ignora reasoning_content
                     if content:
+                        emitido = True
                         yield content
+                # Un stream que termina sin emitir nada (solo razonamiento, o presupuesto agotado
+                # antes del content) o que se corta sin el [DONE] del protocolo (proxy/LB reciclando
+                # la conexión) NO es un éxito: antes terminaba en silencio y la cascada lo daba por
+                # bueno — media respuesta entregada como completa. Se levanta: si aún no se emitió,
+                # la cascada prueba la alternativa; si ya se emitió, el error queda registrado en
+                # vez de fingir que el texto está entero.
+                if not emitido:
+                    raise RespuestaVaciaError(
+                        f"LLM {self.model}: stream sin contenido (finish_reason={finish!r})")
+                if finish == "length":
+                    raise RespuestaVaciaError(
+                        f"LLM {self.model}: stream cortado por max_tokens (finish_reason=length)")
+                if not cerrado and finish is None:
+                    # Ni [DONE] ni finish_reason: la conexión murió a mitad de la respuesta.
+                    raise RuntimeError(
+                        f"LLM {self.model}: stream cortado sin [DONE] ni finish_reason — "
+                        f"respuesta incompleta")

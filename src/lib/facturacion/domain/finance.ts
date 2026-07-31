@@ -115,7 +115,14 @@ export interface FinanceCsvRow {
  * no los malinterprete) y separador de campos `;` (convención es-CO).
  */
 export function financeCsv(rows: FinanceCsvRow[]): string {
-  const esc = (s: string) => (/[;"\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s);
+  // Además de ; y comillas, se neutraliza el PREFIJO de fórmula (=, +, -, @): el concepto incluye
+  // texto libre (nota, proveedor) y también lo rellena la importación con IA — un valor que
+  // empiece por "=" se EJECUTA al abrir el CSV en Excel/LibreOffice (CSV injection). El apóstrofo
+  // inicial es el escape estándar de hoja de cálculo: se muestra el texto tal cual, sin ejecutar.
+  const esc = (s: string) => {
+    const seguro = /^[=+\-@]/.test(s) ? `'${s}` : s;
+    return /[;"\n]/.test(seguro) ? `"${seguro.replace(/"/g, '""')}"` : seguro;
+  };
   const lines = ['Fecha;Tipo;Concepto;Método;Monto (COP)'];
   for (const r of rows) {
     const pesos = Math.round(r.amountCents / 100) * (r.kind === 'EGRESO' ? -1 : 1);
