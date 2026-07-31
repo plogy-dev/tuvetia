@@ -2,10 +2,63 @@
 
 Las fixtures de integración con DB (`require_db`, `seeded_tenants`) se SALTAN solas si la DB no
 está disponible (p.ej. CI sin Postgres), y siembran/limpian datos de prueba con ids fijos.
+
+⚠️ **NUNCA contra el proyecto PRINCIPAL.** `seeded_tenants` hace `insert` de clínicas, dueños,
+pacientes y alergias, y al terminar hace `delete from public.clinics ... ` — que **cascadea**.
+Correrlo contra el principal escribe y borra en la base con los datos reales de las clínicas, y
+además ensucia `rag_retrieval_log` con ids de fixture.
+
+Ya pasó: el 2026-07-30 el `.env` local apuntaba al principal (venía del "MODO PROD-LIKE" del 16-jul
+que nunca se revirtió) y la suite corrió varias veces contra él. Por eso existe `_exigir_db_de_dev`:
+la protección no puede depender de que alguien se acuerde de mirar el `.env`.
 """
+import os
+import re
+
 import pytest
 
 from app.models import RetrievedChunk, PatientContext
+
+# Proyecto PRINCIPAL (producción / compartido). Ver CLAUDE.md §Entornos y docs/MIGRACIONES.md.
+REF_PRINCIPAL = "auxlnexhkmtoedrzfsnz"
+# Escotilla para el caso excepcional y consciente. Que sea incómoda de escribir es a propósito.
+ESCOTILLA = "PERMITIR_TESTS_CONTRA_EL_PRINCIPAL"
+
+
+def _ref_de(url: str) -> str:
+    m = re.search(r"(?:postgres\.|//)([a-z]{20})", url or "")
+    return m.group(1) if m else "(desconocido)"
+
+
+def _exigir_db_de_dev() -> None:
+    """Corta la corrida si la DB de PACIENTE es la del principal.
+
+    Falla — no salta. Un `skip` es justo lo que dejó pasar esto sin que nadie lo viera.
+    """
+    from app.config import get_settings
+
+    url = get_settings().database_url
+    if REF_PRINCIPAL not in (url or ""):
+        return
+    if os.environ.get(ESCOTILLA) == "si-se-lo-que-hago":
+        return
+    pytest.fail(
+        "\n"
+        "==========================================================================\n"
+        f"  DATABASE_URL apunta al proyecto PRINCIPAL (ref {_ref_de(url)}).\n"
+        "==========================================================================\n"
+        "  Estas pruebas SIEMBRAN Y BORRAN clínicas, dueños, pacientes y alergias.\n"
+        "  Contra el principal eso escribe en la base con los datos reales de las\n"
+        "  clínicas y ensucia rag_retrieval_log con ids de fixture.\n"
+        "\n"
+        "  Arreglo: en athos-service/.env, apuntá DATABASE_URL a tuvetia-athos-dev.\n"
+        "  (CORPUS_DATABASE_URL sí puede quedarse en el principal: es de LECTURA y\n"
+        "   el corpus completo de 520k fragmentos sólo vive ahí.)\n"
+        "\n"
+        f"  Si de verdad hace falta: {ESCOTILLA}=si-se-lo-que-hago\n"
+        "==========================================================================",
+        pytrace=False,
+    )
 
 
 @pytest.fixture
@@ -48,6 +101,8 @@ ALLERGY_MILD = "a1a1a1a1-0000-0000-0000-0000000000a4"
 
 @pytest.fixture
 def require_db():
+    # El guard va ANTES de tocar la conexión: si la DB es la del principal, ni se abre.
+    _exigir_db_de_dev()
     try:
         from app.db import fetch_all
         fetch_all("select 1")
