@@ -11,6 +11,7 @@ import {
   dateFnsLocalizer,
   Views,
   type CalendarProps,
+  type Formats,
   type SlotInfo,
   type View,
 } from "react-big-calendar"
@@ -24,6 +25,7 @@ import { toast } from "sonner"
 
 import "react-big-calendar/lib/css/react-big-calendar.css"
 import "react-big-calendar/lib/addons/dragAndDrop/styles.css"
+import "./calendar-theme.css"
 
 import { createClient } from "@/lib/supabase/client"
 import { Button } from "@/components/ui/button"
@@ -42,6 +44,7 @@ import {
 import { HelpTip } from "@/components/help-tip"
 import { GoogleCalendarConnect } from "./google-calendar-connect"
 import { IcsFeedButton } from "./ics-feed-button"
+import { CalendarToolbar, DayColumnHeader, EventContent, formatGutterHour } from "./calendar-chrome"
 
 const locales = { es }
 const localizer = dateFnsLocalizer({ format, parse, startOfWeek, getDay, locales })
@@ -72,6 +75,11 @@ const MESSAGES = {
 
 const DEFAULT_DURATION_MIN = 30
 
+// Eje de horas compacto ("6 AM" en vez de "06:00"), como Google Calendar.
+const FORMATS: Formats = {
+  timeGutterFormat: (date) => formatGutterHour(date),
+}
+
 function normalizeRange(range: Date[] | { start: Date; end: Date }): { start: Date; end: Date } {
   if (Array.isArray(range)) return { start: range[0], end: range[range.length - 1] }
   return { start: range.start, end: range.end }
@@ -99,7 +107,14 @@ export function AppointmentCalendar({
     end: new Date(initialRange.end),
   }))
   const [view, setView] = useState<View>(Views.WEEK)
-  const [date, setDate] = useState<Date>(() => new Date(initialRange.start))
+  // Ancla en "hoy" si cae dentro del rango inicial (así Día/Agenda abren en hoy, no en el lunes de la
+  // semana, al cambiar de vista) — si no, cae al inicio del rango como antes.
+  const [date, setDate] = useState<Date>(() => {
+    const now = new Date()
+    const start = new Date(initialRange.start)
+    const end = new Date(initialRange.end)
+    return now >= start && now <= end ? now : start
+  })
 
   const [drawerOpen, setDrawerOpen] = useState(false)
   const [drawerKey, setDrawerKey] = useState(0)
@@ -267,11 +282,12 @@ export function AppointmentCalendar({
         </div>
       </div>
 
-      <div className="h-[75vh] rounded-xl border bg-card p-2">
+      <div className="tuvetia-calendar h-[75vh]">
         <DnDCalendar
           localizer={localizer}
           culture="es"
           messages={MESSAGES}
+          formats={FORMATS}
           events={events}
           view={view}
           onView={setView}
@@ -285,6 +301,12 @@ export function AppointmentCalendar({
           onEventDrop={move}
           onEventResize={move}
           popup
+          dayLayoutAlgorithm="overlap"
+          components={{
+            toolbar: CalendarToolbar,
+            week: { header: DayColumnHeader, event: EventContent },
+            day: { header: DayColumnHeader, event: EventContent },
+          }}
           eventPropGetter={(event: CalendarEvent) => ({
             style: { backgroundColor: APPOINTMENT_STATUS[event.resource.status].color, border: "none" },
           })}

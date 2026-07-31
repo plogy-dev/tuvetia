@@ -1,0 +1,112 @@
+/* Reskin de react-big-calendar al estilo Google Calendar, con los tokens de marca de Tuvetia (no el
+   azul de Google — para no romper la identidad visual del resto de la app). Todo escopado bajo
+   .tuvetia-calendar para no filtrar estos overrides a otros usos de las clases rbc-*. */
+
+.tuvetia-calendar .rbc-time-view,
+.tuvetia-calendar .rbc-month-view {
+  border: 1px solid var(--border);
+  border-radius: 0.75rem;
+  overflow: hidden;
+  background: var(--card);
+}
+
+.tuvetia-calendar .rbc-time-header-content,
+.tuvetia-calendar .rbc-time-header,
+.tuvetia-calendar .rbc-time-content,
+.tuvetia-calendar .rbc-day-slot + .rbc-day-slot,
+.tuvetia-calendar .rbc-header + .rbc-header,
+.tuvetia-calendar .rbc-header,
+.tuvetia-calendar .rbc-month-row,
+.tuvetia-calendar .rbc-month-row + .rbc-month-row,
+.tuvetia-calendar .rbc-day-bg + .rbc-day-bg,
+.tuvetia-calendar .rbc-timeslot-group,
+.tuvetia-calendar .rbc-time-header.rbc-overflowing {
+  border-color: var(--border) !important;
+}
+
+.tuvetia-calendar .rbc-header {
+  padding: 0;
+  font-weight: 500;
+  overflow: visible;
+  min-height: 56px;
+}
+.tuvetia-calendar .rbc-time-header-content .rbc-row.rbc-row-resource,
+.tuvetia-calendar .rbc-time-header-content {
+  overflow: visible;
+}
+
+.tuvetia-calendar .rbc-label {
+  padding: 0 8px;
+  font-size: 0.7rem;
+  color: var(--muted);
+}
+
+.tuvetia-calendar .rbc-today {
+  background-color: color-mix(in srgb, var(--accent) 6%, transparent);
+}
+
+.tuvetia-calendar .rbc-event {
+  border: none;
+  border-radius: 6px;
+  padding: 0;
+  box-shadow: none;
+}
+.tuvetia-calendar .rbc-event:focus {
+  outline: none;
+}
+.tuvetia-calendar .rbc-event.rbc-selected {
+  box-shadow: 0 0 0 2px var(--card), 0 0 0 4px var(--accent);
+}
+.tuvetia-calendar .rbc-event-label {
+  display: none;
+}
+.tuvetia-calendar .rbc-event-content {
+  height: 100%;
+}
+.tuvetia-calendar .rbc-day-slot .rbc-events-container {
+  margin-right: 4px;
+}
+
+.tuvetia-calendar .rbc-current-time-indicator {
+  height: 2px;
+  background-color: #e11d48;
+}
+.tuvetia-calendar .rbc-current-time-indicator::before {
+  content: "";
+  position: absolute;
+  top: -4px;
+  left: -5px;
+  width: 10px;
+  height: 10px;
+  border-radius: 9999px;
+  background-color: #e11d48;
+}
+
+.tuvetia-calendar .rbc-off-range-bg {
+  background: color-mix(in srgb, var(--muted) 10%, transparent);
+}
+.tuvetia-calendar .rbc-off-range {
+  color: var(--muted);
+}
+
+.tuvetia-calendar .rbc-show-more {
+  color: var(--primary);
+  background: transparent;
+  font-weight: 500;
+}
+
+.tuvetia-calendar .rbc-agenda-view table.rbc-agenda-table {
+  border-color: var(--border);
+}
+.tuvetia-calendar .rbc-agenda-view table.rbc-agenda-table thead > tr > th {
+  border-bottom-color: var(--border);
+  color: var(--muted);
+  font-weight: 500;
+}
+.tuvetia-calendar .rbc-agenda-view table.rbc-agenda-table tbody > tr > td {
+  border-top-color: var(--border-soft, var(--border));
+}
+.tuvetia-calendar .rbc-agenda-date-cell,
+.tuvetia-calendar .rbc-agenda-time-cell {
+  color: var(--muted);
+}
