@@ -15,6 +15,7 @@ import {
 } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
 import { Loader2Icon } from "lucide-react"
+import { GOOGLE_CALENDAR_SCOPE } from "@/lib/google-calendar-scope"
 
 /* Glifo "chispa" de la marca Tuvetia (patrón del Sidebar del cliente). */
 function BrandGlyph() {
@@ -95,10 +96,12 @@ export function LoginForm({
     const { error } = await supabase.auth.signInWithOAuth({
       provider: "google",
       options: {
-        // Login SIN scopes sensibles -> registro sin fricción (nada de "app no verificada"). El acceso
-        // a Google Calendar es opt-in aparte (botón "Conectar Google Calendar" en el calendario), así
-        // solo lo consiente quien lo usa. Cuando la app pase la verificación de Google, se puede volver
-        // a pedir el scope aquí para vincular en un clic sin advertencia (el callback ya lo captura).
+        // Pide el scope de calendario en el propio login: quien entra con Google queda auto-sincronizado
+        // sin pasos extra (el callback ya captura el refresh_token — ver /auth/callback). Contrapartida
+        // asumida: todo login con Google muestra la pantalla de "app no verificada" de Google hasta que
+        // la app pase su verificación (~10 días). access_type=offline para obtener refresh_token.
+        scopes: GOOGLE_CALENDAR_SCOPE,
+        queryParams: { access_type: "offline" },
         redirectTo: `${window.location.origin}/auth/callback${(() => {
           const next = new URLSearchParams(window.location.search).get("next")
           return next ? `?next=${encodeURIComponent(next)}` : ""

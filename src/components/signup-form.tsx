@@ -15,6 +15,7 @@ import {
 } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
 import { Loader2Icon } from "lucide-react"
+import { GOOGLE_CALENDAR_SCOPE } from "@/lib/google-calendar-scope"
 
 /* Glifo "chispa" de la marca Tuvetia (patrón del Sidebar del cliente). */
 function BrandGlyph() {
@@ -79,8 +80,10 @@ export function SignupForm({
     const { error } = await supabase.auth.signInWithOAuth({
       provider: "google",
       options: {
-        // Registro sin scopes sensibles -> sin pantalla de "app no verificada". El calendario es
-        // opt-in aparte (ver login-form). Post-verificación se puede reactivar el scope aquí.
+        // Mismo scope que login-form: registrarse con Google también deja el calendario auto-sincronizado
+        // desde el primer momento (mismo /auth/callback captura el refresh_token).
+        scopes: GOOGLE_CALENDAR_SCOPE,
+        queryParams: { access_type: "offline" },
         redirectTo: `${window.location.origin}/auth/callback${(() => {
           const next = new URLSearchParams(window.location.search).get("next")
           return next ? `?next=${encodeURIComponent(next)}` : ""

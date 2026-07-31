@@ -9,6 +9,10 @@ Agenda de citas de la clínica. UI con **react-big-calendar** (mes/semana/día, 
   probadas con aislamiento cross-clínica por MCP).
 - **v1b/v1c — Google sync: código completo, requiere activación** (config externa de Google + Supabase;
   ver §Activación). Sin esa config, el calendario interno funciona igual; el sync simplemente no dispara.
+- **v1d — Auto-sync en login con Google: LISTO** (2026-07-30). `login-form`/`signup-form` ya piden el
+  scope `calendar.events` en el propio OAuth de Google (`access_type=offline`); `/auth/callback` guarda
+  el refresh token automáticamente (no hace falta el botón "Conectar"). El pull incremental corre solo
+  al abrir `/dashboard/calendario` (no hay cron; ver §Activación punto 4 y §Pull automático).
 
 ## Modelo de datos
 
@@ -53,16 +57,27 @@ Agenda de citas de la clínica. UI con **react-big-calendar** (mes/semana/día, 
 3. **Vercel → Environment Variables** (server, NO `NEXT_PUBLIC_`):
    - `SUPABASE_SERVICE_ROLE_KEY` — service_role del principal (lee refresh_token, escribe google_event_id).
    - `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`.
-4. **Vinculación opt-in (para no meter fricción en el registro).** El login con Google **NO** pide el
-   scope de calendario → el registro no muestra la pantalla de "app no verificada". El acceso a Google
-   Calendar se pide **solo cuando el vet lo quiere**, con el botón **Calendario → "Conectar Google
-   Calendar"** (`prompt=consent`, route `/api/google/calendar/connect`). Así, solo quien usa el sync ve
-   la advertencia (y en modo Testing la pasa con "Continuar").
-   > **Post-verificación (opcional):** una vez que la app pase la verificación de Google (scope
-   > sensible, ~10 días), se puede volver a pedir el scope en el login (`login-form`/`signup-form`) para
-   > vincular en **un clic sin advertencia** — `/auth/callback` ya captura el token (`upsertGoogleIntegration`).
-5. Con el calendario vinculado: crear/editar/mover/borrar una cita hace **push** a Google;
-   **"Sincronizar"** hace el **pull** incremental (por `syncToken`).
+4. **Vinculación automática en el login (decisión 2026-07-30, reemplaza el opt-in original).**
+   `login-form`/`signup-form` piden el scope `calendar.events` (`access_type=offline`) en el mismo
+   `signInWithOAuth("google")` del login/registro. `/auth/callback` captura el `provider_refresh_token`
+   y llama `upsertGoogleIntegration` sin que el vet toque nada — quien entra con Google queda
+   sincronizado desde el primer login. **Contrapartida asumida:** TODO login/registro con Google
+   (no solo quien usa el sync) muestra la pantalla de "app no verificada" de Google hasta que la app
+   pase su verificación (~10 días; en modo Testing se pasa con "Continuar"). El scope está centralizado
+   en `src/lib/google-calendar-scope.ts`.
+   - El botón **Calendario → "Conectar Google Calendar"** (`/api/google/calendar/connect`) se mantiene
+     como fallback manual para quien entró con **email o Microsoft** (esos logins no pasan por Google
+     OAuth y por tanto nunca reciben el refresh token), o para reconectar si el vet revocó el acceso.
+   - Usuarios que ya tenían cuenta de Google **antes** de este cambio quedan vinculados en su
+     **próximo** login con Google (consentimiento incremental: Google les pide aprobar el scope nuevo
+     una sola vez).
+5. Con el calendario vinculado: crear/editar/mover/borrar una cita hace **push** a Google. El **pull**
+   incremental (por `syncToken`) corre automáticamente **al abrir `/dashboard/calendario`**
+   (`page.tsx` llama `pullEvents` server-side, best-effort — si Google falla no rompe la carga de la
+   página) y también bajo demanda con el botón **"Sincronizar"**. No hay cron: los cambios hechos en
+   Google se reflejan la próxima vez que alguien abra el calendario en la app, no en tiempo real. Si se
+   necesita más frecuencia sin depender de que alguien abra la página, el patrón a copiar es el cron de
+   `cartera` (`vercel.json` + `.github/workflows/cartera-sweep.yml` + `src/app/api/cron/cartera/route.ts`).
 
 ## Feed ICS — fallback de solo lectura (SIN OAuth ni verificación de Google)
 

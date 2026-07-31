@@ -4,6 +4,7 @@ import { createClient } from "@/lib/supabase/server"
 import { AppointmentCalendarLazy as AppointmentCalendar } from "@/components/calendar/appointment-calendar-lazy"
 import { DataError } from "@/components/data-error"
 import { APPOINTMENT_SELECT, type AppointmentRow, type SelectOption } from "@/lib/appointments"
+import { pullEvents } from "@/lib/google-calendar"
 
 export default async function CalendarioPage() {
   const supabase = await createClient()
@@ -16,6 +17,17 @@ export default async function CalendarioPage() {
   const {
     data: { user },
   } = await supabase.auth.getUser()
+
+  // Pull automático: si el vet tiene Google conectado, trae los cambios remotos antes de listar las
+  // citas (no-op rápido si no hay integración). Best-effort — si Google falla, el calendario interno
+  // sigue sirviendo con lo último que haya en BD; no bloquea la carga de la página por un error remoto.
+  if (user) {
+    try {
+      await pullEvents(user.id)
+    } catch {
+      /* best-effort */
+    }
+  }
 
   // clinic_id explícito para el selector de vets (defensa en profundidad, no solo RLS).
   const clinicId = user

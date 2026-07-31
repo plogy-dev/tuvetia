@@ -1,8 +1,10 @@
 "use client"
 
-// Conectar / sincronizar Google Calendar (opt-in por vet). Al conectar, reautoriza con el scope
-// calendar.events (offline) y, al volver, captura el provider_refresh_token de la sesión y lo guarda
-// server-side (route /api/google/calendar/connect). "Sincronizar" hace el pull incremental.
+// Conectar Google Calendar manualmente: fallback para quien entró con email/Microsoft, o con Google
+// antes de este cambio (login-form/signup-form ya piden el scope y auto-conectan en el callback). Al
+// conectar, reautoriza con el scope calendar.events (offline) y, al volver, captura el
+// provider_refresh_token de la sesión y lo guarda server-side (route /api/google/calendar/connect).
+// "Sincronizar" fuerza el pull incremental (el pull también corre solo al abrir /dashboard/calendario).
 
 import { useEffect, useRef, useState } from "react"
 import { useRouter } from "next/navigation"
@@ -11,8 +13,7 @@ import { toast } from "sonner"
 
 import { createClient } from "@/lib/supabase/client"
 import { Button } from "@/components/ui/button"
-
-const CALENDAR_SCOPE = "https://www.googleapis.com/auth/calendar.events"
+import { GOOGLE_CALENDAR_SCOPE } from "@/lib/google-calendar-scope"
 
 export function GoogleCalendarConnect({
   connected,
@@ -62,7 +63,7 @@ export function GoogleCalendarConnect({
     const { error } = await supabase.auth.signInWithOAuth({
       provider: "google",
       options: {
-        scopes: CALENDAR_SCOPE,
+        scopes: GOOGLE_CALENDAR_SCOPE,
         queryParams: { access_type: "offline", prompt: "consent" },
         redirectTo: `${window.location.origin}/dashboard/calendario?google=connected`,
       },
