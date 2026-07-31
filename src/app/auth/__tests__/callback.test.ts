@@ -45,10 +45,23 @@ describe("el canje del enlace del correo", () => {
     expect(res.headers.get("location")).toBe("https://app.tuvetia.com/invitar/tok-9")
   })
 
-  it("sin código no inventa sesión: manda al login con el motivo", async () => {
+  it("sin código deriva al navegador, que es el único que puede leer el fragmento", async () => {
+    // Éste es el arreglo del invitado SIN cuenta. Un enlace de correo vuelve con la sesión en
+    // `#access_token=…`, y el fragmento NO llega al servidor: acá se ve una petición sin código.
+    // Antes eso terminaba en /login y la persona no entraba nunca. Ahora se le pregunta al
+    // navegador, que sí puede leerlo (el fragmento sobrevive a la redirección, RFC 7231 §7.1.2).
     const res = await pedir("?next=%2Finvitar%2Ftok-9")
     expect(exchangeCodeForSession).not.toHaveBeenCalled()
-    expect(res.headers.get("location")).toContain("/login?error=auth&reason=missing_code")
+    expect(res.headers.get("location")).toBe(
+      "https://app.tuvetia.com/auth/sesion?next=%2Finvitar%2Ftok-9&reason=missing_code",
+    )
+  })
+
+  it("el destino se sanea ANTES de derivar al navegador", async () => {
+    const res = await pedir("?next=%2F%2Fevil.com")
+    expect(res.headers.get("location")).toBe(
+      "https://app.tuvetia.com/auth/sesion?next=%2Fdashboard&reason=missing_code",
+    )
   })
 
   it("si el canje falla, el motivo real viaja al login", async () => {

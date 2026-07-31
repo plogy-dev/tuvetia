@@ -1,16 +1,29 @@
 import { NextResponse, type NextRequest } from "next/server"
 import { createClient } from "@/lib/supabase/server"
+import { safeNext } from "@/lib/auth-fragment"
 import { upsertGoogleIntegration } from "@/lib/google-calendar"
 
-// Solo permite paths internos como destino (evita open redirect vía ?next=//evil.com).
-function safeNext(raw: string | null): string {
-  return raw && raw.startsWith("/") && !raw.startsWith("//") ? raw : "/dashboard"
-}
+// Esta ruta atiende el retorno de OAuth (login con Google): el flujo lo inició el NAVEGADOR, existe
+// el `code_verifier` de PKCE y Supabase devuelve `?code=`.
+//
+// Un enlace de CORREO es otra cosa: lo inicia el servidor, no hay `code_verifier`, y Supabase
+// devuelve los tokens en el FRAGMENTO (`#access_token=…`). El fragmento no viaja al servidor, así
+// que acá llega una petición sin código. Antes eso terminaba en `/login?reason=missing_code` — y era
+// exactamente el fallo del invitado sin cuenta. Ahora se deriva a `/auth/sesion`, que corre en el
+// navegador y sí puede leerlo; el fragmento sobrevive a la redirección (RFC 7231 §7.1.2).
 
 export async function GET(request: NextRequest) {
   const { searchParams, origin } = new URL(request.url)
   const code = searchParams.get("code")
   const next = safeNext(searchParams.get("next"))
+
+  // Sin `code` no es un error todavía: puede ser un enlace de correo con la sesión en el fragmento.
+  // Sólo el navegador puede saberlo, así que se le pregunta a él.
+  if (!code) {
+    return NextResponse.redirect(
+      `${origin}/auth/sesion?next=${encodeURIComponent(next)}&reason=missing_code`,
+    )
+  }
 
   let reason = "missing_code"
   if (code) {

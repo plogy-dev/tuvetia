@@ -2,11 +2,7 @@ import { type EmailOtpType } from "@supabase/supabase-js"
 import { redirect } from "next/navigation"
 import { type NextRequest } from "next/server"
 import { createClient } from "@/lib/supabase/server"
-
-// Solo permite paths internos como destino (evita open redirect vía ?next=//evil.com).
-function safeNext(raw: string | null): string {
-  return raw && raw.startsWith("/") && !raw.startsWith("//") ? raw : "/dashboard"
-}
+import { safeNext } from "@/lib/auth-fragment"
 
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url)
