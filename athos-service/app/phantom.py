@@ -20,7 +20,7 @@ from app.generation.condition_alerts import detect_conditions, explain_condition
 from app.generation.dose_guard import patient_data_complete, redact_doses
 from app.generation.evidence_judge import judge_evidence
 from app.generation.generate import EmptyNoteError, generate_note
-from app.generation.provider_cascade import task_para_banda
+from app.generation.provider_cascade import modelo_usado, task_para_banda
 from app.generation.transcript_fidelity import check_note_fidelity, repair_sections
 from app.generation.undeclared import find_undeclared
 from app.models import EVIDENCE_NONE, PhantomSuggestResponse
@@ -197,7 +197,11 @@ def suggest(consultation_id: str, clinic_id: str, user_id: str | None = None) ->
     # Alertas de condición: detección determinística (desde el assessment) + panel "afectaciones en
     # este paciente" (una llamada LLM, grounded en la literatura; degrada a sin-detail si falla).
     alerts = explain_conditions(detect_conditions(soap.assessment, patient), patient, literature)
-    model = get_settings().llm_model
+    # Quién generó DE VERDAD la nota: con la cascada el modelo puede variar por petición, y la nota
+    # que el veterinario firma no puede registrar un modelo que no la escribió. `modelo_usado` es la
+    # etiqueta que dejó la última generación (la de generate_note, que corre justo antes); si ninguna
+    # cascada corrió (p. ej. nota sin literatura), cae al LLM_MODEL de siempre.
+    model = modelo_usado(get_settings().llm_model)
     ai_at = datetime.now(timezone.utc)
 
     # Trazabilidad

@@ -278,12 +278,14 @@ def stream_answer(question: str, patient_id: str, clinic_id: str, user_id: str |
         yield from _emit(listo)
 
     stream = None
+    # La instancia se conserva (no solo su generador): `cascade.usado` es quién respondió de
+    # verdad, y es lo que se reporta como ai_model — con fallback, el modelo varía por petición.
+    cascade = ProviderCascade(REDACCION)
     try:
         # Cascada entre proveedores: si el primario falla ANTES del primer token, responde la
         # alternativa; si falla después, corta como cortaba antes (no se cosen dos respuestas).
         # Sin `LLM_CASCADE_REDACCION` configurado se comporta igual que `LLMClient()`.
-        stream = ProviderCascade(REDACCION).stream(
-            system, user, history=history, max_tokens=CHAT_MAX_TOKENS)
+        stream = cascade.stream(system, user, history=history, max_tokens=CHAT_MAX_TOKENS)
         for tok in stream:
             parts.append(tok)
             if decided:
@@ -341,7 +343,7 @@ def stream_answer(question: str, patient_id: str, clinic_id: str, user_id: str |
                             "en unos segundos."})
         yield _sse({"type": "done", "citations": [], "allergy_gate_triggered": gate,
                     "insufficient_evidence": False, "evidence_level": level,
-                    "ai_model": get_settings().llm_model, "error": errored})
+                    "ai_model": cascade.usado or get_settings().llm_model, "error": errored})
         return
 
     # Auditoría de fidelidad de las citas. Corre DESPUÉS de que el vet ya leyó la respuesta, así que
@@ -372,6 +374,6 @@ def stream_answer(question: str, patient_id: str, clinic_id: str, user_id: str |
     # `undeclared_claims` viaja igual y por la misma razón.
     yield _sse({"type": "done", "citations": [c.model_dump() for c in citations],
                 "allergy_gate_triggered": gate, "insufficient_evidence": False,
-                "evidence_level": level, "ai_model": get_settings().llm_model,
+                "evidence_level": level, "ai_model": cascade.usado or get_settings().llm_model,
                 "unverified_sources": sorted(fidelity.unfaithful),
                 "undeclared_claims": undeclared})

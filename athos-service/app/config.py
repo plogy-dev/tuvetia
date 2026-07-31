@@ -30,10 +30,13 @@ class Settings(BaseSettings):
 
     # --- Gemini (Google). Key y base URL propias para que convivan con el proveedor primario sin
     # pisarle las variables: hoy el primario es DeepSeek y Gemini entra como alternativa. ---
+    # ⚠️ El MODELO de Gemini NO se configura aquí: sale del string de la cascada
+    # (`LLM_CASCADE_*="gemini-3.6-flash@google"`). Existieron `GEMINI_MODEL`/`GEMINI_LIGHT_MODEL`
+    # como settings que NADIE leía — cambiarlas en Railway no cambiaba nada, y el doc de entrega
+    # las citaba como evidencia (mismo defecto que EVOLUTION_API_URL, auditoría 2026-07-30). Se
+    # eliminaron para que la única perilla sea la que funciona.
     gemini_api_key: str = ""
     gemini_base_url: str = ""              # vacío -> el endpoint OpenAI-compatible por defecto
-    gemini_model: str = "gemini-3.6-flash"
-    gemini_light_model: str = "gemini-2.5-flash-lite"
 
     # --- CASCADA ENTRE PROVEEDORES (cláusula 1.4) y ROUTING (1.5) ---
     # ⚠️ NO confundir con `app/retrieval/cascade.py`, que es la cascada de RECUPERACIÓN de documentos

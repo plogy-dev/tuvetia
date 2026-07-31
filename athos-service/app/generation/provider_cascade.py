@@ -28,6 +28,7 @@ ORDEN RECOMENDADO Y UNA ADVERTENCIA DE COSTOS
 tenga crédito**: cada intento suyo agregaría una llamada fallida y su latencia antes de llegar al
 proveedor que sí puede responder.
 """
+import contextvars
 import logging
 import time
 
@@ -36,11 +37,33 @@ from app.generation.llm_client import LLMClient
 
 log = logging.getLogger(__name__)
 
+# El "modelo@proveedor" que respondió la ÚLTIMA generación de este contexto (petición). Existe para
+# la trazabilidad clínica: `clinical_notes.ai_model` y `rag_answer_log.model` deben registrar quién
+# respondió DE VERDAD — con la cascada, el modelo puede variar por petición, y registrar siempre
+# LLM_MODEL escribía un modelo que no generó la nota que el veterinario firma (auditoría 2026-07-30).
+# ContextVar y no atributo: `generate_note` instancia la cascada internamente y cambiarle la firma
+# rompería a todos sus llamadores; los hilos nuevos (el juez del chat) arrancan con contexto propio,
+# así que el juez no pisa la etiqueta de la redacción.
+_ultimo_usado: contextvars.ContextVar[str | None] = contextvars.ContextVar(
+    "cascada_ultimo_usado", default=None)
+
+
+def modelo_usado(por_defecto: str) -> str:
+    """Quién respondió la última generación de esta petición, o `por_defecto` si nada corrió aún."""
+    return _ultimo_usado.get() or por_defecto
+
 # Tareas ruteables. El nombre describe el PAPEL, no el modelo: es lo que permite cambiar el modelo de
 # una tarea sin tocar el código que la invoca.
 REDACCION = "redaccion"   # chat del vet y nota del Fantasma (calidad primero)
 LIVIANO = "liviano"       # A->B, juez de evidencia, auditores (volumen y costo primero)
 DIFICIL = "dificil"       # redacción de un caso con cobertura LIMITADA (fidelidad primero)
+
+
+# Proveedores que LLMClient sabe despachar. La lista blanca existe porque el despacho cae a
+# Anthropic para cualquier nombre desconocido: un typo como "gemini" en vez de "google" mandaría
+# la key del primario (DeepSeek) a api.anthropic.com — credencial filtrada a un tercero, y un
+# fallo por candidato en cada petición. Un typo se descarta con aviso, no se ejecuta.
+PROVEEDORES_VALIDOS = {"openai", "google", "anthropic"}
 
 
 def _parse(spec: str) -> list[tuple[str, str]]:
@@ -58,7 +81,36 @@ def _parse(spec: str) -> list[tuple[str, str]]:
         if not sep or not modelo.strip() or not proveedor.strip():
             log.warning("cascada de proveedores: entrada ignorada por formato inválido: %r", parte)
             continue
-        salida.append((modelo.strip(), proveedor.strip().lower()))
+        proveedor = proveedor.strip().lower()
+        if proveedor not in PROVEEDORES_VALIDOS:
+            log.warning("cascada de proveedores: proveedor desconocido %r ignorado (válidos: %s)",
+                        proveedor, ", ".join(sorted(PROVEEDORES_VALIDOS)))
+            continue
+        salida.append((modelo.strip(), proveedor))
+    return salida
+
+
+def _con_credencial(pares: list[tuple[str, str]]) -> list[tuple[str, str]]:
+    """Descarta candidatos cuyo proveedor no tiene key configurada.
+
+    Un candidato sin key no es una alternativa: es un 401 garantizado que suma latencia y, peor,
+    ENMASCARA el error real del primario (la cascada re-levanta el último fallo, y "API key not
+    valid" taparía un saldo agotado o un 429 del proveedor que sí importa).
+    """
+    s = get_settings()
+    salida: list[tuple[str, str]] = []
+    for modelo, proveedor in pares:
+        if proveedor == "google" and not s.gemini_api_key:
+            log.warning("cascada de proveedores: %s@google descartado — GEMINI_API_KEY vacía", modelo)
+            continue
+        if proveedor == "anthropic" and not s.anthropic_api_key:
+            log.warning("cascada de proveedores: %s@anthropic descartado — ANTHROPIC_API_KEY vacía "
+                        "(la key general es del primario y no sirve contra Anthropic)", modelo)
+            continue
+        if proveedor == "openai" and not s.llm_api_key:
+            log.warning("cascada de proveedores: %s@openai descartado — LLM_API_KEY vacía", modelo)
+            continue
+        salida.append((modelo, proveedor))
     return salida
 
 
@@ -75,7 +127,7 @@ def candidatos(task: str) -> list[tuple[str, str]]:
         spec = s.llm_cascade_dificil or s.llm_cascade_redaccion
     else:
         spec = s.llm_cascade_redaccion
-    return _parse(spec)[: max(1, s.llm_cascade_max_intentos)]
+    return _con_credencial(_parse(spec))[: max(1, s.llm_cascade_max_intentos)]
 
 
 def task_para_banda(banda: str) -> str:
@@ -103,6 +155,12 @@ class ProviderCascade:
         self.model_forzado = model
         self.usado: str | None = None      # "modelo@proveedor" que respondió; para trazabilidad
 
+    @staticmethod
+    def _etiqueta(modelo: str | None, proveedor: str | None) -> str:
+        """Etiqueta trazable "modelo@proveedor" con los nombres RESUELTOS (no "default")."""
+        s = get_settings()
+        return f"{modelo or s.llm_model}@{proveedor or (s.llm_provider or 'anthropic').lower()}"
+
     def _cadena(self) -> list[tuple[str, str | None]]:
         lista: list[tuple[str, str | None]] = []
         if self.model_forzado:
@@ -115,21 +173,30 @@ class ProviderCascade:
     def complete(self, system: str, user: str, max_tokens: int = 2000) -> str:
         cadena = self._cadena()
         ultimo: Exception | None = None
+        errores: list[str] = []
         for i, (modelo, proveedor) in enumerate(cadena):
             t0 = time.monotonic()
             try:
                 texto = LLMClient(model=modelo, provider=proveedor).complete(
                     system, user, max_tokens=max_tokens)
-                self.usado = f"{modelo or 'default'}@{proveedor or 'default'}"
+                self.usado = self._etiqueta(modelo, proveedor)
+                _ultimo_usado.set(self.usado)
                 if i:
                     log.warning("cascada de proveedores: respondió la alternativa %s tras %s fallo(s)",
                                 self.usado, i)
                 return texto
             except Exception as e:  # noqa: BLE001 — se prueba el siguiente proveedor
                 ultimo = e
+                errores.append(f"{self._etiqueta(modelo, proveedor)}: {str(e)[:200]}")
                 log.warning("cascada de proveedores: falló %s@%s en %.1fs (%s)",
                             modelo or "default", proveedor or "default",
                             time.monotonic() - t0, str(e)[:200])
+        # Se re-levanta el ÚLTIMO error, pero el diagnóstico completo va al log: el error del
+        # PRIMARIO es el que suele importar (saldo, 429, contexto) y quedaría tapado por un fallo
+        # tonto de la alternativa (p. ej. key inválida) si solo sobreviviera el último mensaje.
+        if len(errores) > 1:
+            log.error("cascada de proveedores agotada (%s intentos): %s",
+                      len(errores), " | ".join(errores))
         raise ultimo if ultimo else RuntimeError("cascada de proveedores sin candidatos")
 
     def stream(self, system: str, user: str, max_tokens: int = 1500,
@@ -145,6 +212,7 @@ class ProviderCascade:
         """
         cadena = self._cadena()
         ultimo: Exception | None = None
+        errores: list[str] = []
         for i, (modelo, proveedor) in enumerate(cadena):
             emitido = False
             try:
@@ -152,13 +220,15 @@ class ProviderCascade:
                         system, user, max_tokens=max_tokens, history=history):
                     emitido = True
                     yield trozo
-                self.usado = f"{modelo or 'default'}@{proveedor or 'default'}"
+                self.usado = self._etiqueta(modelo, proveedor)
+                _ultimo_usado.set(self.usado)
                 if i:
                     log.warning("cascada de proveedores (stream): respondió %s tras %s fallo(s)",
                                 self.usado, i)
                 return
             except Exception as e:  # noqa: BLE001
                 ultimo = e
+                errores.append(f"{self._etiqueta(modelo, proveedor)}: {str(e)[:200]}")
                 if emitido:
                     log.error("cascada de proveedores: %s@%s falló DESPUÉS de emitir; no se reintenta "
                               "para no coser dos respuestas (%s)",
@@ -166,4 +236,7 @@ class ProviderCascade:
                     raise
                 log.warning("cascada de proveedores (stream): falló %s@%s antes del primer token (%s)",
                             modelo or "default", proveedor or "default", str(e)[:200])
+        if len(errores) > 1:
+            log.error("cascada de proveedores agotada (%s intentos): %s",
+                      len(errores), " | ".join(errores))
         raise ultimo if ultimo else RuntimeError("cascada de proveedores sin candidatos")

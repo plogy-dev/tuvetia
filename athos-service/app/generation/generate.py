@@ -13,6 +13,7 @@ import re
 
 from app.generation.allergy_gate import transcript_mentions_allergy
 from app.generation.citations import verify_citations
+from app.generation.llm_client import RespuestaVaciaError
 from app.generation.provider_cascade import REDACCION, ProviderCascade
 from app.models import SOAP, Citation, PatientContext, RetrievedChunk
 
@@ -196,7 +197,14 @@ def generate_note(transcript: str, literature: list[RetrievedChunk], patient: Pa
         # parseo caía a una nota vacía. 4000 da margen para que el JSON cierre completo.
         # Cascada entre proveedores: si el primario se cae, responde la alternativa.
         # Sin `LLM_CASCADE_REDACCION` configurado se comporta igual que `LLMClient()`.
-        text = ProviderCascade(task).complete(system, user, max_tokens=4000)
+        try:
+            text = ProviderCascade(task).complete(system, user, max_tokens=4000)
+        except RespuestaVaciaError as e:
+            # Una respuesta vacía ya no llega como "" (el cliente la levanta para que la cascada
+            # pruebe la alternativa). Si TODA la cadena terminó vacía, sigue siendo el fallo
+            # transitorio de siempre: se reintenta igual que antes. Un fallo HTTP sí propaga.
+            log.warning("nota vacía del modelo (intento %s de 2): %s", intento, e)
+            continue
         soap, citations, model_flag = parse_note_response(text, literature)
         if soap.subjective.strip() or soap.objective.strip() or soap.assessment.strip():
             break

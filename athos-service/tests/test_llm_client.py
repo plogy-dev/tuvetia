@@ -41,6 +41,81 @@ def test_openai_complete_arma_payload_y_parsea_content(monkeypatch):
     assert j["model"] == "deepseek-chat" and j["stream"] is False
     assert j["messages"][0] == {"role": "system", "content": "SYS"}
     assert j["messages"][-1] == {"role": "user", "content": "USR"}
+    # LA garantía que permite desplegar la cascada con demos en vivo: el CUERPO REAL al primario
+    # lleva el thinking desactivado. Sin esta línea, borrar `**self._extra_body()` del cuerpo
+    # dejaba 209 pruebas en verde mientras DeepSeek volvía a razonar ~30 s antes del primer token
+    # (auditoría 2026-07-30: el test que decía fijar el cuerpo solo probaba el helper aislado).
+    assert j["thinking"] == {"type": "disabled"}
+
+
+def test_google_complete_no_manda_thinking(monkeypatch):
+    """El cuerpo REAL a Gemini va pelado: `thinking` le produce HTTP 400 (Unknown name)."""
+    captured = {}
+
+    class FakeResp:
+        status_code = 200
+
+        def json(self):
+            return {"choices": [{"message": {"content": "hola"}, "finish_reason": "stop"}]}
+
+    class FakeClient:
+        def __init__(self, *a, **k):
+            pass
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *a):
+            return False
+
+        def post(self, url, headers=None, json=None):
+            captured.update(url=url, headers=headers, json=json)
+            return FakeResp()
+
+    monkeypatch.setattr(httpx, "Client", FakeClient)
+    out = LLMClient(provider="google", model="gemini-3.6-flash", api_key="k").complete("SYS", "USR")
+
+    assert out == "hola"
+    assert "thinking" not in captured["json"]
+    assert captured["url"].endswith("/openai/chat/completions")  # base URL por defecto de Google
+
+
+def test_respuesta_vacia_o_cortada_levanta(monkeypatch):
+    """`content` vacío o `finish_reason=length` NO son un éxito: si se devolvieran como si lo
+    fueran, la cascada no probaría la alternativa — el modo de fallo más probable con Gemini,
+    que gasta el presupuesto razonando antes del content."""
+    import pytest
+
+    respuestas = [
+        {"choices": [{"message": {"content": ""}, "finish_reason": "length"}]},
+        {"choices": [{"message": {}, "finish_reason": "stop"}]},
+        {"choices": [{"message": {"content": "trunca"}, "finish_reason": "length"}]},
+    ]
+
+    for cuerpo in respuestas:
+        class FakeResp:
+            status_code = 200
+
+            def json(self, _c=cuerpo):
+                return _c
+
+        class FakeClient:
+            def __init__(self, *a, **k):
+                pass
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *a):
+                return False
+
+            def post(self, url, headers=None, json=None):
+                return FakeResp()
+
+        monkeypatch.setattr(httpx, "Client", FakeClient)
+        with pytest.raises(RuntimeError):
+            LLMClient(provider="openai", base_url="https://x", model="m", api_key="k").complete(
+                "SYS", "USR")
 
 
 def test_openai_stream_yields_content_e_ignora_reasoning_y_pasa_historial(monkeypatch):

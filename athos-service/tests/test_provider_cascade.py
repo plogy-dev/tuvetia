@@ -3,11 +3,18 @@ import app.generation.provider_cascade as pc
 from app.generation.provider_cascade import LIVIANO, REDACCION, ProviderCascade, _parse
 
 
-def _cascada(monkeypatch, redaccion="", liviano=""):
+def _cascada(monkeypatch, redaccion="", liviano="", con_keys=True):
     s = pc.get_settings()
     monkeypatch.setattr(s, "llm_cascade_redaccion", redaccion, raising=False)
     monkeypatch.setattr(s, "llm_cascade_liviano", liviano, raising=False)
     monkeypatch.setattr(s, "llm_cascade_max_intentos", 3, raising=False)
+    if con_keys:
+        # Un candidato sin key se descarta de la cadena (no es una alternativa, es un 401
+        # garantizado). Los tests que ejercitan la cadena necesitan keys de mentira; los que
+        # ejercitan el DESCARTE pasan con_keys=False y ponen solo las que quieren.
+        monkeypatch.setattr(s, "llm_api_key", "k-test", raising=False)
+        monkeypatch.setattr(s, "gemini_api_key", "k-test", raising=False)
+        monkeypatch.setattr(s, "anthropic_api_key", "k-test", raising=False)
 
 
 def _fake_client(monkeypatch, comportamiento):
@@ -41,6 +48,35 @@ def test_parse_ignora_lo_malformado_en_vez_de_reventar():
     assert _parse("a@openai, ,basura, @openai, b@ ,c@google") == [("a", "openai"), ("c", "google")]
     assert _parse("") == []
     assert _parse(None) == []
+
+
+def test_parse_descarta_proveedor_desconocido():
+    """Un typo en el proveedor ("gemini" en vez de "google") NO puede ejecutarse: el despacho de
+    LLMClient cae a Anthropic para nombres desconocidos, y eso mandaría la key del primario a un
+    tercero. Se descarta con aviso, como el formato inválido."""
+    assert _parse("m@gemini") == []
+    assert _parse("m@deepseek,x@google") == [("x", "google")]
+    assert _parse("m@ANTHROPIC") == [("m", "anthropic")]  # el case no es un typo
+
+
+def test_candidato_sin_key_se_descarta_de_la_cadena(monkeypatch):
+    """Un candidato sin credencial no es una alternativa: es un 401 garantizado que además tapa el
+    error real del primario (la cascada re-levanta el ÚLTIMO fallo)."""
+    _cascada(monkeypatch, redaccion="d@openai,g@google", con_keys=False)
+    s = pc.get_settings()
+    monkeypatch.setattr(s, "llm_api_key", "k-openai", raising=False)
+    monkeypatch.setattr(s, "gemini_api_key", "", raising=False)      # Gemini SIN key
+    monkeypatch.setattr(s, "anthropic_api_key", "", raising=False)
+    assert pc.candidatos(REDACCION) == [("d", "openai")]
+
+    # Y el fallo del primario llega ENTERO al llamador, no tapado por un 401 de Gemini.
+    llamados = _fake_client(monkeypatch, {"d@openai": RuntimeError("saldo agotado")})
+    try:
+        ProviderCascade(REDACCION).complete("s", "u")
+        raise AssertionError("debió levantar")
+    except RuntimeError as e:
+        assert "saldo agotado" in str(e)
+    assert llamados == ["d@openai"]
 
 
 def test_sin_cascada_configurada_usa_el_cliente_de_siempre(monkeypatch):
