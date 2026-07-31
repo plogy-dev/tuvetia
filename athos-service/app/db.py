@@ -3,6 +3,9 @@
 IMPORTANTE: el microservicio usa la service_role (se salta RLS). Por eso TODA query del lado
 paciente DEBE filtrar por clinic_id explícito. El corpus/glosario son globales (sin clinic_id).
 """
+import os
+import sys
+
 import psycopg
 from psycopg.rows import dict_row
 from psycopg_pool import ConnectionPool
@@ -15,11 +18,61 @@ _CONN_KWARGS = {"row_factory": dict_row, "options": "-c statement_timeout=15000"
 _pool: ConnectionPool | None = None
 _corpus_pool: ConnectionPool | None = None
 
+# --- Cortafuegos: bajo pytest, NUNCA se abre la DB de paciente del proyecto principal -----------
+#
+# Por qué acá y no en un fixture. La protección anterior vivía en `conftest.py` y sólo cubría las
+# pruebas que declaran `require_db`/`seeded_tenants`. Pero `test_chat.py` y `test_phantom.py` pasan
+# `clinic_id="clinic-a"` y llegan a la base por MOCKS — y un mock que deja de aplicar no avisa: es
+# exactamente como aparecieron los `invalid input syntax for type uuid: "clinic-a"` en los logs del
+# principal. Ya pasó tres veces hoy con el mock de `LLMClient` al meter `ProviderCascade` en el medio.
+#
+# Una protección que depende de que todos los mocks sigan puestos no es una protección. Ésta corta
+# en el único punto por el que pasa todo: abrir la conexión.
+#
+# Sólo aplica a la DB de PACIENTE (donde están las escrituras). El CORPUS es de lectura y sus 520k
+# fragmentos sólo viven en el principal, así que ahí sí se permite.
+REF_PRINCIPAL = "auxlnexhkmtoedrzfsnz"
+ESCOTILLA = "PERMITIR_TESTS_CONTRA_EL_PRINCIPAL"
+
+
+def _bajo_pytest() -> bool:
+    return "pytest" in sys.modules or bool(os.environ.get("PYTEST_CURRENT_TEST"))
+
+
+def _exigir_url(url: str, cual: str) -> str:
+    """Una URL vacía es un error de configuración: hay que decirlo YA, no en 30 segundos.
+
+    Sin esto, libpq cae a su valor por defecto (localhost) y espera el timeout de conexión completo.
+    En una máquina sin `.env` —la de quien audite el repo— eso convertía la suite de 5 s en 7 min,
+    con cada prueba que roza el glosario esperando 30 s para después degradar en silencio. En
+    producción es peor: una variable mal puesta se manifiesta como lentitud, no como error.
+    """
+    if not (url or "").strip():
+        raise RuntimeError(
+            f"{cual} no está configurada. Sin ella no hay a dónde conectarse "
+            "(libpq caería a localhost y esperaría el timeout completo)."
+        )
+    return url
+
+
+def _vetar_principal_en_tests(url: str) -> None:
+    if not _bajo_pytest() or REF_PRINCIPAL not in (url or ""):
+        return
+    if os.environ.get(ESCOTILLA) == "si-se-lo-que-hago":
+        return
+    raise RuntimeError(
+        f"BLOQUEADO: una prueba intentó abrir la DB de paciente del proyecto PRINCIPAL "
+        f"({REF_PRINCIPAL}). Las pruebas siembran y BORRAN clínicas. Apuntá DATABASE_URL a "
+        f"tuvetia-athos-dev (o al Postgres local). Si de verdad hace falta: "
+        f"{ESCOTILLA}=si-se-lo-que-hago"
+    )
+
 
 def _get_pool() -> ConnectionPool:
     global _pool
     if _pool is None:
-        _pool = ConnectionPool(get_settings().database_url, min_size=1, max_size=10,
+        _vetar_principal_en_tests(get_settings().database_url)
+        _pool = ConnectionPool(_exigir_url(get_settings().database_url, "DATABASE_URL"), min_size=1, max_size=10,
                                max_idle=300, kwargs=_CONN_KWARGS, open=True)
     return _pool
 
@@ -27,7 +80,7 @@ def _get_pool() -> ConnectionPool:
 def _get_corpus_pool() -> ConnectionPool:
     global _corpus_pool
     if _corpus_pool is None:
-        _corpus_pool = ConnectionPool(get_settings().corpus_db_url, min_size=1, max_size=10,
+        _corpus_pool = ConnectionPool(_exigir_url(get_settings().corpus_db_url, "CORPUS_DATABASE_URL"), min_size=1, max_size=10,
                                       max_idle=300, kwargs=_CONN_KWARGS, open=True)
     return _corpus_pool
 
@@ -36,14 +89,15 @@ def get_conn() -> psycopg.Connection:
     """Abre una conexión NUEVA (fuera del pool). Para callers que manejan su propia transacción/
     timeout (p.ej. la ingesta masiva con statement_timeout=0). El hot-path usa fetch_all/execute (pool).
     """
-    return psycopg.connect(get_settings().database_url, row_factory=dict_row,
+    _vetar_principal_en_tests(get_settings().database_url)
+    return psycopg.connect(_exigir_url(get_settings().database_url, "DATABASE_URL"), row_factory=dict_row,
                            options="-c statement_timeout=15000")
 
 
 def get_corpus_conn() -> psycopg.Connection:
     """Conexión NUEVA a la DB del CORPUS/glosario (global, sin datos de paciente). Puede ser un
     proyecto distinto al principal. El hot-path usa fetch_all_corpus/execute_corpus (pool)."""
-    return psycopg.connect(get_settings().corpus_db_url, row_factory=dict_row,
+    return psycopg.connect(_exigir_url(get_settings().corpus_db_url, "CORPUS_DATABASE_URL"), row_factory=dict_row,
                            options="-c statement_timeout=15000")
 
 
