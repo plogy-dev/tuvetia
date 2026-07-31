@@ -46,6 +46,28 @@ ALLERGY_SEVERE = "a1a1a1a1-0000-0000-0000-0000000000a3"
 ALLERGY_MILD = "a1a1a1a1-0000-0000-0000-0000000000a4"
 
 
+# Ref del proyecto PRINCIPAL de Supabase (producción). La metodología del repo es ".env local =
+# dev" (ver CLAUDE.md §Entornos), pero el 2026-07-30 los logs de producción registraron los ids de
+# fixture de esta suite (`uuid "clinic-a"`): alguien corrió pytest con el .env apuntando al
+# principal, y las queries que se escapan de un mock (ya pasó tres veces ese mismo día) pegan
+# contra la base a la que apunte el .env — `seeded_tenants` además SIEMBRA Y BORRA clínicas.
+# Autouse de sesión: la suite entera se niega a arrancar contra el principal, no solo los tests
+# de integración, porque el escape ocurrió justamente en tests unitarios.
+_REF_PRINCIPAL = "auxlnexhkmtoedrzfsnz"
+
+
+@pytest.fixture(autouse=True, scope="session")
+def _nunca_contra_produccion():
+    from app.config import get_settings
+    if _REF_PRINCIPAL in (get_settings().database_url or ""):
+        pytest.exit(
+            "DATABASE_URL apunta al proyecto PRINCIPAL de Supabase (producción). Los tests siembran, "
+            "borran y dejan escapar queries: corre contra tuvetia-athos-dev (.env local = dev, "
+            "CLAUDE.md §Entornos). Este guard existe porque ya pasó (2026-07-30).",
+            returncode=1,
+        )
+
+
 @pytest.fixture
 def require_db():
     try:
@@ -89,6 +111,14 @@ def seeded_tenants(require_db) -> dict:
         conn.commit()
 
 
+class LlamadaRealBloqueada(BaseException):
+    """`BaseException` A PROPÓSITO, no `Exception`: los consumidores de LLM de este repo fallan
+    abierto con `except Exception` (el juez devuelve OPEN_VERDICT, el chat degrada, los auditores
+    devuelven reporte vacío). Con `AssertionError` el guardarraíl quedaba neutralizado justo en los
+    módulos donde el fallo silencioso ya ocurrió tres veces (2026-07-30): la llamada real se
+    bloqueaba, el `except Exception` se la tragaba, y el test seguía verde."""
+
+
 @pytest.fixture(autouse=True)
 def _sin_red(monkeypatch, request):
     """Ninguna prueba sale a internet. Falla ruidosamente si alguna lo intenta.
@@ -115,7 +145,7 @@ def _sin_red(monkeypatch, request):
         # ningun lado. Se distingue por el tipo del cliente, no por la URL.
         if isinstance(self, TestClient):
             return original(self, *a, **k)
-        raise AssertionError(
+        raise LlamadaRealBloqueada(
             "Esta prueba intento una llamada HTTP real. Casi seguro un mock dejo de aplicar: "
             "revisa en que modulo se resuelve el cliente (p. ej. `provider_cascade.LLMClient`, "
             "no `llm_client.LLMClient`). Si la llamada es intencional, marca la prueba con "
@@ -123,7 +153,7 @@ def _sin_red(monkeypatch, request):
         )
 
     def bloqueado_async(*a, **k):
-        raise AssertionError(
+        raise LlamadaRealBloqueada(
             "Esta prueba intento una llamada HTTP real (async). Revisa los mocks o marcala "
             "con @pytest.mark.red."
         )
