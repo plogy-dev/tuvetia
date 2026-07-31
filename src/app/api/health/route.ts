@@ -44,6 +44,12 @@ export async function GET(req: Request) {
   // agente sin credencial cuando el proveedor era DeepSeek.
   const agentProvider = process.env.ATHOS_AGENT_PROVIDER?.trim() || "anthropic"
 
+  // Proveedor de WhatsApp que la UI va a OFRECER, que no es lo mismo que "hay alguno cableado".
+  // `whatsapp-settings.tsx:22,247` elige evolution -> meta -> kapso por precedencia, así que sin
+  // NEXT_PUBLIC_WA_PROVIDER=evolution el botón "Conectar" cae a Kapso y SACA al veterinario de la
+  // plataforma. Se declara acá para poder contrastar lo que la UI ofrece con lo que hay configurado.
+  const waDeclarado = process.env.NEXT_PUBLIC_WA_PROVIDER?.trim() || null
+
   const checks = {
     // Sin esto no hay escrituras del agente, ni webhooks, ni crons, ni feed ICS.
     supabase_service_role: set("SUPABASE_SERVICE_ROLE_KEY"),
@@ -64,8 +70,19 @@ export async function GET(req: Request) {
     // Cifrado de tokens de WhatsApp: presente Y con la forma correcta.
     whatsapp_token_key: tokenKeyValid,
     whatsapp_provider: Object.values(whatsappProviders).some(Boolean),
+    // COHERENCIA, que es distinto de lo de arriba: que el proveedor que la UI ofrece sea justo el
+    // que tiene credenciales. El check anterior es un OR — pasaba en verde con credenciales de
+    // Kapso (legado, en retirada) mientras Evolution, el que se va a usar, estaba sin configurar.
+    // Un verde que no significa lo que aparenta es peor que un rojo.
+    whatsapp_provider_coherente:
+      waDeclarado === null
+        ? Object.values(whatsappProviders).some(Boolean) // sin declarar: basta con que haya alguno
+        : whatsappProviders[waDeclarado as keyof typeof whatsappProviders] === true,
     // Origin canónico para los redirects de OAuth y los links de cartera.
     site_url: set("NEXT_PUBLIC_SITE_URL"),
+    // Sin esta allowlist NADIE entra a /admin (falla cerrado, que es lo correcto, pero conviene
+    // enterarse acá y no descubriéndolo cuando alguien la necesita).
+    platform_admins: set("PLATFORM_ADMIN_EMAILS"),
   }
 
   const missing = Object.entries(checks)
@@ -73,7 +90,15 @@ export async function GET(req: Request) {
     .map(([k]) => k)
 
   return Response.json(
-    { ok: missing.length === 0, checks, whatsapp_providers: whatsappProviders, missing },
+    {
+      ok: missing.length === 0,
+      checks,
+      whatsapp_providers: whatsappProviders,
+      // Solo el NOMBRE del proveedor declarado (nunca un valor secreto): es lo que hace depurable
+      // el caso "todo cableado pero el botón ofrece otro camino".
+      wa_provider_declarado: waDeclarado,
+      missing,
+    },
     // 200 igual cuando falta algo: el cuerpo dice qué. Un 500 acá haría creer que el endpoint está
     // roto, cuando lo que está incompleto es la configuración.
     { status: 200 },
