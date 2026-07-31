@@ -1,8 +1,9 @@
 "use client"
 
 // Bandeja de WhatsApp — master-detail: conversaciones a la izquierda (agrupadas por teléfono del
-// contacto), hilo a la derecha con composer. Entrantes via webhook (poll cada 15 s por RLS);
-// salientes via /api/whatsapp/send (ticks de entregado/leído los actualiza el webhook).
+// contacto), hilo a la derecha con composer. Entrantes via webhook, que aterrizan en la pantalla al
+// instante por Realtime (con RLS por clínica); salientes via /api/whatsapp/send (los ticks de
+// entregado/leído los escribe el webhook y llegan como UPDATE de la misma fila).
 // Al abrir una conversación se marcan leídos los entrantes (policy UPDATE, migración 0018).
 
 import Link from "next/link"
@@ -42,8 +43,9 @@ export type InboxOwner = { id: string; full_name: string; phone: string | null }
 
 const digits = (s: string) => s.replace(/\D/g, "")
 
-// Los optimistas usan id "tmp-…" y created_at del RELOJ DEL CLIENTE: no sirven como cursor del
-// poll (un reloj adelantado dejaría fuera entrantes reales) y deben reemplazarse al llegar la fila real.
+// Al enviar no se pinta un mensaje optimista: /api/whatsapp/send devuelve la fila REAL (id y
+// created_at de la BD) y esa es la que se añade. Así el id que ya está en pantalla es el mismo que
+// traerá el evento de Realtime, y deduplicar por id alcanza.
 
 function contactOf(m: InboxMessage): string {
   return digits(m.direction === "inbound" ? m.wa_phone_from : m.wa_phone_to)
@@ -111,53 +113,72 @@ export function WhatsappInbox({
     [messages, selected],
   )
 
-  // Cursor del poll: SOLO avanza con created_at que vienen de la BD. Nunca usar el reloj del
-  // navegador (un reloj adelantado dejaba el .gt() ciego para siempre) ni depender de `messages`
-  // (recreaba el intervalo en cada mensaje y reiniciaba los 15 s).
+  // Cursor de la puesta al día: SOLO avanza con created_at que vienen de la BD. Nunca usar el reloj
+  // del navegador — un reloj adelantado dejaba el .gt() ciego para siempre.
   const cursorRef = useRef<string>(initialMessages.at(-1)?.created_at ?? new Date(0).toISOString())
 
-  // Poll de mensajes nuevos cada 15 s (RLS: solo la clínica).
-  useEffect(() => {
-    const t = setInterval(() => {
-      void (async () => {
-        const { data } = await supabase
-          .from("whatsapp_messages")
-          .select("id, owner_id, wa_message_id, wa_phone_from, wa_phone_to, direction, body, media_type, read_at, delivered_at, failed_at, error_detail, created_at")
-          .gt("created_at", cursorRef.current)
-          .order("created_at", { ascending: true })
-          .limit(200)
-        const fresh = (data as InboxMessage[] | null) ?? []
-        if (!fresh.length) return
-        cursorRef.current = fresh[fresh.length - 1].created_at
-        setMessages((prev) => [
-          ...prev,
-          ...fresh.filter(
-            (f) => !prev.some((p) => p.id === f.id || (f.wa_message_id !== null && p.wa_message_id === f.wa_message_id)),
+  // Añade filas nuevas sin duplicar y adelanta el cursor. Se usa desde los dos caminos: el evento
+  // de Realtime y la puesta al día.
+  const applyFresh = useCallback((fresh: InboxMessage[]) => {
+    if (!fresh.length) return
+    for (const f of fresh) if (f.created_at > cursorRef.current) cursorRef.current = f.created_at
+    setMessages((prev) => [
+      ...prev,
+      ...fresh.filter(
+        (f) =>
+          !prev.some(
+            (p) => p.id === f.id || (f.wa_message_id !== null && p.wa_message_id === f.wa_message_id),
           ),
-        ])
-      })()
-    }, 15000)
-    return () => clearInterval(t)
-  }, [supabase])
+      ),
+    ])
+  }, [])
 
-  // Ticks de salientes: delivered/read llegan por el webhook — refrescar el hilo abierto.
+  // Mensajes al instante por Realtime, en vez del poll de 15 s que había antes (y el de 20 s de los
+  // ticks): un WhatsApp podía tardar un cuarto de minuto en aparecer en pantalla.
+  //
+  // La suscripción NO va sola. Realtime pierde eventos mientras el socket está caído —portátil
+  // suspendido, cambio de red, redeploy— y esos mensajes no se reenvían nunca. Por eso en cada
+  // SUBSCRIBED (el primero y el de cada reconexión) se hace una puesta al día con el mismo cursor
+  // que usaba el poll: cierra justo el hueco que una suscripción a secas dejaría abierto.
+  //
+  // RLS se aplica del lado del servidor sobre cada evento (policy `whatsapp_messages_select`), así
+  // que esto sólo recibe lo de la propia clínica. Requiere que la tabla esté en la publicación
+  // `supabase_realtime` — migración 0044; antes de ella la publicación estaba vacía y no llegaba nada.
   useEffect(() => {
-    const t = setInterval(() => {
-      void (async () => {
-        const pendingTicks = messages.filter((m) => m.direction === "outbound" && !m.read_at && !m.failed_at)
-        if (!pendingTicks.length) return
-        const { data } = await supabase
-          .from("whatsapp_messages")
-          .select("id, read_at, delivered_at, failed_at, error_detail")
-          .in("id", pendingTicks.map((m) => m.id).slice(0, 100))
-        const byId = new Map(((data as Pick<InboxMessage, "id" | "read_at" | "delivered_at" | "failed_at" | "error_detail">[] | null) ?? []).map((r) => [r.id, r]))
-        if (byId.size)
-          setMessages((prev) => prev.map((m) => (byId.has(m.id) ? { ...m, ...byId.get(m.id) } : m)))
-      })()
-    }, 20000)
-    return () => clearInterval(t)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [supabase, messages.length])
+    const catchUp = async () => {
+      const { data } = await supabase
+        .from("whatsapp_messages")
+        .select("id, owner_id, wa_message_id, wa_phone_from, wa_phone_to, direction, body, media_type, read_at, delivered_at, failed_at, error_detail, created_at")
+        .gt("created_at", cursorRef.current)
+        .order("created_at", { ascending: true })
+        .limit(200)
+      applyFresh((data as InboxMessage[] | null) ?? [])
+    }
+
+    const channel = supabase
+      .channel("whatsapp-inbox")
+      .on(
+        "postgres_changes",
+        { event: "INSERT", schema: "public", table: "whatsapp_messages" },
+        (payload) => applyFresh([payload.new as InboxMessage]),
+      )
+      .on(
+        "postgres_changes",
+        { event: "UPDATE", schema: "public", table: "whatsapp_messages" },
+        (payload) => {
+          // Los ticks de entregado/leído y los fallos de envío llegan como UPDATE de la fila.
+          const row = payload.new as InboxMessage
+          setMessages((prev) => prev.map((m) => (m.id === row.id ? { ...m, ...row } : m)))
+        },
+      )
+      .subscribe((status) => {
+        if (status === "SUBSCRIBED") void catchUp()
+      })
+
+    return () => {
+      void supabase.removeChannel(channel)
+    }
+  }, [supabase, applyFresh])
 
   // Al abrir una conversación: marcar leídos los entrantes + cargar propuestas de Athos pendientes
   // (sobreviven recargas: son filas 'proposed' de athos_actions, RLS por clínica).
