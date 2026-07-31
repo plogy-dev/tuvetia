@@ -36,8 +36,20 @@ jobs:
       - name: ruff
         run: uv run ruff check .
       - name: pytest
-        # Los tests de integración se auto-skipean sin DB (fixture `require_db`), así que la suite
-        # corre sin secretos. Cuando se agreguen los de Supabase de dev, dejarán de skipearse.
+        # Sin `ATHOS_DEV_DATABASE_URL` configurado, los tests de integración se auto-skipean
+        # (fixture `require_db`) y la suite corre igual: el secreto es OPCIONAL y no romper CI sin él
+        # es a propósito.
+        #
+        # Con el secreto puesto dejan de skipearse **4 pruebas de aislamiento entre clínicas** — las
+        # que verifican que una clínica no pueda ver alergias, contexto de paciente ni trazas de
+        # otra. Es control de acceso: la clase de prueba que menos conviene tener apagada.
+        #
+        # ⚠️ El secreto debe apuntar al proyecto de DEV (`tuvetia-athos-dev`), NUNCA al principal.
+        # `app/db.py` lo impone: bajo pytest, abrir la DB de paciente del principal lanza. Y desde
+        # `0774d9a` los ids de fixture son únicos por corrida, así que dos jobs simultáneos ya no se
+        # pisan al sembrar y limpiar.
+        env:
+          DATABASE_URL: ${{ secrets.ATHOS_DEV_DATABASE_URL }}
         run: uv run pytest -q
 
   frontend:
