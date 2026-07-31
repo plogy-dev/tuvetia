@@ -4,7 +4,16 @@ import { createClient } from "@/lib/supabase/server"
 import { AppointmentCalendarLazy as AppointmentCalendar } from "@/components/calendar/appointment-calendar-lazy"
 import { DataError } from "@/components/data-error"
 import { APPOINTMENT_SELECT, type AppointmentRow, type SelectOption } from "@/lib/appointments"
-import { pullEvents } from "@/lib/google-calendar"
+
+// REVERTIDO 2026-07-31 (incidente en producción): el pull automático al abrir esta página traía el
+// calendario "primary" de Google —el personal del vet, no uno de la clínica— completo (30 días,
+// paginado sin límite) y lo insertaba como citas visibles para toda la clínica. Con 1 usuario real
+// generó 1.567 filas espurias ("Cumpleaños de mi mamá", "Trabajo", ...) antes de que el sync_token
+// llegara a guardarse, así que cada carga de página lo repetía desde cero. No reintroducir el pull
+// automático sin antes resolver qué calendario de Google se sincroniza (ver CALENDARIO.md
+// §Pendientes: "Sync por-vet usando primary vs. calendario dedicado de clínica — a decidir"). El pull
+// manual con el botón "Sincronizar" (/api/google/calendar/sync) tiene el mismo problema de fondo y
+// debería evitarse hasta resolverlo.
 
 export default async function CalendarioPage() {
   const supabase = await createClient()
@@ -17,17 +26,6 @@ export default async function CalendarioPage() {
   const {
     data: { user },
   } = await supabase.auth.getUser()
-
-  // Pull automático: si el vet tiene Google conectado, trae los cambios remotos antes de listar las
-  // citas (no-op rápido si no hay integración). Best-effort — si Google falla, el calendario interno
-  // sigue sirviendo con lo último que haya en BD; no bloquea la carga de la página por un error remoto.
-  if (user) {
-    try {
-      await pullEvents(user.id)
-    } catch {
-      /* best-effort */
-    }
-  }
 
   // clinic_id explícito para el selector de vets (defensa en profundidad, no solo RLS).
   const clinicId = user
