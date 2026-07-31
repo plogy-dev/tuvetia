@@ -2,6 +2,13 @@ import { convertToModelMessages, stepCountIs, streamText, type UIMessage } from 
 import { z } from "zod"
 
 import { createClient } from "@/lib/supabase/server"
+import {
+  densidadClinica,
+  esConsultaClinica,
+  preguntasDuplicadas,
+  textoDe,
+  turnoAGuardar,
+} from "@/lib/athos-agent/conversacion"
 import { ATHOS_AGENT_SYSTEM_PROMPT } from "@/lib/athos-agent/system-prompt"
 import { buildAthosTools } from "@/lib/athos-agent/tools"
 import { agentModel, agentModelId } from "@/lib/athos-agent/model"
@@ -65,9 +72,24 @@ export async function POST(req: Request) {
   }
 
   const todayISO = new Date(Date.now() - 5 * 3600_000).toISOString().slice(0, 10) // hora Colombia
+
+  // PROPORCIONALIDAD (defecto reportado el 2026-07-31): el agente soltaba diferenciales completos
+  // ante "un perro que vomita". La densidad se cuenta ACÁ, determinística, y entra al prompt como
+  // contexto de runtime: contar señales clínicas es barato y reproducible, y no gasta un token en
+  // preguntárselo al modelo.
+  //
+  // Sólo aplica a consultas CLÍNICAS: pedirle más datos a "¿qué tengo mañana?" sería absurdo.
+  const ultimaDelVet = [...(messages as UIMessage[])].reverse().find((m) => m.role === "user")
+  const textoUltima = ultimaDelVet ? textoDe(ultimaDelVet) : ""
+  const densidad = densidadClinica(textoUltima)
+  const avisoDensidad =
+    esConsultaClinica(textoUltima) && densidad.nivel === "escaso"
+      ? `\n- ⚠️ El vet dio POCOS datos clínicos (${densidad.datos}: ${densidad.señales.join(", ") || "ninguno"}). NO desarrolles diferenciales, protocolos ni dosis: haz 2-3 preguntas de clarificación y nada más.`
+      : ""
+
   const system = `${ATHOS_AGENT_SYSTEM_PROMPT}\n\n# Contexto runtime\n\n- Fecha de hoy: ${todayISO} (hora de Colombia, UTC-5).${
     patientId ? `\n- Hay un paciente en contexto (id interno: ${patientId}) — usa get_patient_summary si lo necesitas.` : ""
-  }${source === "inbox" ? "\n- Estás en la bandeja de WhatsApp: el objetivo típico es proponer una respuesta con send_whatsapp_message." : ""}`
+  }${source === "inbox" ? "\n- Estás en la bandeja de WhatsApp: el objetivo típico es proponer una respuesta con send_whatsapp_message." : ""}${avisoDensidad}`
 
   const result = streamText({
     model: agentModel(),
@@ -86,6 +108,47 @@ export async function POST(req: Request) {
   // se le devuelve la CLASE de fallo, que es lo que le permite decidir si reintentar o avisar.
   // Nunca se devuelve el mensaje crudo del proveedor: puede traer fragmentos de la petición.
   return result.toUIMessageStreamResponse({
+    // MEMORIA ENTRE SESIONES (defecto reportado el 2026-07-31): esta ruta no persistía NADA. El
+    // asistente precargaba el hilo desde `athos_messages`, pero ahí sólo escribía el chat de
+    // athos-service — así que al recargar, el agente respondía "no tengo memoria previa".
+    //
+    // Se guarda en la MISMA tabla que ya lee `lib/athos-history.ts`: no hace falta una nueva, y así
+    // el historial del asistente y el del chat quedan en un solo sitio. La RLS de `athos_messages`
+    // (`clinic_id = private.my_clinic_id()`) deja escribir con la sesión del vet, sin service_role.
+    //
+    // Se guarda SÓLO el turno nuevo: el cliente reenvía el hilo entero en cada petición, así que
+    // persistir `messages` completo duplicaría la conversación en cada mensaje.
+    //
+    // Best-effort: un fallo acá NO puede tumbar una respuesta que el vet ya leyó.
+    onFinish: async ({ responseMessage, isAborted }) => {
+      if (isAborted) return
+      try {
+        const turnos = turnoAGuardar(messages as UIMessage[], responseMessage)
+        if (!turnos.length) return
+
+        const { error } = await supabase.from("athos_messages").insert(
+          turnos.map((turno) => ({
+            clinic_id: clinicId,
+            user_id: user.id,
+            patient_id: patientId ?? null,
+            role: turno.role,
+            content: turno.content,
+          })),
+        )
+        if (error) console.error("[athos/agent] no se pudo guardar el turno:", error.message)
+
+        // Rastro del defecto de preguntas repetidas. NO reescribe la respuesta —ya se emitió por
+        // streaming— pero deja medible si la regla del prompt se está cumpliendo.
+        const repetidas = preguntasDuplicadas(
+          turnos.find((t) => t.role === "assistant")?.content ?? "",
+        )
+        if (repetidas.length) {
+          console.warn("[athos/agent] pidió el mismo dato más de una vez:", repetidas)
+        }
+      } catch (e) {
+        console.error("[athos/agent] fallo al persistir el turno:", e)
+      }
+    },
     onError: (error) => {
       console.error("[athos/agent] falló la generación:", error)
       const msg = error instanceof Error ? error.message : String(error)

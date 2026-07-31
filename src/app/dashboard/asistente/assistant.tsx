@@ -9,7 +9,7 @@ import {
   type ToolUIPart,
   type UIMessage,
 } from "ai"
-import { Bot, Loader2, Search, Send } from "lucide-react"
+import { Bot, Loader2, Send } from "lucide-react"
 import { toast } from "sonner"
 
 import { renderInline, splitBlocks } from "@/components/athos/rich-text"
@@ -35,7 +35,8 @@ const GENERAL = "__general__" // valor del selector para "Consulta general (sin 
 // aquí: cambia con el selector, así que viaja en el body de cada sendMessage.
 const transport = new DefaultChatTransport({ api: "/api/athos/agent" })
 
-// Etiquetas en español para el indicador discreto de las tools de LECTURA ("Consultó X").
+// Etiquetas en español de las tools de LECTURA. Se usan MIENTRAS la tool corre ("Consultando X…")
+// y para nombrar el fallo si algo sale mal — no para dejar constancia cuando sale bien.
 // Las tools que no están aquí son de escritura: proponen acciones que el vet aprueba.
 const READ_TOOL_LABELS: Record<string, string> = {
   search_patients: "pacientes de la clínica",
@@ -94,7 +95,7 @@ function TextBlocks({ text, kp }: { text: string; kp: string }) {
 // Render de un part de tool según su estado de streaming:
 // - input-streaming / input-available → spinner pequeño (la tool está en curso)
 // - output-available con {action_id, status:"proposed"} → tarjeta de aprobación
-// - output-available de lectura → indicador discreto "Consultó X"
+// - output-available de lectura → NADA (el proceso interno no es contenido para el vet)
 // - output-error / {error} → línea discreta de fallo
 function ToolPartView({ part }: { part: ToolUIPart }) {
   const toolName = String(getStaticToolName(part))
@@ -142,12 +143,15 @@ function ToolPartView({ part }: { part: ToolUIPart }) {
         </div>
       )
     }
-    return (
-      <div className="flex items-center gap-1.5 py-1 text-xs text-muted-foreground">
-        <Search className="size-3 shrink-0" />
-        Consultó {readLabel ?? toolName}
-      </div>
-    )
+    // Una lectura que salió bien NO deja rastro en la conversación.
+    //
+    // Antes se quedaba un "Consultó la literatura veterinaria" permanente debajo de cada respuesta.
+    // Eso es metadata de proceso, no contenido para el veterinario: le ensucia el hilo y compite con
+    // lo que sí importa, que es la respuesta. El indicador de "Consultando…" mientras corre sí se
+    // mantiene — ahí sí informa que el sistema está trabajando.
+    //
+    // Para depurar qué tools se usaron está el log del servidor y la traza en `rag_retrieval_log`.
+    return null
   }
 
   return null
