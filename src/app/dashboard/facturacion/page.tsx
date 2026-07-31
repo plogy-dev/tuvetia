@@ -28,6 +28,8 @@ import {
 } from '@/components/facturacion/badges';
 import type { InvoiceRow } from '@/lib/supabase/types';
 import { TrLink } from '@/components/ui/TrLink';
+import { PageHeader, PageShell } from '@/components/ui/page-shell';
+import { StatCard } from '@/components/ui/stat-card';
 
 export const dynamic = 'force-dynamic';
 
@@ -37,28 +39,6 @@ type InvoiceWithPayer = InvoiceRow & { payer: { name: string } | null };
 
 const TH_BASE =
   'border-b border-line-soft px-3.5 py-[9px] text-left text-[11px] font-semibold uppercase tracking-[0.06em] text-muted-foreground';
-
-function StatCard({
-  label,
-  value,
-  sub,
-}: {
-  label: string;
-  value: string;
-  sub: React.ReactNode;
-}) {
-  return (
-    <div className="rounded-lg border border-line-soft bg-card px-[17px] pb-[13px] pt-[15px] shadow-sm">
-      <p className="mb-1.5 text-[11px] font-semibold uppercase tracking-[0.07em] text-muted-foreground">
-        {label}
-      </p>
-      <p className="font-display text-[23px] font-semibold leading-[1.1] tracking-[-0.02em] tabular-nums text-fg">
-        {value}
-      </p>
-      <p className="mt-1 flex items-center gap-1.5 text-xs text-fg-muted">{sub}</p>
-    </div>
-  );
-}
 
 export default async function FacturacionPage() {
   const ctx = await requireClinicPage();
@@ -93,16 +73,11 @@ export default async function FacturacionPage() {
   // ── Módulo sin activar: tarjeta de activación voluntaria ──────────────────
   if (!active) {
     return (
-      <main className="min-w-0 flex-1">
-        <div className="mx-auto w-full max-w-3xl px-[30px] pb-16 pt-7">
-          <header className="mb-6">
-            <h1 className="font-display text-[26px] font-semibold leading-[1.15] tracking-[-0.022em] text-fg">
-              Facturación
-            </h1>
-            <p className="mt-[3px] text-[13px] text-fg-muted">
-              Factura tus consultas y productos sin salir de Tuvetia.
-            </p>
-          </header>
+      <PageShell width="narrow">
+          <PageHeader
+            title="Facturación"
+            description="Factura tus consultas y productos sin salir de Tuvetia."
+          />
 
           <div className="rounded-lg border border-line-soft bg-card p-8 shadow-sm">
             <div className="flex items-center gap-3">
@@ -132,8 +107,7 @@ export default async function FacturacionPage() {
               </span>
             </div>
           </div>
-        </div>
-      </main>
+      </PageShell>
     );
   }
 
@@ -158,45 +132,42 @@ export default async function FacturacionPage() {
   const monthLabel = `${monthName} ${now.getFullYear()}`;
 
   return (
-    <main className="min-w-0 flex-1">
-      <div className="mx-auto w-full max-w-[1200px] px-[30px] pb-16 pt-7">
-        {/* ── Page head ── */}
-        <header className="mb-[22px] flex flex-wrap items-end justify-between gap-4">
-          <div>
-            <h1 className="font-display text-[26px] font-semibold leading-[1.15] tracking-[-0.022em] text-fg">
-              Facturación
-            </h1>
-            <p className="mt-[3px] text-[13px] text-fg-muted">
-              Factura electrónica DIAN · {monthLabel}
-            </p>
-          </div>
-          <div className="flex items-center gap-2">
-            <Button render={<Link href="/dashboard/facturacion/finanzas" />} variant="outline">
+    <PageShell>
+        <PageHeader
+          title="Facturación"
+          description={`Factura electrónica DIAN · ${monthLabel}`}
+          actions={
+            <>
+              <Button render={<Link href="/dashboard/facturacion/finanzas" />} variant="outline">
                 <Wallet aria-hidden />
                 Finanzas
               </Button>
-            <Button render={<Link href="/dashboard/facturacion/cartera" />} variant="outline">
+              <Button render={<Link href="/dashboard/facturacion/cartera" />} variant="outline">
                 <MailWarning aria-hidden />
                 Cartera
               </Button>
-            <Button render={<Link href="/dashboard/facturacion/inventario" />} variant="outline">
+              <Button render={<Link href="/dashboard/facturacion/inventario" />} variant="outline">
                 <Boxes aria-hidden />
                 Inventario
               </Button>
-            <Button render={<Link href="/dashboard/facturacion/catalogo" />} variant="outline">
+              <Button render={<Link href="/dashboard/facturacion/catalogo" />} variant="outline">
                 <BookOpen aria-hidden />
                 Catálogo
               </Button>
-            <Button render={<Link href="/dashboard/facturacion/configuracion" />} variant="outline">
+              <Button
+                render={<Link href="/dashboard/facturacion/configuracion" />}
+                variant="outline"
+              >
                 <Settings2 aria-hidden />
                 Configuración
               </Button>
-            <Button render={<Link href="/dashboard/facturacion/nueva" />}>
+              <Button render={<Link href="/dashboard/facturacion/nueva" />}>
                 <Plus aria-hidden />
                 Nueva factura
               </Button>
-          </div>
-        </header>
+            </>
+          }
+        />
 
         {sandbox && (
           <div className="mb-5 flex items-center gap-2 rounded-lg border border-line-soft bg-surface-2 px-4 py-2.5 text-xs text-fg-muted">
@@ -371,7 +342,6 @@ export default async function FacturacionPage() {
             </Link>
           </div>
         </div>
-      </div>
-    </main>
+    </PageShell>
   );
 }

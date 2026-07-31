@@ -10,6 +10,7 @@ import {
 } from '@/lib/facturacion/queries';
 import { CatalogItemsTab } from '@/components/facturacion/CatalogItemsTab';
 import { CategoryManager } from '@/components/facturacion/CategoryManager';
+import { TabNav, TabNavLink } from '@/components/ui/tab-nav';
 
 export const dynamic = 'force-dynamic';
 
@@ -87,21 +88,17 @@ export default async function CatalogoPage({
           </p>
         </header>
 
-        <nav className="mb-5 flex gap-1 border-b border-line">
+        <TabNav>
           {TABS.map((t) => (
-            <Link
+            <TabNavLink
               key={t.key}
               href={`/dashboard/facturacion/catalogo?tab=${t.key}`}
-              className={`-mb-px border-b-2 px-4 py-2 text-sm transition ${
-                tab === t.key
-                  ? 'border-brand font-medium text-fg'
-                  : 'border-transparent text-fg-muted hover:text-fg'
-              }`}
+              active={tab === t.key}
             >
               {t.label}
-            </Link>
+            </TabNavLink>
           ))}
-        </nav>
+        </TabNav>
 
         {tab === 'productos' && (
           <CatalogItemsTab
