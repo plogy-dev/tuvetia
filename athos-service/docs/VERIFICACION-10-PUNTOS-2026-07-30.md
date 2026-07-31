@@ -35,10 +35,10 @@ clasificación de nuestra parte: etiquetaba la métrica como si fuera el estado 
 | 6 | Correo / comunicaciones | ✅ | 8 pruebas | nada | — |
 | 7 | Google Calendar bidireccional | 🔑 | ida ✅ / vuelta manual | **2 credenciales en Vercel** | tuyo, 5 min |
 | 8 | Transcripción | ✅ | **3 de 3 defectos** · exactitud 92,3 % | nada | — |
-| 9 | Invitaciones de equipo | ⚠️ | acepta OK con cuenta previa | **el enlace falla si el invitado NO tiene cuenta** (§9) | auth |
+| 9 | Invitaciones de equipo | ✅ | **defecto encontrado y corregido hoy** | un clic real de confirmación (§9) | tuyo, 30 s |
 | 10 | Historial de conversaciones | ✅ | — | nada | — |
 
-**8 entregados y verificados · 1 esperando 5 minutos tuyos · 1 con un defecto confirmado hoy (§9) · 0 incumplidos.**
+**9 entregados y verificados · 1 esperando 5 minutos tuyos · 0 con desarrollo pendiente · 0 incumplidos.**
 
 Con esas 2 credenciales de Google son **10 de 10**. Ya no queda trabajo de desarrollo en esta lista.
 
@@ -325,7 +325,7 @@ para sí. `/auth/callback` es una ruta de servidor: ve la petición sin código 
 cuenta de Google**, o sea que ya llegó con sesión. Ese camino funciona y quedó probado. El otro
 —el del invitado nuevo, que es el que reportó el cliente— nunca se había ejercitado.
 
-### Cómo se arregla
+### Cómo se arregló — hecho hoy
 
 El camino de **correo** es distinto del de **OAuth**, y hoy comparten ruta:
 
@@ -334,20 +334,44 @@ El camino de **correo** es distinto del de **OAuth**, y hoy comparten ruta:
 | Login con Google | el navegador | `?code=` (PKCE) | `/auth/callback` ✅ ya existe |
 | **Enlace de correo** | el servidor | tokens en `#`, o `token_hash` | `/auth/confirm` ✅ **ya existe, no se usa** |
 
-Dos opciones, cualquiera cierra el caso:
+Se implementó **`/auth/sesion`**, una página **cliente** — lo único capaz de leer el fragmento,
+porque corre en el navegador. Toma los tokens, llama a `setSession` y sigue al destino.
+`/auth/callback` ya no manda al login cuando no hay código: deriva ahí, y el fragmento llega solo
+(sobrevive a la redirección HTTP, RFC 7231 §7.1.2).
 
-1. **Plantilla de correo** en el panel de Supabase → `/auth/confirm?token_hash={{ .TokenHash }}&type=invite&next=…`.
-   Esa ruta ya está escrita y usa `verifyOtp`. Es **configuración, no código**.
-2. **Página cliente** que lea `location.hash`, llame a `setSession` y navegue al destino. El fragmento
-   sobrevive a las redirecciones, así que puede colgarse de `/auth/callback` cuando no hay `?code=`.
-   Es **código nuestro** y no depende del panel.
+**Por qué esta vía y no cambiar la plantilla en el panel de Supabase:** es código nuestro. Queda en
+el repo, con pruebas, y no depende de que alguien recuerde una configuración del panel.
 
-⚠️ **Es dominio de auth (Santiago/Felipe).** Queda documentado con reproducción para quien lo tome;
-no se tocó.
+Detalles que no son opcionales:
 
-### Lo que sí quedó cubierto hoy
+- el destino se **sanea antes** de derivar — un `?next=//evil.com` dejaría al veterinario en un
+  dominio ajeno **ya autenticado**;
+- los tokens se borran de la barra de direcciones (`replaceState`) antes de navegar, para que no
+  queden en el historial;
+- un fragmento **a medias** (sólo `access_token`) no se toma por sesión: `setSession` fallaría con un
+  error opaco;
+- se reconoce el enlace vencido (`error_code=otp_expired`) y el motivo real llega al login;
+- `router.refresh()` después de `setSession`, si no los componentes de servidor no ven la sesión.
 
-**17 pruebas automáticas nuevas** sobre las dos rutas, que antes no tenían ninguna:
+**Verificado contra producción tras desplegar**, con la misma reproducción:
+
+```
+[0] 303 supabase  ->  /auth/callback?next=%2Finvitar%2F<token>#access_token=…
+[1] 307 tuvetia   ->  /auth/sesion?next=%2Finvitar%2F<token>&reason=missing_code   ← el arreglo
+[2] 200
+```
+
+Antes el paso [1] era `/login?error=auth&reason=missing_code`.
+
+**Lo que falta para el 100 % de este punto, y es tuyo:** `curl` no ejecuta JavaScript, así que el
+último tramo —que el navegador abra la sesión y aterrice en la invitación— está cubierto por 12
+pruebas unitarias pero no por un clic real. **Invitá una dirección sin cuenta y hacé clic: 30
+segundos.** No se hizo desde acá porque abrir esa sesión en un navegador reemplazaría la sesión de
+quien lo estuviera usando.
+
+### Pruebas
+
+**30 pruebas automáticas nuevas** sobre rutas que antes no tenían ninguna:
 
 - `/auth/callback`: canje del código, motivo real del fallo al login, y **protección contra open
   redirect** (`//evil.com`, `https://evil.com`, vacío → `/dashboard`). Sin eso, un enlace manipulado
@@ -355,6 +379,8 @@ no se tocó.
 - `/api/team/invite-email`: que el enlace apunte a `/auth/callback` y no a `/invitar` directo, que use
   el dominio estable y no el efímero del deployment, que el `next` nunca viaje vacío, y las tres
   reglas de autorización (sin sesión, rol `vet`, invitación de otra clínica).
+- `auth-fragment.ts`: el formato real del fragmento capturado de producción, el enlace vencido, el
+  fragmento a medias, y las cinco formas de open redirect.
 
 ---
 
@@ -380,24 +406,24 @@ Los datos **existían desde el inicio** en `athos_messages` — nunca se perdier
 
 ## Resumen de lo que falta, por dueño
 
-### Tuyo — 5 minutos
+### Tuyo — 6 minutos
 
 | Qué | Cierra | Tiempo |
 |---|---|---|
 | ~~Enviar una invitación real~~ | punto 9 → parcial | **HECHO 30-jul 21:27 UTC** |
 | **`GOOGLE_CLIENT_ID` + `GOOGLE_CLIENT_SECRET` en Vercel** | punto 7 → 90 % | 5 min |
-| ~~invitar un correo sin cuenta~~ | **ya no hace falta**: se reprodujo sin correo y es un defecto (§9) | — |
+| **Invitar un correo sin cuenta y hacer clic** | confirma el arreglo del §9 | 30 s |
 
-Con esa credencial: **9 de 10**, y queda el defecto del enlace de invitación (§9), que es de auth.
+Con esa credencial: **10 de 10**.
 
 ### Nuestro
 
 | Qué | Cierra | Esfuerzo |
 |---|---|---|
 | ~~Transcripción en tiempo real~~ | punto 8 → ✅ | **HECHO** |
-| **Enlace de invitación para quien no tiene cuenta** (§9) | punto 9 → ✅ | 1-2 h · **es de auth** |
+| ~~Enlace de invitación para quien no tiene cuenta~~ (§9) | punto 9 → ✅ | **HECHO** |
 
-Un solo defecto abierto, encontrado y reproducido hoy.
+**Nada.** No queda desarrollo pendiente de los 10 puntos.
 
 ### Mejora continua — no son entregas pendientes
 

@@ -13,27 +13,31 @@ manda nada.
 
     SUPABASE_URL=... SUPABASE_SERVICE_ROLE_KEY=... python scripts/verificar_enlace_invitacion.py
 
-RESULTADO DEL 2026-07-30 — el enlace NO funciona para un invitado sin cuenta:
+HISTORIA — este script encontró el defecto y después verificó el arreglo:
 
-    [0] 303 supabase  -> https://tuvetia.vercel.app/auth/callback?next=%2Finvitar%2F<token>
-                          #access_token=...&refresh_token=...&type=invite
-    [1] 307 tuvetia   -> /login?error=auth&reason=missing_code
+    ANTES (2026-07-30)                          DESPUÉS (mismo día, commit ac8fb8d)
+    [0] 303 supabase -> /auth/callback#access_token=...   igual
+    [1] 307 tuvetia  -> /login?reason=missing_code        -> /auth/sesion?next=...  <-- arreglado
+    [2] 200 (login, el invitado no entra)                 200 (abre la sesión y sigue)
 
 Supabase devuelve la sesión en el **fragmento** (`#`), y el fragmento **no viaja al servidor**: es
 parte de la URL que el navegador se guarda para sí. `/auth/callback` es una ruta de servidor, así
 que ve la petición sin `?code=`, concluye que falta el código y manda al login.
 
-El arreglo va en el camino de EMAIL, que es distinto del de OAuth:
+ARREGLADO con la opción (b): `/auth/sesion` es una página CLIENTE que lee el fragmento, llama a
+setSession y sigue al destino; `/auth/callback` deriva ahí cuando no hay `?code=`. El detalle de por
+qué son dos caminos distintos:
   · `/auth/callback` (server) sirve para PKCE con `?code=` — el login con Google, donde el flujo lo
     inició el navegador y existe el `code_verifier`.
   · un enlace de correo lo inicia el SERVIDOR: no hay `code_verifier`, y Supabase responde con
     tokens en el fragmento o con `token_hash` según la plantilla.
-Dos opciones, cualquiera cierra el caso:
-  (a) plantilla de correo -> `/auth/confirm?token_hash={{ .TokenHash }}&type=invite&next=...`
-      (esa ruta YA existe y usa `verifyOtp`); es configuración en el panel de Supabase, no código.
-  (b) una página CLIENTE que lea `location.hash`, llame a `setSession` y navegue al destino. El
-      fragmento sobrevive a las redirecciones, así que se puede derivar desde `/auth/callback`
-      cuando no hay `?code=`. Es código nuestro y no depende del panel.
+Se descartó la alternativa de cambiar la plantilla de correo en el panel de Supabase
+(`/auth/confirm?token_hash={{ .TokenHash }}&...`): funciona, pero deja el arreglo fuera del repo y
+sin pruebas.
+
+OJO al usarlo para verificar: `curl` no ejecuta JavaScript. Este script llega hasta /auth/sesion y
+ahí se detiene; que el navegador abra la sesión lo cubren las pruebas de `src/lib/auth-fragment.ts`
+y, definitivamente, un clic real.
 """
 import os
 import sys
