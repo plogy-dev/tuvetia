@@ -1,10 +1,9 @@
-import { Building2, Clock, Download, Mail, MessageCircle, User, Users } from "lucide-react"
+import Link from "next/link"
+import { Building2, Clock, Download, Plug, User, Users } from "lucide-react"
 import { Button } from "@/components/ui/button"
 
 import { createClient } from "@/lib/supabase/server"
 import { ProfileSettings } from "@/components/settings/profile-settings"
-import { EmailSettings, type EmailIntegrationView } from "@/components/settings/email-settings"
-import { WhatsappSettings } from "@/components/settings/whatsapp-settings"
 import { ClinicHoursSettings, type ClinicHourRow } from "@/components/settings/clinic-hours-settings"
 import {
   TeamSettings,
@@ -12,6 +11,7 @@ import {
   type TeamMember,
 } from "@/components/settings/team-settings"
 import { HelpTip } from "@/components/help-tip"
+import { PageHeader, PageShell } from "@/components/ui/page-shell"
 
 const ROLE_LABELS: Record<string, string> = {
   admin: "Administrador",
@@ -41,25 +41,15 @@ export default async function SettingsPage() {
     : null
   const clinicName = (clinic as { name: string } | null)?.name ?? "—"
 
-  // Estado de la conexión de WhatsApp (RLS: solo la fila de la clínica; columnas no sensibles).
-  const { data: wa } = await supabase
-    .from("whatsapp_integrations")
-    .select("status, phone_number, agent_mode")
-    .maybeSingle()
-  const waRow = wa as {
-    status: "pending" | "connected" | "disconnected"
-    phone_number: string | null
-    agent_mode: "auto" | "review" | "paused" | "intervene"
-  } | null
-  const waStatus = waRow?.status ?? "none"
-
-  // Estado de la conexión de correo (RLS: solo la fila de la clínica; la credencial está revocada
-  // para PostgREST, así que este SELECT jamás puede traerla).
-  const { data: emailRow } = await supabase
-    .from("email_integrations")
-    .select("status, from_email, from_name, last_error, verified_at")
-    .maybeSingle()
-  const email = emailRow as EmailIntegrationView | null
+  // Sólo el estado, para el resumen: los formularios de conexión viven en /dashboard/conexiones.
+  // (RLS: cada SELECT trae únicamente la fila de la clínica, y las credenciales están revocadas
+  // para PostgREST.)
+  const [{ data: wa }, { data: emailRow }] = await Promise.all([
+    supabase.from("whatsapp_integrations").select("status").maybeSingle(),
+    supabase.from("email_integrations").select("status").maybeSingle(),
+  ])
+  const waConnected = (wa as { status?: string } | null)?.status === "connected"
+  const emailConnected = (emailRow as { status?: string } | null)?.status === "connected"
 
   // Horarios de atención (RLS de la clínica) — los usa Athos para citas y respuestas automáticas.
   const { data: hoursRows } = await supabase
@@ -85,8 +75,11 @@ export default async function SettingsPage() {
   const pendingInvitations = (inviteRows as PendingInvitation[] | null) ?? []
 
   return (
-    <div className="mx-auto flex w-full max-w-2xl flex-col gap-4 px-4 py-4 md:py-6 lg:px-6">
-      <h1 className="text-lg font-semibold">Configuración</h1>
+    <PageShell width="narrow" className="flex flex-col gap-4">
+      <PageHeader
+        title="Configuración"
+        description="Los datos de tu clínica, tu equipo y tus horarios de atención."
+      />
 
       {/* Clínica (solo lectura) */}
       <div className="rounded-xl border bg-card p-4">
@@ -118,34 +111,19 @@ export default async function SettingsPage() {
         />
       </div>
 
-      {/* WhatsApp de la clínica (Kapso, multi-tenant) */}
+      {/* Conexiones: WhatsApp y Correo se mudaron a su propia sección. Acá queda el estado y el
+          enlace — repetir los mismos formularios en dos páginas sólo genera la duda de cuál manda. */}
       <div className="rounded-xl border bg-card p-4">
-        <div className="mb-3 flex items-center gap-2 text-sm font-semibold">
-          <MessageCircle className="size-4 text-muted-foreground" /> WhatsApp
-          <HelpTip>
-            Cada clínica conecta <b>su propio</b> número escaneando un QR — sin compartir
-            credenciales. Requiere la app <b>WhatsApp Business</b> (gratuita). Las conversaciones
-            viven en la sección Comunicaciones.
-          </HelpTip>
+        <div className="mb-2 flex items-center gap-2 text-sm font-semibold">
+          <Plug className="size-4 text-muted-foreground" /> Conexiones
         </div>
-        <WhatsappSettings
-          initialStatus={waStatus}
-          initialPhone={waRow?.phone_number ?? null}
-          initialAgentMode={waRow?.agent_mode ?? "review"}
-        />
-      </div>
-
-      {/* Correo de la clínica (SMTP con contraseña de aplicación; réplica del conn-card del cliente) */}
-      <div className="rounded-xl border bg-card p-4">
-        <div className="mb-3 flex items-center gap-2 text-sm font-semibold">
-          <Mail className="size-4 text-muted-foreground" /> Correo
-          <HelpTip>
-            Con el correo conectado, las <b>facturas</b> salen por email con su enlace de pago y las{" "}
-            <b>respuestas</b> del cliente alimentan la cobranza — igual que WhatsApp. Se usa una{" "}
-            <b>contraseña de aplicación</b> de Gmail, nunca la contraseña de la cuenta.
-          </HelpTip>
-        </div>
-        <EmailSettings integration={email} />
+        <p className="mb-3 text-sm text-muted-foreground">
+          WhatsApp {waConnected ? "conectado" : "sin conectar"} · Correo{" "}
+          {emailConnected ? "conectado" : "sin conectar"}.
+        </p>
+        <Button variant="outline" render={<Link href="/dashboard/conexiones" />}>
+          <Plug className="size-4" /> Ir a Conexiones
+        </Button>
       </div>
 
       {/* Horarios de atención (los usa Athos: citas y respuestas automáticas) */}
@@ -187,6 +165,6 @@ export default async function SettingsPage() {
           <Download className="size-4" /> Exportar datos de la clínica
         </Button>
       </div>
-    </div>
+    </PageShell>
   )
 }

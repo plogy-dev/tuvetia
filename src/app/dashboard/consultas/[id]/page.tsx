@@ -156,7 +156,7 @@ export default function NotaConsultaPage({ params }: { params: Promise<{ id: str
         .from("consultations")
         .update({ status: "review", updated_at: new Date().toISOString() })
         .eq("id", id)
-      toast.success("Sugerencia generada por el Phantom")
+      toast.success("Sugerencia generada por el Modo Fantasma")
       await load()
     } catch (e) {
       toast.error(`No se pudo generar la sugerencia: ${(e as Error).message}`)
@@ -480,7 +480,7 @@ export default function NotaConsultaPage({ params }: { params: Promise<{ id: str
             </div>
             <Button onClick={generate} disabled={generating}>
               {generating ? <Loader2 className="size-4 animate-spin" /> : <Sparkles className="size-4" />}
-              Generar sugerencia (Phantom)
+              Generar sugerencia (Modo Fantasma)
             </Button>
           </div>
         ) : (

@@ -170,66 +170,77 @@ export default async function PatientHistoryPage({ params }: { params: Promise<{
         </div>
       )}
 
-      {/* Resumen clínico: alergias / medicación / vacunas */}
-      <div className="grid gap-4 md:grid-cols-3">
-        <div className="rounded-xl border bg-card p-4">
-          <div className="mb-2 flex items-center gap-2 text-sm font-semibold">
-            <AlertTriangle className="size-4 text-muted-foreground" /> Alergias
-          </div>
-          {allergies.length === 0 ? (
-            <p className="text-sm text-muted-foreground">Sin alergias registradas.</p>
-          ) : (
-            <ul className="flex flex-col gap-1.5 text-sm">
-              {allergies.map((a) => (
-                <li key={a.id} className="flex items-center gap-2">
-                  <span
-                    className={`size-1.5 rounded-full ${a.severity === "severe" ? "bg-destructive" : "bg-muted-foreground/50"}`}
-                  />
-                  <span className="font-medium">{a.allergen}</span>
-                  <span className="text-muted-foreground">{SEVERITY_LABELS[a.severity] ?? a.severity}</span>
-                </li>
-              ))}
-            </ul>
+      {/* Resumen clínico: alergias / medicación / vacunas.
+          Las tarjetas vacías NO se pintan. Antes salían las tres diciendo "Sin … registradas" con
+          cero forma de añadir nada: no existe ninguna ruta de escritura por UI para medicación ni
+          vacunas, y las alergias sólo las escribe Athos al aprobarle una propuesta. Tres cajas que
+          nunca se pueden llenar desde ahí son tres callejones sin salida, no información. */}
+      {allergies.length + medications.length + vaccines.length === 0 ? (
+        <p className="rounded-xl border bg-card p-4 text-sm text-muted-foreground">
+          Esta ficha todavía no tiene alergias, medicación ni vacunas. Las alergias entran cuando
+          apruebas una propuesta de Athos durante una consulta.
+        </p>
+      ) : (
+        <div className="grid gap-4 md:grid-cols-3">
+          {allergies.length > 0 && (
+            <div className="rounded-xl border bg-card p-4">
+              <div className="mb-2 flex items-center gap-2 text-sm font-semibold">
+                <AlertTriangle className="size-4 text-muted-foreground" /> Alergias
+              </div>
+              <ul className="flex flex-col gap-1.5 text-sm">
+                {allergies.map((a) => (
+                  <li key={a.id} className="flex items-center gap-2">
+                    <span
+                      className={`size-1.5 rounded-full ${a.severity === "severe" ? "bg-destructive" : "bg-muted-foreground/50"}`}
+                    />
+                    <span className="font-medium">{a.allergen}</span>
+                    <span className="text-muted-foreground">
+                      {SEVERITY_LABELS[a.severity] ?? a.severity}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            </div>
           )}
-        </div>
 
-        <div className="rounded-xl border bg-card p-4">
-          <div className="mb-2 flex items-center gap-2 text-sm font-semibold">
-            <Pill className="size-4 text-muted-foreground" /> Medicación
-          </div>
-          {medications.length === 0 ? (
-            <p className="text-sm text-muted-foreground">Sin medicación registrada.</p>
-          ) : (
-            <ul className="flex flex-col gap-1.5 text-sm">
-              {medications.slice(0, 6).map((m) => (
-                <li key={m.id} className="flex flex-wrap items-baseline gap-x-2">
-                  <span className="font-medium">{m.drug_name}</span>
-                  <span className="text-muted-foreground">{m.dose}</span>
-                  {m.is_chronic && <Badge variant="outline" className="text-[10px]">Crónico</Badge>}
-                </li>
-              ))}
-            </ul>
+          {medications.length > 0 && (
+            <div className="rounded-xl border bg-card p-4">
+              <div className="mb-2 flex items-center gap-2 text-sm font-semibold">
+                <Pill className="size-4 text-muted-foreground" /> Medicación
+              </div>
+              <ul className="flex flex-col gap-1.5 text-sm">
+                {medications.slice(0, 6).map((m) => (
+                  <li key={m.id} className="flex flex-wrap items-baseline gap-x-2">
+                    <span className="font-medium">{m.drug_name}</span>
+                    <span className="text-muted-foreground">{m.dose}</span>
+                    {m.is_chronic && (
+                      <Badge variant="outline" className="text-[10px]">
+                        Crónico
+                      </Badge>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            </div>
           )}
-        </div>
 
-        <div className="rounded-xl border bg-card p-4">
-          <div className="mb-2 flex items-center gap-2 text-sm font-semibold">
-            <Syringe className="size-4 text-muted-foreground" /> Vacunas
-          </div>
-          {vaccines.length === 0 ? (
-            <p className="text-sm text-muted-foreground">Sin vacunas registradas.</p>
-          ) : (
-            <ul className="flex flex-col gap-1.5 text-sm">
-              {vaccines.slice(0, 6).map((v) => (
-                <li key={v.id} className="flex flex-wrap items-baseline gap-x-2">
-                  <span className="font-medium">{v.vaccine_name}</span>
-                  <span className="text-muted-foreground">{fmtDate(v.administered_at)}</span>
-                </li>
-              ))}
-            </ul>
+          {vaccines.length > 0 && (
+            <div className="rounded-xl border bg-card p-4">
+              <div className="mb-2 flex items-center gap-2 text-sm font-semibold">
+                <Syringe className="size-4 text-muted-foreground" /> Vacunas
+              </div>
+              <ul className="flex flex-col gap-1.5 text-sm">
+                {vaccines.slice(0, 6).map((v) => (
+                  <li key={v.id} className="flex flex-wrap items-baseline gap-x-2">
+                    <span className="font-medium">{v.vaccine_name}</span>
+                    <span className="text-muted-foreground">{fmtDate(v.administered_at)}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
           )}
         </div>
-      </div>
+      )}
 
       {/* Archivos adjuntos: exámenes médicos, radiografías, laboratorio… */}
       <PatientAttachments

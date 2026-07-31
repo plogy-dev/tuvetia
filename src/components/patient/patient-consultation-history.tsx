@@ -16,6 +16,7 @@ import { ConsultationAudioPlayer } from "@/components/consultation-audio-player"
 import { HelpTip } from "@/components/help-tip"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
+import { EmptyState } from "@/components/ui/empty-state"
 
 type NoteH = {
   id: string
@@ -116,9 +117,15 @@ export function PatientConsultationHistory({
 
   if (consultations.length === 0 || !selected) {
     return (
-      <div className="rounded-xl border bg-card p-8 text-center text-sm text-muted-foreground">
-        Este paciente todavía no tiene consultas registradas.
-      </div>
+      <EmptyState
+        title="Sin consultas todavía"
+        description="Cuando grabes una consulta de este paciente, aquí quedará con su transcripción, su audio y la nota clínica."
+        action={
+          <Button variant="outline" size="sm" render={<Link href="/dashboard/consultas" />}>
+            Iniciar una consulta
+          </Button>
+        }
+      />
     )
   }
 

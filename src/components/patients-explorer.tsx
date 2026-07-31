@@ -8,10 +8,12 @@ import { useMemo, useState } from "react"
 import Link from "next/link"
 import { FileTextIcon, PawPrintIcon, SearchIcon } from "lucide-react"
 
+import { CreatePatientDrawer } from "@/components/create-patient-drawer"
 import { ExportCsvButton } from "@/components/export-csv-button"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
+import { FilterChip, FilterChips } from "@/components/ui/filter-chips"
 import { Input } from "@/components/ui/input"
 import {
   Table,
@@ -56,8 +58,18 @@ function especieBucket(species: string): string {
   return "otros"
 }
 
-export function PatientsExplorer({ rows, listError }: { rows: PatientRow[]; listError: boolean }) {
-  const [q, setQ] = useState("")
+export function PatientsExplorer({
+  rows,
+  listError,
+  initialQuery = "",
+}: {
+  rows: PatientRow[]
+  listError: boolean
+  /** Sólo el valor INICIAL, del `?q=` del buscador global de la cabecera. Teclear sigue sin navegar
+   *  ni re-consultar: la nota de arriba sobre la tormenta de queries sigue vigente. */
+  initialQuery?: string
+}) {
+  const [q, setQ] = useState(initialQuery)
   const [especie, setEspecie] = useState("")
 
   const query = q.trim().toLowerCase()
@@ -89,22 +101,17 @@ export function PatientsExplorer({ rows, listError }: { rows: PatientRow[]; list
             aria-label="Buscar pacientes"
           />
         </div>
-        <div className="flex items-center gap-1.5">
+        <FilterChips>
           {ESPECIE_FILTERS.map((f) => (
-            <button
+            <FilterChip
               key={f.value || "todos"}
-              type="button"
               onClick={() => setEspecie(f.value)}
-              className={`rounded-md border px-2.5 py-1 text-xs font-medium transition-colors ${
-                especie === f.value
-                  ? "border-transparent bg-primary text-primary-foreground"
-                  : "bg-background text-muted-foreground hover:bg-secondary"
-              }`}
+              active={especie === f.value}
             >
               {f.label}
-            </button>
+            </FilterChip>
           ))}
-        </div>
+        </FilterChips>
         <ExportCsvButton
           filename="pacientes.csv"
           headers={["Mascota", "Especie", "Raza", "Sexo", "Edad", "Titular", "Teléfono"]}
@@ -183,11 +190,33 @@ export function PatientsExplorer({ rows, listError }: { rows: PatientRow[]; list
             ) : (
               <TableRow>
                 <TableCell colSpan={8} className="h-24 text-center text-muted-foreground">
-                  {listError
-                    ? "No se pudieron cargar los pacientes. Recargá la página para reintentar."
-                    : query || especie
-                      ? "No se encontraron pacientes con esos filtros."
-                      : "Todavía no hay pacientes registrados."}
+                  {listError ? (
+                    "No se pudieron cargar los pacientes. Recarga la página para reintentar."
+                  ) : query || especie ? (
+                    // Acá no hay nada que crear: lo que toca es soltar el filtro, y eso es lo que
+                    // se ofrece.
+                    <div className="flex flex-col items-center gap-2">
+                      <span>Ningún paciente coincide con esos filtros.</span>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => {
+                          setQ("")
+                          setEspecie("")
+                        }}
+                      >
+                        Quitar los filtros
+                      </Button>
+                    </div>
+                  ) : (
+                    <div className="flex flex-col items-center gap-2">
+                      <span>Todavía no hay pacientes registrados.</span>
+                      <CreatePatientDrawer
+                        label="Registrar el primer paciente"
+                        trigger={<Button variant="outline" size="sm" />}
+                      />
+                    </div>
+                  )}
                 </TableCell>
               </TableRow>
             )}

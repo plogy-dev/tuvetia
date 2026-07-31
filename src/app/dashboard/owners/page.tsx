@@ -1,8 +1,11 @@
+import Link from "next/link"
 import { UserRoundIcon } from "lucide-react"
 import { CreateOwnerDrawer } from "@/components/create-owner-drawer"
 import { RevokeConsentButton } from "@/components/owners/revoke-consent-button"
 import { SearchBar } from "@/components/search-bar"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
+import { Button } from "@/components/ui/button"
+import { PageHeader, PageShell } from "@/components/ui/page-shell"
 import {
   Table,
   TableBody,
@@ -54,10 +57,18 @@ export default async function OwnersPage({
   )
 
   return (
-    <div className="flex flex-col gap-4 px-4 py-4 md:gap-6 md:py-6 lg:px-6">
-      <div className="flex items-center justify-between gap-4">
+    <PageShell>
+      {/* Esta pantalla no tenía encabezado: empezaba directamente en el buscador, sin decir
+          siquiera en qué sección estabas ni cuántos titulares había. */}
+      <PageHeader
+        title="Titulares"
+        description={`${owners?.length ?? 0} ${
+          (owners?.length ?? 0) === 1 ? "titular" : "titulares"
+        }${q ? ` que coinciden con «${q}»` : ""}`}
+        actions={<CreateOwnerDrawer />}
+      />
+      <div className="mb-4">
         <SearchBar defaultValue={q ?? ""} placeholder="Buscar titular..." />
-        <CreateOwnerDrawer />
       </div>
       <div className="overflow-hidden rounded-lg border">
         <Table>
@@ -108,17 +119,36 @@ export default async function OwnersPage({
                   colSpan={6}
                   className="h-24 text-center text-muted-foreground"
                 >
-                  {listError
-                    ? "No se pudieron cargar los titulares. Recargá la página para reintentar."
-                    : q
-                      ? "No se encontraron titulares."
-                      : "Todavía no hay titulares registrados."}
+                  {listError ? (
+                    "No se pudieron cargar los titulares. Recarga la página para reintentar."
+                  ) : q ? (
+                    <>
+                      Ningún titular se llama así.{" "}
+                      <Link
+                        href="/dashboard/owners"
+                        className="font-medium text-foreground underline underline-offset-2"
+                      >
+                        Ver todos
+                      </Link>
+                      .
+                    </>
+                  ) : (
+                    // El botón "Nuevo titular" está arriba, fuera del foco de quien está mirando la
+                    // tabla vacía. Se repite acá, donde de verdad se está buscando la salida.
+                    <div className="flex flex-col items-center gap-2">
+                      <span>Todavía no hay titulares registrados.</span>
+                      <CreateOwnerDrawer
+                        label="Registrar el primer titular"
+                        trigger={<Button variant="outline" size="sm" />}
+                      />
+                    </div>
+                  )}
                 </TableCell>
               </TableRow>
             )}
           </TableBody>
         </Table>
       </div>
-    </div>
+    </PageShell>
   )
 }

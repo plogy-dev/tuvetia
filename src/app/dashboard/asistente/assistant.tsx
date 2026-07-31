@@ -189,12 +189,18 @@ function AssistantMessage({ message, streaming }: { message: UIMessage; streamin
 export function Assistant({
   patients,
   threads = {},
+  initialPatientId,
 }: {
   clinicId: string
   patients: AssistantPatient[]
   threads?: StoredThreads
+  /** Paciente con el que abrir, del `?patient=` que pone el historial del sidebar. Ya viene
+   *  validado contra los pacientes de la clínica. */
+  initialPatientId?: string
 }) {
-  const [patientId, setPatientId] = useState<string>(patients[0]?.id ?? GENERAL)
+  const [patientId, setPatientId] = useState<string>(
+    initialPatientId ?? patients[0]?.id ?? GENERAL,
+  )
   const [input, setInput] = useState<string>("")
   const threadRef = useRef<HTMLDivElement>(null)
 
@@ -306,11 +312,38 @@ export function Assistant({
         className="flex flex-1 flex-col gap-4 overflow-y-auto rounded-xl border bg-card/40 p-4"
       >
         {messages.length === 0 && (
-          <div className="m-auto max-w-sm text-center text-sm text-muted-foreground">
-            <Bot className="mx-auto mb-2 size-6 opacity-50" />
-            {patient
-              ? `Pregúntame sobre ${patient.name} o una duda médica general. Puedo consultar su ficha, la agenda o la literatura, y proponerte acciones (citas, mensajes) que tú apruebas.`
-              : "Pregúntame una duda médica general, o elige un paciente arriba para razonar con su ficha. Respondo con literatura citada y verificable — nunca un diagnóstico cerrado."}
+          <div className="m-auto flex max-w-md flex-col items-center gap-3 text-center">
+            <Bot className="size-6 text-muted-foreground opacity-50" />
+            <p className="text-sm text-muted-foreground">
+              {patient
+                ? `Pregúntame sobre ${patient.name} o una duda médica general. Puedo consultar su ficha, la agenda o la literatura, y proponerte acciones (citas, mensajes) que tú apruebas.`
+                : "Pregúntame una duda médica general, o elige un paciente arriba para razonar con su ficha. Respondo con literatura citada y verificable — nunca un diagnóstico cerrado."}
+            </p>
+            {/* Sugerencias para arrancar. Sólo rellenan el cuadro de texto — no envían nada — y
+                cada una pide algo que el agente sabe hacer con las tools que tiene. */}
+            <div className="flex flex-wrap justify-center gap-1.5">
+              {(patient
+                ? [
+                    `Resume la ficha de ${patient.name}`,
+                    `¿Qué debería revisar hoy en ${patient.name}?`,
+                    `Agenda un control para ${patient.name} la próxima semana`,
+                  ]
+                : [
+                    "¿Qué citas hay hoy?",
+                    "¿Cuáles son los horarios de la clínica?",
+                    "¿Qué dice la literatura sobre otitis por Malassezia?",
+                  ]
+              ).map((s) => (
+                <button
+                  key={s}
+                  type="button"
+                  onClick={() => setInput(s)}
+                  className="rounded-md border bg-background px-2.5 py-1 text-xs text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
+                >
+                  {s}
+                </button>
+              ))}
+            </div>
           </div>
         )}
 

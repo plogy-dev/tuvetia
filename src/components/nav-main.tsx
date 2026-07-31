@@ -5,6 +5,7 @@ import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { CreatePatientDrawer } from "@/components/create-patient-drawer"
+import { NewConsultationDrawer } from "@/components/new-consultation-drawer"
 import { createClient } from "@/lib/supabase/client"
 import {
   SidebarGroup,
@@ -69,9 +70,26 @@ export function NavMain({
   return (
     <SidebarGroup>
       <SidebarGroupContent className="flex flex-col gap-2">
+        {/* "Iniciar consulta" es la acción primaria del sidebar del cliente, y es la que abre el
+            Modo Fantasma. Reusa el drawer que ya existía en la página de Consultas: sólo cambia
+            dónde se monta. "Nuevo paciente" baja a segunda fila, y sigue estando en Pacientes. */}
         <SidebarMenu>
+          <SidebarMenuItem>
+            <NewConsultationDrawer
+              label="Iniciar consulta"
+              trigger={
+                <SidebarMenuButton
+                  tooltip="Iniciar consulta"
+                  className="min-w-8 bg-primary text-primary-foreground duration-200 ease-linear hover:bg-primary/90 hover:text-primary-foreground active:bg-primary/90 active:text-primary-foreground"
+                />
+              }
+            />
+          </SidebarMenuItem>
           <SidebarMenuItem className="flex items-center gap-2">
-            <CreatePatientDrawer />
+            <CreatePatientDrawer
+              label="Nuevo paciente"
+              trigger={<SidebarMenuButton variant="outline" tooltip="Nuevo paciente" />}
+            />
             <PendingProposalsButton />
           </SidebarMenuItem>
         </SidebarMenu>
