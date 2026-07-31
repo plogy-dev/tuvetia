@@ -35,10 +35,10 @@ clasificación de nuestra parte: etiquetaba la métrica como si fuera el estado 
 | 6 | Correo / comunicaciones | ✅ | 8 pruebas | nada | — |
 | 7 | Google Calendar bidireccional | 🔑 | ida ✅ / vuelta manual | **2 credenciales en Vercel** | tuyo, 5 min |
 | 8 | Transcripción | ✅ | **3 de 3 defectos** · exactitud 92,3 % | nada | — |
-| 9 | Invitaciones de equipo | ✅ | **aceptada en producción** | un caso residual (§9) | — |
+| 9 | Invitaciones de equipo | ⚠️ | acepta OK con cuenta previa | **el enlace falla si el invitado NO tiene cuenta** (§9) | auth |
 | 10 | Historial de conversaciones | ✅ | — | nada | — |
 
-**9 entregados y verificados · 1 esperando 5 minutos tuyos · 0 con desarrollo pendiente · 0 incumplidos.**
+**8 entregados y verificados · 1 esperando 5 minutos tuyos · 1 con un defecto confirmado hoy (§9) · 0 incumplidos.**
 
 Con esas 2 credenciales de Google son **10 de 10**. Ya no queda trabajo de desarrollo en esta lista.
 
@@ -301,18 +301,60 @@ RPC `accept_invitation`. No es una fila que ya estuviera ahí.
 27-jul. La rama multi-clínica (*"ADD, no reemplaza"*) funcionó — conservó la membresía anterior y
 agregó la nueva. Ese era el caso con más riesgo de pisar datos.
 
-### El caso residual, para que quede dicho
+### ⚠️ El caso residual se investigó hoy — y es un DEFECTO REAL
 
-El correo invitado **ya tenía cuenta** (Google, desde el 15-jul), así que `inviteUserByEmail` no creó
-usuario — `auth.users.invited_at` quedó en `None`. Lo que **no** se ejercitó, entonces, es el camino de
-alguien **sin cuenta**: recibir el correo, y que el enlace establezca sesión vía `/auth/callback`.
+Se reprodujo el camino del invitado **sin cuenta** sin necesidad de una bandeja de correo:
+`generate_link` de la Admin API devuelve el enlace **exacto** que iría en el correo **sin enviarlo**.
+Reproducible: `scripts/verificar_enlace_invitacion.py`.
 
-Importa decirlo porque **3 de los 4 bugs corregidos viven en ese camino** (el `redirectTo`, el origen
-del dominio efímero y el `?next=` vacío). Están verificados por lectura y por la corrección del
-`redirectTo` que ahora apunta a `/auth/callback`, pero no por una corrida real.
+```
+[0] 303 supabase  ->  https://tuvetia.vercel.app/auth/callback?next=%2Finvitar%2F<token>
+                       #access_token=…&refresh_token=…&type=invite      ← FRAGMENTO, sin ?code=
+[1] 307 tuvetia   ->  /login?error=auth&reason=missing_code
+[2] 200 (login)
+```
 
-**Cómo se cierra del todo:** invitar una dirección que **no tenga cuenta** en la plataforma. Dos
-minutos, y ya no queda nada de este punto.
+**El invitado sin cuenta termina en el login, no en su invitación.**
+
+**Por qué.** Un enlace de correo lo inicia el **servidor**, no el navegador: no existe el
+`code_verifier` de PKCE, así que Supabase no devuelve `?code=` sino los tokens en el **fragmento**
+(`#`). Y el fragmento **nunca viaja al servidor** — es la parte de la URL que el navegador se guarda
+para sí. `/auth/callback` es una ruta de servidor: ve la petición sin código y manda al login.
+
+**Por qué no se detectó antes.** La invitación real del 30-jul la aceptó un correo que **ya tenía
+cuenta de Google**, o sea que ya llegó con sesión. Ese camino funciona y quedó probado. El otro
+—el del invitado nuevo, que es el que reportó el cliente— nunca se había ejercitado.
+
+### Cómo se arregla
+
+El camino de **correo** es distinto del de **OAuth**, y hoy comparten ruta:
+
+| Camino | Quién inicia | Qué devuelve Supabase | Ruta correcta |
+|---|---|---|---|
+| Login con Google | el navegador | `?code=` (PKCE) | `/auth/callback` ✅ ya existe |
+| **Enlace de correo** | el servidor | tokens en `#`, o `token_hash` | `/auth/confirm` ✅ **ya existe, no se usa** |
+
+Dos opciones, cualquiera cierra el caso:
+
+1. **Plantilla de correo** en el panel de Supabase → `/auth/confirm?token_hash={{ .TokenHash }}&type=invite&next=…`.
+   Esa ruta ya está escrita y usa `verifyOtp`. Es **configuración, no código**.
+2. **Página cliente** que lea `location.hash`, llame a `setSession` y navegue al destino. El fragmento
+   sobrevive a las redirecciones, así que puede colgarse de `/auth/callback` cuando no hay `?code=`.
+   Es **código nuestro** y no depende del panel.
+
+⚠️ **Es dominio de auth (Santiago/Felipe).** Queda documentado con reproducción para quien lo tome;
+no se tocó.
+
+### Lo que sí quedó cubierto hoy
+
+**17 pruebas automáticas nuevas** sobre las dos rutas, que antes no tenían ninguna:
+
+- `/auth/callback`: canje del código, motivo real del fallo al login, y **protección contra open
+  redirect** (`//evil.com`, `https://evil.com`, vacío → `/dashboard`). Sin eso, un enlace manipulado
+  dejaría al veterinario en un dominio ajeno **ya autenticado**.
+- `/api/team/invite-email`: que el enlace apunte a `/auth/callback` y no a `/invitar` directo, que use
+  el dominio estable y no el efímero del deployment, que el `next` nunca viaje vacío, y las tres
+  reglas de autorización (sin sesión, rol `vet`, invitación de otra clínica).
 
 ---
 
@@ -342,19 +384,20 @@ Los datos **existían desde el inicio** en `athos_messages` — nunca se perdier
 
 | Qué | Cierra | Tiempo |
 |---|---|---|
-| ~~Enviar una invitación real~~ | punto 9 → ✅ | **HECHO 30-jul 21:27 UTC** |
+| ~~Enviar una invitación real~~ | punto 9 → parcial | **HECHO 30-jul 21:27 UTC** |
 | **`GOOGLE_CLIENT_ID` + `GOOGLE_CLIENT_SECRET` en Vercel** | punto 7 → 90 % | 5 min |
-| *(opcional)* invitar un correo **sin cuenta** | cierra el caso residual del 9 | 2 min |
+| ~~invitar un correo sin cuenta~~ | **ya no hace falta**: se reprodujo sin correo y es un defecto (§9) | — |
 
-Con esas dos cosas: **9 de 10 entregados y verificados.**
+Con esa credencial: **9 de 10**, y queda el defecto del enlace de invitación (§9), que es de auth.
 
 ### Nuestro
 
 | Qué | Cierra | Esfuerzo |
 |---|---|---|
 | ~~Transcripción en tiempo real~~ | punto 8 → ✅ | **HECHO** |
+| **Enlace de invitación para quien no tiene cuenta** (§9) | punto 9 → ✅ | 1-2 h · **es de auth** |
 
-**Nada.** No queda desarrollo pendiente de los 10 puntos.
+Un solo defecto abierto, encontrado y reproducido hoy.
 
 ### Mejora continua — no son entregas pendientes
 
