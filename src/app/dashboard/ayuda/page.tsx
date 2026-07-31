@@ -1,6 +1,8 @@
 import Link from "next/link"
 import { AudioLines, Bot, CalendarClock, CircleHelp, PawPrint } from "lucide-react"
 
+import { RepetirOnboarding } from "@/components/onboarding/repetir-onboarding"
+
 const SECTIONS = [
   {
     icon: PawPrint,
@@ -55,6 +57,8 @@ export default function AyudaPage() {
           </Link>
         ))}
       </div>
+
+      <RepetirOnboarding />
 
       <p className="text-xs text-muted-foreground">
         ¿Necesitás más ayuda? Escribinos y te damos una mano.
