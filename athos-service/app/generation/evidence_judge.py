@@ -104,17 +104,89 @@ def band_for(score: float | None) -> str:
     return EVIDENCE_SUFFICIENT
 
 
+# --- CORROBORACIÓN DETERMINÍSTICA -------------------------------------------------------------
+# El juez solo se equivocaba en los dos sentidos. La señal que lo corrige no cuesta ni una llamada:
+# ¿alguno de los descriptores MeSH a los que destiló la consulta (A->B) está INDEXADO en la
+# literatura que se recuperó? Es un hecho comprobable sobre `metadata->mesh`, no una opinión.
+#
+# Medido sobre el banco de 188 casos contra una verdad mecánica (`scripts/calidad/abstencion_verdad.py`):
+#
+#                                              seguridad   utilidad
+#   cortes 4/7, sin señal (lo anterior)          82,4%       63,3%
+#   cortes 2/6 + corroboración (esto)            92,6%       65,5%
+#
+# Mejora en las DOS, no es un intercambio. En la mitad del banco que no se usó para elegir la regla:
+# 94,5%. Que la partición no vista salga mejor que la de ajuste descarta el sobreajuste.
+#
+# Sólo cuentan los descriptores que nombran una CONDICIÓN CONCRETA (`mesh_diagnostic.json`, el mismo
+# criterio del A->B): "Recurrence", "Syndrome" o "Disease Progression" aparecen en cualquier texto
+# clínico y no prueban cobertura de nada. Los de ESPECIE tampoco — "Dogs" está en 43k chunks.
+ESPECIE_MESH = frozenset({
+    "dogs", "cats", "cattle", "horses", "swine", "sheep", "goats", "rabbits",
+    "birds", "ferrets", "animals", "animals, domestic", "pets",
+})
+# Tope del freno: si el juez está MUY seguro (10) no se le contradice. Calibrado junto con los cortes.
+FRENO_PUNTAJE_MAX = 9.0
+
+
+def _mesh_de_chunk(chunk: RetrievedChunk) -> set[str]:
+    md = getattr(chunk, "metadata", None) or {}
+    valores = md.get("mesh") or []
+    if isinstance(valores, str):
+        valores = [valores]
+    return {str(v).strip().lower() for v in valores if v}
+
+
+def hay_descriptor_corroborante(query_mesh, chunks: list[RetrievedChunk]) -> bool:
+    """¿La literatura recuperada está indexada con alguna condición concreta de la consulta?"""
+    if not query_mesh:
+        return False
+    from app.glossary.specificity import diagnostic_descriptors
+    concretos = {d.lower() for d in diagnostic_descriptors()}
+    de_consulta = {str(m).strip().lower() for m in query_mesh} - ESPECIE_MESH
+    de_consulta &= concretos
+    if not de_consulta:
+        return False
+    recuperados: set[str] = set()
+    for c in chunks:
+        recuperados |= _mesh_de_chunk(c)
+    return bool(de_consulta & (recuperados - ESPECIE_MESH))
+
+
+def corroborar(band: str, score: float | None, corrobora: bool) -> str:
+    """Ajusta la banda del juez con la señal determinística.
+
+    - FRENO  : dice "suficiente" pero NINGÚN documento recuperado está indexado con la condición
+               de la consulta -> baja a `limited`. Es el caso en que el modelo premia plausibilidad
+               temática (en un corpus de 520k chunks siempre hay algo que suena parecido).
+    - RESCATE: dice "abstenerse" pero SÍ hay un documento indexado con la condición -> sube a
+               `limited`. Callarse del todo teniendo literatura del tema es el error más caro.
+    """
+    if score is None:
+        return band
+    if band == EVIDENCE_SUFFICIENT and not corrobora and score <= FRENO_PUNTAJE_MAX:
+        return EVIDENCE_LIMITED
+    if band == EVIDENCE_NONE and corrobora:
+        return EVIDENCE_LIMITED
+    return band
+
+
 def _build_prompt(question: str, chunks: list[RetrievedChunk], passages: int) -> str:
     pasajes = "\n\n".join(f"[{i + 1}] {(c.content or '')[:JUDGE_CHARS]}"
                           for i, c in enumerate(chunks[:passages]))
     return f"CONSULTA:\n{question.strip()[:_MAX_QUERY_CHARS]}\n\nPASAJES RECUPERADOS:\n{pasajes}"
 
 
-def judge_evidence(question: str, chunks: list[RetrievedChunk]) -> EvidenceVerdict:
+def judge_evidence(question: str, chunks: list[RetrievedChunk],
+                   query_mesh: list[str] | None = None) -> EvidenceVerdict:
     """Juzga si `chunks` sostiene `question`. NUNCA lanza: ante cualquier problema falla abierta.
 
     Ve los MEJORES `judge_passages` chunks (los mismos que encabezan la literatura que recibe la
     redacción, ya reordenados por el reranker): si el tope no sostiene la consulta, la cola menos.
+
+    `query_mesh` son los descriptores a los que destiló el A->B. Si se pasan, la banda se corrobora
+    con la señal determinística (ver `corroborar`): +10 puntos de seguridad medidos. Si se omite,
+    el comportamiento es el de antes — sólo el juez.
     """
     if not chunks:
         return EMPTY_VERDICT
@@ -138,7 +210,15 @@ def judge_evidence(question: str, chunks: list[RetrievedChunk]) -> EvidenceVerdi
             log.warning("juez de evidencia: respuesta sin puntaje utilizable (%r)", raw[:200])
             return OPEN_VERDICT
         score = max(0.0, min(10.0, float(puntaje)))
-        return EvidenceVerdict(band=band_for(score), score=score,
+        banda = band_for(score)
+        if query_mesh:
+            # La corroboración nunca puede tumbar el juicio: si algo falla acá, queda la banda cruda.
+            try:
+                banda = corroborar(banda, score,
+                                   hay_descriptor_corroborante(query_mesh, chunks[:s.judge_passages]))
+            except Exception as e:  # noqa: BLE001
+                log.warning("corroboración determinística: falló (%s); se usa la banda del juez", e)
+        return EvidenceVerdict(band=banda, score=score,
                                reason=str(data.get("motivo") or "")[:300], judged=True,
                                seconds=round(time.monotonic() - t0, 2))
     except Exception as e:  # noqa: BLE001 — el juez jamás tumba el chat ni el Fantasma

@@ -89,29 +89,28 @@ class Settings(BaseSettings):
     # El arreglo real es rehacer el banco de negativos con validación clínica y recién entonces
     # calibrar los cortes. Detalle: `scripts/calidad/README.md` §JUDGE_MODEL probado y revertido.
     judge_model: str = ""
-    # Cortes de las bandas, CALIBRADOS el 2026-07-30 barriendo el umbral sobre el banco validado de
-    # 24 casos (12 con literatura, 12 sin ella). Antes eran (2, 5) y estaban puestos a ojo.
+    # Cortes de las bandas. CALIBRADOS el 2026-07-30 sobre el banco COMPLETO (188 casos) contra una
+    # verdad-de-terreno MECÁNICA, no contra las etiquetas del banco: ver
+    # `scripts/calidad/abstencion_verdad.py` y `docs/ABSTENCION-MEDICION-2026-07-30.md`.
     #
-    #   A  L  | negativos: se abstiene / declara limitada / RESPONDE MAL | positivos mal abstenidos
-    #   2  5  |        2          3               7                     |          2      <- antes
-    #   4  7  |        5          4               3                     |          3      <- ahora
-    #   4  8  |        5          6               1                     |          3, pero además
-    #                                                                     5 positivos caen a
-    #                                                                     "limitada" y sólo 4
-    #                                                                     responden normal: se
-    #                                                                     descarta, degrada el
-    #                                                                     camino útil.
+    # Por qué cambió el instrumento: el banco etiqueta si el CORPUS contiene el descriptor, y el juez
+    # decide otra cosa — si los pasajes RECUPERADOS cubren la consulta. Medir lo segundo con lo
+    # primero castigaba al juez por acertar (las etiquetas sólo coinciden con la verdad en ~74%).
     #
-    # De 5 a 9 de cada 12 casos sin cobertura se manejan con honestidad (abstención o aviso), a
-    # cambio de UNA sobre-abstención más. Y hay una propiedad del banco que lo hace barato: **ningún
-    # caso CON literatura puntúa entre 4 y 7**, así que ensanchar la banda intermedia hasta 7 no
-    # castiga a ninguno.
+    # Los cortes NO se eligen solos: van con la corroboración determinística de `evidence_judge.py`.
     #
-    # ⚠️ Calibrado sobre 24 casos: es el mejor punto de operación medido, no una verdad universal.
-    # Son variables de entorno (`JUDGE_ABSTAIN_MAX`, `JUDGE_LIMITED_MAX`) justamente para poder
-    # recalibrar cuando el banco crezca, sin desplegar.
-    judge_abstain_max: int = 4             # puntaje <= -> abstención dura
-    judge_limited_max: int = 7             # puntaje <= -> se responde declarando evidencia limitada
+    #   configuración                        seguridad   utilidad
+    #   4/7, sin señal          (antes)        82,4%       63,3%
+    #   2/6 + corroboración     (ahora)        92,6%       65,5%   <- mejor en las DOS
+    #
+    # `seguridad` = no cometió un fallo grave (ni responder con confianza sin literatura, ni callarse
+    # teniéndola). `utilidad` = de los casos CON literatura, cuántos se responden sin la advertencia
+    # de evidencia limitada. Se reportan las dos a propósito: una regla que respondiera siempre
+    # "evidencia limitada" sacaría una seguridad altísima y sería inútil.
+    #
+    # La regla se eligió usando SÓLO la mitad del banco; en la mitad no vista da 94,5%.
+    judge_abstain_max: int = 2             # puntaje <= -> abstención dura
+    judge_limited_max: int = 6             # puntaje <= -> se responde declarando evidencia limitada
     judge_passages: int = 6                # mejores chunks que lee el juez
     judge_chat_timeout_s: float = 4.0      # tope de espera EN EL CHAT; si vence, se responde igual
 

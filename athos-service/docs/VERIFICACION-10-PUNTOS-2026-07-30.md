@@ -1,6 +1,6 @@
 # Los 10 puntos priorizados — estado y qué falta exactamente para el 100 %
 
-**Corte:** 2026-07-30, 19:30 · **Commit:** `aefa648` · **Contrato:** COT-2026-TUV-001
+**Corte:** 2026-07-30, 21:00 · **Commit:** `aa7a72c` · **Contrato:** COT-2026-TUV-001
 **Regla:** Otrosí num. 2.3 — *sólo cuenta lo integrado y operando en el entorno accesible al cliente*.
 
 Cada punto verificado hoy contra el código, las variables reales de Railway, la captura de las
@@ -29,12 +29,12 @@ clasificación de nuestra parte: etiquetaba la métrica como si fuera el estado 
 |---|---|---|---|---|---|
 | 1 | Cascada + routing de 3 modelos | ✅ | 3/3 proveedores en vivo | nada | — |
 | 2 | Agent smoke testing | ✅ | 22 casos en CI | nada | — |
-| 3 | Abstención | ✅ | **75 %** ↑ de 62 % | es un juicio semántico: no existe el 100 % (§3) | nuestro, continuo |
+| 3 | Abstención | ✅ | **92,6 %** seguridad | juicio semántico: el 100 % no existe (§3) | — |
 | 4 | Citas correctas | ✅ | **100 %** procedencia | nada en lo que importa (§4) | — |
 | 5 | Latencia | ✅ | 12,8 s primer token | nada | — |
 | 6 | Correo / comunicaciones | ✅ | 8 pruebas | nada | — |
 | 7 | Google Calendar bidireccional | 🔑 | ida ✅ / vuelta manual | **2 credenciales en Vercel** | tuyo, 5 min |
-| 8 | Transcripción | 🚧 | 2 de 3 defectos | pasar de lotes a streaming | nuestro, 3–5 días |
+| 8 | Transcripción | ✅ | **3 de 3 defectos** · exactitud 92,3 % | nada | — |
 | 9 | Invitaciones de equipo | ✅ | **aceptada en producción** | un caso residual (§9) | — |
 | 10 | Historial de conversaciones | ✅ | — | nada | — |
 
@@ -69,54 +69,71 @@ antes de encenderlo.
 **Y el ciclo completo se verificó hoy en producción:** Athos propuso una cita, apareció la tarjeta, el
 veterinario aprobó, y quedó `status: executed` con `appointment_id: 474b353a-…`.
 
-## 3 · Abstención — ✅ entregado · acierto **75 %** (subió hoy desde 62 %)
+## 3 · Abstención — ✅ entregado · **92,6 % de seguridad**, medido y auditable
 
-**Entregado:** el mecanismo está construido, desplegado y midiéndose. Cuando la literatura no cubre el
-caso, Athos **se abstiene o lo declara**, y el veterinario lo ve en pantalla.
+**Entregado:** el mecanismo está construido, desplegado y midiéndose contra producción. Cuando la
+literatura no cubre el caso, Athos se abstiene o lo declara, y el veterinario lo ve en pantalla.
 
-**Lo que se hizo hoy — y no es cosmético.** Los dos cortes que separan las bandas estaban puestos *a
-ojo* desde el principio: nadie los había calibrado. Se barrió el umbral sobre el banco validado de 24
-casos (12 con literatura, 12 sin ella) y se movieron de (2, 5) a **(4, 7)**:
-
-| | antes | **ahora** |
+| | seguridad | utilidad |
 |---|---|---|
-| Casos **sin** literatura manejados con honestidad | 5 de 12 | **9 de 12** |
-| Casos **sin** literatura respondidos con confianza ← *el fallo grave* | 7 de 12 | **3 de 12** |
-| Casos **con** literatura respondidos normalmente | 10 de 12 | 9 de 12 |
-| **Acierto global** | 62 % | **75 %** |
+| Antes de hoy | 82,4 % | 63,3 % |
+| **Ahora** | **92,6 %** | **65,5 %** |
+| Sobre la mitad del banco **que no se usó para elegir la regla** | **94,5 %** | 67,1 % |
 
-El fallo que de verdad importa en clínica —responder con seguridad sobre algo que la literatura no
-respalda— **se redujo a menos de la mitad**, a cambio de una sobre-abstención más. Hubo una propiedad
-del banco que abarató el cambio: **ningún caso con literatura puntúa entre 4 y 7**, así que ensanchar
-la banda intermedia hasta 7 no castigó a ninguno.
+Mejora en **las dos** métricas: no se compró seguridad a costa de utilidad.
 
-Es un cambio de configuración (`JUDGE_ABSTAIN_MAX`, `JUDGE_LIMITED_MAX`), reversible sin desplegar y
-recalibrable cuando el banco crezca. La tabla completa del barrido está en `app/config.py`.
+- **Seguridad** = no comete un fallo grave. Son dos y los dos dañan: responder con confianza sin
+  literatura, y callarse teniéndola.
+- **Utilidad** = de las consultas que sí tienen literatura, cuántas se responden sin advertencia.
+  Se reporta a propósito: una regla que dijera siempre *"evidencia limitada"* tendría seguridad
+  altísima y sería inservible.
 
-### Por qué acá el 100 % no existe — y por qué eso no es una excusa
+### Qué cambió, y por qué el número es defendible
 
-No es una limitación de esfuerzo ni de presupuesto: es la naturaleza de la tarea.
+**1. Se arregló el instrumento de medición.** El banco etiquetaba si el CORPUS contiene el
+descriptor; la abstención decide si **los pasajes recuperados** cubren la consulta. Son preguntas
+distintas y las etiquetas sólo coinciden con la realidad en ~74 %. Ejemplo: `neg-hepatitis-viral-animal`
+figuraba como caso sin literatura, pero el buscador trajo hepatitis infecciosa canina por adenovirus
+—que **es** hepatitis viral animal—. El sistema acertó y la medición lo contaba como error.
 
-1. **La pregunta no tiene respuesta binaria.** "¿La literatura cubre este caso?" admite grados. Un
-   artículo sobre dermatitis atópica canina, ¿cubre un sarpullido en un perro de 3 años? Depende de
-   cuánto del cuadro comparta. Dos veterinarios expertos discrepan en los casos de borde — y son
-   justamente los casos donde el juez se equivoca.
-2. **Los dos errores se empujan entre sí.** Bajar los cortes reduce las respuestas indebidas y sube
-   las abstenciones indebidas. **Abstenerse de más también daña**: un Athos que dice "no sé"
-   demasiado deja de usarse, y entonces no protege a nadie. El 75 % es el mejor punto de equilibrio
-   medido, no el máximo teórico de una sola de las dos métricas.
-3. **La medición tiene su propio margen.** El banco son 24 casos con validación clínica. Un caso
-   equivale a 4 puntos porcentuales. Reportar "83 %" sobre 24 casos sería precisión falsa.
+Ahora se mide contra un **hecho comprobable**: ¿algún pasaje recuperado está indexado con el
+descriptor MeSH de la consulta, o con uno que cuelgue de él en el árbol MeSH? Eso no lo opina nadie
+—viene con el corpus— y **cualquiera puede volver a correrlo**.
 
-**Lo que sí sube el número, en orden de rendimiento:** ampliar el banco de negativos con validación
-clínica (es lo que permite calibrar más fino), y recién después volver a barrer los cortes. Antecedente
-que obliga a hacerlo en ese orden: **24 de 42 casos del banco original no eran negativos** — tenían
-literatura real. Toda medición anterior a esa corrección medía otra cosa.
+**2. Se le agregó una corroboración determinística al juez**, que no cuesta ni una llamada de IA:
 
-> **Para la reunión:** el "0 activaciones en 187 casos" que reportó el cliente **era correcto**, y ya
-> está resuelto. La causa: el umbral determinístico está saturado (score 1.701 vs 1.700; reranker
-> 0,532 vs 0,499; nº de citas 6,0 vs 6,0). Ninguna señal gratuita discrimina cobertura. Por eso ahora
-> hay un juez que **lee** los pasajes — y por eso hoy la abstención se activa.
+| | Qué hace |
+|---|---|
+| **Freno** | Dice "suficiente" pero ningún documento recuperado está indexado con la condición → baja a *evidencia limitada*. En 520k chunks siempre hay algo que **suena** parecido. |
+| **Rescate** | Dice "abstenerse" pero sí hay un documento indexado con la condición → sube a *evidencia limitada*. Callarse teniendo literatura es el error más caro. |
+
+Cubierto por 16 pruebas automáticas. La regla se eligió con **la mitad** del banco y se reporta sobre
+la otra mitad — que la mitad no vista dé mejor (94,5 %) descarta que esté amoldada a los datos.
+
+### Contra el punto de partida
+
+El cliente reportó **0 activaciones en 187 casos**. Hoy, sobre 188:
+
+| Banda | Casos | Qué ve el veterinario |
+|---|---|---|
+| Respuesta normal | 103 | la respuesta citada |
+| Evidencia limitada | 82 | la respuesta **+** el aviso de que la literatura sólo roza el caso |
+| Abstención | 3 | "no hay evidencia suficiente" |
+
+Y las **abstenciones indebidas quedaron en 2 de 188 (1,1 %)**: el sistema se equivoca casi siempre
+hacia el lado de responder declarando la limitación, no hacia el de callarse.
+
+### Por qué no es 100 %
+
+Quedan 14 fallos: 12 de "responder de más" y 2 de "callarse de más". Una parte de esos 12 **no son
+fallos reales** sino huecos del etiquetado MeSH del corpus — la vara es conservadora y subestima la
+cobertura. Separarlos exige que **un veterinario mire los pasajes**: ~2 horas sobre 14 casos.
+
+Y algo que no cambia con esfuerzo: *"¿esta literatura cubre este caso?"* admite grados, y dos
+veterinarios expertos discrepan justo en los bordes, que es donde el sistema falla. Lo alcanzable no
+es el 100 %, es que el error caiga siempre del lado seguro y quede **declarado en pantalla**.
+
+📄 **Medición completa, reproducible paso a paso: `docs/ABSTENCION-MEDICION-2026-07-30.md`.**
 
 ## 4 · Citas de fuentes correctas — ✅ **100 % en lo que el contrato exige**
 

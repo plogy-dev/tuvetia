@@ -98,7 +98,7 @@ def athos_retrieve(body: RetrieveRequest, authorization: str | None = Header(def
     query, chunks, passed = build_and_retrieve(body.question, body.species)
     # Juez semántico, mismo criterio que el Fantasma: `passed` está saturado (True en 187/187) y
     # el prompt del agente cuelga su "no hay evidencia suficiente" de esta respuesta. Falla abierta.
-    verdict = judge_evidence(body.question, chunks if passed else [])
+    verdict = judge_evidence(body.question, chunks if passed else [], query_mesh=list(query.mesh))
     # Traza SIEMPRE (sin patient_id queda NULL): la bandeja y la consulta general del agente son
     # la mayoría de su tráfico, y sin log no se puede medir la calidad del canal agéntico.
     log_retrieval(clinic_id, "agent", (query.raw or "")[:1000], list(query.concepts),

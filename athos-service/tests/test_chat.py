@@ -134,7 +134,7 @@ def _run_chat(monkeypatch, *, verdict=None, tokens=("Compatible con gastritis [1
     logged: list[tuple[str, str]] = []
     monkeypatch.setattr(chat, "log_message",
                         lambda cl, uid, pid, role, content: logged.append((role, content)) or "mid")
-    monkeypatch.setattr(chat, "judge_evidence", lambda q, lit: verdict)
+    monkeypatch.setattr(chat, "judge_evidence", lambda q, lit, **kw: verdict)
     import app.patient_memory as pm                       # sin DB ni Cohere en el test
     monkeypatch.setattr(pm, "recall", lambda c, p, q, limit=6: [])
     monkeypatch.setattr(pm, "index_patient_memory", lambda c, p: 0)

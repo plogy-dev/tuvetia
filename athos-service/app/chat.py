@@ -232,7 +232,7 @@ def stream_answer(question: str, patient_id: str, clinic_id: str, user_id: str |
 
     def _judge() -> None:
         try:
-            box["v"] = judge_evidence(question, literature)
+            box["v"] = judge_evidence(question, literature, query_mesh=list(query.mesh))
         finally:
             judged.set()
 

@@ -119,7 +119,7 @@ def suggest(consultation_id: str, clinic_id: str, user_id: str | None = None) ->
     # diferencia del chat, donde corre en paralelo): el Fantasma es asíncrono — se dispara al cerrar
     # la consulta y nadie espera el primer token —, así que sus ~1,8s no le cuestan a nadie y sí
     # ahorran la llamada de redacción con literatura que no viene al caso.
-    verdict = judge_evidence(transcript_text, chunks if passed else [])
+    verdict = judge_evidence(transcript_text, chunks if passed else [], query_mesh=list(query.mesh))
 
     # B->A: sin evidencia suficiente -> nota del transcript SIN literatura (insufficient_evidence)
     literature = chunks if passed and not verdict.abstains else []

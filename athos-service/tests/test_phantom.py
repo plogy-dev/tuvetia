@@ -52,7 +52,7 @@ def _patch_common(monkeypatch, *, passed: bool, captured: dict) -> None:
     monkeypatch.setattr(phantom, "log_retrieval", lambda *a, **k: "ret-1")
     monkeypatch.setattr(phantom, "log_answer", lambda *a, **k: None)
     # Juez de evidencia: por defecto "sí cubre" (los tests que miden la abstención lo re-parchean).
-    monkeypatch.setattr(phantom, "judge_evidence", lambda q, chunks: EvidenceVerdict(
+    monkeypatch.setattr(phantom, "judge_evidence", lambda q, chunks, **kw: EvidenceVerdict(
         band=EVIDENCE_SUFFICIENT, score=8.0, judged=True))
 
 
@@ -131,7 +131,7 @@ def test_suggest_juez_abstiene_no_manda_literatura(monkeypatch):
     los pasajes no sostienen el caso -> la nota se redacta SIN literatura, como si no hubiera."""
     captured: dict = {}
     _patch_common(monkeypatch, passed=True, captured=captured)
-    monkeypatch.setattr(phantom, "judge_evidence", lambda q, chunks: EvidenceVerdict(
+    monkeypatch.setattr(phantom, "judge_evidence", lambda q, chunks, **kw: EvidenceVerdict(
         band=EVIDENCE_NONE, score=1.0, judged=True, reason="otra condición"))
 
     resp = phantom.suggest("cons-1", "clinic-a")
@@ -147,7 +147,7 @@ def test_suggest_evidencia_limitada_responde_pero_lo_declara(monkeypatch):
     declaran que la evidencia es limitada."""
     captured: dict = {}
     _patch_common(monkeypatch, passed=True, captured=captured)
-    monkeypatch.setattr(phantom, "judge_evidence", lambda q, chunks: EvidenceVerdict(
+    monkeypatch.setattr(phantom, "judge_evidence", lambda q, chunks, **kw: EvidenceVerdict(
         band=EVIDENCE_LIMITED, score=4.0, judged=True))
 
     resp = phantom.suggest("cons-1", "clinic-a")
