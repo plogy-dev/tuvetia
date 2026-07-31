@@ -16,14 +16,14 @@ se veía peor de lo que estaba. Son cosas separadas:
 - **Medición** — cuando el componente hace un **juicio clínico**, además tiene una tasa de acierto.
   Eso es un número que se mejora con medición, **no** un requisito pendiente de entrega.
 
-Un componente entregado con una métrica del 75 % está **entregado**. Poner ⚠️ ahí era un error de
+Un componente entregado con una métrica del 92 % está **entregado**. Poner ⚠️ ahí era un error de
 clasificación de nuestra parte: etiquetaba la métrica como si fuera el estado de la entrega.
 
 | | Significado |
 |---|---|
 | ✅ | Entregado, desplegado y verificado |
 | 🔑 | Entregado — **falta una credencial o una acción tuya** (minutos) |
-| 🚧 | Falta desarrollo real de nuestra parte |
+| 🚧 | Falta desarrollo real de nuestra parte — **hoy no queda ninguno** |
 
 | # | Punto | Entregado | Medición | Qué falta | De quién |
 |---|---|---|---|---|---|
@@ -358,12 +358,14 @@ Con esas dos cosas: **9 de 10 entregados y verificados.**
 
 ### Mejora continua — no son entregas pendientes
 
-Estas dos métricas ya están entregadas y operando; se siguen midiendo porque son juicios clínicos, no
-funcionalidades a medio hacer. Ver §3 para por qué el 100 % no es alcanzable en ninguna de las dos.
+Estas métricas ya están entregadas y operando; se siguen midiendo porque son juicios clínicos o
+límites de un proveedor, no funcionalidades a medio hacer. Ver §3 para por qué el 100 % no es
+alcanzable en un juicio semántico.
 
 | Métrica | Hoy | Cómo sube |
 |---|---|---|
-| Acierto de la abstención | **75 %** (era 62 %) | ampliar el banco de negativos con validación clínica, después recalibrar |
+| Seguridad de la abstención | **92,6 %** (era 82,4 %) | validación clínica de las 14 discrepancias (~2 h de un veterinario) y completar el etiquetado MeSH del corpus |
+| Exactitud de la transcripción | **92,3 %** (96,1 % sin contar el formato numérico) | es el reconocimiento de Deepgram; ningún proveedor da 100 % |
 | Recall del auditor de la nota | 0,47 con precisión 0,78 | se priorizó **precisión**: un señalamiento falso hace que el veterinario deje de leer los señalamientos |
 
 ### De terceros — no depende de esfuerzo nuestro
