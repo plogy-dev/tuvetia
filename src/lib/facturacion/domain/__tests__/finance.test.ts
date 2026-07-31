@@ -59,4 +59,20 @@ describe("financeCsv", () => {
     expect(lines[1]).toBe("2026-07-05;INGRESO;Pago factura POS-12;NEQUI;45000");
     expect(lines[2]).toBe('2026-07-06;EGRESO;"Arriendo; local ""centro""";TRANSFERENCIA;-25000');
   });
+
+  it("neutraliza prefijos de fórmula (CSV injection): un concepto '=...' no se ejecuta en Excel", () => {
+    const csv = financeCsv([
+      {
+        date: "2026-07-07",
+        kind: "EGRESO",
+        concept: '=HYPERLINK("http://evil";"click")',
+        method: "EFECTIVO",
+        amountCents: 100000,
+      },
+    ]);
+    const linea = csv.split("\n")[1];
+    // El campo queda con apóstrofo inicial (escape de hoja de cálculo) y entrecomillado por el ;.
+    expect(linea).toContain(`"'=HYPERLINK(""http://evil"";""click"")"`);
+    expect(linea.startsWith("2026-07-07;EGRESO;\"'=")).toBe(true);
+  });
 });

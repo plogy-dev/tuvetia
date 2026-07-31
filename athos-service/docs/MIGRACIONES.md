@@ -65,6 +65,39 @@ supabase db push                       # la aplica al proyecto dev enlazado
 - `.env` local = **dev**. Credenciales del **principal** solo en CI / secretos.
 - MCP y cualquier herramienta con **escritura** → solo **dev**.
 
+## Correr los tests de integración sin depender del proyecto de dev
+
+El dev remoto es la referencia (ver arriba: `gdiiagioiukadifejewv`, recreado el 2026-07-31), pero
+**no debe ser la única forma de correr las pruebas de aislamiento**. El 2026-07-30 el dev anterior
+se borró, y con él esas pruebas quedaron sin dónde correr — que es cómo la suite terminó apuntando
+a producción. Por eso hay un camino local, sin cuenta ni secretos, idéntico al que usa el CI cuando
+`ATHOS_DEV_DATABASE_URL` no está configurado:
+
+```
+docker run -d --name pg-dev -e POSTGRES_PASSWORD=postgres -e POSTGRES_DB=athos_test \
+  -p 55432:5432 pgvector/pgvector:pg16
+
+psql "postgresql://postgres:postgres@localhost:55432/athos_test" -v ON_ERROR_STOP=1 \
+  -f ../.github/ci/athos-db-shim.sql          # auth.users, auth.uid(), roles de RLS
+psql "...misma URL..." -f supabase/bootstrap/000_base_schema.sql
+for f in supabase/migrations/*.sql; do psql "...misma URL..." -v ON_ERROR_STOP=1 -f "$f"; done
+```
+
+El shim crea el mínimo de Supabase que el esquema asume (`auth.users`, `auth.uid()`, los roles
+`anon`/`authenticated`/`service_role`) para que el SQL del repo aplique tal cual en un Postgres
+pelado. Secuencia verificada contra `pgvector:pg16`.
+
+**Cuál usar:** el dev remoto es más fiel (misma RLS y mismos tipos que producción) y es lo que el CI
+prefiere si el secreto está puesto. El local sirve para iterar rápido y como red cuando el dev no
+está disponible.
+
+> **Contexto de por qué esto importa.** El 2026-07-30 los logs de producción registraron
+> `invalid input syntax for type uuid: "clinic-a"` — el literal que usan `test_chat.py` y
+> `test_phantom.py`: la suite corrió contra el principal. No hubo daño (la consulta murió en el cast
+> del UUID, sin leer ni escribir; verificado: cero filas de fixture en el principal), pero con un
+> UUID válido habría corrido de verdad. Hoy lo cortan dos guardas: `app/db.py` al abrir la conexión
+> y `tests/conftest.py` al arrancar la suite.
+
 ## Comandos útiles
 ```
 supabase migration list      # estado: versiones locales vs aplicadas en el proyecto enlazado

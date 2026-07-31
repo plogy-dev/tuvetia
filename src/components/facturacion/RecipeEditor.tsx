@@ -38,10 +38,23 @@ export function RecipeEditor({
   const [reviewed, setReviewed] = useState<Reviewed[] | null>(null);
 
   useEffect(() => {
-    getServiceRecipeAction({ serviceId }).then((r) => {
-      if (r.ok) setRows(r.components.map((c) => ({ componentId: c.componentId, qty: c.qty })));
-      setLoaded(true);
-    });
+    let vigente = true; // una respuesta obsoleta (cambio rápido de servicio) no pisa la actual
+    getServiceRecipeAction({ serviceId })
+      .then((r) => {
+        if (!vigente) return;
+        if (r.ok) setRows(r.components.map((c) => ({ componentId: c.componentId, qty: c.qty })));
+        else setError(r.error);
+      })
+      .catch(() => {
+        if (vigente) setError('No se pudo cargar la receta. Cierra y vuelve a abrir.');
+      })
+      .finally(() => {
+        // Sin el finally, un rechazo de transporte dejaba "Cargando receta…" para siempre.
+        if (vigente) setLoaded(true);
+      });
+    return () => {
+      vigente = false;
+    };
   }, [serviceId]);
 
   const unit = (id: string) => components.find((c) => c.id === id)?.use_unit ?? '';
@@ -105,16 +118,24 @@ export function RecipeEditor({
     setError(null);
     setReviewed(null);
     setAnalyzing(true);
-    const r = await ingestRecipeAction({ kind: 'text', text: text.trim() });
-    if (!r.ok) setError(r.error);
-    else setReviewed(toReviewed(r.components));
-    setAnalyzing(false);
+    try {
+      const r = await ingestRecipeAction({ kind: 'text', text: text.trim() });
+      if (!r.ok) setError(r.error);
+      else setReviewed(toReviewed(r.components));
+    } catch {
+      setError('No se pudo analizar el texto. Intenta de nuevo.');
+    } finally {
+      // analyzeFile ya lo hacía; sin esto un rechazo dejaba "Analizar" deshabilitado para siempre.
+      setAnalyzing(false);
+    }
   }
 
   function applyReviewed() {
     if (!reviewed) return;
     setRows((rs) => {
-      const next = [...rs];
+      // Copia por elemento: mutar `existing.qty` sobre el spread superficial modificaba los
+      // objetos de la instantánea anterior de `rows`.
+      const next = rs.map((r) => ({ ...r }));
       for (const rv of reviewed) {
         if (!rv.componentId) continue;
         const existing = next.find((r) => r.componentId === rv.componentId);

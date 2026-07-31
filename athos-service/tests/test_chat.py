@@ -92,6 +92,12 @@ def test_stream_answer_inyecta_memoria_y_loguea_ambos_roles(monkeypatch):
     logged_roles: list[str] = []
     monkeypatch.setattr(chat, "log_message",
                         lambda clinic, uid, pid, role, content: logged_roles.append(role) or "mid")
+    # Sin DB ni Cohere: la memoria del paciente embebe la consulta con el cliente REAL de
+    # embeddings, y este test la dejaba pasar — el guard `_sin_red` la destapó el 30-jul (antes el
+    # "degrada con gracia" del Tier 2 se tragaba el AssertionError y el test pasaba en silencio).
+    import app.patient_memory as pm
+    monkeypatch.setattr(pm, "recall", lambda c, p, q, limit=6: [])
+    monkeypatch.setattr(pm, "index_patient_memory", lambda c, p: 0)
     captured: dict = {}
 
     class FakeLLM:

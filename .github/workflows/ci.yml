@@ -27,6 +27,24 @@ jobs:
     defaults:
       run:
         working-directory: athos-service
+    # Postgres con pgvector para los tests de integración. Existe porque los ÚNICOS tests de
+    # aislamiento multi-tenant del sistema (test_cross_tenant.py) se auto-skipeaban sin DB — la
+    # garantía que tres documentos citaban como "cubierta por test" no la ejecutaba nadie
+    # (auditoría 2026-07-30). La secuencia shim → bootstrap → 0001-0003 está verificada contra
+    # pgvector:pg16; los 2 golden (RUN_GOLDEN) y 2 de corpus poblado siguen skipeados a propósito.
+    services:
+      postgres:
+        image: pgvector/pgvector:pg16
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: athos_test
+        ports:
+          - "5432:5432"
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
     steps:
       - uses: actions/checkout@v4
       - uses: astral-sh/setup-uv@v3
@@ -35,21 +53,34 @@ jobs:
       - run: uv sync --dev
       - name: ruff
         run: uv run ruff check .
-      - name: pytest
-        # Sin `ATHOS_DEV_DATABASE_URL` configurado, los tests de integración se auto-skipean
-        # (fixture `require_db`) y la suite corre igual: el secreto es OPCIONAL y no romper CI sin él
-        # es a propósito.
-        #
-        # Con el secreto puesto dejan de skipearse **4 pruebas de aislamiento entre clínicas** — las
-        # que verifican que una clínica no pueda ver alergias, contexto de paciente ni trazas de
-        # otra. Es control de acceso: la clase de prueba que menos conviene tener apagada.
-        #
-        # ⚠️ El secreto debe apuntar al proyecto de DEV (`tuvetia-athos-dev`), NUNCA al principal.
-        # `app/db.py` lo impone: bajo pytest, abrir la DB de paciente del principal lanza. Y desde
-        # `0774d9a` los ids de fixture son únicos por corrida, así que dos jobs simultáneos ya no se
-        # pisan al sembrar y limpiar.
+      - name: esquema de la DB de test (shim Supabase + bootstrap + 0001-0003)
         env:
-          DATABASE_URL: ${{ secrets.ATHOS_DEV_DATABASE_URL }}
+          PGPASSWORD: postgres
+        run: |
+          psql -h localhost -U postgres -d athos_test -v ON_ERROR_STOP=1 -q -f ../.github/ci/athos-db-shim.sql
+          psql -h localhost -U postgres -d athos_test -v ON_ERROR_STOP=1 -q -f supabase/bootstrap/000_base_schema.sql
+          psql -h localhost -U postgres -d athos_test -v ON_ERROR_STOP=1 -q -f supabase/migrations/0001_rag_corpus_glossary_trace.sql
+          psql -h localhost -U postgres -d athos_test -v ON_ERROR_STOP=1 -q -f supabase/migrations/0002_vector_index_hnsw.sql
+          psql -h localhost -U postgres -d athos_test -v ON_ERROR_STOP=1 -q -f supabase/migrations/0003_tier1_mesh_gin_index.sql
+      - name: pytest
+        # Los tests de integración —las **4 pruebas de aislamiento entre clínicas**, que verifican
+        # que una clínica no pueda ver alergias, contexto de paciente ni trazas de otra— corren
+        # SIEMPRE. Es control de acceso: la clase de prueba que menos conviene tener apagada, y
+        # hasta el 2026-07-30 se auto-skipeaba en todas las corridas sin que nadie lo notara.
+        #
+        # Dos fuentes de base, en orden de preferencia:
+        #   1. `ATHOS_DEV_DATABASE_URL` (secreto) → el Supabase de DEV real (`tuvetia-athos-dev`).
+        #      Es la más fiel: mismo esquema, misma RLS, mismos tipos que producción.
+        #   2. Si el secreto no está → el Postgres del `services:` de este job, construido con
+        #      shim + bootstrap + migraciones. No necesita secretos ni cuenta, así que el CI nunca
+        #      se queda sin cobertura de aislamiento aunque el secreto falte o el proyecto de dev
+        #      se caiga (ya pasó: el dev anterior se borró el 2026-07-30).
+        #
+        # ⚠️ El secreto debe apuntar al proyecto de DEV, NUNCA al principal. `app/db.py` lo impone:
+        # bajo pytest, abrir la DB de paciente del principal lanza. Y desde `0774d9a` los ids de
+        # fixture son únicos por corrida, así que dos jobs simultáneos no se pisan al sembrar.
+        env:
+          DATABASE_URL: ${{ secrets.ATHOS_DEV_DATABASE_URL || 'postgresql://postgres:postgres@localhost:5432/athos_test' }}
         run: uv run pytest -q
 
   frontend:

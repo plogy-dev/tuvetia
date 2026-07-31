@@ -216,7 +216,7 @@ interfaz.
 | Compras, proveedores y gastos | `/dashboard/facturacion/compras`, `/compras/proveedores`, `/finanzas` | ✅ Operando *(30-jul)* |
 | Importación desde Excel/CSV | `src/lib/facturacion/import/` | ⏳ Bloqueado — la librería `xlsx` tiene vulnerabilidades **sin corrección publicada** |
 | Proveedor de facturación electrónica | `src/lib/facturacion/fiscal/sandbox.ts` | ⏳ Bloqueado — **es un entorno de pruebas**; sin habilitación DIAN no hay validez fiscal |
-| Tarea programada de cobranza | `/api/cron/cartera` + barrido cada 15 min por GitHub Actions (`cartera-sweep.yml`) | ⚠️ Parcial — el disparo ya corre (`CRON_SECRET` configurada), pero **el canal de correo de salida no está cableado**: sólo sale por WhatsApp |
+| Tarea programada de cobranza | `/api/cron/cartera` + barrido por GitHub Actions (`cartera-sweep.yml`) | ⚠️ Parcial — **el barrido de Actions NO ha corrido nunca**: `CRON_SECRET` está en Vercel pero **falta en los secretos de GitHub Actions** (son dos almacenes distintos; 6/6 ejecuciones programadas en rojo el 30-jul, auditoría). Mientras tanto solo barre el cron diario de Vercel (9:00). El canal de correo de salida sí quedó cableado el 30-jul (`channels.ts`). Ojo además: el cron pide cada 15 min pero GitHub disparó ~1/80 min — es el piso, no una garantía |
 
 ---
 

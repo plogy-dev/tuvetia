@@ -32,6 +32,8 @@ jobs:
   smoke:
     name: producción · rutas, auth y configuración
     runs-on: ubuntu-latest
+    permissions:
+      issues: write
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -44,7 +46,24 @@ jobs:
         env:
           SMOKE_BASE_URL: ${{ github.event.inputs.base_url || 'https://tuvetia.vercel.app' }}
           # Habilita el chequeo de configuración de /api/health (qué variables están cableadas).
-          # Sin este secreto la suite corre igual, pero ese test se SALTA — y es el que atrapa un
-          # ANTHROPIC_API_KEY ausente, que apaga el agente sin dejar ningún síntoma visible.
+          # En CI el secreto es OBLIGATORIO: si falta, el test de configuración FALLA con mensaje
+          # claro (antes se saltaba y este workflow reportó verde durante días sin verificar nada —
+          # auditoría 2026-07-30). Es el test que atrapa un ANTHROPIC_API_KEY ausente, que apaga
+          # el agente sin dejar ningún síntoma visible.
           # Definir en: Settings → Secrets and variables → Actions → CRON_SECRET
           SMOKE_CRON_SECRET: ${{ secrets.CRON_SECRET }}
+
+      # Igual que en cartera-sweep.yml: un schedule rojo no lo ve nadie; el issue sí notifica.
+      - name: avisar si falló
+        if: failure()
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          TITLE="Smoke E2E fallando (schedule)"
+          BODY="Corrida fallida: ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
+          NUM=$(gh issue list --repo "$GITHUB_REPOSITORY" --state open --search "in:title \"$TITLE\"" --json number --jq '.[0].number // empty')
+          if [ -n "$NUM" ]; then
+            gh issue comment "$NUM" --repo "$GITHUB_REPOSITORY" --body "$BODY"
+          else
+            gh issue create --repo "$GITHUB_REPOSITORY" --title "$TITLE" --body "$BODY"
+          fi

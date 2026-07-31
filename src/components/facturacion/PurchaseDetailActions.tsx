@@ -70,9 +70,10 @@ export function PurchaseDetailActions({
             <button
               type="button"
               disabled={isPending}
-              onClick={() =>
-                run(() => deletePurchaseDraftAction({ id: purchaseId }), '/dashboard/facturacion/compras')
-              }
+              onClick={() => {
+                if (!window.confirm('¿Borrar este borrador de compra? No se puede deshacer.')) return;
+                run(() => deletePurchaseDraftAction({ id: purchaseId }), '/dashboard/facturacion/compras');
+              }}
               className="inline-flex items-center gap-1.5 rounded-lg border border-line bg-surface px-4 py-2 text-sm text-fg-muted hover:text-warn transition disabled:opacity-60"
             >
               <Trash2 className="size-4" aria-hidden />
@@ -88,12 +89,18 @@ export function PurchaseDetailActions({
             <button
               type="button"
               disabled={isPending}
-              onClick={() =>
+              onClick={() => {
+                if (
+                  !window.confirm(
+                    '¿Reabrir esta compra? Se revierte el stock y el egreso hasta que la re-confirmes.',
+                  )
+                )
+                  return;
                 run(
                   () => reopenPurchaseAction({ id: purchaseId }),
                   `/dashboard/facturacion/compras/${purchaseId}/editar`,
-                )
-              }
+                );
+              }}
               className="inline-flex items-center gap-1.5 rounded-lg bg-brand px-4 py-2 text-sm font-medium text-on-brand hover:bg-brand-deep transition disabled:opacity-60"
             >
               {isPending ? (
@@ -106,7 +113,15 @@ export function PurchaseDetailActions({
             <button
               type="button"
               disabled={isPending}
-              onClick={() => run(() => annulPurchaseAction({ id: purchaseId }))}
+              onClick={() => {
+                if (
+                  !window.confirm(
+                    '¿Anular esta compra? Elimina definitivamente su stock y su egreso. No se puede deshacer.',
+                  )
+                )
+                  return;
+                run(() => annulPurchaseAction({ id: purchaseId }));
+              }}
               className="inline-flex items-center gap-1.5 rounded-lg border border-warn/50 bg-surface px-4 py-2 text-sm text-warn hover:bg-surface-2 transition disabled:opacity-60"
             >
               <Undo2 className="size-4" aria-hidden />

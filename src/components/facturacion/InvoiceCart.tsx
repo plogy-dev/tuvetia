@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useRef, useState, useTransition } from 'react';
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { AlertTriangle, Plus, Search, Trash2 } from 'lucide-react';
 import {
@@ -64,6 +65,10 @@ export function InvoiceCart({
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
+  // Borrador ya creado en este intento de emisión (para reintentar sin duplicar) y su URL,
+  // que se ofrece como salida cuando la emisión falla.
+  const draftRef = useRef<{ key: string; id: string; url: string; warnings: string[] } | null>(null);
+  const [draftUrl, setDraftUrl] = useState<string | null>(null);
   const [warnings, setWarnings] = useState<string[]>([]);
   const [lines, setLines] = useState<CartLine[]>([]);
   const [docKind, setDocKind] = useState<DocKind>(defaultDocKind);
@@ -158,19 +163,41 @@ export function InvoiceCart({
       return;
     }
     startTransition(async () => {
-      const created = await createInvoiceDraft(buildInput());
-      if (!created.ok) {
-        setError(created.error);
-        return;
+      // Idempotencia del reintento: si la emisión falló, el borrador YA existe. Volver a pulsar
+      // "Emitir" con el carrito sin cambios reintenta la emisión sobre ese borrador — antes cada
+      // reintento llamaba createInvoiceDraft de nuevo y dejaba N borradores huérfanos.
+      const input = buildInput();
+      const inputKey = JSON.stringify(input);
+      let draft = draftRef.current?.key === inputKey ? draftRef.current : null;
+      if (!draft) {
+        const created = await createInvoiceDraft(input);
+        if (!created.ok) {
+          setError(created.error);
+          return;
+        }
+        draft = {
+          key: inputKey,
+          id: created.invoice.id,
+          url: created.url,
+          warnings: created.preview.warnings.map((w) => w.message),
+        };
+        draftRef.current = draft;
       }
-      const ws = created.preview.warnings.map((w) => w.message);
       if (mode === 'draft') {
-        router.push(created.url);
+        // Con avisos del servidor (stock insuficiente, datos del pagador incompletos…) no se
+        // navega en silencio: antes se tiraban a la basura y solo se mostraban si la emisión
+        // fallaba. El borrador YA quedó guardado; el usuario los lee y sigue con el enlace.
+        if (draft.warnings.length > 0) {
+          setWarnings(draft.warnings);
+          setDraftUrl(draft.url);
+          return;
+        }
+        router.push(draft.url);
         return;
       }
       const fields = planToActionFields(plan);
       const issued = await issueInvoiceAction({
-        invoiceId: created.invoice.id,
+        invoiceId: draft.id,
         outcome: fields.outcome,
         method: fields.method,
         amountCents: fields.amountCents,
@@ -179,7 +206,8 @@ export function InvoiceCart({
         followupEnabled: fields.followupEnabled,
       });
       if (!issued.ok) {
-        setWarnings(ws);
+        setWarnings(draft.warnings);
+        setDraftUrl(draft.url);
         setError(`El borrador quedó guardado, pero no se pudo emitir: ${issued.error}`);
         return;
       }
@@ -372,7 +400,17 @@ export function InvoiceCart({
       {error && (
         <p className="flex items-start gap-2 rounded-xl border border-warn bg-surface-2 px-4 py-3 text-sm text-warn">
           <AlertTriangle className="mt-0.5 size-4 shrink-0" aria-hidden />
-          {error}
+          <span>
+            {error}
+            {draftUrl && (
+              <>
+                {' '}
+                <Link href={draftUrl} className="font-medium underline underline-offset-2">
+                  Abrir el borrador guardado
+                </Link>
+              </>
+            )}
+          </span>
         </p>
       )}
       {warnings.length > 0 && (
@@ -380,6 +418,14 @@ export function InvoiceCart({
           {warnings.map((w, i) => (
             <li key={i}>· {w}</li>
           ))}
+          {!error && draftUrl && (
+            <li className="pt-1">
+              El borrador quedó guardado.{' '}
+              <Link href={draftUrl} className="font-medium text-brand underline underline-offset-2">
+                Continuar al borrador
+              </Link>
+            </li>
+          )}
         </ul>
       )}
 

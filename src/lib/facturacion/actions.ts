@@ -20,18 +20,12 @@ import {
   createDraftInvoice,
   discardDraft,
   issueInvoice,
-  previewDraft,
   registerManualPayment,
   setInvoiceRemindersPaused,
   type DraftPreview,
   type IssueResult,
 } from './invoices';
-import {
-  ensurePayerForOwner,
-  getBillingSettings,
-  getOrCreateConsumidorFinal,
-  listCatalogItems,
-} from './queries';
+import { ensurePayerForOwner, getOrCreateConsumidorFinal, listCatalogItems } from './queries';
 import { sendInvoiceByEmail } from './email';
 import { extractRecipeDraft } from './recipe-ingest';
 import { resolveDraft, type ResolvedComponent } from './domain/recipes';
@@ -94,6 +88,15 @@ export async function saveBillingSettings(
       return { ok: false, error: parsed.error.issues[0]?.message ?? 'Datos inválidos' };
     }
     const d = parsed.data;
+    // Merge con lo existente: el formulario no tiene campo de departamento y mandaba
+    // departmentCode:null fijo — cada guardado BORRABA el valor previo; y el upsert reescribía
+    // uvt_year/uvt_value_cents con las constantes, pisando cualquier valor personalizado.
+    // Lo que el formulario no edita, no se toca.
+    const { data: previo } = await supabase
+      .from('billing_settings')
+      .select('department_code, uvt_year, uvt_value_cents')
+      .eq('clinic_id', clinicId)
+      .maybeSingle<{ department_code: string | null; uvt_year: number; uvt_value_cents: number }>();
     const { data, error } = await supabase
       .from('billing_settings')
       .upsert(
@@ -110,11 +113,11 @@ export async function saveBillingSettings(
           fiscal_regime: d.fiscalRegime,
           fiscal_address: d.fiscalAddress ?? null,
           municipality_code: d.municipalityCode ?? null,
-          department_code: d.departmentCode ?? null,
+          department_code: d.departmentCode ?? previo?.department_code ?? null,
           default_doc_kind: d.defaultDocKind,
           block_on_insufficient_stock: d.blockOnInsufficientStock,
-          uvt_year: DEFAULT_UVT_YEAR,
-          uvt_value_cents: DEFAULT_UVT_VALUE_CENTS,
+          uvt_year: previo?.uvt_year ?? DEFAULT_UVT_YEAR,
+          uvt_value_cents: previo?.uvt_value_cents ?? DEFAULT_UVT_VALUE_CENTS,
         },
         { onConflict: 'clinic_id' },
       )
@@ -123,24 +126,6 @@ export async function saveBillingSettings(
     if (error) return { ok: false, error: `No se pudo guardar: ${error.message}` };
     revalidatePath('/dashboard/facturacion');
     return { ok: true, settings: data as BillingSettingsRow };
-  } catch (e) {
-    return toError(e);
-  }
-}
-
-/** Posponer la activación ("Recordármelo después") sin datos fiscales. */
-export async function snoozeBillingActivation(): Promise<Result> {
-  try {
-    const { supabase, clinicId, userId } = await requireClinic();
-    const { error } = await supabase
-      .from('billing_settings')
-      .upsert(
-        { clinic_id: clinicId, created_by: userId, module_status: 'RECORDAR_DESPUES' },
-        { onConflict: 'clinic_id' },
-      );
-    if (error) return { ok: false, error: error.message };
-    revalidatePath('/dashboard/facturacion');
-    return { ok: true };
   } catch (e) {
     return toError(e);
   }
@@ -753,46 +738,6 @@ export async function registerManualPaymentAction(
   }
 }
 
-// ─── Preview (para el carrito de la UI, sin persistir) ───────────────────────
-
-const PreviewSchema = CreateDraftSchema;
-export type PreviewDraftInput = z.input<typeof PreviewSchema>;
-
-export async function previewInvoiceDraft(
-  input: PreviewDraftInput,
-): Promise<Result<{ preview: DraftPreview }>> {
-  try {
-    const { supabase, clinicId, userId } = await requireClinic();
-    const parsed = PreviewSchema.safeParse(input);
-    if (!parsed.success) {
-      return { ok: false, error: parsed.error.issues[0]?.message ?? 'Datos inválidos' };
-    }
-    const d = parsed.data;
-    let payerId = d.payerId ?? null;
-    if (!payerId && d.ownerId) {
-      payerId = (await ensurePayerForOwner(supabase, clinicId, d.ownerId, userId)).id;
-    }
-    if (!payerId) {
-      payerId = (await getOrCreateConsumidorFinal(supabase, clinicId, userId)).id;
-    }
-    const preview = await previewDraft(supabase, clinicId, {
-      payerId,
-      docKind: d.docKind ?? undefined,
-      lines: d.lines.map((l) => ({
-        catalogItemId: l.catalogItemId ?? null,
-        description: l.description ?? undefined,
-        qty: l.qty,
-        unitPriceCents: l.unitPriceCents ?? undefined,
-        taxRate: l.taxRate ?? undefined,
-        discountCents: l.discountCents ?? undefined,
-      })),
-    });
-    return { ok: true, preview };
-  } catch (e) {
-    return toError(e);
-  }
-}
-
 // ─── Enviar por email (botón en el detalle) ──────────────────────────────────
 // El destino no tiene email configurado: la action conserva su forma pero
 // siempre informa que el canal no está disponible (contrato §5).
@@ -857,73 +802,4 @@ export async function toggleInvoiceReminders(input: {
   }
 }
 
-const AuthorizeChannelSchema = z.object({
-  payerId: z.string().uuid(),
-  channel: z.enum(['EMAIL', 'WHATSAPP']).default('EMAIL'),
-  granted: z.boolean(),
-});
 
-export type AuthorizeChannelInput = z.input<typeof AuthorizeChannelSchema>;
-
-/**
- * Registra (o revoca) el consentimiento del pagador para contactarlo por un
- * canal de cobranza. El vet da fe (vet_attestation) — requisito Ley 2300:
- * sin autorización activa el barrido NO contacta. La tabla superset del
- * destino admite payer_id (este camino) y owner_id (motor de cartera).
- */
-export async function authorizeReminderChannel(input: AuthorizeChannelInput): Promise<Result> {
-  try {
-    const { supabase, clinicId, userId } = await requireClinic();
-    const parsed = AuthorizeChannelSchema.safeParse(input);
-    if (!parsed.success) return { ok: false, error: 'Datos inválidos' };
-    const d = parsed.data;
-
-    const { data: active, error: readErr } = await supabase
-      .from('channel_authorizations')
-      .select('id')
-      .eq('clinic_id', clinicId)
-      .eq('payer_id', d.payerId)
-      .eq('channel', d.channel)
-      .is('revoked_at', null)
-      .maybeSingle();
-    if (readErr) return { ok: false, error: readErr.message };
-
-    if (d.granted && !active) {
-      const { error } = await supabase.from('channel_authorizations').insert({
-        clinic_id: clinicId,
-        created_by: userId,
-        payer_id: d.payerId,
-        channel: d.channel,
-        granted: true,
-        method: 'vet_attestation',
-      });
-      if (error) return { ok: false, error: error.message };
-    }
-    if (!d.granted && active) {
-      const { error } = await supabase
-        .from('channel_authorizations')
-        .update({ revoked_at: new Date().toISOString() })
-        .eq('id', (active as { id: string }).id)
-        .eq('clinic_id', clinicId);
-      if (error) return { ok: false, error: error.message };
-    }
-    revalidatePath('/dashboard/facturacion');
-    return { ok: true };
-  } catch (e) {
-    return toError(e);
-  }
-}
-
-// ─── Estado del módulo (para la tarjeta de activación / gate de páginas) ─────
-
-export async function getBillingModuleStatus(): Promise<
-  Result<{ settings: BillingSettingsRow | null; active: boolean }>
-> {
-  try {
-    const { supabase, clinicId } = await requireClinic();
-    const settings = await getBillingSettings(supabase, clinicId);
-    return { ok: true, settings, active: settings?.module_status === 'ACTIVO' };
-  } catch (e) {
-    return toError(e);
-  }
-}

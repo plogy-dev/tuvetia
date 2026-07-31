@@ -5,9 +5,8 @@ Integración de WhatsApp por clínica detrás de una **capa proveedor-agnóstica
 (`'evolution'` | `'meta'` | `'kapso'`). El resto del sistema (bandeja, webhook parsers, Athos,
 export, admin) habla un formato normalizado y no sabe qué transporte hay debajo.
 
-> **Decisión vigente (2026-07-28, tarde):** transporte principal = **Evolution API (Baileys, NO
-> oficial)** — sin trámite de Meta ni plantillas, QR dentro de tuvetia, sync completo del número.
-> Riesgo de baneo asumido con consentimiento explícito de la clínica y protecciones de
+> **Decisión vigente (2026-07-28, tarde):** transporte principal = **Evolution API * — sin trámite de Meta ni plantillas, QR dentro de tuvetia, sync completo del número. La única manera de hacer Sync con QR es con Evolution API, Balieys, WASENDER o similar, de lo contrario no es posible la vinculación con QR y el proceso tardaría más, debido al log in de meta.
+> Riesgo de limitación de mensajes de cuentas por exceso de mensajes asumido con consentimiento explícito de la clínica y protecciones de
 > comportamiento — TODO el detalle en **`docs/EVOLUTION.md`**. **Meta Cloud API directa** (Embedded
 > Signup + coexistencia) queda construida como **plan B por tenant**: una clínica baneada migra al
 > camino oficial en minutos sin perder datos. Kapso es legado en retirada.

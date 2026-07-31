@@ -63,25 +63,18 @@ export default async function FacturaDetallePage({
   if (!detail) notFound();
   const { invoice, lines, events, payer, fiscalDocuments } = detail;
 
-  // Contexto CRM: paciente facturado y consulta de origen (chat de Athos).
-  const [patientRes, consultationRes] = await Promise.all([
-    invoice.patient_id
-      ? supabase
-          .from('patients')
-          .select('id, name')
-          .eq('id', invoice.patient_id)
-          .maybeSingle<{ id: string; name: string }>()
-      : Promise.resolve({ data: null }),
-    invoice.consultation_id
-      ? supabase
-          .from('consultations')
-          .select('chat_id')
-          .eq('id', invoice.consultation_id)
-          .maybeSingle<{ chat_id: string | null }>()
-      : Promise.resolve({ data: null }),
-  ]);
+  // Contexto CRM: paciente facturado y consulta de origen. La consulta se enlaza por su id
+  // (la ruta /dashboard/consultas/[id] espera consultations.id) — la query de chat_id que había
+  // aquí solo servía para un enlace /app/athos/* heredado del repo del cliente, que aquí no existe.
+  const patientRes = invoice.patient_id
+    ? await supabase
+        .from('patients')
+        .select('id, name')
+        .eq('id', invoice.patient_id)
+        .maybeSingle<{ id: string; name: string }>()
+    : { data: null };
   const patient = patientRes.data;
-  const consultationChatId = consultationRes.data?.chat_id ?? null;
+  const consultationId = invoice.consultation_id ?? null;
 
   const shareUrl = invoice.share_token ? `${getAppBaseUrl()}/f/${invoice.share_token}` : null;
 
@@ -185,7 +178,11 @@ export default async function FacturaDetallePage({
                         {formatCOP(l.unit_price_cents)}
                       </td>
                       <td className="px-2 py-2 text-right text-fg-muted">
-                        {l.tax_status === 'GRAVADO' ? `${l.tax_rate}%` : 'Excl.'}
+                        {l.tax_status === 'GRAVADO'
+                          ? `${l.tax_rate}%`
+                          : l.tax_status === 'EXENTO'
+                            ? 'Exento'
+                            : 'Excl.'}
                       </td>
                       <td className="px-4 py-2 text-right text-fg">{formatCOP(l.total_cents)}</td>
                     </tr>
@@ -333,20 +330,20 @@ export default async function FacturaDetallePage({
                   <dd>{invoice.payment_terms === 'CREDIT' ? 'Crédito' : 'Inmediato'}</dd>
                 </div>
               </dl>
-              {(patient || consultationChatId) && (
+              {(patient || consultationId) && (
                 <div className="mt-3 flex flex-col gap-1.5 border-t border-line pt-3">
                   {patient && (
                     <Link
-                      href={`/app/crm/${patient.id}/facturacion`}
+                      href={`/dashboard/patients/${patient.id}`}
                       className="inline-flex items-center gap-1.5 text-sm text-brand underline-offset-2 hover:underline"
                     >
                       <PawPrint className="size-3.5" aria-hidden />
                       Ver ficha de {patient.name}
                     </Link>
                   )}
-                  {consultationChatId && (
+                  {consultationId && (
                     <Link
-                      href={`/app/athos/${consultationChatId}`}
+                      href={`/dashboard/consultas/${consultationId}`}
                       className="inline-flex items-center gap-1.5 text-sm text-brand underline-offset-2 hover:underline"
                     >
                       <Stethoscope className="size-3.5" aria-hidden />

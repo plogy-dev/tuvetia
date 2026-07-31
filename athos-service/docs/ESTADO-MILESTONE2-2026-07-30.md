@@ -39,8 +39,8 @@ Sube §2 (el harness cierra el último hueco sin auditar), sube §7 (la retenci�
 
 **Lo que se movió desde el 29-jul:** las formalidades (inventario + documentación + smoke testing
 documentado), el harness de calidad (que pasó de un banco a once y encontró defectos reales), el CI
-—que estaba inerte y ahora corre **456 pruebas**— y el correo electrónico, que era un stub vacío y hoy
-envía por SMTP y lee respuestas por IMAP.
+—que estaba inerte y ahora corre **~514 pruebas** (ver el conteo exacto y sus 8 skips en 7.1)— y el
+correo electrónico, que era un stub vacío y hoy envía por SMTP y lee respuestas por IMAP.
 
 **La §1 dejó de ser el agujero.** El cliente entregó la credencial de Google el 30-jul y con eso se
 cerraron los dos incumplimientos literales que quedaban: **Gemini está integrado y operando en
@@ -59,8 +59,11 @@ tiene crédito**, así que no puede entrar a la cadena.
 > en vez de declararlo cumplido por interpretación propia.
 
 **[1.1] ✅ CUMPLE — Gemini** *(era ❌ NO EXISTE; cerrado el 30-jul)*
-Evidencia: `app/generation/llm_client.py` (proveedor `google`), `GEMINI_API_KEY` y `GEMINI_MODEL`
-**configuradas en Railway production**, y verificación contra el proveedor real: responde en 4,0 s.
+Evidencia: `app/generation/llm_client.py` (proveedor `google`), `GEMINI_API_KEY` **configurada en
+Railway production**, y verificación contra el proveedor real: responde en 4,0 s. *(Corrección
+30-jul: el modelo de Gemini NO sale de una variable propia sino del string de la cascada
+`LLM_CASCADE_*="...@google"` — la antigua `GEMINI_MODEL` no la leía ningún código y se eliminó de
+la config para que no vuelva a citarse como evidencia.)*
 Se integró por el endpoint **compatible con OpenAI** de Gemini, así que reusa el cuerpo HTTP que ya
 existía: **cero dependencias nuevas**.
 > Un detalle que habría roto una demostración: el cliente enviaba `thinking: {"type":"disabled"}`
@@ -159,8 +162,9 @@ Evidencia: `app/config.py:74`, `deepgram_api_key`, modelo `nova-2`. Operando. (S
 
 **[1.10] ✅ CUMPLE — Variables de producción de las 3 APIs**
 Verificado hoy leyendo las **31 variables reales** de Railway production: DeepSeek ✅
-(`LLM_API_KEY`, `LLM_MODEL=deepseek-v4-flash`), Gemini ✅ (`GEMINI_API_KEY`,
-`GEMINI_MODEL=gemini-3.6-flash`). y Anthropic ✅ (`ANTHROPIC_API_KEY`, agregada el 30-jul).
+(`LLM_API_KEY`, `LLM_MODEL=deepseek-v4-flash`), Gemini ✅ (`GEMINI_API_KEY`; el modelo va en el
+string de la cascada, no en una variable propia — ver 1.1) y Anthropic ✅ (`ANTHROPIC_API_KEY`,
+agregada el 30-jul).
 **El crédito se verificó con una llamada real**, no por inferencia: `stop_reason=end_turn`, 61
 tokens de salida, `service_tier: standard`. No es una key de prueba.
 
@@ -344,7 +348,12 @@ Lo que se comprobó, porque "existe una ruta" no es lo que pide el Otrosí 2.3:
   `{supabase, clinicId}` y todas las consultas del módulo reciben `clinicId` explícito.
 - **Compilan:** `npx tsc --noEmit` limpio sobre un `.next` regenerado.
 > El hallazgo anterior —*"lo único testeado a fondo del front es lo único que el usuario no puede
-> usar"*— **queda cerrado**: esos 257 casos de prueba ahora respaldan una interfaz que existe.
+> usar"*— queda cerrado **a medias**: la lógica de dominio bajo la UI (centavos, IVA, DIAN,
+> recordatorios) sigue probada y ahora sí es alcanzable, pero **las 16 rutas y 27 componentes
+> entraron sin una sola prueba propia** — los casos de `domain/` prueban exactamente lo mismo que
+> antes. La relación prueba/superficie del módulo empeoró con el port (+8.505 líneas, +0 tests), y
+> los primeros tests fuera de `domain/` (el guard `page-auth.ts` y las guardas de xlsx) están en
+> curso (auditoría 2026-07-30).
 
 **Lo que sigue bloqueado, y conviene no confundirlo con la interfaz:** la **validez fiscal**. El
 proveedor de facturación electrónica sigue siendo un **sandbox** (`fiscal/sandbox.ts`) y sin
@@ -402,7 +411,12 @@ paciente, para no documentar pantallas que van a cambiar. Esfuerzo: 2–3 días.
 ## 7. Estándar global (Cláusula 13) — ⚠️ 85 %
 
 **[7.1] ✅ CUMPLE — Técnicamente funcional**
-Evidencia: **456 casos de test** (199 backend + 257 front), `ruff` limpio, y **el CI corre**
+Evidencia *(cifra recontada el 30-jul con la transcripción en vivo ya integrada)*: **~522 casos
+recogidos** (233 backend + 289 front). Hasta el 30-jul, 8 del backend se saltaban en CI por falta
+de DB — **incluidos los 4 de aislamiento cross-tenant y gate desde DB**, es decir, la garantía
+multi-tenant no la ejecutaba nadie (auditoría 2026-07-30). Desde el 30-jul el job monta un Postgres
+(`services:` en `ci.yml`) y esos 4 corren en cada push; siguen saltados a propósito los 2 golden
+(RUN_GOLDEN, requieren LLM) y 2 que necesitan corpus poblado. `ruff` limpio, y **el CI corre**
 (`.github/workflows/ci.yml` en la raíz) con `typecheck + lint + vitest + build` en el front y
 `ruff + pytest` en el backend. Más una suite **e2e contra producción cada 6 horas**
 (`.github/workflows/smoke.yml`).
@@ -414,8 +428,9 @@ Evidencia: **456 casos de test** (199 backend + 257 front), `ruff` limpio, y **e
 > Railway se habría caído**. Llevaba 5 días invisible precisamente porque no había CI.
 
 **[7.2] ⚠️ PARCIAL — Integrada**
-Mejoró con el correo (4.3), pero quedan: 3 módulos con esquema y sin interfaz (4.7–4.9), el canal de
-salida de cartera sin cablear al correo, Calendar manual, y WhatsApp dependiendo de Meta.
+Mejoró con el correo (4.3), la UI de facturación (4.7–4.9, entró el 30-jul) y el canal de correo de
+cartera (cableado el 30-jul en `channels.ts`). Quedan: la UI de facturación sin pruebas propias ni
+verificación en caliente (ver 4.7), Calendar manual, y WhatsApp dependiendo de Meta.
 
 **[7.3] ✅ CUMPLE — Documentada** (salvo el manual de usuario).
 
@@ -512,8 +527,8 @@ fallan abiertos), pero ninguno es perfecto y no conviene presentarlos como tal.
 
 | Ítem | Por qué no cabe |
 |---|---|
-| **Gemini + cascada + routing + comparativas** (§1.1, 1.4, 1.5, 2.5) | 10–15 días **y** cuenta Google con crédito + crédito de producción de Anthropic. Es la mayor concentración de incumplimiento y **no depende sólo de esfuerzo** |
-| **UI de facturación/cartera/inventario** (§4.7–4.9) | **5–7 semanas.** Sin habilitación DIAN no habría emisión fiscal válida igual. Si se mantiene en el Milestone 2 es incompatible con el calendario y compite por los mismos días que la calidad clínica |
+| **Gemini + cascada + routing + comparativas** (§1.1, 1.4, 1.5, 2.5) | *(Actualizado 30-jul: el código está CERRADO — ver §1, 95 %.)* Lo que queda no depende de esfuerzo nuestro: **crédito de producción de Google y de Anthropic**, y la decisión de encender `LLM_CASCADE_*` en Railway — que debe esperar a que entren los arreglos de trazabilidad y fallback de la auditoría 2026-07-30 |
+| **UI de facturación/cartera/inventario** (§4.7–4.9) | *(Actualizado 30-jul: la UI ENTRÓ — ver §4.7; las "5–7 semanas de construcción" ya no aplican.)* Lo que sí queda y no es nuestro: **habilitación DIAN** (sin ella no hay emisión fiscal válida). Lo que queda y es nuestro: pruebas del módulo y verificación en caliente con datos reales de una clínica |
 | **WhatsApp embebido oficial** (§4.2) | El App Review de Meta son **2–6 semanas de un tercero**. Alternativa: aceptar formalmente Evolution (protocolo no oficial) documentando el riesgo de baneo del número del cliente |
 
 ---
@@ -522,17 +537,19 @@ fallan abiertos), pero ninguno es perfecto y no conviene presentarlos como tal.
 
 Llevar **tres decisiones cerradas**, no tres preguntas abiertas:
 
-1. **Facturación/cartera/inventario sale del Milestone 2, o el hito se mueve.** Son 5–7 semanas y
-   compiten por los mismos días que la calidad clínica. Mantener las dos cosas es incumplir las dos.
+1. **Facturación/cartera/inventario: la UI ya entró (30-jul); lo que se negocia es distinto.**
+   Queda la **habilitación DIAN** (trámite de un tercero, sin ella no hay emisión con valor legal)
+   y el endurecimiento del módulo (pruebas propias y verificación en caliente, días — no semanas).
+   La decisión para la reunión: ¿se presenta como "construido, pendiente de habilitación fiscal"?
 2. **¿El cliente provee la cuenta de Google con crédito y el crédito de producción de Anthropic esta
    semana?** Sin eso, §1.1/1.4/1.5/2.5 no se cierran por esfuerzo nuestro, y es el bloque de mayor
    incumplimiento literal.
 3. **¿Se acepta Evolution** (protocolo no oficial, riesgo de baneo del número) mientras corre el
    trámite de Meta, o se espera el App Review?
 
-Argumento a favor: en 37 horas el cumplimiento pasó de ~50 % a ~74 %, con **456 pruebas corriendo en
-CI** donde antes no corría ninguna, y **cinco defectos que el cliente no había detectado** encontrados y
-corregidos:
+Argumento a favor: en 37 horas el cumplimiento pasó de ~50 % a ~74 %, con **~514 pruebas corriendo
+en CI** donde antes no corría ninguna (8 más se saltan por falta de DB — ver 7.1), y **cinco
+defectos que el cliente no había detectado** encontrados y corregidos:
 
 1. El **CI estaba inerte** — el workflow vivía fuera de la raíz y las 326 pruebas no corrían nunca.
 2. **`psycopg-pool` no estaba declarada** aunque el código la importa desde el 24-jul: el siguiente

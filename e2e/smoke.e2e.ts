@@ -200,7 +200,18 @@ describe("configuración del despliegue", () => {
 
   // Este es el chequeo que habría atrapado un ANTHROPIC_API_KEY ausente: sin él, el agente de 17
   // tools no responde y no hay ningún síntoma visible desde afuera.
-  it.skipIf(!CRON_SECRET)("todas las variables críticas están cableadas", async () => {
+  //
+  // En CI el chequeo es OBLIGATORIO: se saltaba en silencio cuando faltaba el secreto, y el smoke
+  // reportó "success" durante todas las corridas en que CRON_SECRET no existía en Actions
+  // (auditoría 2026-07-30) — un verde que no verificaba lo único que este describe verifica.
+  // En local el skip se mantiene: no todo el mundo tiene el secreto y ahí no engaña a nadie.
+  it.skipIf(!CRON_SECRET && !process.env.CI)("todas las variables críticas están cableadas", async () => {
+    if (!CRON_SECRET) {
+      throw new Error(
+        "SMOKE_CRON_SECRET no llegó al job: falta el secreto CRON_SECRET en GitHub Actions " +
+          "(Settings → Secrets and variables → Actions), con el MISMO valor que la env de Vercel.",
+      )
+    }
     const res = await get("/api/health", {
       headers: { Authorization: `Bearer ${CRON_SECRET}` },
     })
