@@ -13,17 +13,29 @@ import { createClient } from "@/lib/supabase/client"
 // mark_onboarded persiste además entre dispositivos.
 const SEEN_KEY = "tuvetia_onboarding_seen"
 
+// Guard EN VUELO, a nivel de módulo (no de componente, para que sobreviva a un re-montaje del
+// layout). Reemplaza al truco de marcar el localStorage antes de arrancar: aquel evitaba el tour
+// duplicado, sí, pero al precio de gastar el único intento aunque el tour nunca llegara a verse.
+// Éste cubre lo mismo sin ese costo — mientras uno corre, otro montaje no lanza un segundo.
+let tourEnMarcha = false
+
 export function OnboardingTour({ onboarded }: { onboarded: boolean }) {
   useEffect(() => {
     if (onboarded) return
     if (typeof window === "undefined") return
     if (localStorage.getItem(SEEN_KEY)) return
+    if (tourEnMarcha) return
     // El tour resalta el sidebar (visible en desktop). En pantallas chicas el sidebar está colapsado,
     // así que lo diferimos al próximo ingreso desde desktop (sin marcar el flag todavía).
     if (window.innerWidth < 1024) return
 
-    // Marca ANTES de arrancar -> a lo sumo un tour por navegador, pase lo que pase con el montaje.
-    localStorage.setItem(SEEN_KEY, "1")
+    // NO se marca todavía. Marcar antes de arrancar gastaba el único intento aunque el tour no
+    // llegara a verse: si driver.js fallaba al cargar, si el usuario cerraba la pestaña, o si el
+    // montaje se cancelaba, el flag quedaba puesto y el tour no volvía nunca. Medido en producción
+    // el 2026-07-31: `onboarded_at` era NULL en 14 de 14 perfiles — o sea, nadie lo completó jamás.
+    // Ahora se marca junto con el RPC, cuando el tour de verdad terminó o el usuario lo cerró.
+
+    tourEnMarcha = true
 
     // driver.js (+CSS) se carga recién acá: el tour corre UNA vez por navegador, pero el import
     // estático metía su bundle en el JS compartido de todo /dashboard para siempre.
@@ -33,11 +45,28 @@ export function OnboardingTour({ onboarded }: { onboarded: boolean }) {
         import("driver.js"),
         import("driver.js/dist/driver.css"),
       ])
-      if (cancelled) return
+      if (cancelled) {
+        tourEnMarcha = false // se desmontó mientras cargaba driver.js: liberar el guard
+        return
+      }
 
       const supabase = createClient()
+      // Se dispara al terminar el tour O al cerrarlo (`onDestroyed`), que es cuando de verdad ya se
+      // vio. El localStorage es el guard inmediato (no depende de la red); el RPC lo persiste entre
+      // dispositivos. Si el RPC falla, el flag local igual evita repetirlo en este navegador, pero
+      // el error se registra en vez de descartarse: antes era `void supabase.rpc(...)` y un fallo
+      // de permisos o de red se perdía en silencio.
+      let yaMarcado = false
       const markOnboarded = () => {
-        void supabase.rpc("mark_onboarded")
+        if (yaMarcado) return // `onDestroyed` puede dispararse más de una vez
+        yaMarcado = true
+        tourEnMarcha = false
+        localStorage.setItem(SEEN_KEY, "1")
+        void supabase
+          .rpc("mark_onboarded")
+          .then(({ error }) => {
+            if (error) console.warn("mark_onboarded falló:", error.message)
+          })
       }
 
       const tour = driver({
@@ -104,6 +133,8 @@ export function OnboardingTour({ onboarded }: { onboarded: boolean }) {
     return () => {
       cancelled = true
     }
+    // `onboarded` viene del server y puede llegar tarde; el resto de los guards (localStorage y
+    // `tourEnMarcha`) cubren el re-disparo.
   }, [onboarded])
 
   return null

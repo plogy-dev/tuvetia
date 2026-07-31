@@ -68,6 +68,36 @@ describe("revalidacion del payload al aprobar", () => {
     expect(validarPayload("update_patient_record", { ...p, weight_kg: 4.5 }).ok).toBe(true)
   })
 
+  // Regresión: este esquema pedía `substance` mientras la tool y el ejecutor usan `allergen`, así
+  // que TODA propuesta de alergia se rechazaba con "add_allergy.substance: Required" y la alergia
+  // nunca llegaba a la ficha. El nombre tiene que ser el mismo en las tres puntas.
+  it("acepta una alergia con el nombre de campo que realmente usan la tool y el ejecutor", () => {
+    const p = { patient_id: "2fa4dac8-2a34-4d03-85d7-f44f93780c34" }
+    const r = validarPayload("update_patient_record", {
+      ...p,
+      add_allergy: { allergen: "penicilina", severity: "severe", reaction: "urticaria" },
+    })
+    expect(r.ok).toBe(true)
+    if (r.ok) {
+      const alergia = r.payload.add_allergy as Record<string, unknown>
+      expect(alergia.allergen).toBe("penicilina") // sobrevive al parseo, no se descarta
+      expect(alergia.severity).toBe("severe")
+    }
+  })
+
+  it("rechaza una alergia sin severidad: la columna es NOT NULL y fallaría a mitad de ejecutar", () => {
+    const p = { patient_id: "2fa4dac8-2a34-4d03-85d7-f44f93780c34" }
+    expect(validarPayload("update_patient_record", { ...p, add_allergy: { allergen: "pollo" } }).ok)
+      .toBe(false)
+    // Y el nombre viejo ya no cuela: si alguien lo reintroduce, esto lo caza.
+    expect(
+      validarPayload("update_patient_record", {
+        ...p,
+        add_allergy: { substance: "pollo", severity: "mild" },
+      }).ok,
+    ).toBe(false)
+  })
+
   it("una tool sin esquema declarado pasa tal cual, en vez de bloquearse", () => {
     const r = validarPayload("tool_que_no_existe", { lo: "que sea" })
     expect(r.ok).toBe(true)

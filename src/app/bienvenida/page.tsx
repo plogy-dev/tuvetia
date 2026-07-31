@@ -1,13 +1,18 @@
 import { redirect } from "next/navigation"
 
 import { createClient } from "@/lib/supabase/server"
-import { WorkspaceSetup } from "@/components/onboarding/workspace-setup"
+import { WelcomeWizard } from "@/components/onboarding/welcome-wizard"
+import { OnboardingAthos } from "@/components/onboarding/onboarding-athos"
+import { SinClinica } from "@/components/onboarding/sin-clinica"
 
 export const metadata = { title: "Configura tu clínica · Tuvetia" }
 
-// Onboarding: pantalla única para personalizar la clínica (logo + nombre) que el trigger de BD
-// on_auth_user_confirmed ya creó con un nombre placeholder. Los invitados y usuarios preexistentes
-// tienen setup_completed_at y nunca llegan acá.
+// Onboarding: wizard de 4 pasos (clínica → primer paciente → ejemplo → equipo) con Athos al lado.
+// Sólo el primero es obligatorio; el resto se salta con un clic.
+//
+// La clínica ya existe cuando se llega acá: la crea el trigger `on_auth_user_confirmed` con un
+// nombre placeholder. Por eso Athos puede operar desde la primera pantalla — necesita `clinic_id`
+// y ya lo hay.
 export default async function BienvenidaPage() {
   const supabase = await createClient()
   const {
@@ -22,8 +27,21 @@ export default async function BienvenidaPage() {
     .maybeSingle()
   const p = prof as { clinic_id: string | null; setup_completed_at: string | null } | null
 
-  // Ya completado (o sin clínica todavía) -> al dashboard.
-  if (!p?.clinic_id || p.setup_completed_at) redirect("/dashboard")
+  // SIN CLÍNICA se evalúa PRIMERO, antes que `setup_completed_at`. El orden importa y no es
+  // cosmético: el layout manda acá cuando falta la clínica, así que si este archivo rebotara al
+  // dashboard por tener el flag de setup puesto, los dos se redirigirían mutuamente para siempre.
+  // El caso existe de verdad — el backfill de la migración 0017 puso `setup_completed_at` a TODOS
+  // los perfiles, incluido cualquiera que no tuviera clínica.
+  //
+  // Antes esto rebotaba a /dashboard y allá tampoco lo atendía nadie: el usuario aterrizaba en un
+  // dashboard vacío, sin onboarding y sin explicación.
+  if (!p?.clinic_id) {
+    const { data: pendiente } = await supabase.rpc("has_pending_invitation")
+    return <SinClinica tieneInvitacionPendiente={Boolean(pendiente)} />
+  }
+
+  // Ya lo completó -> al dashboard.
+  if (p.setup_completed_at) redirect("/dashboard")
 
   const { data: clinic } = await supabase
     .from("clinics")
@@ -33,10 +51,19 @@ export default async function BienvenidaPage() {
   const c = clinic as { name: string; logo_url: string | null } | null
 
   return (
-    <WorkspaceSetup
-      clinicId={p.clinic_id}
-      initialClinicName={c?.name ?? ""}
-      initialLogoUrl={c?.logo_url ?? null}
-    />
+    <main className="mx-auto grid min-h-svh w-full max-w-6xl gap-6 px-6 py-10 lg:grid-cols-[minmax(0,1fr)_360px]">
+      <div className="flex w-full max-w-md flex-col justify-center justify-self-center">
+        <WelcomeWizard
+          clinicId={p.clinic_id}
+          initialClinicName={c?.name ?? ""}
+          initialLogoUrl={c?.logo_url ?? null}
+        />
+      </div>
+      {/* El panel de Athos es acompañamiento, no camino crítico: en pantallas chicas se oculta y el
+          wizard funciona igual. Si Athos falla o tarda, el onboarding no se bloquea. */}
+      <div className="hidden min-h-0 lg:block">
+        <OnboardingAthos clinicName={c?.name ?? ""} />
+      </div>
+    </main>
   )
 }

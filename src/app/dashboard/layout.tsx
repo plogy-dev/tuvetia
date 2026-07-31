@@ -34,7 +34,11 @@ export default async function DashboardLayout({
     clinic_id: string | null
     setup_completed_at: string | null
   } | null
-  if (p?.clinic_id && !p.setup_completed_at) redirect("/bienvenida")
+  // Falta terminar el onboarding **o** no hay clínica -> a /bienvenida, que atiende los dos casos.
+  // Antes la condición exigía `p?.clinic_id &&`, así que un usuario sin clínica (invitación
+  // pendiente sin aceptar, o trigger que no corrió) caía en un dashboard vacío con todo en cero y
+  // sin ninguna pista. No hay lazo: /bienvenida ya NO rebota acá cuando falta la clínica.
+  if (user && (!p?.clinic_id || !p.setup_completed_at)) redirect("/bienvenida")
 
   const { data: clinic } = p?.clinic_id
     ? await supabase.from("clinics").select("name, logo_url").eq("id", p.clinic_id).maybeSingle()
