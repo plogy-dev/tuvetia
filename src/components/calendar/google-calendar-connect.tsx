@@ -1,8 +1,14 @@
 "use client"
 
-// Conectar / sincronizar Google Calendar (opt-in por vet). Al conectar, reautoriza con el scope
-// calendar.events (offline) y, al volver, captura el provider_refresh_token de la sesión y lo guarda
-// server-side (route /api/google/calendar/connect). "Sincronizar" hace el pull incremental.
+// Conectar Google Calendar manualmente: fallback para quien entró con email/Microsoft, o con Google
+// antes de este cambio (login-form/signup-form ya piden el scope y auto-conectan en el callback). Al
+// conectar, reautoriza con el scope calendar.events (offline) y, al volver, captura el
+// provider_refresh_token de la sesión y lo guarda server-side (route /api/google/calendar/connect).
+//
+// El pull automático corre acá (cliente, en un useEffect), NO en el server component de la página:
+// bloquear el render server-side en el pull colgó /dashboard/calendario con un calendario grande
+// (incidente 2026-07-31, ver google-calendar.ts). Así la página siempre pinta al instante con lo que
+// ya hay en BD, y el sync llega en segundo plano apenas monta este componente.
 
 import { useEffect, useRef, useState } from "react"
 import { useRouter } from "next/navigation"
@@ -11,8 +17,7 @@ import { toast } from "sonner"
 
 import { createClient } from "@/lib/supabase/client"
 import { Button } from "@/components/ui/button"
-
-const CALENDAR_SCOPE = "https://www.googleapis.com/auth/calendar.events"
+import { GOOGLE_CALENDAR_SCOPE } from "@/lib/google-calendar-scope"
 
 export function GoogleCalendarConnect({
   connected,
@@ -25,6 +30,7 @@ export function GoogleCalendarConnect({
   const router = useRouter()
   const [syncing, setSyncing] = useState(false)
   const captured = useRef(false)
+  const autoSynced = useRef(false)
 
   // Al volver del consentimiento (?google=connected), captura el refresh token y lo persiste.
   useEffect(() => {
@@ -58,11 +64,21 @@ export function GoogleCalendarConnect({
     })()
   }, [supabase, router])
 
+  // Sync automático en segundo plano al montar, si ya está conectado (no bloquea el render de la
+  // página — ver comentario de arriba). `sync` es function declaration, hoisted: se puede referenciar
+  // acá aunque se defina más abajo en el componente.
+  useEffect(() => {
+    if (!connected || autoSynced.current) return
+    autoSynced.current = true
+    void sync()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [connected])
+
   async function connect() {
     const { error } = await supabase.auth.signInWithOAuth({
       provider: "google",
       options: {
-        scopes: CALENDAR_SCOPE,
+        scopes: GOOGLE_CALENDAR_SCOPE,
         queryParams: { access_type: "offline", prompt: "consent" },
         redirectTo: `${window.location.origin}/dashboard/calendario?google=connected`,
       },

@@ -5,6 +5,16 @@ import { AppointmentCalendarLazy as AppointmentCalendar } from "@/components/cal
 import { DataError } from "@/components/data-error"
 import { APPOINTMENT_SELECT, type AppointmentRow, type SelectOption } from "@/lib/appointments"
 
+// REVERTIDO 2026-07-31 (incidente en producción): el pull automático al abrir esta página traía el
+// calendario "primary" de Google —el personal del vet, no uno de la clínica— completo (30 días,
+// paginado sin límite) y lo insertaba como citas visibles para toda la clínica. Con 1 usuario real
+// generó 1.567 filas espurias ("Cumpleaños de mi mamá", "Trabajo", ...) antes de que el sync_token
+// llegara a guardarse, así que cada carga de página lo repetía desde cero. No reintroducir el pull
+// automático sin antes resolver qué calendario de Google se sincroniza (ver CALENDARIO.md
+// §Pendientes: "Sync por-vet usando primary vs. calendario dedicado de clínica — a decidir"). El pull
+// manual con el botón "Sincronizar" (/api/google/calendar/sync) tiene el mismo problema de fondo y
+// debería evitarse hasta resolverlo.
+
 export default async function CalendarioPage() {
   const supabase = await createClient()
 

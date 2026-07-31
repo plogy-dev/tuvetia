@@ -159,8 +159,12 @@ type GoogleEvent = {
   end?: { dateTime?: string; date?: string }
 }
 
-// Pull incremental: trae los cambios de Google desde el último syncToken y los upsertea por
-// google_event_id. Eventos cancelados en Google -> se cancelan localmente. Devuelve nº de cambios.
+const UPSERT_CHUNK_SIZE = 500
+
+// Pull incremental: trae los cambios de Google desde el último syncToken y los aplica en BLOQUE
+// (upsert por chunks, no fila-por-fila: con calendarios grandes, un round-trip por evento colgaba
+// la función serverless — incidente 2026-07-31, 1.567 eventos). Requiere el índice único
+// appointments(clinic_id, google_event_id) — migración 0042. Devuelve nº de eventos procesados.
 export async function pullEvents(userId: string): Promise<number> {
   const admin = createAdminClient()
   const integ = await getIntegration(admin, userId)
@@ -177,7 +181,8 @@ export async function pullEvents(userId: string): Promise<number> {
   const access = await accessTokenFrom(integ.refresh_token)
   const calId = encodeURIComponent(integ.google_calendar_id)
 
-  let changed = 0
+  const upserts: Record<string, unknown>[] = []
+  const cancelledIds: string[] = []
   let pageToken: string | undefined
   let nextSyncToken: string | undefined
   const syncToken = integ.sync_token ?? undefined
@@ -196,7 +201,7 @@ export async function pullEvents(userId: string): Promise<number> {
     if (res.status === 410) {
       // syncToken vencido -> reiniciar sync completo la próxima vez.
       await admin.from("calendar_integrations").update({ sync_token: null }).eq("user_id", userId)
-      return changed
+      return 0
     }
     if (!res.ok) throw new Error(`Google Calendar list falló (${res.status})`)
     const json = (await res.json()) as {
@@ -206,7 +211,23 @@ export async function pullEvents(userId: string): Promise<number> {
     }
 
     for (const ev of json.items ?? []) {
-      changed += await applyRemoteEvent(admin, clinicId, ev)
+      if (ev.status === "cancelled") {
+        cancelledIds.push(ev.id)
+        continue
+      }
+      const start = ev.start?.dateTime ?? (ev.start?.date ? `${ev.start.date}T00:00:00Z` : null)
+      const end = ev.end?.dateTime ?? (ev.end?.date ? `${ev.end.date}T00:00:00Z` : null)
+      if (!start || !end) continue
+      upserts.push({
+        clinic_id: clinicId,
+        google_event_id: ev.id,
+        title: ev.summary ?? "(sin título)",
+        notes: ev.description ?? null,
+        starts_at: start,
+        ends_at: end,
+        status: "scheduled",
+        updated_at: new Date().toISOString(),
+      })
     }
 
     if (json.nextPageToken) {
@@ -217,57 +238,28 @@ export async function pullEvents(userId: string): Promise<number> {
     break
   }
 
+  // Upsert por chunks: solo toca las columnas listadas arriba (patient_id/owner_id/vet_id/status
+  // ya asignados en la app quedan intactos para filas existentes; nuevas filas nacen sin paciente).
+  for (let i = 0; i < upserts.length; i += UPSERT_CHUNK_SIZE) {
+    const chunk = upserts.slice(i, i + UPSERT_CHUNK_SIZE)
+    const { error } = await admin
+      .from("appointments")
+      .upsert(chunk, { onConflict: "clinic_id,google_event_id" })
+    if (error) throw new Error(`Upsert de eventos falló: ${error.message}`)
+  }
+
+  // Cancelaciones por chunks (update masivo; no-op si el evento no existía localmente).
+  for (let i = 0; i < cancelledIds.length; i += UPSERT_CHUNK_SIZE) {
+    const chunk = cancelledIds.slice(i, i + UPSERT_CHUNK_SIZE)
+    await admin
+      .from("appointments")
+      .update({ status: "canceled" })
+      .eq("clinic_id", clinicId)
+      .in("google_event_id", chunk)
+  }
+
   if (nextSyncToken) {
     await admin.from("calendar_integrations").update({ sync_token: nextSyncToken }).eq("user_id", userId)
   }
-  return changed
-}
-
-// Aplica un evento remoto a la BD local. Devuelve 1 si cambió algo.
-async function applyRemoteEvent(admin: AdminClient, clinicId: string, ev: GoogleEvent): Promise<number> {
-  const { data: existing } = await admin
-    .from("appointments")
-    .select("id")
-    .eq("clinic_id", clinicId)
-    .eq("google_event_id", ev.id)
-    .maybeSingle()
-  const localId = (existing as { id: string } | null)?.id ?? null
-
-  if (ev.status === "cancelled") {
-    if (localId) {
-      await admin.from("appointments").update({ status: "canceled" }).eq("id", localId)
-      return 1
-    }
-    return 0
-  }
-
-  const start = ev.start?.dateTime ?? (ev.start?.date ? `${ev.start.date}T00:00:00Z` : null)
-  const end = ev.end?.dateTime ?? (ev.end?.date ? `${ev.end.date}T00:00:00Z` : null)
-  if (!start || !end) return 0
-
-  if (localId) {
-    await admin
-      .from("appointments")
-      .update({
-        title: ev.summary ?? "(sin título)",
-        notes: ev.description ?? null,
-        starts_at: start,
-        ends_at: end,
-        updated_at: new Date().toISOString(),
-      })
-      .eq("id", localId)
-    return 1
-  }
-
-  // Evento nuevo creado en Google: alta mínima (sin paciente/titular) enlazada por google_event_id.
-  await admin.from("appointments").insert({
-    clinic_id: clinicId,
-    title: ev.summary ?? "(sin título)",
-    notes: ev.description ?? null,
-    starts_at: start,
-    ends_at: end,
-    status: "scheduled",
-    google_event_id: ev.id,
-  })
-  return 1
+  return upserts.length + cancelledIds.length
 }

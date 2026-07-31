@@ -1,4 +1,7 @@
--- 0042 — Endurecimiento DB del módulo de facturación (auditoría 2026-07-30).
+-- 0043 — Endurecimiento DB del módulo de facturación (auditoría 2026-07-30).
+--
+-- (Nació como 0042 y se renumeró: `0042_appointments_google_event_unique.sql` entró a master en
+-- paralelo el 2026-07-31. Dos migraciones con el mismo número aplican en orden indefinido.)
 --
 -- Dos cosas, ambas señaladas por los advisors de Supabase sobre el proyecto principal:
 --

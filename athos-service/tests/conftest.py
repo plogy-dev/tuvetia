@@ -2,10 +2,64 @@
 
 Las fixtures de integración con DB (`require_db`, `seeded_tenants`) se SALTAN solas si la DB no
 está disponible (p.ej. CI sin Postgres), y siembran/limpian datos de prueba con ids fijos.
+
+⚠️ **NUNCA contra el proyecto PRINCIPAL.** `seeded_tenants` hace `insert` de clínicas, dueños,
+pacientes y alergias, y al terminar hace `delete from public.clinics ... ` — que **cascadea**.
+Correrlo contra el principal escribe y borra en la base con los datos reales de las clínicas, y
+además ensucia `rag_retrieval_log` con ids de fixture.
+
+Ya pasó: el 2026-07-30 el `.env` local apuntaba al principal (venía del "MODO PROD-LIKE" del 16-jul
+que nunca se revirtió) y la suite corrió varias veces contra él. Por eso existe `_exigir_db_de_dev`:
+la protección no puede depender de que alguien se acuerde de mirar el `.env`.
 """
+import os
+import re
+import uuid
+
 import pytest
 
 from app.models import RetrievedChunk, PatientContext
+
+# Proyecto PRINCIPAL (producción / compartido). Ver CLAUDE.md §Entornos y docs/MIGRACIONES.md.
+REF_PRINCIPAL = "auxlnexhkmtoedrzfsnz"
+# Escotilla para el caso excepcional y consciente. Que sea incómoda de escribir es a propósito.
+ESCOTILLA = "PERMITIR_TESTS_CONTRA_EL_PRINCIPAL"
+
+
+def _ref_de(url: str) -> str:
+    m = re.search(r"(?:postgres\.|//)([a-z]{20})", url or "")
+    return m.group(1) if m else "(desconocido)"
+
+
+def _exigir_db_de_dev() -> None:
+    """Corta la corrida si la DB de PACIENTE es la del principal.
+
+    Falla — no salta. Un `skip` es justo lo que dejó pasar esto sin que nadie lo viera.
+    """
+    from app.config import get_settings
+
+    url = get_settings().database_url
+    if REF_PRINCIPAL not in (url or ""):
+        return
+    if os.environ.get(ESCOTILLA) == "si-se-lo-que-hago":
+        return
+    pytest.fail(
+        "\n"
+        "==========================================================================\n"
+        f"  DATABASE_URL apunta al proyecto PRINCIPAL (ref {_ref_de(url)}).\n"
+        "==========================================================================\n"
+        "  Estas pruebas SIEMBRAN Y BORRAN clínicas, dueños, pacientes y alergias.\n"
+        "  Contra el principal eso escribe en la base con los datos reales de las\n"
+        "  clínicas y ensucia rag_retrieval_log con ids de fixture.\n"
+        "\n"
+        "  Arreglo: en athos-service/.env, apuntá DATABASE_URL a tuvetia-athos-dev.\n"
+        "  (CORPUS_DATABASE_URL sí puede quedarse en el principal: es de LECTURA y\n"
+        "   el corpus completo de 520k fragmentos sólo vive ahí.)\n"
+        "\n"
+        f"  Si de verdad hace falta: {ESCOTILLA}=si-se-lo-que-hago\n"
+        "==========================================================================",
+        pytrace=False,
+    )
 
 
 @pytest.fixture
@@ -36,40 +90,46 @@ def two_clinics() -> dict:
 
 
 # --- Integración con DB (se salta si no hay DB) ---
-CLINIC_A = "a1a1a1a1-0000-0000-0000-000000000001"
-CLINIC_B = "b2b2b2b2-0000-0000-0000-000000000002"
-OWNER_A = "a1a1a1a1-0000-0000-0000-0000000000a1"
-OWNER_B = "b2b2b2b2-0000-0000-0000-0000000000b1"
-PATIENT_LUNA = "a1a1a1a1-0000-0000-0000-0000000000a2"   # clínica A, perro, alergia severa a pollo
-PATIENT_MICHI = "b2b2b2b2-0000-0000-0000-0000000000b2"  # clínica B, gato
-ALLERGY_SEVERE = "a1a1a1a1-0000-0000-0000-0000000000a3"
-ALLERGY_MILD = "a1a1a1a1-0000-0000-0000-0000000000a4"
+#
+# Los ids se generan POR CORRIDA, no son fijos. Antes lo eran, y contra una base de desarrollo
+# COMPARTIDA eso rompe: si dos personas corren la suite a la vez, el teardown de una hace
+# `delete from clinics` sobre los mismos ids y le borra los datos a la otra a mitad de prueba. El
+# síntoma sería un fallo intermitente e irreproducible — de los que hacen que el equipo deje de
+# creerle a la suite.
+#
+# Se conservan los prefijos `a1a1a1aN` / `b2b2b2bN`: si uno de estos ids aparece en un log, se
+# reconoce al instante como dato de prueba. Sólo cambia la cola.
+_SUFIJO = uuid.uuid4().hex[:12]
+
+CLINIC_A = f"a1a1a1a1-0000-0000-0000-{_SUFIJO}"
+CLINIC_B = f"b2b2b2b2-0000-0000-0000-{_SUFIJO}"
+OWNER_A = f"a1a1a1a2-0000-0000-0000-{_SUFIJO}"
+OWNER_B = f"b2b2b2b3-0000-0000-0000-{_SUFIJO}"
+PATIENT_LUNA = f"a1a1a1a3-0000-0000-0000-{_SUFIJO}"   # clínica A, perro, alergia severa a pollo
+PATIENT_MICHI = f"b2b2b2b4-0000-0000-0000-{_SUFIJO}"  # clínica B, gato
+ALLERGY_SEVERE = f"a1a1a1a4-0000-0000-0000-{_SUFIJO}"
+ALLERGY_MILD = f"a1a1a1a5-0000-0000-0000-{_SUFIJO}"
 
 
-# Ref del proyecto PRINCIPAL de Supabase (producción). La metodología del repo es ".env local =
-# dev" (ver CLAUDE.md §Entornos), pero el 2026-07-30 los logs de producción registraron los ids de
-# fixture de esta suite (`uuid "clinic-a"`): alguien corrió pytest con el .env apuntando al
-# principal, y las queries que se escapan de un mock (ya pasó tres veces ese mismo día) pegan
-# contra la base a la que apunte el .env — `seeded_tenants` además SIEMBRA Y BORRA clínicas.
-# Autouse de sesión: la suite entera se niega a arrancar contra el principal, no solo los tests
-# de integración, porque el escape ocurrió justamente en tests unitarios.
-_REF_PRINCIPAL = "auxlnexhkmtoedrzfsnz"
-
-
-@pytest.fixture(autouse=True, scope="session")
-def _nunca_contra_produccion():
-    from app.config import get_settings
-    if _REF_PRINCIPAL in (get_settings().database_url or ""):
-        pytest.exit(
-            "DATABASE_URL apunta al proyecto PRINCIPAL de Supabase (producción). Los tests siembran, "
-            "borran y dejan escapar queries: corre contra tuvetia-athos-dev (.env local = dev, "
-            "CLAUDE.md §Entornos). Este guard existe porque ya pasó (2026-07-30).",
-            returncode=1,
-        )
+# (El guard que impedía correr contra el principal vivía acá y se eliminó al integrar master el
+# 2026-07-31: `REF_PRINCIPAL` arriba en este mismo archivo hace lo mismo y mejor —tiene escotilla
+# de escape explícita—, y `app/db.py` lo refuerza cortando al ABRIR la conexión, que cubre también
+# las queries que se escapan de un mock. Dos guards para lo mismo, uno sin escotilla, sólo servía
+# para que el override documentado no funcionara.)
 
 
 @pytest.fixture
 def require_db():
+    # El guard va ANTES de tocar la conexión: si la DB es la del principal, ni se abre.
+    _exigir_db_de_dev()
+
+    # Sin URL configurada se salta SIN intentar conectar. Si no, libpq cae a su valor por defecto
+    # (localhost) y espera el timeout completo por cada prueba: la suite pasaba de 5 s a 10 min en
+    # una máquina limpia — justo la que va a usar quien audite el repo.
+    from app.config import get_settings
+    if not (get_settings().database_url or "").strip():
+        pytest.skip("DATABASE_URL sin configurar: se saltan las pruebas de integración con DB")
+
     try:
         from app.db import fetch_all
         fetch_all("select 1")

@@ -1,5 +1,15 @@
 # Athos (RAG) — Contexto para el equipo (Santiago y Pipe)
 
+> ⚠️ **2026-07-31 — el proyecto de dev se RECREÓ.** El anterior (`ghmpjyuchwkrvnjvdeum`) fue borrado,
+> y sin base de desarrollo la única salida era apuntar el `.env` al principal: así fue como la suite
+> —que siembra y BORRA clínicas— terminó corriendo contra producción. El proyecto nuevo es
+> **`tuvetia-athos-dev`, ref `gdiiagioiukadifejewv`** (us-west-2, micro), con el esquema base y las 43
+> migraciones aplicadas. Las referencias al ref viejo que quedan abajo son **históricas**.
+>
+> La cadena de conexión **no va al repo** (lleva contraseña): pedírsela a quien recreó el proyecto.
+> Hoy hay además un cortafuegos en `app/db.py` que impide que una prueba abra la DB del principal.
+
+
 > Todo lo que necesitan saber del microservicio de Athos y cómo se conecta con las demás partes de la plataforma. El detalle interno del RAG está en `tuvetia_rag_documento_final.md` (misma carpeta); las reglas para construirlo, en `../CLAUDE.md`; su montaje, en `../SETUP.md`; entornos y migraciones, en `MIGRACIONES.md`.
 
 ## ⚡ Estado actual (2026-07-24) — resumen rápido

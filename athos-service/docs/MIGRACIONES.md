@@ -6,7 +6,11 @@
 ## Principio (léelo una vez y no lo olvides)
 - **Proyecto principal** (compartido / producción): ref `auxlnexhkmtoedrzfsnz`. **NUNCA** se
   desarrolla ni se escribe directamente contra él desde una máquina de dev (MCP incluido).
-- **Proyecto de desarrollo:** `tuvetia-athos-dev` (Supabase **separado**). Aquí se prueba todo.
+- **Proyecto de desarrollo:** `tuvetia-athos-dev`, ref **`gdiiagioiukadifejewv`** (Supabase
+  **separado**, us-west-2). Aquí se prueba todo. **Recreado el 2026-07-31**: el anterior
+  (`ghmpjyuchwkrvnjvdeum`) se borró, y sin él la suite terminó corriendo contra producción.
+  Reconstruirlo cuesta ~1 h porque el esquema es código: `supabase/bootstrap/000_base_schema.sql`
+  y las migraciones de `supabase/migrations/`. La cadena de conexión no va al repo.
 - **`supabase/migrations/*.sql` = única fuente de verdad** de *nuestros* cambios de esquema
   (tablas del RAG: `glossary_*`, `athos_messages`, `rag_retrieval_log`, `rag_answer_log`, e
   índices/ALTERs sobre las tablas base). Fluyen **dev → PR → principal**, aplicando **los mismos
@@ -61,33 +65,38 @@ supabase db push                       # la aplica al proyecto dev enlazado
 - `.env` local = **dev**. Credenciales del **principal** solo en CI / secretos.
 - MCP y cualquier herramienta con **escritura** → solo **dev**.
 
-## ⚠️ Estado del entorno dev al 2026-07-30 (leer antes de correr tests)
+## Correr los tests de integración sin depender del proyecto de dev
 
-**El proyecto dev `ghmpjyuchwkrvnjvdeum` fue borrado** (se usó para pruebas). Hasta que se recree,
-NO hay un Supabase de desarrollo, y eso tiene tres consecuencias que ya se materializaron:
+El dev remoto es la referencia (ver arriba: `gdiiagioiukadifejewv`, recreado el 2026-07-31), pero
+**no debe ser la única forma de correr las pruebas de aislamiento**. El 2026-07-30 el dev anterior
+se borró, y con él esas pruebas quedaron sin dónde correr — que es cómo la suite terminó apuntando
+a producción. Por eso hay un camino local, sin cuenta ni secretos, idéntico al que usa el CI cuando
+`ATHOS_DEV_DATABASE_URL` no está configurado:
 
-1. **Los `.mcp.json` quedaron en `read_only=true` contra el principal.** El de la raíz apuntaba al
-   principal **con escritura** desde el 2026-07-15 (`c0a29b6`, anterior a este runbook): cualquier
-   agente que corriera desde la raíz podía escribir en producción. El de `athos-service/` apuntaba
-   al proyecto borrado. Ambos ahora son de solo lectura. **Cuando se recree dev, se repuntan a su
-   ref — y sólo ahí puede habilitarse escritura.**
-2. **Ningún `.env` debe apuntar al principal.** El 2026-07-30 los logs de producción registraron
-   `invalid input syntax for type uuid: "clinic-a"` — el literal que usan `test_chat.py` y
-   `test_phantom.py`: la suite corrió contra producción. No hubo daño (la consulta murió en el cast
-   del UUID, sin leer ni escribir; verificado: cero filas de fixture en el principal), pero con un
-   UUID válido habría corrido de verdad. `tests/conftest.py` ahora **aborta la suite** si
-   `DATABASE_URL` contiene el ref del principal.
-3. **Mientras tanto, para correr los tests de integración hay un Postgres local**, el mismo que usa
-   el CI (`.github/workflows/ci.yml` → `services: postgres`):
-   ```
-   docker run -d --name pg-dev -e POSTGRES_PASSWORD=postgres -e POSTGRES_DB=athos_test \
-     -p 55432:5432 pgvector/pgvector:pg16
-   psql "postgresql://postgres:postgres@localhost:55432/athos_test" -v ON_ERROR_STOP=1 \
-     -f ../.github/ci/athos-db-shim.sql          # auth.users, auth.uid(), roles RLS
-   psql "...misma URL..." -f supabase/bootstrap/000_base_schema.sql
-   for f in supabase/migrations/*.sql; do psql "...misma URL..." -v ON_ERROR_STOP=1 -f "$f"; done
-   ```
-   Es gratis, no necesita cuenta y la secuencia está verificada contra `pgvector:pg16`.
+```
+docker run -d --name pg-dev -e POSTGRES_PASSWORD=postgres -e POSTGRES_DB=athos_test \
+  -p 55432:5432 pgvector/pgvector:pg16
+
+psql "postgresql://postgres:postgres@localhost:55432/athos_test" -v ON_ERROR_STOP=1 \
+  -f ../.github/ci/athos-db-shim.sql          # auth.users, auth.uid(), roles de RLS
+psql "...misma URL..." -f supabase/bootstrap/000_base_schema.sql
+for f in supabase/migrations/*.sql; do psql "...misma URL..." -v ON_ERROR_STOP=1 -f "$f"; done
+```
+
+El shim crea el mínimo de Supabase que el esquema asume (`auth.users`, `auth.uid()`, los roles
+`anon`/`authenticated`/`service_role`) para que el SQL del repo aplique tal cual en un Postgres
+pelado. Secuencia verificada contra `pgvector:pg16`.
+
+**Cuál usar:** el dev remoto es más fiel (misma RLS y mismos tipos que producción) y es lo que el CI
+prefiere si el secreto está puesto. El local sirve para iterar rápido y como red cuando el dev no
+está disponible.
+
+> **Contexto de por qué esto importa.** El 2026-07-30 los logs de producción registraron
+> `invalid input syntax for type uuid: "clinic-a"` — el literal que usan `test_chat.py` y
+> `test_phantom.py`: la suite corrió contra el principal. No hubo daño (la consulta murió en el cast
+> del UUID, sin leer ni escribir; verificado: cero filas de fixture en el principal), pero con un
+> UUID válido habría corrido de verdad. Hoy lo cortan dos guardas: `app/db.py` al abrir la conexión
+> y `tests/conftest.py` al arrancar la suite.
 
 ## Comandos útiles
 ```
