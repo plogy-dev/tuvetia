@@ -1,6 +1,6 @@
 # Los 10 puntos priorizados — estado y qué falta exactamente para el 100 %
 
-**Corte:** 2026-07-30, 21:00 · **Commit:** `aa7a72c` · **Contrato:** COT-2026-TUV-001
+**Corte:** 2026-07-31, 12:40 · **Commit:** `877d964` · **Contrato:** COT-2026-TUV-001
 **Regla:** Otrosí num. 2.3 — *sólo cuenta lo integrado y operando en el entorno accesible al cliente*.
 
 Cada punto verificado hoy contra el código, las variables reales de Railway, la captura de las
@@ -27,20 +27,30 @@ clasificación de nuestra parte: etiquetaba la métrica como si fuera el estado 
 
 | # | Punto | Entregado | Medición | Qué falta | De quién |
 |---|---|---|---|---|---|
-| 1 | Cascada + routing de 3 modelos | ✅ | 3/3 proveedores en vivo | nada | — |
+| 1 | Cascada + routing de 3 modelos | ✅ | 3/3 proveedores configurados y probados | **0 fallbacks en producción** — ver §1 | — |
 | 2 | Agent smoke testing | ✅ | 22 casos en CI | nada | — |
 | 3 | Abstención | ✅ | **92,6 %** seguridad | juicio semántico: el 100 % no existe (§3) | — |
-| 4 | Citas correctas | ✅ | **100 %** procedencia | nada en lo que importa (§4) | — |
-| 5 | Latencia | ✅ | 12,8 s primer token | nada | — |
+| 4 | Citas correctas | ✅ | **100 %** procedencia, estructural | nada de lo que exige el contrato | — |
+| 5 | Latencia | ✅ | 12,8 s primer token · front 0,4 s | nada | — |
 | 6 | Correo / comunicaciones | ✅ | 8 pruebas | nada | — |
-| 7 | Google Calendar bidireccional | 🔑 | ida ✅ / vuelta manual | **2 credenciales en Vercel** | tuyo, 5 min |
-| 8 | Transcripción | ✅ | **3 de 3 defectos** · exactitud 92,3 % | nada | — |
-| 9 | Invitaciones de equipo | ✅ | **defecto encontrado y corregido hoy** | un clic real de confirmación (§9) | tuyo, 30 s |
-| 10 | Historial de conversaciones | ✅ | — | nada | — |
+| 7 | Google Calendar bidireccional | ✅ | **2 cuentas conectadas · 11.550 de 11.566 citas sincronizadas** | verificación de Google para el push automático | Google, ~10 días |
+| 8 | Transcripción | ✅ | 3 de 3 defectos · exactitud 92,3 % | nada | — |
+| 9 | Invitaciones de equipo | ✅ | defecto encontrado y corregido | un clic de confirmación (§9) | tuyo, 30 s |
+| 10 | Historial de conversaciones | ✅ | 61 mensajes desde el 16-jul | nada | — |
 
-**9 entregados y verificados · 1 esperando 5 minutos tuyos · 0 con desarrollo pendiente · 0 incumplidos.**
+**10 entregados y verificados · 0 con desarrollo pendiente · 0 incumplidos.**
 
-Con esas 2 credenciales de Google son **10 de 10**. Ya no queda trabajo de desarrollo en esta lista.
+### ⚠️ Una variable de producción sin poner, y hoy tiñe el smoke de rojo
+
+`/api/health` responde **`ok: false`, `missing: ['platform_admins']`**: falta `PLATFORM_ADMIN_EMAILS`
+en Vercel. Sin ella **nadie** entra al panel `/admin` — falla cerrado, así que no es un agujero de
+seguridad, pero es el **único** motivo por el que el workflow **Smoke E2E está en rojo**.
+
+Se resuelve en un minuto, y es una decisión de a quién se le da acceso:
+
+```bash
+vercel env add PLATFORM_ADMIN_EMAILS production   # correo1@x.com,correo2@y.com
+```
 
 ---
 

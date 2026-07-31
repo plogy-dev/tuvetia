@@ -1,6 +1,6 @@
 # Soportes técnicos para la renegociación del 3-ago — respuesta punto por punto
 
-**Contrato:** COT-2026-TUV-001 · **Corte:** 2026-07-30, 22:00 · **Commit:** `d689bcc`
+**Contrato:** COT-2026-TUV-001 · **Corte:** 2026-07-31, 12:40 · **Commit:** `877d964`
 **Responde a:** *Guía de soportes técnicos — Milestone 2 TUVET IA*
 
 Todo lo de abajo se verificó hoy contra el **repositorio**, las **variables reales de Railway y
@@ -51,6 +51,44 @@ corre DeepSeek"*— es **literalmente cierta** mirando la traza.
 observación. Sostener «hace meses» se cae con un `git log`, y la propia Guía pide la fecha del commit.
 
 ---
+
+
+---
+
+## 🔄 Revisión del 2026-07-31 — qué cambió en 15 horas
+
+29 commits después (Felipe, Santiago y esta sesión), re-verificado contra el repositorio, las
+variables reales de Vercel y Railway, y la base de producción.
+
+**Lo que cambió y MEJORA la posición:**
+
+| | Antes (30-jul) | Ahora (31-jul) |
+|---|---|---|
+| Google Calendar | 0 cuentas conectadas, sincronización sin credenciales | **2 cuentas · 11.550 de 11.566 citas sincronizadas** |
+| Configuración de producción | faltaban 3 variables críticas | falta **una** (`PLATFORM_ADMIN_EMAILS`) |
+| Pruebas de aislamiento entre clínicas | **nunca corrían** (se auto-skipeaban) | corren en CI, con dos fuentes de base |
+| Entorno de desarrollo | **borrado** — por eso el `.env` apuntaba a producción | recreado (`gdiiagioiukadifejewv`) |
+| Pruebas totales | 488 | **585** (258 backend + 327 front) |
+| Acciones agénticas ejecutadas | 1 | 2 |
+
+**Lo que NO cambió, y sigue siendo el punto delicado de la mesa:**
+
+La traza de producción sigue mostrando **16 respuestas, todas de DeepSeek**. Cero de Gemini, cero de
+Claude. La cascada está configurada con los tres proveedores en Railway y ahora además **registra
+cuál respondió de verdad** (`ca31838`, antes anotaba `LLM_MODEL` fijo) — pero no ha habido tráfico
+que ejerza el fallback, porque el primario no ha fallado.
+
+Sigue valiendo lo dicho arriba: **es defendible como "funciona, probado, sin tráfico que lo haya
+ejercitado"; no como "corre hace meses"**. El repositorio nació el 13-jul y la cascada es del 30-jul.
+
+**Un hueco nuevo, chico y visible:** falta `PLATFORM_ADMIN_EMAILS` en Vercel. `/api/health` responde
+`ok: false` y **el workflow Smoke E2E está en rojo por eso y sólo por eso**. Un minuto de trabajo, pero
+conviene cerrarlo antes de que alguien audite y vea un workflow rojo.
+
+**Y una fuga que se encontró y cerró hoy:** al endurecerse el guardarraíl anti-red aparecieron 7
+pruebas llamando a APIs reales (el auditor de fidelidad de citas y el reranker). En CI no se veía
+—no hay claves— pero **en la máquina de cualquier desarrollador la suite gastaba crédito en cada
+corrida**. Cerrado en `877d964`.
 
 ## Lo que NO está en mi alcance y hay que conseguir aparte
 
