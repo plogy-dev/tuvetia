@@ -180,6 +180,32 @@ class LlamadaRealBloqueada(BaseException):
 
 
 @pytest.fixture(autouse=True)
+def _sin_auditores_externos(monkeypatch, request):
+    """Neutraliza los dos auditores que salen a la red, EN SUS PUNTOS DE LLAMADA.
+
+    `check_fidelity` (LLM) y `rerank_chunks` (Cohere) son mejoras opcionales: fallan abiertas, así
+    que una prueba de integración que no los mockea igual pasa — pero pagando una llamada real. En
+    CI no se notaba porque no hay claves; en la máquina de un dev, correr la suite GASTABA CRÉDITO.
+    Lo destapó el guardarraíl anti-red al endurecerse (2026-07-31).
+
+    Se parchea `chat.check_fidelity` y `cascade.rerank_chunks` —donde se USAN— y no los módulos que
+    los definen, así `test_citation_fidelity.py` y `test_rerank.py` siguen probándolos de verdad.
+
+    Para una prueba que necesite el comportamiento real acá: `@pytest.mark.auditores_reales`.
+    """
+    if request.node.get_closest_marker("auditores_reales"):
+        return
+    import app.chat as chat
+    import app.retrieval.cascade as cascade
+    from app.generation.citation_fidelity import EMPTY_REPORT
+
+    monkeypatch.setattr(chat, "check_fidelity",
+                        lambda respuesta, literatura: EMPTY_REPORT, raising=False)
+    monkeypatch.setattr(cascade, "rerank_chunks",
+                        lambda consulta, chunks, top_n=None, **kw: (chunks, False), raising=False)
+
+
+@pytest.fixture(autouse=True)
 def _sin_red(monkeypatch, request):
     """Ninguna prueba sale a internet. Falla ruidosamente si alguna lo intenta.
 
