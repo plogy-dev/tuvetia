@@ -20,7 +20,15 @@ import { Input } from "@/components/ui/input"
 import { useIsMobile } from "@/hooks/use-mobile"
 import { PlusIcon, Loader2Icon } from "lucide-react"
 
-export function CreateOwnerDrawer() {
+export function CreateOwnerDrawer({
+  trigger,
+  label = "Nuevo titular",
+}: {
+  // Trigger alternativo (p.ej. desde el estado vacío de la tabla); por defecto, el botón de la
+  // cabecera. Mismo patrón que `CreatePatientDrawer` y `NewConsultationDrawer`.
+  trigger?: React.ReactElement
+  label?: string
+} = {}) {
   const isMobile = useIsMobile()
   const router = useRouter()
 
@@ -81,9 +89,9 @@ export function CreateOwnerDrawer() {
       onOpenChange={handleOpenChange}
       swipeDirection={isMobile ? "down" : "right"}
     >
-      <DrawerTrigger render={<Button />}>
+      <DrawerTrigger render={trigger ?? <Button />}>
         <PlusIcon />
-        Nuevo titular
+        <span>{label}</span>
       </DrawerTrigger>
       <DrawerContent>
         <DrawerHeader>

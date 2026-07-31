@@ -10,6 +10,7 @@ import {
 } from '@/lib/facturacion/queries';
 import { CatalogItemsTab } from '@/components/facturacion/CatalogItemsTab';
 import { CategoryManager } from '@/components/facturacion/CategoryManager';
+import { TabNav, TabNavLink } from '@/components/ui/tab-nav';
 
 export const dynamic = 'force-dynamic';
 
@@ -87,21 +88,17 @@ export default async function CatalogoPage({
           </p>
         </header>
 
-        <nav className="mb-5 flex gap-1 border-b border-line">
+        <TabNav>
           {TABS.map((t) => (
-            <Link
+            <TabNavLink
               key={t.key}
               href={`/dashboard/facturacion/catalogo?tab=${t.key}`}
-              className={`-mb-px border-b-2 px-4 py-2 text-sm transition ${
-                tab === t.key
-                  ? 'border-brand font-medium text-fg'
-                  : 'border-transparent text-fg-muted hover:text-fg'
-              }`}
+              active={tab === t.key}
             >
               {t.label}
-            </Link>
+            </TabNavLink>
           ))}
-        </nav>
+        </TabNav>
 
         {tab === 'productos' && (
           <CatalogItemsTab
@@ -114,12 +111,18 @@ export default async function CatalogoPage({
         {tab === 'servicios' && (
           <div className="space-y-4">
             <div className="flex justify-end">
+              {/* Sin `?preset=servicios`: el destino lo ignoraba, así que era un parámetro que
+                  aparentaba una precarga inexistente. Y se anuncia el estado antes del clic. */}
               <Link
-                href="/dashboard/facturacion/inventario/importar?preset=servicios"
+                href="/dashboard/facturacion/inventario/importar"
+                title="La importación desde Excel está deshabilitada mientras reemplazamos la librería de planillas; al entrar te contamos las alternativas."
                 className="inline-flex items-center gap-1.5 rounded-lg border border-line bg-surface px-3 py-1.5 text-sm text-fg-muted hover:border-brand hover:text-fg transition"
               >
                 <FileUp className="size-4" aria-hidden />
-                Importar servicios (Excel o foto)
+                Importar servicios
+                <span className="rounded-full border border-line-soft px-1.5 py-px text-[10px] uppercase tracking-wide text-fg-faint">
+                  pronto
+                </span>
               </Link>
             </div>
             <CatalogItemsTab

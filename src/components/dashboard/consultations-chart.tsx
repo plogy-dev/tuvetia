@@ -1,5 +1,6 @@
 "use client"
 
+import Link from "next/link"
 import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts"
 
 export function ConsultationsChart({ data }: { data: { label: string; count: number }[] }) {
@@ -12,8 +13,11 @@ export function ConsultationsChart({ data }: { data: { label: string; count: num
         <div className="text-xs text-muted-foreground">Últimas 12 semanas · {total} en total</div>
       </div>
       {total === 0 ? (
-        <div className="flex flex-1 items-center justify-center py-10 text-sm text-muted-foreground">
-          Todavía no hay consultas registradas.
+        <div className="flex flex-1 flex-col items-center justify-center gap-2 py-10 text-center">
+          <p className="text-sm text-muted-foreground">Todavía no hay consultas registradas.</p>
+          <Link href="/dashboard/consultas" className="text-xs text-primary hover:underline">
+            Empezar la primera
+          </Link>
         </div>
       ) : (
         <ResponsiveContainer width="100%" height={220}>

@@ -182,12 +182,19 @@ export default async function InventarioPage({
               <ArrowLeftRight className="size-4" aria-hidden />
               Movimientos
             </Link>
+            {/* El destino existe y explica por qué está deshabilitado, pero prometía "Importar" a
+                secas: se llegaba esperando importar y salía un "próximamente". Que se sepa antes
+                de hacer clic. */}
             <Link
               href="/dashboard/facturacion/inventario/importar"
+              title="La importación desde Excel está deshabilitada mientras reemplazamos la librería de planillas; al entrar te contamos las alternativas."
               className="inline-flex items-center gap-2 rounded-lg border border-line bg-surface px-3 py-2 text-sm text-fg-muted hover:bg-surface-2 hover:text-fg transition"
             >
               <FileUp className="size-4" aria-hidden />
-              Importar (Excel o foto)
+              Importar
+              <span className="rounded-full border border-line-soft px-1.5 py-px text-[10px] uppercase tracking-wide text-fg-faint">
+                pronto
+              </span>
             </Link>
           </div>
         </header>

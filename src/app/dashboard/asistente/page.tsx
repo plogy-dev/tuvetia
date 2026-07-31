@@ -13,7 +13,13 @@ export const metadata = { title: "Asistente · Tuvetia" }
 // El historial se precarga porque `athos_messages` guardaba la conversación desde el inicio y el
 // asistente NO la mostraba: al recargar la página el hilo se veía vacío aunque los mensajes
 // estuvieran en la base, y el cliente lo reportó como "historial inexistente" (§4.5 de la auditoría).
-export default async function AsistentePage() {
+export default async function AsistentePage({
+  searchParams,
+}: {
+  // `?patient=` lo pone el historial del sidebar al abrir un chat ya existente.
+  searchParams: Promise<{ patient?: string }>
+}) {
+  const { patient: patientParam } = await searchParams
   const supabase = await createClient()
   const {
     data: { user },
@@ -54,5 +60,17 @@ export default async function AsistentePage() {
     }
   }
 
-  return <Assistant clinicId={clinicId} patients={patients} threads={threads} />
+  // Sólo se acepta un paciente que exista y sea de esta clínica: `patients` ya viene filtrado por
+  // `clinic_id`, así que un id ajeno o inventado en la URL simplemente se ignora.
+  const initialPatientId =
+    patientParam && patients.some((p) => p.id === patientParam) ? patientParam : undefined
+
+  return (
+    <Assistant
+      clinicId={clinicId}
+      patients={patients}
+      threads={threads}
+      initialPatientId={initialPatientId}
+    />
+  )
 }
