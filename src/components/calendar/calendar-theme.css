@@ -100,13 +100,29 @@
 }
 .tuvetia-calendar .rbc-agenda-view table.rbc-agenda-table thead > tr > th {
   border-bottom-color: var(--border);
+  padding: 8px 12px;
   color: var(--muted);
   font-weight: 500;
+  text-align: left;
+}
+/* eventPropGetter pinta el color de estado a todo el <tr> (pensado para los bloques de semana) —
+   en la tabla de agenda lo anulamos: el color queda solo en el punto de AgendaEventContent, como
+   hace Google Calendar en su vista de lista. */
+.tuvetia-calendar .rbc-agenda-view table.rbc-agenda-table tbody > tr,
+.tuvetia-calendar .rbc-agenda-view table.rbc-agenda-table tbody > tr > td {
+  background-color: transparent !important;
+  color: var(--foreground) !important;
+  border: none;
+}
+.tuvetia-calendar .rbc-agenda-view table.rbc-agenda-table tbody > tr {
+  border-top: 1px solid var(--border-soft, var(--border));
 }
 .tuvetia-calendar .rbc-agenda-view table.rbc-agenda-table tbody > tr > td {
-  border-top-color: var(--border-soft, var(--border));
+  padding: 8px 12px;
+  vertical-align: top;
 }
 .tuvetia-calendar .rbc-agenda-date-cell,
 .tuvetia-calendar .rbc-agenda-time-cell {
-  color: var(--muted);
+  color: var(--muted) !important;
+  white-space: nowrap;
 }

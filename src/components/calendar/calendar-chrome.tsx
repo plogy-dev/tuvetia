@@ -19,7 +19,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import type { CalendarEvent } from "@/lib/appointments"
+import { APPOINTMENT_STATUS, type CalendarEvent } from "@/lib/appointments"
 
 const VIEW_OPTIONS: { value: string; label: string }[] = [
   { value: "week", label: "Semana" },
@@ -112,6 +112,20 @@ export function EventContent({ event, title }: EventProps<CalendarEvent>) {
         {formatCompactTime(event.start)} – {formatCompactTime(event.end)}
       </span>
     </div>
+  )
+}
+
+// Contenido de evento en Agenda: punto de color + título, como Google Calendar (nada de fondo sólido
+// — eventPropGetter pinta los bloques de semana, y en la tabla de agenda queda anulado por CSS).
+export function AgendaEventContent({ event, title }: EventProps<CalendarEvent>) {
+  return (
+    <span className="inline-flex items-center gap-2">
+      <span
+        className="inline-block size-2.5 shrink-0 rounded-full"
+        style={{ backgroundColor: APPOINTMENT_STATUS[event.resource.status].color }}
+      />
+      {title}
+    </span>
   )
 }
 

@@ -59,13 +59,25 @@ export type CalendarEvent = {
 
 export function toEvent(a: AppointmentRow): CalendarEvent {
   const who = a.patient?.name ? `${a.patient.name} — ` : ""
+  const start = new Date(a.starts_at)
+  const end = new Date(a.ends_at)
   return {
     id: a.id,
     title: `${who}${a.title}`,
-    start: new Date(a.starts_at),
-    end: new Date(a.ends_at),
+    start,
+    end: clampMidnightEnd(start, end),
     resource: a,
   }
+}
+
+// react-big-calendar trata un evento que termina EXACTO a medianoche como si se extendiera al día
+// siguiente (issue conocido de la librería) — aparecía una franja fantasma sobre la grilla del día
+// siguiente, tapando el encabezado. Si terminó justo a las 00:00 del día después de empezar, lo
+// recortamos 1 minuto solo para mostrar (no toca `starts_at`/`ends_at` en BD).
+function clampMidnightEnd(start: Date, end: Date): Date {
+  const isMidnight = end.getHours() === 0 && end.getMinutes() === 0 && end.getSeconds() === 0
+  const crossesDay = end.getTime() > start.getTime() && end.getDate() !== start.getDate()
+  return isMidnight && crossesDay ? new Date(end.getTime() - 60_000) : end
 }
 
 // Opción para los <Select> de paciente / titular / veterinario.

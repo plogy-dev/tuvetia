@@ -44,7 +44,13 @@ import {
 import { HelpTip } from "@/components/help-tip"
 import { GoogleCalendarConnect } from "./google-calendar-connect"
 import { IcsFeedButton } from "./ics-feed-button"
-import { CalendarToolbar, DayColumnHeader, EventContent, formatGutterHour } from "./calendar-chrome"
+import {
+  AgendaEventContent,
+  CalendarToolbar,
+  DayColumnHeader,
+  EventContent,
+  formatGutterHour,
+} from "./calendar-chrome"
 
 const locales = { es }
 const localizer = dateFnsLocalizer({ format, parse, startOfWeek, getDay, locales })
@@ -305,6 +311,7 @@ export function AppointmentCalendar({
           components={{
             toolbar: CalendarToolbar,
             week: { header: DayColumnHeader, event: EventContent },
+            agenda: { event: AgendaEventContent },
           }}
           eventPropGetter={(event: CalendarEvent) => ({
             style: { backgroundColor: APPOINTMENT_STATUS[event.resource.status].color, border: "none" },
