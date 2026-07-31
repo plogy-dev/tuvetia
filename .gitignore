@@ -51,3 +51,6 @@ next-env.d.ts
 __pycache__/
 # estado local del CLI de Supabase (no es configuracion del repo)
 supabase/.temp/
+
+# volcados de entorno (p.ej. prod.env de `vercel env pull`): .env* no los cubre
+*.env
