@@ -178,7 +178,11 @@ export default async function FacturaDetallePage({
                         {formatCOP(l.unit_price_cents)}
                       </td>
                       <td className="px-2 py-2 text-right text-fg-muted">
-                        {l.tax_status === 'GRAVADO' ? `${l.tax_rate}%` : 'Excl.'}
+                        {l.tax_status === 'GRAVADO'
+                          ? `${l.tax_rate}%`
+                          : l.tax_status === 'EXENTO'
+                            ? 'Exento'
+                            : 'Excl.'}
                       </td>
                       <td className="px-4 py-2 text-right text-fg">{formatCOP(l.total_cents)}</td>
                     </tr>

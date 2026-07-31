@@ -38,6 +38,7 @@ export function CatalogItemsTab({
   const [editId, setEditId] = useState<string | null>(null);
   const [recipeId, setRecipeId] = useState<string | null>(null);
   const [showArchived, setShowArchived] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const recipesEnabled = !!recipeComponents;
 
   const visible = showArchived ? items : items.filter((i) => i.active);
@@ -46,19 +47,33 @@ export function CatalogItemsTab({
 
   function setCategory(id: string, categoryId: string) {
     startTransition(async () => {
-      await setCatalogItemCategoryAction({ id, categoryId: categoryId || null });
+      const r = await setCatalogItemCategoryAction({ id, categoryId: categoryId || null });
+      // Sin esto, un fallo era invisible: el refresh revertía el <select> sin decir por qué.
+      if (!r.ok) {
+        setError(r.error);
+        return;
+      }
+      setError(null);
       router.refresh();
     });
   }
   function toggleActive(id: string, active: boolean) {
     startTransition(async () => {
-      await setCatalogItemActiveAction({ id, active });
+      const r = await setCatalogItemActiveAction({ id, active });
+      if (!r.ok) {
+        setError(r.error);
+        return;
+      }
+      setError(null);
       router.refresh();
     });
   }
 
   return (
     <div className="space-y-3">
+      {error && (
+        <p className="rounded-lg border border-warn bg-surface-2 px-3 py-2 text-xs text-warn">{error}</p>
+      )}
       <div className="flex items-center justify-between gap-3">
         <label className="flex items-center gap-2 text-xs text-fg-muted">
           <input

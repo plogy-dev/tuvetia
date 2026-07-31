@@ -26,9 +26,14 @@ export type PaymentPlan = {
 };
 
 export function defaultDueDate(termsDays: number, from = new Date()): string {
-  const d = new Date(from);
-  d.setDate(d.getDate() + termsDays);
-  return d.toISOString().slice(0, 10);
+  // Día de BOGOTÁ (UTC-5 fijo, sin DST), no del proceso. Antes se sumaba en hora local y se
+  // serializaba a UTC: en Vercel (UTC) una factura emitida después de las 19:00 de Bogotá vencía
+  // un día tarde, y como esto corre en el render del servidor Y en la hidratación, dos TZ
+  // distintas producían un hydration mismatch en el <input type="date">. Mismo criterio que
+  // dateKeyBogota en finanzas.
+  const bogota = new Date(from.getTime() - 5 * 3_600_000);
+  bogota.setUTCDate(bogota.getUTCDate() + termsDays);
+  return bogota.toISOString().slice(0, 10);
 }
 
 export function makeDefaultPlan(termsDays: number): PaymentPlan {
@@ -80,7 +85,8 @@ export function planToActionFields(plan: PaymentPlan) {
 /** Primer contacto permitido por la Ley 2300 a partir del vencimiento. */
 function estimateFirstReminder(dueDate: string): Date | null {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(dueDate)) return null;
-  const due = new Date(`${dueDate}T09:00:00`);
+  // Offset explícito: sin él, el instante depende de la TZ del proceso (servidor UTC vs navegador).
+  const due = new Date(`${dueDate}T09:00:00-05:00`);
   if (Number.isNaN(due.getTime())) return null;
   const holidays = holidaySet([due.getFullYear(), due.getFullYear() + 1]);
   return nextAllowedTime(due, holidays);
@@ -276,6 +282,7 @@ export function PaymentSection({
                         weekday: 'long',
                         day: 'numeric',
                         month: 'long',
+                        timeZone: 'America/Bogota',
                       })}
                     </strong>
                   </>

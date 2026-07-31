@@ -600,20 +600,30 @@ export async function issueInvoice(
 
   // Vencimiento: pagado ahora vence al FINAL del día (no nace "vencida");
   // pendiente/abono usan la fecha dada o el término por defecto de la clínica.
+  // Las fechas de vencimiento son días de BOGOTÁ (UTC-5 fijo), no del proceso: en Vercel (UTC)
+  // una emisión después de las 19:00 de Bogotá caía en el día siguiente y el vencimiento nacía
+  // corrido un día. Mismo criterio que defaultDueDate en la UI.
+  const bogotaNow = new Date(now.getTime() - 5 * 3_600_000);
   let dueDate: string;
   if (paymentTerms === 'IMMEDIATE') {
-    const endOfDay = new Date(now);
-    endOfDay.setHours(23, 59, 59, 999);
-    dueDate = endOfDay.toISOString().slice(0, 10);
+    dueDate = bogotaNow.toISOString().slice(0, 10); // vence el mismo día (de Bogotá)
   } else if (req.dueDate) {
     dueDate = req.dueDate;
   } else {
-    const d = new Date(now);
-    d.setDate(d.getDate() + (settings.default_payment_terms_days ?? 15));
+    const d = new Date(bogotaNow);
+    d.setUTCDate(d.getUTCDate() + (settings.default_payment_terms_days ?? 15));
     dueDate = d.toISOString().slice(0, 10);
   }
 
-  const followupEnabled = paymentTerms === 'CREDIT' ? (req.followupEnabled ?? true) : false;
+  // Respeta la configuración de la clínica: con los recordatorios apagados a nivel clínica, la
+  // factura NO puede quedar marcada para seguimiento — la UI muestra el toggle deshabilitado y en
+  // off, pero el estado del plan seguía mandando true y la factura quedaba con followup_enabled y
+  // su badge, contradiciendo lo que el vet vio (el barrido igual no enviaba: run-all filtra por
+  // reminders_enabled — el daño era el estado persistido inconsistente, no un envío indebido).
+  const followupEnabled =
+    paymentTerms === 'CREDIT' && (settings.reminders_enabled ?? false)
+      ? (req.followupEnabled ?? true)
+      : false;
   const { error: updErr } = await supabase
     .from('invoices')
     .update({

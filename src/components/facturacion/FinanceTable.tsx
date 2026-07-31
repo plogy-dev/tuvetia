@@ -61,13 +61,21 @@ export function FinanceTable({ items }: { items: FinanceItem[] }) {
 
   function openAttachment(id: string) {
     setError(null);
+    // La ventana se abre DENTRO del gesto del usuario (síncrono). Abrirla después del await la
+    // dejaba fuera del contexto del clic y el bloqueador de popups la mataba en Safari/Chrome
+    // estricto — el clip del comprobante "no hacía nada", sin error. Sin el flag 'noopener' en
+    // esta rama porque hace que window.open devuelva null; el opener se corta a mano.
+    const win = window.open('about:blank', '_blank');
+    if (win) win.opener = null;
     startTransition(async () => {
       const r = await getExpenseAttachmentUrlAction({ id });
       if (!r.ok) {
+        win?.close();
         setError(r.error);
         return;
       }
-      window.open(r.url, '_blank', 'noopener');
+      if (win) win.location.href = r.url;
+      else window.open(r.url, '_blank', 'noopener');
     });
   }
 

@@ -2,6 +2,7 @@ import Link from "next/link"
 import { ArrowLeft, FileSpreadsheet } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
+import { requireClinicPage } from "@/lib/facturacion/page-auth"
 
 // Página diferida A PROPÓSITO — no es un placeholder olvidado.
 //
@@ -16,8 +17,14 @@ import { Button } from "@/components/ui/button"
 // solo espera un parser seguro.
 
 export const metadata = { title: "Importar inventario · Tuvetia" }
+export const dynamic = "force-dynamic"
 
-export default function ImportarInventarioPage() {
+export default async function ImportarInventarioPage() {
+  // Hoy la página es estática, pero es la ÚNICA de las 16 del módulo sin el guard — y una
+  // invariante con excepciones deja de ser invariante: cualquier dato que se agregue mañana
+  // nacería sin control de acceso por omisión.
+  const ctx = await requireClinicPage()
+  if (!ctx) return null
   return (
     <main className="min-w-0 flex-1">
       <div className="mx-auto w-full max-w-3xl px-[30px] pb-16 pt-7">

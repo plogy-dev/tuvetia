@@ -13,6 +13,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { requireClinicPage } from '@/lib/facturacion/page-auth';
 import {
+  getActiveRange,
   getBillingSettings,
   getDashboardKpis,
   getUnbilledConsultations,
@@ -142,7 +143,11 @@ export default async function FacturacionPage() {
   const { billedCents, collectedCents, issuedCount, outstandingCents, openCount, overdueCount } =
     kpis;
   const drafts = kpis.draftCount;
-  const sandbox = invoices.length === 0 || invoices.some((i) => i.full_number?.startsWith('S'));
+  // Una sola fuente de verdad para una afirmación FISCAL: el rango de numeración activo (igual que
+  // configuración). La heurística anterior (startsWith('S') sobre las últimas 100 facturas) daba
+  // falso "sin validez fiscal" con prefijos legítimos tipo SETP y con cero facturas emitidas.
+  const activeRange = await getActiveRange(supabase, clinicId, settings!.default_doc_kind);
+  const sandbox = !activeRange || activeRange.is_sandbox;
 
   // Etiqueta del mes en curso, solo presentación (ej. "julio 2026").
   const now = new Date();

@@ -184,6 +184,14 @@ export function InvoiceCart({
         draftRef.current = draft;
       }
       if (mode === 'draft') {
+        // Con avisos del servidor (stock insuficiente, datos del pagador incompletos…) no se
+        // navega en silencio: antes se tiraban a la basura y solo se mostraban si la emisión
+        // fallaba. El borrador YA quedó guardado; el usuario los lee y sigue con el enlace.
+        if (draft.warnings.length > 0) {
+          setWarnings(draft.warnings);
+          setDraftUrl(draft.url);
+          return;
+        }
         router.push(draft.url);
         return;
       }
@@ -410,6 +418,14 @@ export function InvoiceCart({
           {warnings.map((w, i) => (
             <li key={i}>· {w}</li>
           ))}
+          {!error && draftUrl && (
+            <li className="pt-1">
+              El borrador quedó guardado.{' '}
+              <Link href={draftUrl} className="font-medium text-brand underline underline-offset-2">
+                Continuar al borrador
+              </Link>
+            </li>
+          )}
         </ul>
       )}
 
