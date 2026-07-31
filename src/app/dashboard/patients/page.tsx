@@ -1,10 +1,12 @@
 import Link from "next/link"
-import { PlusIcon, UploadIcon } from "lucide-react"
+import { UploadIcon } from "lucide-react"
 
 import { CreatePatientDrawer } from "@/components/create-patient-drawer"
 import { HelpTip } from "@/components/help-tip"
 import { PatientsExplorer, type PatientRow } from "@/components/patients-explorer"
 import { Button } from "@/components/ui/button"
+import { PageHeader, PageShell } from "@/components/ui/page-shell"
+import { StatCard } from "@/components/ui/stat-card"
 import { createClient } from "@/lib/supabase/server"
 
 // Límites del día y del mes en hora de Colombia (UTC-5, sin DST) para las métricas.
@@ -67,44 +69,34 @@ export default async function PatientsPage({
   ]
 
   return (
-    <div className="flex flex-col gap-4 px-4 py-4 md:gap-6 md:py-6 lg:px-6">
-      {/* Encabezado + acciones */}
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <div>
-          <div className="flex items-center gap-2">
-            <h1 className="text-lg font-semibold">Pacientes</h1>
+    <PageShell>
+      <PageHeader
+        title={
+          <span className="inline-flex items-center gap-2">
+            Pacientes
             <HelpTip side="right">
               La ficha de cada paciente guarda su historia clínica completa: consultas con
-              transcripción y audio, alergias, vacunas y medicación. Usa el botón{" "}
-              <b>Historia</b> para verla.
+              transcripción y audio, alergias, vacunas y medicación. Usa el botón <b>Historia</b>{" "}
+              para verla.
             </HelpTip>
-          </div>
-          <p className="text-sm text-muted-foreground">
-            {activos.count ?? 0} {(activos.count ?? 0) === 1 ? "paciente activo" : "pacientes activos"}
-          </p>
-        </div>
-        <div className="flex items-center gap-2">
-          <Button variant="outline" size="sm" render={<Link href="/dashboard/patients/import" />}>
-            <UploadIcon className="size-4" /> Importar
-          </Button>
-          <CreatePatientDrawer
-            label="Nuevo paciente"
-            trigger={
-              <Button size="sm">
-                <PlusIcon className="size-4" />
-              </Button>
-            }
-          />
-        </div>
-      </div>
+          </span>
+        }
+        description={`${activos.count ?? 0} ${
+          (activos.count ?? 0) === 1 ? "paciente activo" : "pacientes activos"
+        }`}
+        actions={
+          <>
+            <Button variant="outline" render={<Link href="/dashboard/patients/import" />}>
+              <UploadIcon className="size-4" /> Importar
+            </Button>
+            <CreatePatientDrawer label="Nuevo paciente" trigger={<Button />} />
+          </>
+        }
+      />
 
-      {/* Métricas */}
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+      <div className="mb-5 grid grid-cols-2 gap-3 lg:grid-cols-4">
         {metrics.map((m) => (
-          <div key={m.l} className="rounded-xl border bg-card p-4 shadow-sm">
-            <div className="text-2xl font-semibold tracking-tight">{m.n}</div>
-            <div className="text-xs text-muted-foreground">{m.l}</div>
-          </div>
+          <StatCard key={m.l} label={m.l} value={String(m.n)} />
         ))}
       </div>
 
@@ -113,6 +105,6 @@ export default async function PatientsPage({
         listError={Boolean(listError)}
         initialQuery={initialQuery ?? ""}
       />
-    </div>
+    </PageShell>
   )
 }

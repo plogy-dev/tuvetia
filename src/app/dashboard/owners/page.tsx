@@ -5,6 +5,7 @@ import { RevokeConsentButton } from "@/components/owners/revoke-consent-button"
 import { SearchBar } from "@/components/search-bar"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { Button } from "@/components/ui/button"
+import { PageHeader, PageShell } from "@/components/ui/page-shell"
 import {
   Table,
   TableBody,
@@ -56,10 +57,18 @@ export default async function OwnersPage({
   )
 
   return (
-    <div className="flex flex-col gap-4 px-4 py-4 md:gap-6 md:py-6 lg:px-6">
-      <div className="flex items-center justify-between gap-4">
+    <PageShell>
+      {/* Esta pantalla no tenía encabezado: empezaba directamente en el buscador, sin decir
+          siquiera en qué sección estabas ni cuántos titulares había. */}
+      <PageHeader
+        title="Titulares"
+        description={`${owners?.length ?? 0} ${
+          (owners?.length ?? 0) === 1 ? "titular" : "titulares"
+        }${q ? ` que coinciden con «${q}»` : ""}`}
+        actions={<CreateOwnerDrawer />}
+      />
+      <div className="mb-4">
         <SearchBar defaultValue={q ?? ""} placeholder="Buscar titular..." />
-        <CreateOwnerDrawer />
       </div>
       <div className="overflow-hidden rounded-lg border">
         <Table>
@@ -140,6 +149,6 @@ export default async function OwnersPage({
           </TableBody>
         </Table>
       </div>
-    </div>
+    </PageShell>
   )
 }

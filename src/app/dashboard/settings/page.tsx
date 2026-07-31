@@ -11,6 +11,7 @@ import {
   type TeamMember,
 } from "@/components/settings/team-settings"
 import { HelpTip } from "@/components/help-tip"
+import { PageHeader, PageShell } from "@/components/ui/page-shell"
 
 const ROLE_LABELS: Record<string, string> = {
   admin: "Administrador",
@@ -74,8 +75,11 @@ export default async function SettingsPage() {
   const pendingInvitations = (inviteRows as PendingInvitation[] | null) ?? []
 
   return (
-    <div className="mx-auto flex w-full max-w-2xl flex-col gap-4 px-4 py-4 md:py-6 lg:px-6">
-      <h1 className="text-lg font-semibold">Configuración</h1>
+    <PageShell width="narrow" className="flex flex-col gap-4">
+      <PageHeader
+        title="Configuración"
+        description="Los datos de tu clínica, tu equipo y tus horarios de atención."
+      />
 
       {/* Clínica (solo lectura) */}
       <div className="rounded-xl border bg-card p-4">
@@ -161,6 +165,6 @@ export default async function SettingsPage() {
           <Download className="size-4" /> Exportar datos de la clínica
         </Button>
       </div>
-    </div>
+    </PageShell>
   )
 }

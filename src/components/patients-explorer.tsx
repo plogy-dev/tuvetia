@@ -13,6 +13,7 @@ import { ExportCsvButton } from "@/components/export-csv-button"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
+import { FilterChip, FilterChips } from "@/components/ui/filter-chips"
 import { Input } from "@/components/ui/input"
 import {
   Table,
@@ -100,22 +101,17 @@ export function PatientsExplorer({
             aria-label="Buscar pacientes"
           />
         </div>
-        <div className="flex items-center gap-1.5">
+        <FilterChips>
           {ESPECIE_FILTERS.map((f) => (
-            <button
+            <FilterChip
               key={f.value || "todos"}
-              type="button"
               onClick={() => setEspecie(f.value)}
-              className={`rounded-md border px-2.5 py-1 text-xs font-medium transition-colors ${
-                especie === f.value
-                  ? "border-transparent bg-primary text-primary-foreground"
-                  : "bg-background text-muted-foreground hover:bg-secondary"
-              }`}
+              active={especie === f.value}
             >
               {f.label}
-            </button>
+            </FilterChip>
           ))}
-        </div>
+        </FilterChips>
         <ExportCsvButton
           filename="pacientes.csv"
           headers={["Mascota", "Especie", "Raza", "Sexo", "Edad", "Titular", "Teléfono"]}

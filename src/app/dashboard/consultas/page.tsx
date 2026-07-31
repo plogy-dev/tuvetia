@@ -2,7 +2,9 @@ import Link from "next/link"
 import { ChevronDownIcon, ChevronRightIcon, GhostIcon, SearchIcon } from "lucide-react"
 
 import { Badge } from "@/components/ui/badge"
+import { FilterChip, FilterChips } from "@/components/ui/filter-chips"
 import { Input } from "@/components/ui/input"
+import { PageHeader, PageShell } from "@/components/ui/page-shell"
 import { createClient } from "@/lib/supabase/server"
 import { bogotaDate } from "@/lib/date-utils"
 import { DataError } from "@/components/data-error"
@@ -125,22 +127,20 @@ export default async function ConsultasPage({
   }
 
   return (
-    <div className="flex flex-col gap-4 px-4 py-4 md:gap-6 md:py-6 lg:px-6">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <div className="flex items-center gap-2">
-          <GhostIcon className="size-5 text-muted-foreground" />
-          <h1 className="text-lg font-semibold">Notas de consulta</h1>
-        </div>
-        <NewConsultationDrawer />
-      </div>
-      <p className="max-w-2xl text-sm text-muted-foreground">
-        Al cerrar una consulta, Athos redacta una nota SOAP con citas verificables de
-        literatura veterinaria. Revísala, edítala y apruébala: ninguna nota entra a la
-        historia clínica sin tu aprobación.
-      </p>
+    <PageShell>
+      <PageHeader
+        title={
+          <span className="inline-flex items-center gap-2">
+            <GhostIcon className="size-5 text-fg-faint" aria-hidden />
+            Modo Fantasma
+          </span>
+        }
+        description="Al cerrar una consulta, Athos redacta una nota SOAP con citas verificables de literatura veterinaria. Revísala, edítala y apruébala: ninguna nota entra a la historia clínica sin tu aprobación."
+        actions={<NewConsultationDrawer />}
+      />
 
       {/* Filtros: buscador por paciente · estado de la nota · orden por fecha */}
-      <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+      <div className="mb-5 flex flex-wrap items-center gap-x-4 gap-y-2">
         <form action="/dashboard/consultas" className="relative">
           {asc && <input type="hidden" name="orden" value="asc" />}
           {notaF && <input type="hidden" name="nota" value={notaF} />}
@@ -154,50 +154,26 @@ export default async function ConsultasPage({
           />
         </form>
 
-        <div className="flex items-center gap-1.5">
-          <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-            Nota:
-          </span>
+        <FilterChips label="Nota:">
           {NOTA_FILTERS.map((f) => (
-            <Link
+            <FilterChip
               key={f.value || "todas"}
               href={hrefWith({ orden, q: query, nota: f.value })}
-              className={`rounded-md border px-2.5 py-1 text-xs font-medium transition-colors ${
-                notaF === f.value
-                  ? "border-transparent bg-primary text-primary-foreground"
-                  : "bg-background text-muted-foreground hover:bg-secondary"
-              }`}
+              active={notaF === f.value}
             >
               {f.label}
-            </Link>
+            </FilterChip>
           ))}
-        </div>
+        </FilterChips>
 
-        <div className="flex items-center gap-1.5">
-          <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-            Fecha:
-          </span>
-          <Link
-            href={hrefWith({ q: query, nota: notaF })}
-            className={`rounded-md border px-2.5 py-1 text-xs font-medium transition-colors ${
-              !asc
-                ? "border-transparent bg-primary text-primary-foreground"
-                : "bg-background text-muted-foreground hover:bg-secondary"
-            }`}
-          >
+        <FilterChips label="Fecha:">
+          <FilterChip href={hrefWith({ q: query, nota: notaF })} active={!asc}>
             Más recientes
-          </Link>
-          <Link
-            href={hrefWith({ orden: "asc", q: query, nota: notaF })}
-            className={`rounded-md border px-2.5 py-1 text-xs font-medium transition-colors ${
-              asc
-                ? "border-transparent bg-primary text-primary-foreground"
-                : "bg-background text-muted-foreground hover:bg-secondary"
-            }`}
-          >
+          </FilterChip>
+          <FilterChip href={hrefWith({ orden: "asc", q: query, nota: notaF })} active={asc}>
             Más antiguas
-          </Link>
-        </div>
+          </FilterChip>
+        </FilterChips>
       </div>
 
       {listError && <DataError />}
@@ -293,6 +269,6 @@ export default async function ConsultasPage({
           </details>
         ))}
       </div>
-    </div>
+    </PageShell>
   )
 }
