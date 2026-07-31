@@ -1,5 +1,6 @@
 "use client"
 
+import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { createClient } from "@/lib/supabase/client"
 import {
@@ -22,7 +23,11 @@ import {
   SidebarMenuItem,
   useSidebar,
 } from "@/components/ui/sidebar"
-import { EllipsisVerticalIcon, CircleUserRoundIcon, CreditCardIcon, BellIcon, LogOutIcon } from "lucide-react"
+import { EllipsisVerticalIcon, LogOutIcon, SettingsIcon } from "lucide-react"
+
+// Este menú traía "Account", "Billing" y "Notifications" de la plantilla `dashboard-01` de shadcn:
+// tres ítems en inglés, sin `onClick` y sin destino, visibles en las 30+ pantallas del dashboard.
+// Se van. Queda lo que existe de verdad: Configuración (que ya es una ruta) y cerrar sesión.
 
 export function NavUser({
   user,
@@ -87,28 +92,13 @@ export function NavUser({
               </DropdownMenuLabel>
             </DropdownMenuGroup>
             <DropdownMenuSeparator />
-            <DropdownMenuGroup>
-              <DropdownMenuItem>
-                <CircleUserRoundIcon
-                />
-                Account
-              </DropdownMenuItem>
-              <DropdownMenuItem>
-                <CreditCardIcon
-                />
-                Billing
-              </DropdownMenuItem>
-              <DropdownMenuItem>
-                <BellIcon
-                />
-                Notifications
-              </DropdownMenuItem>
-            </DropdownMenuGroup>
-            <DropdownMenuSeparator />
+            <DropdownMenuItem render={<Link href="/dashboard/settings" />}>
+              <SettingsIcon />
+              Configuración
+            </DropdownMenuItem>
             <DropdownMenuItem onClick={handleLogOut}>
-              <LogOutIcon
-              />
-              Log out
+              <LogOutIcon />
+              Cerrar sesión
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
