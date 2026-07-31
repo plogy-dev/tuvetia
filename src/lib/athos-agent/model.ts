@@ -17,6 +17,8 @@ import { anthropic } from "@ai-sdk/anthropic"
 import { createDeepSeek } from "@ai-sdk/deepseek"
 import type { LanguageModel } from "ai"
 
+import { conCascada, leerCadena } from "@/lib/athos-agent/cascada"
+
 const deepseek = createDeepSeek({
   apiKey: process.env.DEEPSEEK_API_KEY ?? "",
   ...(process.env.DEEPSEEK_BASE_URL ? { baseURL: process.env.DEEPSEEK_BASE_URL } : {}),
@@ -26,10 +28,26 @@ function resolve(provider: string, model: string): LanguageModel {
   return provider === "deepseek" ? deepseek(model) : anthropic(model)
 }
 
+// CASCADA ENTRE PROVEEDORES para el agente (cláusula 1.4), en el mismo formato que athos-service:
+//
+//   ATHOS_AGENT_CASCADE = "claude-sonnet-5@anthropic,deepseek-v4@deepseek"
+//
+// Vacía = un solo proveedor, el comportamiento de siempre. Existe porque el 2026-07-31 la cuenta de
+// Anthropic se quedó sin crédito y el asistente se cayó ENTERO, mientras el chat clínico —que sí
+// tenía cascada— siguió respondiendo con su respaldo. La cascada estaba implementada sólo en el
+// servicio de Python; esta superficie había quedado fuera.
 export function agentModel(): LanguageModel {
   const provider = process.env.ATHOS_AGENT_PROVIDER ?? "anthropic"
   const model = process.env.ATHOS_AGENT_MODEL ?? (provider === "deepseek" ? "deepseek-v4" : "claude-sonnet-5")
-  return resolve(provider, model)
+
+  const cadena = leerCadena(process.env.ATHOS_AGENT_CASCADE)
+  if (!cadena.length) return resolve(provider, model)
+
+  return conCascada(
+    cadena.map((e) => resolve(e.proveedor, e.modelo)),
+    (usado, motivo) =>
+      console.warn(`[athos/agent] el primario falló (${motivo}); respondió el respaldo ${usado}`),
+  )
 }
 
 export function agentModelId(): string {
