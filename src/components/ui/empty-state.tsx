@@ -12,6 +12,10 @@ import { cn } from "@/lib/utils"
 // Por eso `action` no es decorativo. Cuando no hay ninguna acción posible (por ejemplo, un filtro
 // sin resultados: lo que toca es cambiar el filtro, no crear nada), se omite a propósito y el
 // texto tiene que explicar por sí solo por qué está vacío.
+//
+// DÓNDE NO USARLO: dentro de una celda de tabla. Media docena de listados ponen su estado vacío en
+// un `<TableCell colSpan>`, y ahí una tarjeta con borde propio dentro de otra tabla con borde queda
+// mal. Esos resuelven inline, con el mismo criterio: siempre con salida.
 
 export function EmptyState({
   icon,

@@ -2,6 +2,8 @@ import Link from "next/link"
 import { ChevronDownIcon, ChevronRightIcon, GhostIcon, SearchIcon } from "lucide-react"
 
 import { Badge } from "@/components/ui/badge"
+import { Button } from "@/components/ui/button"
+import { EmptyState } from "@/components/ui/empty-state"
 import { FilterChip, FilterChips } from "@/components/ui/filter-chips"
 import { Input } from "@/components/ui/input"
 import { PageHeader, PageShell } from "@/components/ui/page-shell"
@@ -177,29 +179,27 @@ export default async function ConsultasPage({
       </div>
 
       {listError && <DataError />}
-      {!listError && ordered.length === 0 && (
-        <div className="flex flex-col items-center gap-3 rounded-xl border bg-card py-12 text-center">
-          {filtering ? (
-            <>
-              <p className="text-sm text-muted-foreground">Sin resultados con esos filtros.</p>
-              <Link
-                href="/dashboard/consultas"
-                className="text-xs font-medium text-primary hover:underline"
-              >
+      {!listError &&
+        ordered.length === 0 &&
+        (filtering ? (
+          <EmptyState
+            icon={<SearchIcon />}
+            title="Sin resultados con esos filtros"
+            description="Prueba con otro nombre de paciente, o quita los filtros para ver todas las consultas."
+            action={
+              <Button variant="outline" render={<Link href="/dashboard/consultas" />}>
                 Quitar los filtros
-              </Link>
-            </>
-          ) : (
-            <>
-              <p className="max-w-sm text-sm text-muted-foreground">
-                Todavía no hay consultas. Empieza una y el Modo Fantasma redactará la nota al
-                cerrarla.
-              </p>
-              <NewConsultationDrawer label="Iniciar la primera consulta" />
-            </>
-          )}
-        </div>
-      )}
+              </Button>
+            }
+          />
+        ) : (
+          <EmptyState
+            icon={<GhostIcon />}
+            title="Todavía no hay consultas"
+            description="Empieza una y el Modo Fantasma redactará la nota SOAP al cerrarla, con literatura veterinaria citada."
+            action={<NewConsultationDrawer label="Iniciar la primera consulta" />}
+          />
+        ))}
 
       {/* Un desplegable por paciente con sus consultas */}
       <div className="flex flex-col gap-3">
