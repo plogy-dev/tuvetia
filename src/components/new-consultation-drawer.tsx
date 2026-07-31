@@ -1,5 +1,6 @@
 "use client"
 
+import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { useState } from "react"
 import { toast } from "sonner"
@@ -180,7 +181,18 @@ export function NewConsultationDrawer({
               </Select>
               {patients?.length === 0 && (
                 <FieldDescription>
-                  No tienes pacientes registrados. Crea uno primero desde “Pacientes”.
+                  No tienes pacientes registrados y una consulta necesita uno.{" "}
+                  {/* Antes esto nombraba “Pacientes” sin enlazarlo, y el drawer no daba salida: el
+                      único camino era cerrarlo y buscar la sección a mano. El onClick cierra el
+                      drawer porque vive en el sidebar y sobrevive a la navegación. */}
+                  <Link
+                    href="/dashboard/patients"
+                    onClick={() => setOpen(false)}
+                    className="font-medium text-foreground underline underline-offset-2"
+                  >
+                    Crea el primero en Pacientes
+                  </Link>
+                  .
                 </FieldDescription>
               )}
             </Field>

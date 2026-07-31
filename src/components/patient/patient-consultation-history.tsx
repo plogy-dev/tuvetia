@@ -116,8 +116,16 @@ export function PatientConsultationHistory({
 
   if (consultations.length === 0 || !selected) {
     return (
-      <div className="rounded-xl border bg-card p-8 text-center text-sm text-muted-foreground">
-        Este paciente todavía no tiene consultas registradas.
+      <div className="flex flex-col items-center gap-2 rounded-xl border bg-card p-8 text-center">
+        <p className="text-sm text-muted-foreground">
+          Este paciente todavía no tiene consultas registradas.
+        </p>
+        <Link
+          href="/dashboard/consultas"
+          className="text-xs font-medium text-primary hover:underline"
+        >
+          Iniciar una consulta
+        </Link>
       </div>
     )
   }

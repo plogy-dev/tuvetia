@@ -8,6 +8,7 @@ import { useMemo, useState } from "react"
 import Link from "next/link"
 import { FileTextIcon, PawPrintIcon, SearchIcon } from "lucide-react"
 
+import { CreatePatientDrawer } from "@/components/create-patient-drawer"
 import { ExportCsvButton } from "@/components/export-csv-button"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
@@ -193,11 +194,33 @@ export function PatientsExplorer({
             ) : (
               <TableRow>
                 <TableCell colSpan={8} className="h-24 text-center text-muted-foreground">
-                  {listError
-                    ? "No se pudieron cargar los pacientes. Recargá la página para reintentar."
-                    : query || especie
-                      ? "No se encontraron pacientes con esos filtros."
-                      : "Todavía no hay pacientes registrados."}
+                  {listError ? (
+                    "No se pudieron cargar los pacientes. Recarga la página para reintentar."
+                  ) : query || especie ? (
+                    // Acá no hay nada que crear: lo que toca es soltar el filtro, y eso es lo que
+                    // se ofrece.
+                    <div className="flex flex-col items-center gap-2">
+                      <span>Ningún paciente coincide con esos filtros.</span>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => {
+                          setQ("")
+                          setEspecie("")
+                        }}
+                      >
+                        Quitar los filtros
+                      </Button>
+                    </div>
+                  ) : (
+                    <div className="flex flex-col items-center gap-2">
+                      <span>Todavía no hay pacientes registrados.</span>
+                      <CreatePatientDrawer
+                        label="Registrar el primer paciente"
+                        trigger={<Button variant="outline" size="sm" />}
+                      />
+                    </div>
+                  )}
                 </TableCell>
               </TableRow>
             )}

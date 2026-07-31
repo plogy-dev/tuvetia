@@ -50,8 +50,8 @@ export default async function ImportarInventarioPage() {
           </div>
 
           <p className="mt-6 text-sm text-fg-muted">
-            Mientras tanto podés cargar ítems uno a uno desde el <b>Catálogo</b> (con su IVA, costo y
-            existencia inicial), o registrar entradas por <b>Compras</b> — el inventario se mueve
+            Mientras tanto puedes cargar ítems uno a uno desde el <b>Catálogo</b> (con su IVA, costo
+            y existencia inicial), o registrar entradas por <b>Compras</b> — el inventario se mueve
             solo con cada compra y cada factura.
           </p>
 

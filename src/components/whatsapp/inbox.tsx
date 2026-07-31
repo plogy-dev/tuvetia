@@ -5,6 +5,7 @@
 // salientes via /api/whatsapp/send (ticks de entregado/leído los actualiza el webhook).
 // Al abrir una conversación se marcan leídos los entrantes (policy UPDATE, migración 0018).
 
+import Link from "next/link"
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { Check, CheckCheck, CircleAlert, Loader2, MessageCircle, Plus, Send, Sparkles } from "lucide-react"
 import { toast } from "sonner"
@@ -324,9 +325,18 @@ export function WhatsappInbox({
         )}
         <div className="min-h-0 flex-1 overflow-y-auto">
           {conversations.length === 0 && (
-            <p className="p-4 text-sm text-muted-foreground">
-              Sin conversaciones aún. Cuando un titular escriba al WhatsApp de la clínica, aparecerá acá.
-            </p>
+            <div className="flex flex-col gap-2 p-4 text-sm text-muted-foreground">
+              <p>
+                Sin conversaciones aún. Cuando un titular escriba al WhatsApp de la clínica,
+                aparecerá acá.
+              </p>
+              <Link
+                href="/dashboard/conexiones"
+                className="text-xs font-medium text-primary hover:underline"
+              >
+                ¿Todavía no conectas el WhatsApp de la clínica?
+              </Link>
+            </div>
           )}
           {conversations.map((c) => (
             <button

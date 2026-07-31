@@ -1,8 +1,10 @@
+import Link from "next/link"
 import { UserRoundIcon } from "lucide-react"
 import { CreateOwnerDrawer } from "@/components/create-owner-drawer"
 import { RevokeConsentButton } from "@/components/owners/revoke-consent-button"
 import { SearchBar } from "@/components/search-bar"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
+import { Button } from "@/components/ui/button"
 import {
   Table,
   TableBody,
@@ -108,11 +110,30 @@ export default async function OwnersPage({
                   colSpan={6}
                   className="h-24 text-center text-muted-foreground"
                 >
-                  {listError
-                    ? "No se pudieron cargar los titulares. Recargá la página para reintentar."
-                    : q
-                      ? "No se encontraron titulares."
-                      : "Todavía no hay titulares registrados."}
+                  {listError ? (
+                    "No se pudieron cargar los titulares. Recarga la página para reintentar."
+                  ) : q ? (
+                    <>
+                      Ningún titular se llama así.{" "}
+                      <Link
+                        href="/dashboard/owners"
+                        className="font-medium text-foreground underline underline-offset-2"
+                      >
+                        Ver todos
+                      </Link>
+                      .
+                    </>
+                  ) : (
+                    // El botón "Nuevo titular" está arriba, fuera del foco de quien está mirando la
+                    // tabla vacía. Se repite acá, donde de verdad se está buscando la salida.
+                    <div className="flex flex-col items-center gap-2">
+                      <span>Todavía no hay titulares registrados.</span>
+                      <CreateOwnerDrawer
+                        label="Registrar el primer titular"
+                        trigger={<Button variant="outline" size="sm" />}
+                      />
+                    </div>
+                  )}
                 </TableCell>
               </TableRow>
             )}

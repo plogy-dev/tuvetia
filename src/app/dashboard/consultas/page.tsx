@@ -202,10 +202,26 @@ export default async function ConsultasPage({
 
       {listError && <DataError />}
       {!listError && ordered.length === 0 && (
-        <div className="rounded-xl border bg-card py-12 text-center text-sm text-muted-foreground">
-          {filtering
-            ? "Sin resultados con esos filtros."
-            : "No hay consultas todavía. Crea una con “Nueva consulta” y el Phantom redactará la nota al cerrar."}
+        <div className="flex flex-col items-center gap-3 rounded-xl border bg-card py-12 text-center">
+          {filtering ? (
+            <>
+              <p className="text-sm text-muted-foreground">Sin resultados con esos filtros.</p>
+              <Link
+                href="/dashboard/consultas"
+                className="text-xs font-medium text-primary hover:underline"
+              >
+                Quitar los filtros
+              </Link>
+            </>
+          ) : (
+            <>
+              <p className="max-w-sm text-sm text-muted-foreground">
+                Todavía no hay consultas. Empieza una y el Modo Fantasma redactará la nota al
+                cerrarla.
+              </p>
+              <NewConsultationDrawer label="Iniciar la primera consulta" />
+            </>
+          )}
         </div>
       )}
 

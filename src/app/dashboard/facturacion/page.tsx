@@ -245,9 +245,13 @@ export default async function FacturacionPage() {
         {/* ── Tabla de facturas ── */}
         <div className="mb-[14px] overflow-hidden rounded-lg border border-line-soft bg-card shadow-sm">
           {invoices.length === 0 ? (
-            <p className="px-4 py-8 text-sm text-fg-faint">
-              Todavía no hay facturas. Crea la primera con «Nueva factura».
-            </p>
+            <div className="flex flex-col items-center gap-3 px-4 py-10 text-center">
+              <p className="text-sm text-fg-faint">Todavía no hay facturas.</p>
+              <Button render={<Link href="/dashboard/facturacion/nueva" />} variant="outline">
+                <Plus aria-hidden />
+                Crear la primera factura
+              </Button>
+            </div>
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full border-collapse text-[13px]">
