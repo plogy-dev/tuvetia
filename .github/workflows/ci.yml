@@ -27,6 +27,24 @@ jobs:
     defaults:
       run:
         working-directory: athos-service
+    # Postgres con pgvector para los tests de integración. Existe porque los ÚNICOS tests de
+    # aislamiento multi-tenant del sistema (test_cross_tenant.py) se auto-skipeaban sin DB — la
+    # garantía que tres documentos citaban como "cubierta por test" no la ejecutaba nadie
+    # (auditoría 2026-07-30). La secuencia shim → bootstrap → 0001-0003 está verificada contra
+    # pgvector:pg16; los 2 golden (RUN_GOLDEN) y 2 de corpus poblado siguen skipeados a propósito.
+    services:
+      postgres:
+        image: pgvector/pgvector:pg16
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: athos_test
+        ports:
+          - "5432:5432"
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
     steps:
       - uses: actions/checkout@v4
       - uses: astral-sh/setup-uv@v3
@@ -35,9 +53,20 @@ jobs:
       - run: uv sync --dev
       - name: ruff
         run: uv run ruff check .
+      - name: esquema de la DB de test (shim Supabase + bootstrap + 0001-0003)
+        env:
+          PGPASSWORD: postgres
+        run: |
+          psql -h localhost -U postgres -d athos_test -v ON_ERROR_STOP=1 -q -f ../.github/ci/athos-db-shim.sql
+          psql -h localhost -U postgres -d athos_test -v ON_ERROR_STOP=1 -q -f supabase/bootstrap/000_base_schema.sql
+          psql -h localhost -U postgres -d athos_test -v ON_ERROR_STOP=1 -q -f supabase/migrations/0001_rag_corpus_glossary_trace.sql
+          psql -h localhost -U postgres -d athos_test -v ON_ERROR_STOP=1 -q -f supabase/migrations/0002_vector_index_hnsw.sql
+          psql -h localhost -U postgres -d athos_test -v ON_ERROR_STOP=1 -q -f supabase/migrations/0003_tier1_mesh_gin_index.sql
       - name: pytest
-        # Los tests de integración se auto-skipean sin DB (fixture `require_db`), así que la suite
-        # corre sin secretos. Cuando se agreguen los de Supabase de dev, dejarán de skipearse.
+        env:
+          # Con la DB del service los tests de integración (cross-tenant, gate desde DB, Tier 1)
+          # CORREN en cada push en vez de auto-skipearse.
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/athos_test
         run: uv run pytest -q
 
   frontend:
