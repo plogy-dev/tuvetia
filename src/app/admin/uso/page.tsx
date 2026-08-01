@@ -52,6 +52,11 @@ export default async function AdminUsoPage() {
   const minutes30 = Math.round(audios30.reduce((s, a) => s + (a.duration_secs ?? 0), 0) / 60)
   const storageMb = Math.round(m.audios.reduce((s, a) => s + (a.file_size ?? 0), 0) / 1e6)
 
+  // Agente de Next (migración 0046): el único camino que sí registra TOKENS.
+  const agente30 = since(m.agentUsage, d30)
+  const tokens30 = agente30.reduce((s, u) => s + (u.tokens_in ?? 0) + (u.tokens_out ?? 0), 0)
+  const respaldos30 = agente30.filter((u) => u.fell_back_from).length
+
   return (
     <div className="flex flex-col gap-4">
       <div>
@@ -65,6 +70,11 @@ export default async function AdminUsoPage() {
         <Stat label="Generaciones LLM" value={answers30.length} hint={`${m.answers.length} históricas`} />
         <Stat label="Retrievals" value={retrievals30.length} hint={`${m.retrievals.length} históricos`} />
         <Stat label="Minutos Deepgram" value={minutes30} hint={`${m.audios.length} audios totales`} />
+        <Stat
+          label="Tokens del agente"
+          value={tokens30 >= 1000 ? `${(tokens30 / 1000).toFixed(1)}k` : tokens30}
+          hint={`${agente30.length} llamadas${respaldos30 > 0 ? ` · ${respaldos30} por respaldo` : ""}`}
+        />
         <Stat label="Storage de audio" value={`${storageMb} MB`} hint="se purga a 4 días" />
       </div>
 
@@ -77,11 +87,31 @@ export default async function AdminUsoPage() {
           title="Retrievals por tier alcanzado (histórico)"
           entries={[...countBy(m.retrievals, (r) => r.tier_reached ?? "—").entries()]}
         />
+        <BreakdownCard
+          title="Agente de Next por superficie (30d)"
+          entries={[...countBy(agente30, (u) => u.surface).entries()]}
+        />
+        <BreakdownCard
+          title="Agente de Next por modelo (30d)"
+          entries={[...countBy(agente30, (u) => u.model).entries()]}
+        />
       </div>
 
       <p className="text-xs text-muted-foreground">
-        Los logs no registran tokens por llamada — los volúmenes son exactos, el costo (pestaña
-        Costos) es estimado. Mejora anotada: loguear tokens_in/out en <code>rag_answer_log</code>.
+        {m.agentUsage.length === 0 ? (
+          <>
+            <b>El agente de Next todavía no registra nada:</b> falta aplicar la migración{" "}
+            <code>0046_athos_agent_usage.sql</code> al principal. Hasta entonces, el consumo del
+            asistente, del modo auto de WhatsApp y de la lectura de facturas es invisible acá.
+          </>
+        ) : (
+          <>
+            Sólo el <b>agente de Next</b> registra tokens (tabla <code>athos_agent_usage</code>): su
+            costo en la pestaña Costos es real. Lo de <code>rag_answer_log</code> (chat clínico y
+            Modo Fantasma) sigue sin tokens — volúmenes exactos, costo estimado. Mejora anotada:
+            loguear <code>tokens_in/out</code> también ahí.
+          </>
+        )}
       </p>
     </div>
   )
