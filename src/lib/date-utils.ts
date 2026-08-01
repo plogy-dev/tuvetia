@@ -34,6 +34,28 @@ export function bogotaDate(iso: string): string {
   }).format(new Date(iso));
 }
 
+/**
+ * "01 ago 2026" — para columnas **DATE** (`YYYY-MM-DD`), que no llevan hora ni zona.
+ *
+ * Existe porque el arreglo de arriba, aplicado a una columna DATE, produce el defecto INVERSO.
+ * `new Date('2026-08-01')` se parsea como medianoche **UTC**; formatearlo en Bogotá (UTC-5) lo
+ * retrocede al 31 de julio. O sea que una vacuna aplicada el 1 se mostraba con fecha del 31, y
+ * además con un "19:00" que en una columna sin hora no significa nada.
+ *
+ * Una fecha DATE ya está en el calendario del negocio: no hay que convertirla, hay que formatearla.
+ * Por eso se arma desde las partes y se fija `timeZone: 'UTC'`, que neutraliza cualquier corrimiento.
+ */
+export function bogotaDateOnly(fecha: string): string {
+  const [y, m, d] = fecha.split('-').map(Number);
+  if (!y || !m || !d) return fecha;
+  return new Intl.DateTimeFormat('es-CO', {
+    timeZone: 'UTC',
+    day: '2-digit',
+    month: 'short',
+    year: 'numeric',
+  }).format(new Date(Date.UTC(y, m - 1, d)));
+}
+
 /** "01 ago 2026, 19:30" — fecha y hora de un instante ISO, vistas desde Bogotá. */
 export function bogotaDateTime(iso: string): string {
   return new Intl.DateTimeFormat('es-CO', {
