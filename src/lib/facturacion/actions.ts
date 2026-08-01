@@ -465,7 +465,7 @@ export async function ingestRecipeAction(
           'La importación desde Excel está deshabilitada temporalmente. Podés subir una foto de la receta o escribirla como texto.',
       };
     }
-    const draft = await extractRecipeDraft(parsed);
+    const draft = await extractRecipeDraft(parsed, { clinicId });
     // Candidatos: ítems activos que NO son servicios (componentes de consumo).
     const items = await listCatalogItems(supabase, clinicId, {});
     const candidates = items

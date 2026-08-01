@@ -19,6 +19,7 @@ import { generateObject } from 'ai';
 import { z } from 'zod';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { autoModel } from '@/lib/athos-agent/model';
+import { registrarUso } from '@/lib/athos-agent/usage';
 import { getAppBaseUrl } from '@/lib/base-url';
 import { refreshInvoiceStatus } from '@/lib/facturacion/invoices';
 import type { CommsChannel } from '@/lib/supabase/types';
@@ -45,8 +46,12 @@ export interface IntentClassification {
  */
 export async function classifyCarteraIntent(
   text: string,
-  opts: { todayISO: string },
+  opts: { todayISO: string; clinicId: string },
 ): Promise<IntentClassification> {
+  // Una sola resolución del modelo: la misma instancia atiende y, abajo, dice quién respondió si
+  // la cascada tuvo que caer al respaldo.
+  const elegido = autoModel();
+
   const schema = z.object({
     intent: z.enum(CARTERA_INTENTS),
     promiseDate: z
@@ -58,8 +63,8 @@ export async function classifyCarteraIntent(
   });
 
   try {
-    const { object } = await generateObject({
-      model: autoModel(),
+    const { object, usage } = await generateObject({
+      model: elegido.model,
       maxOutputTokens: 128,
       schema,
       system:
@@ -77,6 +82,14 @@ export async function classifyCarteraIntent(
         `Hoy es ${opts.todayISO} (America/Bogota). Convierte fechas relativas a YYYY-MM-DD. ` +
         'Ante la duda entre PROMESA_PAGO y SOLICITUD_PLAZO, si NO hay fecha concreta usa SOLICITUD_PLAZO.',
       prompt: `Mensaje del cliente:\n"""\n${text.slice(0, 1500)}\n"""`,
+    });
+
+    void registrarUso({
+      clinicId: opts.clinicId,
+      userId: null, // cobranza automática: no hay vet detrás
+      surface: 'cartera_inbound',
+      elegido,
+      usage,
     });
 
     return { intent: object.intent, promiseDate: object.promiseDate ?? null };

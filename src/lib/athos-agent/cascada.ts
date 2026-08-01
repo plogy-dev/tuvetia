@@ -35,8 +35,16 @@ export function esFalloDeProveedor(error: unknown): boolean {
     msg.includes("authentication") ||
     msg.includes("401") ||
     msg.includes("403") ||
-    // el proveedor está limitando o caído
-    msg.includes("rate") ||
+    // el proveedor está limitando o caído.
+    //
+    // "rate limit" completo, NUNCA "rate" a secas: `"generated".includes("rate")` es true
+    // (gene-RATE-d), así que un `AI_NoObjectGeneratedError` —o cualquier error nuestro que hable de
+    // "generate"— disparaba el respaldo y pagaba una segunda llamada entera por un bug propio, que
+    // es justo lo que esta función existe para evitar. Las tres grafías cubren a los proveedores:
+    // Anthropic manda `rate_limit_error`, OpenAI/DeepSeek "Rate limit reached".
+    msg.includes("rate limit") ||
+    msg.includes("rate_limit") ||
+    msg.includes("ratelimit") ||
     msg.includes("429") ||
     msg.includes("overloaded") ||
     msg.includes("503") ||
@@ -49,11 +57,22 @@ export function esFalloDeProveedor(error: unknown): boolean {
   )
 }
 
-/** Nombre legible del modelo, para el log y para la traza. */
-function nombre(m: LanguageModel): string {
-  if (typeof m === "string") return m
+/**
+ * Quién respondió cuando entra un respaldo.
+ *
+ * Viene desglosado a propósito: `etiqueta` es para el log de la consola, pero `modelId` es lo que se
+ * PERSISTE (`athos_actions.proposed_by_model`, la traza del agente). Si el que responde de verdad no
+ * es el que queda escrito en la fila, la traza miente — que es el defecto que la Ola 2.1 del plan de
+ * remediación arregló en athos-service y que esta superficie había repetido.
+ */
+export type RespaldoUsado = { modelId: string; provider: string; etiqueta: string }
+
+function describir(m: LanguageModel): RespaldoUsado {
+  if (typeof m === "string") return { modelId: m, provider: "?", etiqueta: m }
   const v = m as Partial<LanguageModelV3>
-  return `${v.provider ?? "?"}:${v.modelId ?? "?"}`
+  const modelId = v.modelId ?? "?"
+  const provider = v.provider ?? "?"
+  return { modelId, provider, etiqueta: `${provider}:${modelId}` }
 }
 
 /**
@@ -64,7 +83,7 @@ function nombre(m: LanguageModel): string {
  */
 export function conCascada(
   cadena: LanguageModel[],
-  alUsarRespaldo?: (usado: string, motivo: string) => void,
+  alUsarRespaldo?: (usado: RespaldoUsado, motivo: string) => void,
 ): LanguageModel {
   const [principal, ...respaldos] = cadena
   if (!principal) throw new Error("conCascada: la cadena de modelos está vacía")
@@ -79,8 +98,11 @@ export function conCascada(
       try {
         const m = respaldo as LanguageModelV3
         const salida = operacion === "stream" ? await m.doStream(params) : await m.doGenerate(params)
+        // Se avisa DESPUÉS de que el respaldo aceptó la petición y ANTES de devolver la salida:
+        // o sea, antes del primer token y antes de la primera tool call. Quien escucha alcanza a
+        // corregir el modelo que va a persistir.
         alUsarRespaldo?.(
-          nombre(respaldo),
+          describir(respaldo),
           errorOriginal instanceof Error ? errorOriginal.message : String(errorOriginal),
         )
         return salida

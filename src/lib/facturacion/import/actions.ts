@@ -196,7 +196,7 @@ export async function createImportPreviewFromCapture(input: {
     const preset = PresetSchema.parse(input.preset ?? 'productos');
 
     const { extractImportTable } = await import('./ingest');
-    const { columns, rows } = await extractImportTable(parsed.data, { preset });
+    const { columns, rows } = await extractImportTable(parsed.data, { preset, clinicId });
     if (rows.length === 0) {
       return {
         ok: false,

@@ -5,7 +5,8 @@ import { z } from "zod"
 import { createClient } from "@/lib/supabase/server"
 import { ATHOS_AGENT_SYSTEM_PROMPT } from "@/lib/athos-agent/system-prompt"
 import { buildAthosTools } from "@/lib/athos-agent/tools"
-import { agentModel, agentModelId } from "@/lib/athos-agent/model"
+import { agentModel } from "@/lib/athos-agent/model"
+import { registrarUso } from "@/lib/athos-agent/usage"
 import { rateLimit } from "@/lib/athos-agent/rate-limit"
 import type { AgentContext } from "@/lib/athos-agent/actions"
 
@@ -74,6 +75,10 @@ export async function POST(req: Request) {
     )
   }
 
+  // Una sola resolución del modelo, y `model` se lee TARDE (dentro de la tool que inserta la
+  // propuesta): si la cascada cayó al respaldo, `proposed_by_model` guarda quién respondió de
+  // verdad. Ver `athos-agent/model.ts`.
+  const elegido = agentModel()
   const ctx: AgentContext = {
     userId: user.id,
     clinicId,
@@ -81,17 +86,29 @@ export async function POST(req: Request) {
     conversationKey: digitsPhone,
     patientId: null,
     accessToken: session?.access_token ?? null,
-    model: agentModelId(),
+    get model() {
+      return elegido.modelId
+    },
   }
 
   try {
     const result = await generateText({
-      model: agentModel(),
+      model: elegido.model,
       system: `${ATHOS_AGENT_SYSTEM_PROMPT}\n\n# Tarea puntual\n\nEstás en la bandeja de WhatsApp. Lee la conversación con search_whatsapp_conversation (teléfono: ${digitsPhone}) y, si ayuda, identifica al titular con get_owner_by_phone y consulta horarios/cupos reales. Luego PROPONE exactamente UNA respuesta con send_whatsapp_message (to_phone: ${digitsPhone}${owner_id ? `, owner_id: ${owner_id}` : ""}). Tono WhatsApp: 1-3 frases, cálido, sin markdown. Nunca diagnósticos ni dosis por chat; nunca inventes horarios o precios — si no los tienes por tools, no los menciones.${owner_name ? ` El titular se llama ${owner_name}.` : ""}`,
       messages: [{ role: "user", content: "Sugiere la respuesta para esta conversación." }],
       tools: buildAthosTools(supabase, ctx),
       stopWhen: stepCountIs(5),
       maxOutputTokens: 600,
+    })
+
+    // `totalUsage` (todos los pasos del loop), no `usage` (sólo el último): con `stepCountIs(5)` el
+    // último paso es una fracción del gasto. Best-effort — `registrarUso` no lanza.
+    void registrarUso({
+      clinicId,
+      userId: user.id,
+      surface: "suggest_reply",
+      elegido,
+      usage: result.totalUsage,
     })
 
     // Extraer la propuesta creada por la tool (action_id + texto) de los pasos.

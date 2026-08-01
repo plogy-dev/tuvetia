@@ -165,7 +165,10 @@ async function processThreadMessage(
     const text = msg.text || (hasAttachments ? "(el cliente envió un archivo adjunto, probablemente un comprobante)" : "")
     if (!text && !hasAttachments) return
 
-    const classification = await classifyCarteraIntent(text, { todayISO: bogotaTodayISO() })
+    const classification = await classifyCarteraIntent(text, {
+      todayISO: bogotaTodayISO(),
+      clinicId,
+    })
 
     const inbound = await executeCarteraInbound(admin, clinicId, {
       channel: "EMAIL",

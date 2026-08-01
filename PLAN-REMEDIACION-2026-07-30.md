@@ -19,7 +19,7 @@ citaban como garantía cumplida.
 
 | # | Qué | Estado |
 |---|---|---|
-| 0.1 | 👤 **Crear `CRON_SECRET` en GitHub** (Settings → Secrets and variables → Actions), mismo valor que la env de Vercel. Verificar con `gh workflow run "Cartera sweep"` | **PENDIENTE — sólo Felipe puede** |
+| 0.1 | 👤 **Crear `CRON_SECRET` en GitHub** (Settings → Secrets and variables → Actions), mismo valor que la env de Vercel | ✅ **HECHO** (2026-07-31 16:55). Verificado el 01-ago: `gh run list` muestra Cartera sweep y Smoke E2E **verdes en schedule**, sin skips |
 | 0.2 | El smoke **falla** (no salta) en CI sin el secreto, con mensaje de dónde definirlo | ✅ `e2e/smoke.e2e.ts` |
 | 0.3 | Un schedule rojo abre/comenta un **issue** (antes: invisible — 6 fallos sin que nadie los viera) | ✅ `cartera-sweep.yml`, `smoke.yml` |
 | 0.4 | Cadencia real documentada: GitHub disparó ~1/80 min, no cada 15 — es el piso pedido, no garantía | ✅ workflow + INVENTARIO |
@@ -80,14 +80,17 @@ usuario; **CSV injection neutralizada** en las dos exportaciones (+test); export
 ya no borra `department_code` ni pisa UVT; EXENTO ≠ Excluido en el documento fiscal; borrados
 `InventoryForms.tsx` (246 líneas sin importadores) y 4 server actions sin consumidor.
 
-- **Migración `0042_facturacion_db_hardening.sql`**: `search_path` fijo en
+- **Migración `0045_facturacion_db_hardening.sql`** (renumerada dos veces: nació 0042 y pasó por
+  0043; la tanda de calendario se llevó ambos números el 31-jul): `search_path` fijo en
   `facturacion_assign_next_number` y `touch_updated_at` + 21 índices de FK (facturación/equipo).
   Validada contra la cadena completa de migraciones en local. 👤 **Aplicar al principal** con el
   flujo de siempre (dev → PR → principal, `MIGRACIONES.md`) — no se aplicó automáticamente.
+  **Sigue sin aplicar al 2026-08-01**: los advisors del principal todavía reportan
+  `function_search_path_mutable` en las dos funciones.
 
 ## Pendientes que quedan fuera de esta rama
 
-1. 👤 `CRON_SECRET` en Actions (0.1) — minutos, y desbloquea sweep + smoke completos.
+1. ~~👤 `CRON_SECRET` en Actions (0.1)~~ — ✅ hecho el 31-jul; sweep y smoke corren verdes.
 2. 👤 Decisión sobre las 20 funciones `SECURITY DEFINER` ejecutables por `authenticated`
    (`accept_invitation`, `remove_clinic_member`, `switch_active_clinic`…): revisar cuáles son
    intencionales y revocar el resto. Y activar la protección de contraseñas filtradas (dashboard

@@ -1,7 +1,10 @@
--- 0043 — Endurecimiento DB del módulo de facturación (auditoría 2026-07-30).
+-- 0045 — Endurecimiento DB del módulo de facturación (auditoría 2026-07-30).
 --
--- (Nació como 0042 y se renumeró: `0042_appointments_google_event_unique.sql` entró a master en
--- paralelo el 2026-07-31. Dos migraciones con el mismo número aplican en orden indefinido.)
+-- (Nació como 0042 y se ha renumerado DOS veces, siempre por el mismo motivo: la tanda de
+-- calendario entró a master en paralelo el 2026-07-31 y se llevó el 0042 y el 0043
+-- —`appointments_google_event_unique` y su `_fix`—, así que el primer renumerado a 0043 sólo
+-- cambió de choque. 0044 es el de Realtime. Dos migraciones con el mismo número aplican en orden
+-- indefinido; el contenido de esta es idempotente, pero el número tiene que ser único igual.)
 --
 -- Dos cosas, ambas señaladas por los advisors de Supabase sobre el proyecto principal:
 --
