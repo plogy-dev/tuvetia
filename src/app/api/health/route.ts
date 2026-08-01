@@ -44,6 +44,29 @@ export async function GET(req: Request) {
   // agente sin credencial cuando el proveedor era DeepSeek.
   const agentProvider = process.env.ATHOS_AGENT_PROVIDER?.trim() || "anthropic"
 
+  // Y con la CASCADA encendida hay más de un proveedor en juego. Este chequeo mira `*_PROVIDER`,
+  // que sigue siendo "anthropic" cuando DeepSeek es sólo el RESPALDO — así que sin esto el endpoint
+  // reportaría ok:true con un respaldo sin credencial. Ese respaldo no protege de nada: cuando el
+  // primario se cae por saldo, el respaldo falla por credencial y se propaga el error original. Peor
+  // que no tenerlo, porque suma una llamada perdida y la falsa tranquilidad de creerlo cubierto.
+  //
+  // Se recorren las tres cadenas y se junta la credencial que cada entrada necesita.
+  const proveedoresDeCascada = new Set(
+    [
+      process.env.ATHOS_AGENT_CASCADE,
+      process.env.ATHOS_AUTO_CASCADE,
+      process.env.ATHOS_VISION_CASCADE,
+    ].flatMap((cadena) =>
+      (cadena ?? "")
+        .split(",")
+        .map((par) => par.split("@")[1]?.trim())
+        .filter((p): p is string => Boolean(p)),
+    ),
+  )
+  const cascadaConCredenciales = [...proveedoresDeCascada].every((p) =>
+    p === "deepseek" ? set("DEEPSEEK_API_KEY") : set("ANTHROPIC_API_KEY"),
+  )
+
   // Proveedor de WhatsApp que la UI va a OFRECER, que no es lo mismo que "hay alguno cableado".
   // `whatsapp-settings.tsx:22,247` elige evolution -> meta -> kapso por precedencia, así que sin
   // NEXT_PUBLIC_WA_PROVIDER=evolution el botón "Conectar" cae a Kapso y SACA al veterinario de la
@@ -60,6 +83,9 @@ export async function GET(req: Request) {
     // La credencial del proveedor que el agente USA de verdad (puede no ser Anthropic).
     agent_provider_key:
       agentProvider === "deepseek" ? set("DEEPSEEK_API_KEY") : set("ANTHROPIC_API_KEY"),
+    // Todos los proveedores nombrados en las cadenas de cascada tienen su key. Sin cascada
+    // configurada el conjunto está vacío y esto da true, que es lo correcto: no hay nada que cubrir.
+    cascada_con_credenciales: cascadaConCredenciales,
     // La cobranza en modo simulacro NO envía nada y no deja síntoma: es literalmente el fallo
     // silencioso que este endpoint existe para atrapar. En producción debe estar apagado.
     cartera_envio_real: process.env.CARTERA_MESSAGING_SIMULATED !== "1",
