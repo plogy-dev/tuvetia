@@ -14,7 +14,33 @@ DB-gated: se salta solo si no hay Postgres, igual que el resto de los de integra
 """
 import uuid
 
+import pytest
+
 from app.db import fetch_all, get_conn
+
+
+@pytest.fixture(autouse=True)
+def _exigir_tabla(require_db):
+    """Falla —NO saltea— si la tabla no está en la DB contra la que corre la suite.
+
+    La distinción importa. El 2026-07-30 la auditoría encontró que los únicos tests de aislamiento
+    multi-tenant del sistema se auto-skipeaban sin DB: tres documentos citaban la garantía como
+    "cubierta por test" y no la ejecutaba nadie. Un skip silencioso acá seria repetir eso.
+
+    Lo normal es que salte en un PR que agrega la migración pero todavía no la aplicó a dev: el
+    flujo del repo es dev -> PR -> principal (docs/MIGRACIONES.md), y el CI prefiere la DB de dev
+    (`ATHOS_DEV_DATABASE_URL`) sobre el Postgres local del job. El mensaje dice exactamente eso en
+    vez de un `UndefinedTable` crudo.
+    """
+    existe = fetch_all("select to_regclass('public.athos_agent_usage') is not null as ok")
+    if not existe or not existe[0]["ok"]:
+        pytest.fail(
+            "public.athos_agent_usage no existe en esta base. Aplicá "
+            "supabase/migrations/0046_athos_agent_usage.sql al proyecto de DEV "
+            "(tuvetia-athos-dev) antes de mergear — el CI corre contra esa DB cuando "
+            "ATHOS_DEV_DATABASE_URL está configurado. Ver docs/MIGRACIONES.md.",
+            pytrace=False,
+        )
 
 
 def _insertar(clinic_id: str, model: str, tokens_in: int, tokens_out: int) -> str:
