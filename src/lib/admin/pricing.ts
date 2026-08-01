@@ -49,16 +49,24 @@ export const PRICING = {
   cohereRerankPerRetrieval: 0.002,
 
   // ── Infra fija mensual ────────────────────────────────────────────────────────────────────────
-  // Railway: NO es un solo servicio. Además del backend de Athos, Evolution API corre en su propio
-  // contenedor y con un Postgres propio (docs/EVOLUTION.md §Deploy). Son 3 servicios facturando
-  // contra lo que antes era una línea de $5. 👤 Confirmar con la factura.
-  railwayMonthly: 15,
-  // Vercel: plan Hobby, $0 real. No es descuido — es la razón por la que el sweep de cartera vive
-  // en GitHub Actions (Hobby permite 2 crons diarios y los dos cupos están usados).
+  //
+  // Confirmado por Felipe el 2026-08-01: **el único proveedor de infra que se está pagando hoy es
+  // Supabase**. Los otros dos van en 0 porque hoy valen 0, no por descuido — poner una cifra
+  // "razonable" donde no hay factura es exactamente el defecto que este archivo vino a arreglar
+  // (Kapso se cobraba $29/mes sin que nadie lo usara).
+  //
+  // Railway: corre el backend de Athos y, desde el 28-jul, también Evolution API en su propio
+  // contenedor con un Postgres propio (docs/EVOLUTION.md §Deploy). Hoy no factura, pero son tres
+  // servicios persistentes: Evolution mantiene sesiones WebSocket abiertas, así que no se duerme.
+  // 👤 En cuanto la primera factura de Railway llegue con un número, va acá.
+  railwayMonthly: 0,
+  // Vercel: plan Hobby. Es la razón por la que el sweep de cartera vive en GitHub Actions (Hobby
+  // permite 2 crons diarios y los dos cupos están usados).
   vercelMonthly: 0,
-  // Supabase: se está PAGANDO. El "free tier (→ $25 al migrar el corpus)" que decía antes ya había
-  // vencido: el corpus está en el proyecto principal desde hace semanas. $25 = plan Pro.
-  // 👤 Confirmar la cifra exacta con la factura antes de darla por buena.
+  // Supabase: el ÚNICO que se paga. El "free tier (→ $25 al migrar el corpus)" que decía antes ya
+  // había vencido — el corpus está en el principal desde hace semanas. $25 es el plan Pro base.
+  // 👤 Si la factura trae add-ons (cómputo más grande para pgvector, storage, egress), la cifra
+  // real es mayor: ajustar acá.
   supabaseMonthly: 25,
 } as const
 

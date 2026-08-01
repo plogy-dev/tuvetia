@@ -72,9 +72,9 @@ export default async function AdminCostosPage() {
     { concepto: "Embeddings (Cohere)", detalle: `${retrievals30.length} retrievals × ${fmtUsd(PRICING.coherePerRetrieval)}`, costo: retrievalCost },
     { concepto: "Rerank (Cohere)", detalle: `${retrievals30.length} búsquedas × ${fmtUsd(PRICING.cohereRerankPerRetrieval)}`, costo: rerankCost },
     { concepto: "Transcripción (Deepgram)", detalle: `${minutes30.toFixed(1)} min × ${fmtUsd(PRICING.deepgramPerMinute)}`, costo: deepgramCost },
-    { concepto: "Railway", detalle: "backend Athos + Evolution API + su Postgres (3 servicios)", costo: PRICING.railwayMonthly },
+    { concepto: "Railway", detalle: "backend Athos + Evolution + su Postgres — sin facturar todavía", costo: PRICING.railwayMonthly },
     { concepto: "Vercel (front)", detalle: "plan Hobby", costo: PRICING.vercelMonthly },
-    { concepto: "Supabase (DB)", detalle: "plan Pro", costo: PRICING.supabaseMonthly },
+    { concepto: "Supabase (DB)", detalle: "plan Pro — el único proveedor de infra que se paga hoy", costo: PRICING.supabaseMonthly },
   ]
 
   // Desglose por clínica del costo variable (proporcional a su uso).
