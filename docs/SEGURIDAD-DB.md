@@ -84,11 +84,16 @@ el camino del invitado sin cuenta.
 
 | Aviso | Estado |
 |---|---|
-| `function_search_path_mutable` en `facturacion_assign_next_number` y `touch_updated_at` | **Riesgo real, corregido** en la migración `0042`. Una función sin `search_path` fijo resuelve nombres de tabla según el entorno del llamador; quien pueda crear objetos en un esquema anterior del path podría interceptar a qué tabla se escribe |
+| `function_search_path_mutable` en `facturacion_assign_next_number` y `touch_updated_at` | **Riesgo real, corregido** en la migración `0045`. Una función sin `search_path` fijo resuelve nombres de tabla según el entorno del llamador; quien pueda crear objetos en un esquema anterior del path podría interceptar a qué tabla se escribe |
 | `rls_enabled_no_policy` en `corpus_chunks` | **Falso positivo — no tocar.** El corpus es global y se lee solo con `service_role` desde athos-service, que se salta la RLS. "RLS activa + cero políticas" significa *nadie más puede leerla*, que es exactamente la postura deseada |
 | `extension_in_public` (`vector`) | Aceptado. Moverla de esquema obligaría a reescribir todas las referencias a los tipos y a reindexar; el beneficio no lo justifica |
 | `auth_leaked_password_protection` | **Pendiente** — es un toggle del dashboard (Authentication → Providers → Email), no código |
-| `unindexed_foreign_keys` (21 de facturación/equipo) | Corregidos en la migración `0042` |
+| `unindexed_foreign_keys` (21 de facturación/equipo) | Corregidos en la migración `0045` |
+
+> ⚠️ **La `0045` sigue SIN aplicar al principal** (verificado el 2026-08-01: los advisors todavía
+> reportan `function_search_path_mutable` en las dos funciones). Nació como `0042` y se renumeró dos
+> veces —la tanda de calendario se llevó el `0042` y el `0043`—, así que si la buscás por el número
+> viejo no la vas a encontrar.
 
 ## Regla para funciones nuevas
 

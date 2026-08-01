@@ -11,7 +11,8 @@ import {
 } from "@/lib/athos-agent/conversacion"
 import { ATHOS_AGENT_SYSTEM_PROMPT } from "@/lib/athos-agent/system-prompt"
 import { buildAthosTools } from "@/lib/athos-agent/tools"
-import { agentModel, agentModelId } from "@/lib/athos-agent/model"
+import { agentModel } from "@/lib/athos-agent/model"
+import { registrarUso } from "@/lib/athos-agent/usage"
 import { rateLimit } from "@/lib/athos-agent/rate-limit"
 import type { AgentContext } from "@/lib/athos-agent/actions"
 
@@ -61,6 +62,11 @@ export async function POST(req: Request) {
     data: { session },
   } = await supabase.auth.getSession()
 
+  // UNA sola resolución del modelo para toda la petición: `elegido.model` es el que atiende y
+  // `elegido.modelId` el que se persiste. Antes eran dos llamadas distintas (`agentModel()` acá y
+  // `agentModelId()` allá), que con la cascada encendida podían no coincidir. El `get` deja que la
+  // tool lea el valor TARDE: si entró el respaldo, la cascada ya reescribió `modelId` para entonces.
+  const elegido = agentModel()
   const ctx: AgentContext = {
     userId: user.id,
     clinicId,
@@ -68,7 +74,9 @@ export async function POST(req: Request) {
     conversationKey: conversationKey ?? patientId ?? null,
     patientId: patientId ?? null,
     accessToken: session?.access_token ?? null,
-    model: agentModelId(),
+    get model() {
+      return elegido.modelId
+    },
   }
 
   const todayISO = new Date(Date.now() - 5 * 3600_000).toISOString().slice(0, 10) // hora Colombia
@@ -92,12 +100,24 @@ export async function POST(req: Request) {
   }${source === "inbox" ? "\n- Estás en la bandeja de WhatsApp: el objetivo típico es proponer una respuesta con send_whatsapp_message." : ""}${avisoDensidad}`
 
   const result = streamText({
-    model: agentModel(),
+    model: elegido.model,
     system,
     messages: await convertToModelMessages(messages as UIMessage[]),
     maxOutputTokens: 2000,
     tools: buildAthosTools(supabase, ctx),
     stopWhen: stepCountIs(8),
+    // Consumo: va en el `onFinish` de streamText y no en el de `toUIMessageStreamResponse`, que no
+    // recibe `usage`. `totalUsage` suma TODOS los pasos del loop de herramientas — con `stepCountIs(8)`
+    // el usage del último paso contaría una fracción del gasto real.
+    onFinish: ({ totalUsage }) => {
+      void registrarUso({
+        clinicId,
+        userId: user.id,
+        surface: "agent",
+        elegido,
+        usage: totalUsage,
+      })
+    },
   })
 
   // El AI SDK reemplaza CUALQUIER fallo por "An error occurred." si no se le dice qué mostrar. Eso
@@ -157,7 +177,9 @@ export async function POST(req: Request) {
         return "El proveedor de IA rechazó la petición por saldo o cuota. Avisá al equipo técnico."
       if (m.includes("api key") || m.includes("apikey") || m.includes("authentication") || m.includes("401"))
         return "La credencial del proveedor de IA no es válida. Avisá al equipo técnico."
-      if (m.includes("rate") || m.includes("429"))
+      // "rate limit" completo: `"generated".includes("rate")` es true, así que con "rate" a secas
+      // un fallo cualquiera que mencionara "generate" se le mostraba al vet como límite de tasa.
+      if (m.includes("rate limit") || m.includes("rate_limit") || m.includes("429"))
         return "El proveedor está limitando las peticiones. Esperá unos segundos y reintentá."
       if (m.includes("timeout") || m.includes("aborted") || m.includes("etimedout"))
         return "La respuesta tardó demasiado y se cortó. Reintentá."

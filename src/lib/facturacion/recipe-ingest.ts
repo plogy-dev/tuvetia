@@ -15,6 +15,7 @@ import 'server-only';
 import { generateObject } from 'ai';
 import { z } from 'zod';
 import { visionModel } from '@/lib/athos-agent/model';
+import { registrarUso } from '@/lib/athos-agent/usage';
 import type { RecipeDraft } from '@/lib/facturacion/domain/recipes';
 import { parseSpreadsheetDraft, spreadsheetToCsv } from '@/lib/facturacion/domain/recipe-parse';
 
@@ -47,6 +48,7 @@ async function extractWithModel(
   parts:
     | { kind: 'text'; text: string }
     | { kind: 'image'; base64: string; mediaType: string },
+  clinicId: string,
 ): Promise<RecipeDraft> {
   const content =
     parts.kind === 'image'
@@ -56,27 +58,42 @@ async function extractWithModel(
         ] as const)
       : ([{ type: 'text', text: `Receta (texto):\n"""\n${parts.text.slice(0, 6000)}\n"""` }] as const);
 
-  const { object } = await generateObject({
-    model: visionModel(),
+  const elegido = visionModel();
+  const { object, usage } = await generateObject({
+    model: elegido.model,
     schema: DraftSchema,
     maxOutputTokens: 1500,
     system: SYSTEM,
     messages: [{ role: 'user', content: content as never }],
   });
 
+  // La visión es Anthropic sí o sí, y era el gasto más invisible de todos: ninguna tabla lo veía.
+  void registrarUso({ clinicId, surface: 'vision_recipe', elegido, usage });
+
   return { serviceName: object.serviceName, components: object.components };
 }
 
-/** Devuelve el borrador de receta desde la entrada del vet. La IA solo propone. */
-export async function extractRecipeDraft(input: IngestInput): Promise<RecipeDraft> {
+/**
+ * Devuelve el borrador de receta desde la entrada del vet. La IA solo propone.
+ *
+ * `clinicId` es sólo para registrar el consumo (0046): el camino de Excel con columnas claras ni
+ * siquiera llama al modelo, y ahí no se registra nada porque no se gastó nada.
+ */
+export async function extractRecipeDraft(
+  input: IngestInput,
+  opts: { clinicId: string },
+): Promise<RecipeDraft> {
   if (input.kind === 'excel') {
     const parsed = parseSpreadsheetDraft(input.base64);
     if (parsed) return parsed;
     // Sin columnas claras: el modelo lee el CSV crudo como texto.
-    return extractWithModel({ kind: 'text', text: spreadsheetToCsv(input.base64) });
+    return extractWithModel({ kind: 'text', text: spreadsheetToCsv(input.base64) }, opts.clinicId);
   }
   if (input.kind === 'image') {
-    return extractWithModel({ kind: 'image', base64: input.base64, mediaType: input.mediaType });
+    return extractWithModel(
+      { kind: 'image', base64: input.base64, mediaType: input.mediaType },
+      opts.clinicId,
+    );
   }
-  return extractWithModel({ kind: 'text', text: input.text });
+  return extractWithModel({ kind: 'text', text: input.text }, opts.clinicId);
 }

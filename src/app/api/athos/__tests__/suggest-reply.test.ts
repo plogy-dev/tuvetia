@@ -38,8 +38,7 @@ vi.mock("ai", () => ({
 
 vi.mock("@/lib/athos-agent/tools", () => ({ buildAthosTools: () => ({}) }))
 vi.mock("@/lib/athos-agent/model", () => ({
-  agentModel: () => "modelo-falso",
-  agentModelId: () => "modelo-falso",
+  agentModel: () => ({ model: "modelo-falso", modelId: "modelo-falso" }),
 }))
 vi.mock("@/lib/athos-agent/system-prompt", () => ({ ATHOS_AGENT_SYSTEM_PROMPT: "SYS" }))
 vi.mock("@/lib/athos-agent/rate-limit", () => ({ rateLimit: () => ({ allowed: true }) }))

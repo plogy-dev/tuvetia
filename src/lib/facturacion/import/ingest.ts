@@ -11,6 +11,7 @@ import 'server-only';
 import { generateObject } from 'ai';
 import { z } from 'zod';
 import { visionModel } from '@/lib/athos-agent/model';
+import { registrarUso } from '@/lib/athos-agent/usage';
 import { captureRowsToTable, MAX_CAPTURE_ROWS, type CaptureRow } from './capture';
 
 const cell = z.string().nullable();
@@ -65,7 +66,7 @@ export type CaptureInput =
  */
 export async function extractImportTable(
   input: CaptureInput,
-  opts: { preset?: CapturePreset } = {},
+  opts: { preset?: CapturePreset; clinicId: string },
 ): Promise<{ columns: string[]; rows: Record<string, string>[] }> {
   const preset = opts.preset ?? 'productos';
   const content =
@@ -81,13 +82,17 @@ export async function extractImportTable(
           { type: 'text', text: `Lista (texto):\n"""\n${input.text.slice(0, 20000)}\n"""` },
         ] as const);
 
-  const { object } = await generateObject({
-    model: visionModel(),
+  const elegido = visionModel();
+  const { object, usage } = await generateObject({
+    model: elegido.model,
     schema: TableSchema,
     maxOutputTokens: 8000,
     system: SYSTEM_BY_PRESET[preset],
     messages: [{ role: 'user', content: content as never }],
   });
+
+  // 8000 tokens de salida: es la llamada más cara del producto y la que menos se veía.
+  void registrarUso({ clinicId: opts.clinicId, surface: 'vision_purchase', elegido, usage });
 
   return captureRowsToTable(object.rows as CaptureRow[]);
 }

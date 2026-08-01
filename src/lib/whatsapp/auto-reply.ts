@@ -17,7 +17,8 @@
 import { generateText } from "ai"
 
 import { createAdminClient } from "@/lib/supabase/admin"
-import { autoModel, autoModelId } from "@/lib/athos-agent/model"
+import { autoModel } from "@/lib/athos-agent/model"
+import { registrarUso } from "@/lib/athos-agent/usage"
 import { sendWhatsAppText } from "./send-message"
 const DEBOUNCE_MS = 5_000
 const MAX_PER_HOUR_PER_CONVERSATION = 8
@@ -150,9 +151,14 @@ export async function maybeAutoReply(input: {
     .map((m) => `${m.direction === "inbound" ? "Titular" : "Clínica"}: ${m.body ?? "[adjunto]"}`)
     .join("\n")
 
+  // Una sola resolución: el mismo objeto da el modelo que atiende y, más abajo, el id que se
+  // registra. Con `ATHOS_AUTO_CASCADE` puesta, si responde el respaldo `proposed_by_model` guarda
+  // ESE — antes se leía de una segunda función que ignoraba la cascada.
+  const elegido = autoModel()
+
   try {
     const result = await generateText({
-      model: autoModel(),
+      model: elegido.model,
       maxOutputTokens: 250,
       system: `Eres el asistente de WhatsApp de la clínica veterinaria "${(clinic as { name: string } | null)?.name ?? "la clínica"}" (Colombia, tuteo).
 
@@ -172,6 +178,16 @@ Si el titular pide cita: dile que con gusto, que un miembro del equipo le confir
         },
       ],
     })
+    // Se registra ANTES de decidir si se responde: el NO_REPLY también costó tokens, y no contarlo
+    // subestimaría el gasto del modo auto justo en el caso más frecuente.
+    void registrarUso({
+      clinicId,
+      userId: null, // modo auto: no hay vet detrás
+      surface: "auto_reply",
+      elegido,
+      usage: result.usage,
+    })
+
     const text = result.text.trim()
     if (!text || text === "NO_REPLY" || text.includes("NO_REPLY")) return
 
@@ -196,7 +212,7 @@ Si el titular pide cita: dile que con gusto, que un miembro del equipo le confir
         summary: `Respuesta automática: "${text.length > 100 ? `${text.slice(0, 99)}…` : text}"`,
         risk: "auto",
         status: "executed",
-        proposed_by_model: autoModelId(),
+        proposed_by_model: elegido.modelId,
         executed_at: new Date().toISOString(),
         result: { wa_message_id: sentId, message_id: message?.id ?? null },
       })

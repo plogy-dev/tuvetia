@@ -53,7 +53,7 @@ jobs:
       - run: uv sync --dev
       - name: ruff
         run: uv run ruff check .
-      - name: esquema de la DB de test (shim Supabase + bootstrap + 0001-0003)
+      - name: esquema de la DB de test (shim Supabase + bootstrap + 0001-0003 + 0046)
         env:
           PGPASSWORD: postgres
         run: |
@@ -62,6 +62,10 @@ jobs:
           psql -h localhost -U postgres -d athos_test -v ON_ERROR_STOP=1 -q -f supabase/migrations/0001_rag_corpus_glossary_trace.sql
           psql -h localhost -U postgres -d athos_test -v ON_ERROR_STOP=1 -q -f supabase/migrations/0002_vector_index_hnsw.sql
           psql -h localhost -U postgres -d athos_test -v ON_ERROR_STOP=1 -q -f supabase/migrations/0003_tier1_mesh_gin_index.sql
+          # 0046 la piden los 3 tests de aislamiento de `athos_agent_usage`. Se salta 0004-0045
+          # porque esa cadena no está verificada contra el shim; la 0046 sí aplica limpio sobre el
+          # bootstrap, que ya trae `clinics`, `profiles` y `private.my_clinic_id()`.
+          psql -h localhost -U postgres -d athos_test -v ON_ERROR_STOP=1 -q -f supabase/migrations/0046_athos_agent_usage.sql
       - name: pytest
         # Los tests de integración —las **4 pruebas de aislamiento entre clínicas**, que verifican
         # que una clínica no pueda ver alergias, contexto de paciente ni trazas de otra— corren

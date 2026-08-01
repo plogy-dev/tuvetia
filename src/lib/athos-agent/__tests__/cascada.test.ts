@@ -39,6 +39,8 @@ describe("esFalloDeProveedor — sólo se reintenta lo que tiene sentido reinten
     "Invalid API key provided",
     "401 Unauthorized",
     "429 Too Many Requests",
+    "Rate limit reached for requests",
+    "rate_limit_error",
     "Overloaded",
     "fetch failed",
     "ETIMEDOUT",
@@ -50,6 +52,12 @@ describe("esFalloDeProveedor — sólo se reintenta lo que tiene sentido reinten
     "Invalid tool definition: missing inputSchema",
     "El paciente no existe",
     "Cannot read properties of undefined",
+    // Los tres de abajo son la trampa que el `includes("rate")` original no veía: "generated" y
+    // "generate" CONTIENEN "rate" (gene-RATE-d), así que un error nuestro se cobraba una segunda
+    // llamada al respaldo. Son mensajes reales del AI SDK.
+    "AI_NoObjectGeneratedError: No object generated",
+    "Failed to generate object",
+    "moderate confidence, separate call",
   ])("NO reintenta con: %s", (msg) => {
     // Un error de nuestro código fallaría igual en el segundo proveedor: reintentarlo sólo gasta
     // dinero y tiempo.
@@ -76,9 +84,21 @@ describe("conCascada", () => {
     const a = modeloFalso("anthropic", "Your credit balance is too low to access the Anthropic API")
     const b = modeloFalso("deepseek")
     const avisos: string[] = []
-    const r = await stream(conCascada([a, b], (usado) => avisos.push(usado)))
+    const r = await stream(conCascada([a, b], (usado) => avisos.push(usado.etiqueta)))
     expect((r as unknown as { stream: string }).stream).toBe("stream-de-deepseek")
     expect(avisos).toEqual(["falso:deepseek"])
+  })
+
+  it("el aviso trae el modelId suelto, que es lo que se PERSISTE", async () => {
+    // La etiqueta "proveedor:modelo" sirve para el log; en la fila de athos_actions va el modelo a
+    // secas. Si acá quedara la etiqueta, la traza guardaría "falso:deepseek" en vez de "deepseek".
+    const usados: { modelId: string; provider: string }[] = []
+    await stream(
+      conCascada([modeloFalso("anthropic", "credit balance too low"), modeloFalso("deepseek")], (u) =>
+        usados.push({ modelId: u.modelId, provider: u.provider }),
+      ),
+    )
+    expect(usados).toEqual([{ modelId: "deepseek", provider: "falso" }])
   })
 
   it("recorre la cadena entera hasta encontrar uno que responda", async () => {

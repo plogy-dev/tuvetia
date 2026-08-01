@@ -118,7 +118,7 @@ export async function applyCarteraInbound(
 
   const classification = await classifyCarteraIntent(
     trimmed || '(el cliente envió un archivo adjunto, probablemente un comprobante)',
-    { todayISO: bogotaTodayISO() },
+    { todayISO: bogotaTodayISO(), clinicId },
   );
 
   const result = await executeCarteraInbound(admin, clinicId, {
