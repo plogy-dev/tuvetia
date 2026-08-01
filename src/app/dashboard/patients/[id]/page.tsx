@@ -1,10 +1,9 @@
 import Link from "next/link"
 import { notFound } from "next/navigation"
-import { AlertTriangle, ArrowLeft, CalendarDays, PawPrint, Pill, Syringe } from "lucide-react"
+import { AlertTriangle, ArrowLeft, CalendarDays, PawPrint } from "lucide-react"
 
 import { fmtAgeLong } from "@/lib/age"
 import { createClient } from "@/lib/supabase/server"
-import { bogotaDateTime } from "@/lib/date-utils"
 import {
   PatientAttachments,
   type PatientAttachment,
@@ -13,6 +12,12 @@ import {
   PatientConsultationHistory,
   type ConsultationHistory,
 } from "@/components/patient/patient-consultation-history"
+import {
+  PatientClinicalSummary,
+  type Allergy,
+  type Medication,
+  type Vaccine,
+} from "@/components/patient/patient-clinical-summary"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
 
@@ -20,12 +25,6 @@ const SEX_LABELS: Record<string, string> = {
   male: "Macho",
   female: "Hembra",
   unknown: "Sexo desconocido",
-}
-
-const SEVERITY_LABELS: Record<string, string> = {
-  mild: "leve",
-  moderate: "moderada",
-  severe: "severa",
 }
 
 type Owner = { full_name: string; phone: string | null } | null
@@ -45,18 +44,6 @@ type Patient = {
   notes: string | null
   owner: Owner
 }
-
-type Allergy = { id: string; allergen: string; severity: string; reaction: string | null }
-type Medication = { id: string; drug_name: string; dose: string; frequency: string | null; is_chronic: boolean; end_date: string | null }
-type Vaccine = { id: string; vaccine_name: string; administered_at: string; next_dose_at: string | null }
-
-// Anclada a America/Bogota: este es un server component y el runtime de Vercel es UTC, así que sin
-// `timeZone` una consulta o una vacuna de las 19:00 se mostraba con la fecha del día siguiente.
-function fmtDate(iso: string | null): string {
-  if (!iso) return "—"
-  return bogotaDateTime(iso)
-}
-
 
 export default async function PatientHistoryPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
@@ -171,76 +158,17 @@ export default async function PatientHistoryPage({ params }: { params: Promise<{
       )}
 
       {/* Resumen clínico: alergias / medicación / vacunas.
-          Las tarjetas vacías NO se pintan. Antes salían las tres diciendo "Sin … registradas" con
-          cero forma de añadir nada: no existe ninguna ruta de escritura por UI para medicación ni
-          vacunas, y las alergias sólo las escribe Athos al aprobarle una propuesta. Tres cajas que
-          nunca se pueden llenar desde ahí son tres callejones sin salida, no información. */}
-      {allergies.length + medications.length + vaccines.length === 0 ? (
-        <p className="rounded-xl border bg-card p-4 text-sm text-muted-foreground">
-          Esta ficha todavía no tiene alergias, medicación ni vacunas. Las alergias entran cuando
-          apruebas una propuesta de Athos durante una consulta.
-        </p>
-      ) : (
-        <div className="grid gap-4 md:grid-cols-3">
-          {allergies.length > 0 && (
-            <div className="rounded-xl border bg-card p-4">
-              <div className="mb-2 flex items-center gap-2 text-sm font-semibold">
-                <AlertTriangle className="size-4 text-muted-foreground" /> Alergias
-              </div>
-              <ul className="flex flex-col gap-1.5 text-sm">
-                {allergies.map((a) => (
-                  <li key={a.id} className="flex items-center gap-2">
-                    <span
-                      className={`size-1.5 rounded-full ${a.severity === "severe" ? "bg-destructive" : "bg-muted-foreground/50"}`}
-                    />
-                    <span className="font-medium">{a.allergen}</span>
-                    <span className="text-muted-foreground">
-                      {SEVERITY_LABELS[a.severity] ?? a.severity}
-                    </span>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          )}
-
-          {medications.length > 0 && (
-            <div className="rounded-xl border bg-card p-4">
-              <div className="mb-2 flex items-center gap-2 text-sm font-semibold">
-                <Pill className="size-4 text-muted-foreground" /> Medicación
-              </div>
-              <ul className="flex flex-col gap-1.5 text-sm">
-                {medications.slice(0, 6).map((m) => (
-                  <li key={m.id} className="flex flex-wrap items-baseline gap-x-2">
-                    <span className="font-medium">{m.drug_name}</span>
-                    <span className="text-muted-foreground">{m.dose}</span>
-                    {m.is_chronic && (
-                      <Badge variant="outline" className="text-[10px]">
-                        Crónico
-                      </Badge>
-                    )}
-                  </li>
-                ))}
-              </ul>
-            </div>
-          )}
-
-          {vaccines.length > 0 && (
-            <div className="rounded-xl border bg-card p-4">
-              <div className="mb-2 flex items-center gap-2 text-sm font-semibold">
-                <Syringe className="size-4 text-muted-foreground" /> Vacunas
-              </div>
-              <ul className="flex flex-col gap-1.5 text-sm">
-                {vaccines.slice(0, 6).map((v) => (
-                  <li key={v.id} className="flex flex-wrap items-baseline gap-x-2">
-                    <span className="font-medium">{v.vaccine_name}</span>
-                    <span className="text-muted-foreground">{fmtDate(v.administered_at)}</span>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          )}
-        </div>
-      )}
+          Antes las tres tarjetas se ocultaban al estar vacías, porque no había ninguna ruta de
+          escritura por UI y tres cajas que nunca se pueden llenar son tres callejones sin salida.
+          Medicación y vacunas YA tienen alta (las policies de INSERT existían; faltaba la
+          interfaz), así que ahora se pintan siempre. El detalle vive en el componente. */}
+      <PatientClinicalSummary
+        clinicId={patient.clinic_id}
+        patientId={patient.id}
+        allergies={allergies}
+        medications={medications}
+        vaccines={vaccines}
+      />
 
       {/* Archivos adjuntos: exámenes médicos, radiografías, laboratorio… */}
       <PatientAttachments
