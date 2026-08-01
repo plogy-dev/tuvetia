@@ -12,6 +12,7 @@ import { Check, CheckCheck, CircleAlert, Loader2, MessageCircle, Plus, Send, Spa
 import { toast } from "sonner"
 
 import { createClient } from "@/lib/supabase/client"
+import { normalizarTimestamp } from "@/lib/realtime-timestamp"
 import { ActionApprovalCard, type ProposedAction } from "@/components/athos/action-approval-card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -49,6 +50,20 @@ const digits = (s: string) => s.replace(/\D/g, "")
 
 function contactOf(m: InboxMessage): string {
   return digits(m.direction === "inbound" ? m.wa_phone_from : m.wa_phone_to)
+}
+
+// Realtime entrega los `timestamptz` con el formato del WAL ("… 19:19:20+00") y PostgREST con el
+// ISO de JSON ("…T19:19:20+00:00"). Este componente compara `created_at` como string —el cursor y
+// el orden de las conversaciones— así que las filas que llegan por el socket se pasan por acá ANTES
+// de tocar el estado. Ver `lib/realtime-timestamp.ts` para la medición que lo motivó.
+function desdeRealtime(row: InboxMessage): InboxMessage {
+  return {
+    ...row,
+    created_at: normalizarTimestamp(row.created_at),
+    read_at: normalizarTimestamp(row.read_at),
+    delivered_at: normalizarTimestamp(row.delivered_at),
+    failed_at: normalizarTimestamp(row.failed_at),
+  }
 }
 
 function fmtTime(iso: string): string {
@@ -160,14 +175,16 @@ export function WhatsappInbox({
       .on(
         "postgres_changes",
         { event: "INSERT", schema: "public", table: "whatsapp_messages" },
-        (payload) => applyFresh([payload.new as InboxMessage]),
+        (payload) => applyFresh([desdeRealtime(payload.new as InboxMessage)]),
       )
       .on(
         "postgres_changes",
         { event: "UPDATE", schema: "public", table: "whatsapp_messages" },
         (payload) => {
           // Los ticks de entregado/leído y los fallos de envío llegan como UPDATE de la fila.
-          const row = payload.new as InboxMessage
+          // `desdeRealtime` es imprescindible acá: la fusión trae `created_at` entero, así que sin
+          // normalizar cada tick pisaba una fecha buena con la del WAL y desordenaba el hilo.
+          const row = desdeRealtime(payload.new as InboxMessage)
           setMessages((prev) => prev.map((m) => (m.id === row.id ? { ...m, ...row } : m)))
         },
       )
