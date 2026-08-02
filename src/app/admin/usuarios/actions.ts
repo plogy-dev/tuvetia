@@ -1,5 +1,9 @@
 "use server"
 
+// El `maxDuration` que este envío masivo necesita NO puede vivir acá: un archivo `"use server"`
+// sólo admite exports de funciones async, y `export const maxDuration` rompe el build. Va en
+// `usuarios/page.tsx`, que es el segmento de ruta desde el que se invocan estas acciones.
+
 // Acciones del panel de plataforma. Cada una re-verifica el gate: una server action es un ENDPOINT
 // propio, invocable con un POST, y el `notFound()` del layout no la protege — el layout sólo corre
 // al renderizar la página.
@@ -10,6 +14,7 @@ import { createClient } from "@/lib/supabase/server"
 import { createAdminClient } from "@/lib/supabase/admin"
 import { isPlatformAdmin } from "@/lib/platform-admin"
 import { sendPlatformEmail } from "@/lib/email/platform-sender"
+import { TOPE_ENVIO_MASIVO } from "@/lib/admin/limites"
 
 const EnvioSchema = z.object({
   to: z.string().email("El correo del destinatario no es válido"),
@@ -100,7 +105,23 @@ export async function enviarCorreoPlataforma(input: {
 //     empieza a rebotar — y los rebotes son lo que quema la reputación del dominio.
 //   · REINTENTO sólo de lo transitorio. `sendEmail` ya distingue un 535 (credencial mala, no se
 //     reintenta) de un timeout de red (sí). Reintentar una credencial mala 50 veces no la arregla.
-const TOPE_MASIVO = 50
+// EL TOPE LO MANDA EL RELOJ DE LA FUNCIÓN, no el gusto. Este bucle corre dentro de una server
+// action, o sea una función serverless con límite de tiempo, y hace tres cosas que suman:
+//
+//   · una pausa de MS_ENTRE_ENVIOS entre destinatarios,
+//   · un envío SMTP que `email/smtp.ts` deja llegar hasta 20 s antes de rendirse,
+//   · y un reintento con pausa doble cuando el fallo es transitorio.
+//
+// Con el tope anterior de 50 el peor caso pasaba de dos minutos y el mejor rondaba el minuto: la
+// función se cortaba a mitad del lote y el operador veía un error sin saber a quién le había
+// llegado. (Se podía reconstruir desde `audit_logs`, pero eso es forense, no una respuesta.)
+//
+// 12 × (1,2 s + ~2 s de SMTP) ≈ 40 s, con `maxDuration = 120` de colchón para los reintentos. Para
+// tandas más grandes hace falta una cola de verdad, no un tope más alto.
+//
+// El número vive en `lib/admin/limites.ts` para que la UI ofrezca exactamente el mismo que el
+// servidor valida.
+const TOPE_MASIVO = TOPE_ENVIO_MASIVO
 const MS_ENTRE_ENVIOS = 1200
 
 const MasivoSchema = z.object({

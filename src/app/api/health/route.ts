@@ -51,6 +51,12 @@ export async function GET(req: Request) {
   // que no tenerlo, porque suma una llamada perdida y la falsa tranquilidad de creerlo cubierto.
   //
   // Se recorren las tres cadenas y se junta la credencial que cada entrada necesita.
+  //
+  // El `?? "anthropic"` NO es decorativo: `leerCadena` (athos-agent/cascada.ts) resuelve una entrada
+  // sin `@proveedor` como Anthropic. Si acá se descartaran esas entradas, una cadena escrita
+  // "claude-sonnet-5,deepseek-v4@deepseek" pasaría el chequeo sin haber verificado nunca la
+  // credencial que su primer modelo necesita. Dos lugares que interpretan el mismo string tienen
+  // que interpretarlo igual, o el health miente sobre la configuración que valida.
   const proveedoresDeCascada = new Set(
     [
       process.env.ATHOS_AGENT_CASCADE,
@@ -59,8 +65,9 @@ export async function GET(req: Request) {
     ].flatMap((cadena) =>
       (cadena ?? "")
         .split(",")
-        .map((par) => par.split("@")[1]?.trim())
-        .filter((p): p is string => Boolean(p)),
+        .map((par) => par.trim())
+        .filter(Boolean)
+        .map((par) => par.split("@")[1]?.trim() || "anthropic"),
     ),
   )
   const cascadaConCredenciales = [...proveedoresDeCascada].every((p) =>
