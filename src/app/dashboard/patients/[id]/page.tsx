@@ -1,6 +1,6 @@
 import Link from "next/link"
 import { notFound } from "next/navigation"
-import { AlertTriangle, ArrowLeft, CalendarDays, PawPrint } from "lucide-react"
+import { AlertTriangle, ArrowLeft, CalendarDays, PawPrint, Stethoscope } from "lucide-react"
 
 import { fmtAgeLong } from "@/lib/age"
 import { createClient } from "@/lib/supabase/server"
@@ -12,6 +12,10 @@ import {
   PatientConsultationHistory,
   type ConsultationHistory,
 } from "@/components/patient/patient-consultation-history"
+import {
+  PatientAppointments,
+  type PatientAppointment,
+} from "@/components/patient/patient-appointments"
 import {
   PatientClinicalSummary,
   type Allergy,
@@ -65,6 +69,7 @@ export default async function PatientHistoryPage({ params }: { params: Promise<{
     { data: vaxData },
     { data: consultData },
     { data: attachData },
+    { data: apptData },
   ] = await Promise.all([
       supabase.from("allergies").select("id, allergen, severity, reaction").eq("patient_id", id),
       supabase
@@ -96,6 +101,13 @@ export default async function PatientHistoryPage({ params }: { params: Promise<{
         .select("id, label, file_url, file_type, file_size, created_at")
         .eq("patient_id", id)
         .order("created_at", { ascending: false }),
+      // Citas del paciente: las próximas primero, después la historia hacia atrás.
+      supabase
+        .from("appointments")
+        .select("id, title, reason, status, starts_at, vet:profiles(full_name)")
+        .eq("patient_id", id)
+        .order("starts_at", { ascending: false })
+        .limit(50),
     ])
 
   const allergies = (allergyData as unknown as Allergy[] | null) ?? []
@@ -103,6 +115,7 @@ export default async function PatientHistoryPage({ params }: { params: Promise<{
   const vaccines = (vaxData as unknown as Vaccine[] | null) ?? []
   const consultations = (consultData as unknown as ConsultationHistory[] | null) ?? []
   const attachments = (attachData as unknown as PatientAttachment[] | null) ?? []
+  const appointments = (apptData as unknown as PatientAppointment[] | null) ?? []
   const severeAllergies = allergies.filter((a) => a.severity === "severe")
 
   const initial = patient.name.charAt(0).toUpperCase()
@@ -177,9 +190,17 @@ export default async function PatientHistoryPage({ params }: { params: Promise<{
         attachments={attachments}
       />
 
-      {/* Historia de consultas: maestro-detalle (transcripción + audio + nota) */}
+      {/* Citas agendadas: el registro de cuándo vino y cuándo vuelve. Solo lectura. */}
       <div className="flex items-center gap-2 pt-1">
         <CalendarDays className="size-5 text-muted-foreground" />
+        <h2 className="text-base font-semibold">Citas ({appointments.length})</h2>
+      </div>
+
+      <PatientAppointments appointments={appointments} nowIso={new Date().toISOString()} />
+
+      {/* Historia de consultas: maestro-detalle (transcripción + audio + nota) */}
+      <div className="flex items-center gap-2 pt-1">
+        <Stethoscope className="size-5 text-muted-foreground" />
         <h2 className="text-base font-semibold">Historia de consultas ({consultations.length})</h2>
       </div>
 

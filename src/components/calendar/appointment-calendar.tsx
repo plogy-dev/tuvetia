@@ -43,8 +43,6 @@ import {
   type AppointmentFormInitial,
 } from "./create-appointment-drawer"
 import { HelpTip } from "@/components/help-tip"
-import { GoogleCalendarConnect } from "./google-calendar-connect"
-import { MicrosoftCalendarConnect } from "./microsoft-calendar-connect"
 import { IcsFeedButton } from "./ics-feed-button"
 import {
   AgendaEventContent,
@@ -99,23 +97,12 @@ export function AppointmentCalendar({
   patients,
   owners,
   vets,
-  googleConnected,
-  microsoftConnected,
-  canManageCalendarConnection,
-  showGoogle,
-  showMicrosoft,
 }: {
   initialAppointments: AppointmentRow[]
   initialRange: { start: string; end: string }
   patients: PatientOption[]
   owners: SelectOption[]
   vets: SelectOption[]
-  googleConnected: boolean
-  microsoftConnected: boolean
-  canManageCalendarConnection: boolean
-  /** Qué proveedor corresponde a esta clínica — uno solo. Ver pickCalendarProviders en la página. */
-  showGoogle: boolean
-  showMicrosoft: boolean
 }) {
   const [supabase] = useState(() => createClient())
   const [events, setEvents] = useState<CalendarEvent[]>(() => initialAppointments.map(toEvent))
@@ -160,70 +147,61 @@ export function AppointmentCalendar({
     setDrawerOpen(true)
   }, [])
 
-  // Push/delete a Google/Microsoft: best-effort y solo si el vet conectó ese calendario. El
-  // calendario interno es la fuente de verdad; si el proveedor falla, la cita local no se ve afectada.
-  const pushToGoogle = useCallback(
-    async (appointmentId: string) => {
-      if (!googleConnected) return
-      try {
-        await fetch("/api/google/calendar/push", {
+  // Push/delete al calendario del VETERINARIO ASIGNADO. Se llama a los dos proveedores sin
+  // preguntar cuál usa: el cliente no sabe —ni tiene por qué— si ese vet conectó Google, Outlook o
+  // nada. El servidor resuelve su integración y no hace nada si no tiene ninguna.
+  //
+  // Todo best-effort: `appointments` es la fuente de verdad, así que si el proveedor falla la cita
+  // local queda igual. Por eso no se avisa de estos errores — el vet no puede hacer nada con ellos.
+  const pushAlCalendario = useCallback(async (appointmentId: string) => {
+    await Promise.allSettled(
+      ["google", "microsoft"].map((p) =>
+        fetch(`/api/${p}/calendar/push`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ appointment_id: appointmentId }),
-        })
-      } catch {
-        /* best-effort */
-      }
-    },
-    [googleConnected],
-  )
+        }),
+      ),
+    )
+  }, [])
 
-  const deleteFromGoogle = useCallback(
-    async (googleEventId: string | null) => {
-      if (!googleConnected || !googleEventId) return
-      try {
-        await fetch("/api/google/calendar/delete", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ google_event_id: googleEventId }),
-        })
-      } catch {
-        /* best-effort */
+  // Al borrar la cita, la fila ya no existe: quién era el dueño del calendario y los ids del evento
+  // vienen capturados de antes (ver handleDelete del drawer).
+  const borrarDelCalendario = useCallback(
+    async (
+      googleEventId: string | null,
+      microsoftEventId: string | null,
+      calendarOwnerId: string | null,
+    ) => {
+      if (!calendarOwnerId) return // la cita nunca llegó a un calendario
+      const borrados: Promise<unknown>[] = []
+      if (googleEventId) {
+        borrados.push(
+          fetch("/api/google/calendar/delete", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              google_event_id: googleEventId,
+              calendar_owner_id: calendarOwnerId,
+            }),
+          }),
+        )
       }
-    },
-    [googleConnected],
-  )
-
-  const pushToMicrosoft = useCallback(
-    async (appointmentId: string) => {
-      if (!microsoftConnected) return
-      try {
-        await fetch("/api/microsoft/calendar/push", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ appointment_id: appointmentId }),
-        })
-      } catch {
-        /* best-effort */
+      if (microsoftEventId) {
+        borrados.push(
+          fetch("/api/microsoft/calendar/delete", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              microsoft_event_id: microsoftEventId,
+              calendar_owner_id: calendarOwnerId,
+            }),
+          }),
+        )
       }
+      await Promise.allSettled(borrados)
     },
-    [microsoftConnected],
-  )
-
-  const deleteFromMicrosoft = useCallback(
-    async (microsoftEventId: string | null) => {
-      if (!microsoftConnected || !microsoftEventId) return
-      try {
-        await fetch("/api/microsoft/calendar/delete", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ microsoft_event_id: microsoftEventId }),
-        })
-      } catch {
-        /* best-effort */
-      }
-    },
-    [microsoftConnected],
+    [],
   )
 
   const handleRangeChange = useCallback(
@@ -262,6 +240,7 @@ export function AppointmentCalendar({
         notes: a.notes ?? undefined,
         google_event_id: a.google_event_id,
         microsoft_event_id: a.microsoft_event_id,
+        calendar_owner_id: a.calendar_owner_id,
       })
     },
     [openDrawer],
@@ -281,30 +260,29 @@ export function AppointmentCalendar({
         void loadRange(range.start, range.end)
         return
       }
-      void pushToGoogle(event.id)
-      void pushToMicrosoft(event.id)
+      void pushAlCalendario(event.id)
     },
-    [supabase, range, loadRange, pushToGoogle, pushToMicrosoft],
+    [supabase, range, loadRange, pushAlCalendario],
   )
 
   const handleSaved = useCallback(
     (appointmentId: string) => {
       void loadRange(range.start, range.end)
-      if (appointmentId) {
-        void pushToGoogle(appointmentId)
-        void pushToMicrosoft(appointmentId)
-      }
+      if (appointmentId) void pushAlCalendario(appointmentId)
     },
-    [loadRange, range, pushToGoogle, pushToMicrosoft],
+    [loadRange, range, pushAlCalendario],
   )
 
   const handleDeleted = useCallback(
-    (googleEventId: string | null, microsoftEventId: string | null) => {
+    (
+      googleEventId: string | null,
+      microsoftEventId: string | null,
+      calendarOwnerId: string | null,
+    ) => {
       void loadRange(range.start, range.end)
-      void deleteFromGoogle(googleEventId)
-      void deleteFromMicrosoft(microsoftEventId)
+      void borrarDelCalendario(googleEventId, microsoftEventId, calendarOwnerId)
     },
-    [loadRange, range, deleteFromGoogle, deleteFromMicrosoft],
+    [loadRange, range, borrarDelCalendario],
   )
 
   function newAppointment() {
@@ -321,32 +299,14 @@ export function AppointmentCalendar({
         <h1 className="flex items-center gap-1.5 text-lg font-semibold">
           Calendario
           <HelpTip>
-            Agendá y arrastrá citas. <b>Conectar Google Calendar</b> u <b>Outlook Calendar</b>{" "}
-            sincroniza en ambos sentidos; <b>Enlace ICS</b> muestra la agenda en Google sin conectar
-            la cuenta (solo lectura).
+            Agendá y arrastrá citas. Cada cita aparece en el calendario del <b>veterinario
+            asignado</b> e invita al titular — conectá el tuyo desde <b>Conexiones</b>. El{" "}
+            <b>Enlace ICS</b> muestra la agenda en cualquier calendario sin conectar la cuenta (solo
+            lectura).
           </HelpTip>
         </h1>
         <div className="flex flex-wrap items-center gap-2">
           <IcsFeedButton />
-          {showGoogle && (
-            <GoogleCalendarConnect
-              connected={googleConnected}
-              canConnect={canManageCalendarConnection}
-              onSynced={() => void loadRange(range.start, range.end)}
-            />
-          )}
-          {showMicrosoft && (
-            <MicrosoftCalendarConnect
-              connected={microsoftConnected}
-              canConnect={canManageCalendarConnection}
-              onSynced={() => void loadRange(range.start, range.end)}
-            />
-          )}
-          {!showGoogle && !showMicrosoft && (
-            <span className="text-xs text-muted-foreground">
-              El administrador no conectó ningún calendario
-            </span>
-          )}
           <Button onClick={newAppointment}>
             <PlusIcon /> Nueva cita
           </Button>

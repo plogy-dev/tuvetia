@@ -1,22 +1,17 @@
-// Sincronización con Microsoft Outlook Calendar (Graph API) — SOLO servidor. REST directo (sin
-// dependencias), con el cliente service_role para leer el refresh_token del admin y escribir
-// microsoft_event_id. Espejo de google-calendar.ts; ver ese archivo para el porqué de cada decisión
-// compartida (chunking del pull, best-effort del push, resolución del admin de la clínica, etc).
+// Sincronización con Microsoft Outlook Calendar (Graph API) — SOLO servidor. Espejo de
+// google-calendar.ts; ver ese archivo para el porqué de cada decisión compartida.
 //
-// Config externa requerida: en el entorno del servidor MICROSOFT_CLIENT_ID, MICROSOFT_CLIENT_SECRET
-// y SUPABASE_SERVICE_ROLE_KEY; y el proveedor Azure de Supabase configurado para pedir el scope
-// `offline_access Calendars.ReadWrite` (ver microsoft-calendar-scope.ts) y devolver refresh token.
+// v3 (migración 0049): una sola vía (Tuvetia empuja, no lee) y el evento vive en el calendario del
+// VETERINARIO ASIGNADO. La conexión es explícita desde Conexiones.
+//
+// Config externa requerida: MICROSOFT_CLIENT_ID, MICROSOFT_CLIENT_SECRET y
+// SUPABASE_SERVICE_ROLE_KEY en el entorno del servidor.
 //
 // Diferencias de Graph frente a Google Calendar que este archivo absorbe:
-// - El refresh token solo llega si el scope incluye `offline_access` explícito (Google usa el query
-//   param `access_type=offline` en su lugar).
+// - El refresh token solo llega si el scope incluye `offline_access` explícito.
 // - No hay "primary": el calendario por defecto se accede vía /me/events (sin id de calendario).
-// - El pull incremental es `/me/calendarView/delta`, que a diferencia del syncToken de Google queda
-//   ATADO a la ventana de tiempo del primer request — no hay forma de extenderla después sin reiniciar
-//   el sync completo. Se usa una ventana de 30 días atrás / 180 adelante (cubre agenda pasada y futura
-//   razonable para una clínica).
-// - Los `attendees` sí disparan invitación por correo por default al crear/actualizar un evento — a
-//   diferencia de Google, Graph no necesita un `sendUpdates=all` explícito.
+// - Los `attendees` disparan invitación por correo por default, sin el `sendUpdates=all` que sí
+//   necesita Google.
 
 import { createAdminClient } from "@/lib/supabase/admin"
 
@@ -25,8 +20,7 @@ const CALENDAR_SCOPE = "offline_access Calendars.ReadWrite"
 
 type Integration = {
   refresh_token: string | null
-  google_calendar_id: string // reutiliza la columna genérica de calendar_integrations (id de calendario del proveedor)
-  sync_token: string | null
+  google_calendar_id: string // columna genérica de calendar_integrations (id de calendario del proveedor)
 }
 
 type AppointmentForSync = {
@@ -40,11 +34,11 @@ type AppointmentForSync = {
   owner_id: string | null
   vet_id: string | null
   microsoft_event_id: string | null
+  calendar_owner_id: string | null
 }
 
-// Guarda el refresh token de Microsoft del ADMIN de la clínica (lo llama el /auth/callback cuando su
-// login trae uno, o el route /connect en el reconnect explícito — ambos ya validan que quien conecta
-// sea clinics.owner_id antes de llegar acá). Idempotente por (user_id, provider).
+// Guarda el refresh token de Microsoft del usuario. Lo llama SOLO el route /connect, con el usuario
+// que apretó "Conectar" en Conexiones — ya no hay vinculación automática en el login.
 export async function upsertMicrosoftIntegration(
   userId: string,
   clinicId: string,
@@ -65,6 +59,12 @@ export async function upsertMicrosoftIntegration(
   )
 }
 
+/** Desconectar: borra la integración del usuario. Las citas ya empujadas quedan en su calendario. */
+export async function deleteMicrosoftIntegration(userId: string): Promise<void> {
+  const admin = createAdminClient()
+  await admin.from("calendar_integrations").delete().eq("user_id", userId).eq("provider", "microsoft")
+}
+
 function microsoftCreds(): { id: string; secret: string; tenant: string } {
   const id = process.env.MICROSOFT_CLIENT_ID
   const secret = process.env.MICROSOFT_CLIENT_SECRET
@@ -75,7 +75,7 @@ function microsoftCreds(): { id: string; secret: string; tenant: string } {
   return { id, secret, tenant }
 }
 
-// Refresca un access token a partir del refresh token del admin.
+// Refresca un access token a partir del refresh token del vet.
 async function accessTokenFrom(refreshToken: string): Promise<string> {
   const { id, secret, tenant } = microsoftCreds()
   const res = await fetch(`https://login.microsoftonline.com/${tenant}/oauth2/v2.0/token`, {
@@ -89,7 +89,17 @@ async function accessTokenFrom(refreshToken: string): Promise<string> {
       scope: CALENDAR_SCOPE,
     }),
   })
-  if (!res.ok) throw new Error(`Microsoft token refresh falló (${res.status})`)
+  if (!res.ok) {
+    const cuerpo = (await res.json().catch(() => ({}))) as {
+      error?: string
+      error_description?: string
+    }
+    console.error(`[microsoft-calendar] refresh falló (${res.status}):`, cuerpo)
+    const detalle = cuerpo.error_description || cuerpo.error || `HTTP ${res.status}`
+    throw new Error(
+      `Microsoft rechazó el token guardado: ${detalle}. Puede que haya sido revocado — reconectá Outlook Calendar desde Conexiones.`,
+    )
+  }
   const json = (await res.json()) as { access_token?: string }
   if (!json.access_token) throw new Error("Microsoft no devolvió access_token")
   return json.access_token
@@ -126,26 +136,17 @@ function eventBody(a: AppointmentForSync, attendeeEmails: string[]) {
 
 type AdminClient = ReturnType<typeof createAdminClient>
 
-// El admin de una clínica para efectos de calendario: clinics.owner_id (fijado al crear la clínica,
-// ver 0048_calendar_admin_redesign.sql). Si una clínica no tiene owner_id (caso raro, sin miembros
-// todavía) no hay a quién sincronizar.
-async function resolveClinicAdmin(admin: AdminClient, clinicId: string): Promise<string | null> {
-  const { data } = await admin.from("clinics").select("owner_id").eq("id", clinicId).maybeSingle()
-  return (data as { owner_id: string | null } | null)?.owner_id ?? null
-}
-
 async function getIntegration(admin: AdminClient, userId: string): Promise<Integration | null> {
   const { data } = await admin
     .from("calendar_integrations")
-    .select("refresh_token, google_calendar_id, sync_token")
+    .select("refresh_token, google_calendar_id")
     .eq("user_id", userId)
     .eq("provider", "microsoft")
     .maybeSingle()
   return (data as Integration | null) ?? null
 }
 
-// Emails del titular y del vet asignado, para invitarlos como attendees. Cualquiera de los dos puede
-// faltar (titular sin email, cita sin vet todavía) — se omiten en vez de fallar el push.
+// Emails del titular y del vet asignado, para invitarlos como attendees.
 async function attendeeEmailsFor(
   admin: AdminClient,
   ownerId: string | null,
@@ -164,29 +165,70 @@ async function attendeeEmailsFor(
   return emails
 }
 
-// Push: crea o actualiza el evento en el Outlook Calendar del ADMIN de la clínica de la cita, y
-// guarda microsoft_event_id. No-op si el admin no conectó Microsoft. Devuelve el microsoft_event_id
-// (o null).
+/** Borra el evento del calendario de `ownerUserId`. No lanza: es limpieza best-effort. */
+async function borrarEventoDe(
+  admin: AdminClient,
+  ownerUserId: string,
+  eventId: string,
+): Promise<void> {
+  try {
+    const integ = await getIntegration(admin, ownerUserId)
+    if (!integ?.refresh_token) return
+    const access = await accessTokenFrom(integ.refresh_token)
+    const base = eventsBaseUrl(integ.google_calendar_id)
+    await fetch(`${base}/${encodeURIComponent(eventId)}`, {
+      method: "DELETE",
+      headers: { Authorization: `Bearer ${access}` },
+    })
+  } catch (e) {
+    console.error("[microsoft-calendar] no se pudo limpiar el evento del vet anterior:", e)
+  }
+}
+
+/**
+ * Push: crea o actualiza el evento en el calendario del VETERINARIO ASIGNADO, con el titular y el
+ * propio vet como invitados. Devuelve el microsoft_event_id, o null si ese vet no conectó Outlook.
+ *
+ * Si la cita cambió de veterinario, el evento se borra del calendario del anterior antes de crearse
+ * en el del nuevo (ver google-calendar.ts para el porqué).
+ */
 export async function pushAppointment(appointmentId: string): Promise<string | null> {
   const admin = createAdminClient()
   const { data: appt } = await admin
     .from("appointments")
-    .select("id, clinic_id, title, reason, notes, starts_at, ends_at, owner_id, vet_id, microsoft_event_id")
+    .select(
+      "id, clinic_id, title, reason, notes, starts_at, ends_at, owner_id, vet_id, microsoft_event_id, calendar_owner_id",
+    )
     .eq("id", appointmentId)
     .maybeSingle()
   if (!appt) return null
   const a = appt as AppointmentForSync
+  if (!a.vet_id) return null // sin veterinario no hay calendario destino
 
-  const adminUserId = await resolveClinicAdmin(admin, a.clinic_id)
-  if (!adminUserId) return null
-  const integ = await getIntegration(admin, adminUserId)
-  if (!integ?.refresh_token) return null // el admin no conectó -> el calendario interno sigue funcionando
+  const cambioDeCalendario = Boolean(
+    a.microsoft_event_id && a.calendar_owner_id && a.calendar_owner_id !== a.vet_id,
+  )
+  if (cambioDeCalendario) {
+    await borrarEventoDe(admin, a.calendar_owner_id as string, a.microsoft_event_id as string)
+  }
+
+  const integ = await getIntegration(admin, a.vet_id)
+  if (!integ?.refresh_token) {
+    if (cambioDeCalendario) {
+      await admin
+        .from("appointments")
+        .update({ microsoft_event_id: null, calendar_owner_id: null })
+        .eq("id", a.id)
+    }
+    return null
+  }
 
   const access = await accessTokenFrom(integ.refresh_token)
   const base = eventsBaseUrl(integ.google_calendar_id)
   const attendeeEmails = await attendeeEmailsFor(admin, a.owner_id, a.vet_id)
-  const isUpdate = Boolean(a.microsoft_event_id)
-  const url = isUpdate ? `${base}/${encodeURIComponent(a.microsoft_event_id as string)}` : base
+  const eventIdVigente = cambioDeCalendario ? null : a.microsoft_event_id
+  const isUpdate = Boolean(eventIdVigente)
+  const url = isUpdate ? `${base}/${encodeURIComponent(eventIdVigente as string)}` : base
   const res = await fetch(url, {
     method: isUpdate ? "PATCH" : "POST",
     headers: { Authorization: `Bearer ${access}`, "Content-Type": "application/json" },
@@ -194,18 +236,26 @@ export async function pushAppointment(appointmentId: string): Promise<string | n
   })
   if (!res.ok) throw new Error(`Outlook Calendar ${isUpdate ? "patch" : "insert"} falló (${res.status})`)
   const ev = (await res.json()) as { id?: string }
-  if (ev.id && ev.id !== a.microsoft_event_id) {
-    await admin.from("appointments").update({ microsoft_event_id: ev.id }).eq("id", a.id)
+  const nuevoId = ev.id ?? eventIdVigente
+  if (nuevoId !== a.microsoft_event_id || a.calendar_owner_id !== a.vet_id) {
+    await admin
+      .from("appointments")
+      .update({ microsoft_event_id: nuevoId, calendar_owner_id: a.vet_id })
+      .eq("id", a.id)
   }
-  return ev.id ?? a.microsoft_event_id
+  return nuevoId
 }
 
-// Borra el evento remoto (al eliminar la cita), del calendario del admin de esa clínica.
-export async function deleteRemoteEvent(clinicId: string, microsoftEventId: string): Promise<void> {
+/**
+ * Borra el evento remoto al eliminar la cita, del calendario de quien lo tenía
+ * (`appointments.calendar_owner_id`, capturado antes de borrar la fila).
+ */
+export async function deleteRemoteEvent(
+  calendarOwnerId: string,
+  microsoftEventId: string,
+): Promise<void> {
   const admin = createAdminClient()
-  const adminUserId = await resolveClinicAdmin(admin, clinicId)
-  if (!adminUserId) return
-  const integ = await getIntegration(admin, adminUserId)
+  const integ = await getIntegration(admin, calendarOwnerId)
   if (!integ?.refresh_token) return
   const access = await accessTokenFrom(integ.refresh_token)
   const base = eventsBaseUrl(integ.google_calendar_id)
@@ -217,127 +267,4 @@ export async function deleteRemoteEvent(clinicId: string, microsoftEventId: stri
   if (!res.ok && res.status !== 404) {
     throw new Error(`Outlook Calendar delete falló (${res.status})`)
   }
-}
-
-type GraphEvent = {
-  id: string
-  subject?: string
-  bodyPreview?: string
-  start?: { dateTime?: string }
-  end?: { dateTime?: string }
-  "@removed"?: { reason?: string }
-}
-
-const UPSERT_CHUNK_SIZE = 500
-const INITIAL_WINDOW_PAST_DAYS = 30
-const INITIAL_WINDOW_FUTURE_DAYS = 180
-
-function fromGraphDateTime(dateTime: string | undefined): string | null {
-  if (!dateTime) return null
-  // Graph devuelve la hora en UTC (no pedimos otra zona vía Prefer) sin sufijo 'Z'.
-  return new Date(`${dateTime}Z`).toISOString()
-}
-
-// Pull incremental: trae los cambios del Outlook Calendar del ADMIN de la clínica desde el último
-// deltaLink (guardado en sync_token) y los aplica en BLOQUE (upsert por chunks, no fila-por-fila —
-// mismo incidente que motivó el chunking de Google, ver google-calendar.ts). Requiere el índice
-// único appointments(clinic_id, microsoft_event_id) — migración 0044/0047. Devuelve nº de eventos
-// procesados. `clinicId`, no `userId`: cualquier vet de la clínica puede disparar el pull, pero
-// siempre lee la cuenta del admin (clinics.owner_id).
-export async function pullEvents(clinicId: string): Promise<number> {
-  const admin = createAdminClient()
-  const adminUserId = await resolveClinicAdmin(admin, clinicId)
-  if (!adminUserId) return 0
-  const integ = await getIntegration(admin, adminUserId)
-  if (!integ?.refresh_token) return 0
-
-  const access = await accessTokenFrom(integ.refresh_token)
-  const calendarId = integ.google_calendar_id
-  const base =
-    calendarId && calendarId !== "primary"
-      ? `${GRAPH_API}/me/calendars/${encodeURIComponent(calendarId)}/calendarView/delta`
-      : `${GRAPH_API}/me/calendarView/delta`
-
-  const upserts: Record<string, unknown>[] = []
-  const cancelledIds: string[] = []
-  let nextUrl: string
-  if (integ.sync_token) {
-    nextUrl = integ.sync_token
-  } else {
-    const params = new URLSearchParams({
-      startDateTime: new Date(Date.now() - INITIAL_WINDOW_PAST_DAYS * 864e5).toISOString(),
-      endDateTime: new Date(Date.now() + INITIAL_WINDOW_FUTURE_DAYS * 864e5).toISOString(),
-    })
-    nextUrl = `${base}?${params.toString()}`
-  }
-
-  let deltaLink: string | undefined
-  for (;;) {
-    const res = await fetch(nextUrl, {
-      headers: { Authorization: `Bearer ${access}`, Prefer: 'odata.track-changes,outlook.timezone="UTC"' },
-    })
-    if (res.status === 410) {
-      // deltaLink vencido/ventana inválida -> reiniciar sync completo la próxima vez.
-      await admin.from("calendar_integrations").update({ sync_token: null }).eq("user_id", adminUserId)
-      return 0
-    }
-    if (!res.ok) throw new Error(`Outlook Calendar delta falló (${res.status})`)
-    const json = (await res.json()) as {
-      value?: GraphEvent[]
-      "@odata.nextLink"?: string
-      "@odata.deltaLink"?: string
-    }
-
-    for (const ev of json.value ?? []) {
-      if (ev["@removed"]) {
-        cancelledIds.push(ev.id)
-        continue
-      }
-      const start = fromGraphDateTime(ev.start?.dateTime)
-      const end = fromGraphDateTime(ev.end?.dateTime)
-      if (!start || !end) continue
-      upserts.push({
-        clinic_id: clinicId,
-        microsoft_event_id: ev.id,
-        title: ev.subject ?? "(sin título)",
-        notes: ev.bodyPreview ?? null,
-        starts_at: start,
-        ends_at: end,
-        status: "scheduled",
-        updated_at: new Date().toISOString(),
-      })
-    }
-
-    if (json["@odata.nextLink"]) {
-      nextUrl = json["@odata.nextLink"]
-      continue
-    }
-    deltaLink = json["@odata.deltaLink"]
-    break
-  }
-
-  // Upsert por chunks: solo toca las columnas listadas arriba (patient_id/owner_id/vet_id/status
-  // ya asignados en la app quedan intactos para filas existentes; nuevas filas nacen sin paciente).
-  for (let i = 0; i < upserts.length; i += UPSERT_CHUNK_SIZE) {
-    const chunk = upserts.slice(i, i + UPSERT_CHUNK_SIZE)
-    const { error } = await admin
-      .from("appointments")
-      .upsert(chunk, { onConflict: "clinic_id,microsoft_event_id" })
-    if (error) throw new Error(`Upsert de eventos falló: ${error.message}`)
-  }
-
-  // Cancelaciones por chunks (update masivo; no-op si el evento no existía localmente).
-  for (let i = 0; i < cancelledIds.length; i += UPSERT_CHUNK_SIZE) {
-    const chunk = cancelledIds.slice(i, i + UPSERT_CHUNK_SIZE)
-    await admin
-      .from("appointments")
-      .update({ status: "canceled" })
-      .eq("clinic_id", clinicId)
-      .in("microsoft_event_id", chunk)
-  }
-
-  if (deltaLink) {
-    await admin.from("calendar_integrations").update({ sync_token: deltaLink }).eq("user_id", adminUserId)
-  }
-  return upserts.length + cancelledIds.length
 }

@@ -15,8 +15,6 @@ import {
 } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
 import { Loader2Icon } from "lucide-react"
-import { GOOGLE_CALENDAR_SCOPE } from "@/lib/google-calendar-scope"
-import { MICROSOFT_CALENDAR_SCOPE } from "@/lib/microsoft-calendar-scope"
 
 /* Glifo "chispa" de la marca Tuvetia (patrón del Sidebar del cliente). */
 function BrandGlyph() {
@@ -81,10 +79,8 @@ export function SignupForm({
     const { error } = await supabase.auth.signInWithOAuth({
       provider: "google",
       options: {
-        // Mismo scope que login-form: registrarse con Google también deja el calendario auto-sincronizado
-        // desde el primer momento (mismo /auth/callback captura el refresh_token).
-        scopes: GOOGLE_CALENDAR_SCOPE,
-        queryParams: { access_type: "offline" },
+        // Igual que login-form: el registro NO pide permisos de calendario (calendario v3). Se
+        // conecta a mano desde Conexiones, eligiendo proveedor.
         redirectTo: `${window.location.origin}/auth/callback${(() => {
           const next = new URLSearchParams(window.location.search).get("next")
           return next ? `?next=${encodeURIComponent(next)}` : ""
@@ -104,9 +100,8 @@ export function SignupForm({
     const { error } = await supabase.auth.signInWithOAuth({
       provider: "azure",
       options: {
-        // Igual que Google: se pide el scope de calendario en el propio registro para vincular
-        // Outlook Calendar sin un paso extra (el callback captura el refresh_token).
-        scopes: `email ${MICROSOFT_CALENDAR_SCOPE}`,
+        // Igual que Google: sin scope de calendario. Outlook se conecta desde Conexiones.
+        scopes: "email",
         redirectTo: `${window.location.origin}/auth/callback${(() => {
           const next = new URLSearchParams(window.location.search).get("next")
           return next ? `?next=${encodeURIComponent(next)}` : ""

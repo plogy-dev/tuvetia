@@ -55,6 +55,8 @@ export type AppointmentFormInitial = {
   notes?: string
   google_event_id?: string | null
   microsoft_event_id?: string | null
+  /** Dueño del calendario donde vive el evento — se captura para poder borrarlo allá. */
+  calendar_owner_id?: string | null
 }
 
 // ISO -> valor de <input type="datetime-local"> (hora local del navegador).
@@ -80,7 +82,11 @@ export function CreateAppointmentDrawer({
   owners: SelectOption[]
   vets: SelectOption[]
   onSaved: (appointmentId: string) => void
-  onDeleted: (googleEventId: string | null, microsoftEventId: string | null) => void
+  onDeleted: (
+    googleEventId: string | null,
+    microsoftEventId: string | null,
+    calendarOwnerId: string | null,
+  ) => void
 }) {
   const isMobile = useIsMobile()
   const isEdit = Boolean(initial.id)
@@ -189,7 +195,13 @@ export function CreateAppointmentDrawer({
     }
     toast.success("Cita eliminada")
     onOpenChange(false)
-    onDeleted(initial.google_event_id ?? null, initial.microsoft_event_id ?? null)
+    // La fila ya no existe: los ids del evento y el dueño del calendario van desde acá, capturados
+    // al abrir el drawer. Después de este punto no hay forma de saber en qué calendario vivía.
+    onDeleted(
+      initial.google_event_id ?? null,
+      initial.microsoft_event_id ?? null,
+      initial.calendar_owner_id ?? null,
+    )
   }
 
   return (

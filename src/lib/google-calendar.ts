@@ -1,15 +1,20 @@
-// Sincronización con Google Calendar (v1b/v1c/v2) — SOLO servidor. REST directo (sin dependencias),
-// con el cliente service_role para leer el refresh_token del admin y escribir google_event_id.
+// Sincronización con Google Calendar (v3) — SOLO servidor. REST directo (sin dependencias), con el
+// cliente service_role para leer el refresh_token del vet y escribir google_event_id.
 //
-// v2 (0048_calendar_admin_redesign): UNA sola cuenta por clínica — la del administrador que la creó
-// (clinics.owner_id) — en vez de una por vet. Push/pull/delete resuelven esa cuenta a partir de la
-// clínica, no de la sesión de quien los dispara. El titular y el veterinario asignado entran como
-// `attendees` del evento: la invitación (y su recordatorio) les llega por correo directo de Google,
-// sin que cada vet tenga que conectar su propia cuenta.
+// v3 (migración 0049) — dos reglas que resumen todo el archivo:
 //
-// Config externa requerida (documentada en DEPLOY del calendario): en el entorno del servidor
-// GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET y SUPABASE_SERVICE_ROLE_KEY; y el proveedor Google de
-// Supabase configurado para devolver refresh token con el scope calendar.events.
+//   1. UNA SOLA VÍA. Tuvetia EMPUJA sus citas al calendario; no lee nada de vuelta. El `pullEvents`
+//      que había acá trajo el calendario personal de un vet (11.695 "Comer"/"Trabajo"/"Dormir") a la
+//      agenda de la clínica. Sin lectura, ese problema no puede repetirse — no es un filtro mejor,
+//      es que el canal ya no existe.
+//   2. EL EVENTO ES DEL VETERINARIO ASIGNADO. Se busca la integración de `appointments.vet_id`, no
+//      la de quien apretó el botón ni la de un calendario compartido de clínica. La agenda de
+//      trabajo es de cada vet.
+//
+// La conexión es explícita desde Conexiones (ya no se guarda ningún token en el login).
+//
+// Config externa requerida: en el entorno del servidor GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET y
+// SUPABASE_SERVICE_ROLE_KEY.
 
 import { createAdminClient } from "@/lib/supabase/admin"
 
@@ -19,7 +24,6 @@ const CAL_API = "https://www.googleapis.com/calendar/v3/calendars"
 type Integration = {
   refresh_token: string | null
   google_calendar_id: string
-  sync_token: string | null
 }
 
 type AppointmentForSync = {
@@ -33,11 +37,11 @@ type AppointmentForSync = {
   owner_id: string | null
   vet_id: string | null
   google_event_id: string | null
+  calendar_owner_id: string | null
 }
 
-// Guarda el refresh token de Google del ADMIN de la clínica (lo llama el /auth/callback cuando su
-// login trae uno, o el route /connect en el reconnect explícito — ambos ya validan que quien conecta
-// sea clinics.owner_id antes de llegar acá). Idempotente por (user_id, provider).
+// Guarda el refresh token de Google del usuario. Lo llama SOLO el route /connect, con el usuario
+// que apretó "Conectar" en Conexiones — ya no hay vinculación automática en el login.
 export async function upsertGoogleIntegration(
   userId: string,
   clinicId: string,
@@ -58,6 +62,12 @@ export async function upsertGoogleIntegration(
   )
 }
 
+/** Desconectar: borra la integración del usuario. Las citas ya empujadas quedan en su calendario. */
+export async function deleteGoogleIntegration(userId: string): Promise<void> {
+  const admin = createAdminClient()
+  await admin.from("calendar_integrations").delete().eq("user_id", userId).eq("provider", "google")
+}
+
 function googleCreds(): { id: string; secret: string } {
   const id = process.env.GOOGLE_CLIENT_ID
   const secret = process.env.GOOGLE_CLIENT_SECRET
@@ -72,25 +82,20 @@ function googleCreds(): { id: string; secret: string } {
  *
  * Google contesta 400 con el motivo REAL en el cuerpo (`error`/`error_description`), y antes se
  * descartaba: el vet veía "falló (400)" y no había forma de saber si el token estaba revocado, si
- * las credenciales del servidor no eran las que emitieron ese token, o qué. Los dos casos de abajo
- * son los que pasan de verdad y tienen arreglos distintos.
+ * las credenciales del servidor no eran las que emitieron ese token, o qué.
  */
 function explicarErrorDeToken(status: number, error: string, description: string): string {
   if (error === "invalid_grant") {
-    // El refresh token ya no sirve: revocado desde la cuenta de Google, o vencido porque la app
-    // sigue en modo "Testing" en Google Cloud (ahí los refresh token duran 7 días).
-    return "Google rechazó el token guardado (invalid_grant): fue revocado o venció. Reconectá Google Calendar. Si se repite cada semana, la app sigue en modo Testing en Google Cloud — hay que publicarla."
+    return "Google rechazó el token guardado (invalid_grant): fue revocado o venció. Reconectá Google Calendar desde Conexiones. Si se repite cada semana, la app sigue en modo Testing en Google Cloud — hay que publicarla."
   }
   if (error === "invalid_client" || error === "unauthorized_client") {
-    // El token lo emitió el cliente OAuth configurado en Supabase Auth, pero el refresh lo firma
-    // GOOGLE_CLIENT_ID/SECRET del servidor. Si no son el MISMO cliente, Google lo rechaza.
     return "Las credenciales del servidor no son las que emitieron el token (invalid_client). GOOGLE_CLIENT_ID/GOOGLE_CLIENT_SECRET tienen que ser el MISMO cliente OAuth configurado en Supabase Auth → Google."
   }
   const detalle = description || error || `HTTP ${status}`
   return `Google rechazó el refresh del token: ${detalle}`
 }
 
-// Refresca un access token a partir del refresh token del admin.
+// Refresca un access token a partir del refresh token del vet.
 async function accessTokenFrom(refreshToken: string): Promise<string> {
   const { id, secret } = googleCreds()
   const res = await fetch(TOKEN_URL, {
@@ -130,18 +135,10 @@ function eventBody(a: AppointmentForSync, attendeeEmails: string[]) {
 
 type AdminClient = ReturnType<typeof createAdminClient>
 
-// El admin de una clínica para efectos de calendario: clinics.owner_id (fijado al crear la clínica,
-// ver 0048_calendar_admin_redesign.sql). Si una clínica no tiene owner_id (caso raro, sin miembros
-// todavía) no hay a quién sincronizar.
-async function resolveClinicAdmin(admin: AdminClient, clinicId: string): Promise<string | null> {
-  const { data } = await admin.from("clinics").select("owner_id").eq("id", clinicId).maybeSingle()
-  return (data as { owner_id: string | null } | null)?.owner_id ?? null
-}
-
 async function getIntegration(admin: AdminClient, userId: string): Promise<Integration | null> {
   const { data } = await admin
     .from("calendar_integrations")
-    .select("refresh_token, google_calendar_id, sync_token")
+    .select("refresh_token, google_calendar_id")
     .eq("user_id", userId)
     .eq("provider", "google")
     .maybeSingle()
@@ -149,7 +146,7 @@ async function getIntegration(admin: AdminClient, userId: string): Promise<Integ
 }
 
 // Emails del titular y del vet asignado, para invitarlos como attendees. Cualquiera de los dos puede
-// faltar (titular sin email, cita sin vet todavía) — se omiten en vez de fallar el push.
+// faltar (titular sin email) — se omiten en vez de fallar el push.
 async function attendeeEmailsFor(
   admin: AdminClient,
   ownerId: string | null,
@@ -168,29 +165,75 @@ async function attendeeEmailsFor(
   return emails
 }
 
-// Push: crea o actualiza el evento en el Google Calendar del ADMIN de la clínica de la cita, y
-// guarda google_event_id. No-op si el admin no conectó Google. Devuelve el google_event_id (o null).
+/** Borra el evento del calendario de `ownerUserId`. No lanza: es limpieza best-effort. */
+async function borrarEventoDe(
+  admin: AdminClient,
+  ownerUserId: string,
+  eventId: string,
+): Promise<void> {
+  try {
+    const integ = await getIntegration(admin, ownerUserId)
+    if (!integ?.refresh_token) return
+    const access = await accessTokenFrom(integ.refresh_token)
+    const calId = encodeURIComponent(integ.google_calendar_id)
+    await fetch(`${CAL_API}/${calId}/events/${encodeURIComponent(eventId)}?sendUpdates=all`, {
+      method: "DELETE",
+      headers: { Authorization: `Bearer ${access}` },
+    })
+  } catch (e) {
+    console.error("[google-calendar] no se pudo limpiar el evento del vet anterior:", e)
+  }
+}
+
+/**
+ * Push: crea o actualiza el evento en el calendario del VETERINARIO ASIGNADO, con el titular y el
+ * propio vet como invitados. Devuelve el google_event_id, o null si ese vet no conectó Google.
+ *
+ * Si la cita cambió de veterinario, el evento se borra del calendario del anterior antes de crearse
+ * en el del nuevo: sin eso queda un fantasma en la agenda de alguien que ya no atiende esa cita.
+ */
 export async function pushAppointment(appointmentId: string): Promise<string | null> {
   const admin = createAdminClient()
   const { data: appt } = await admin
     .from("appointments")
-    .select("id, clinic_id, title, reason, notes, starts_at, ends_at, owner_id, vet_id, google_event_id")
+    .select(
+      "id, clinic_id, title, reason, notes, starts_at, ends_at, owner_id, vet_id, google_event_id, calendar_owner_id",
+    )
     .eq("id", appointmentId)
     .maybeSingle()
   if (!appt) return null
   const a = appt as AppointmentForSync
+  if (!a.vet_id) return null // sin veterinario no hay calendario destino
 
-  const adminUserId = await resolveClinicAdmin(admin, a.clinic_id)
-  if (!adminUserId) return null
-  const integ = await getIntegration(admin, adminUserId)
-  if (!integ?.refresh_token) return null // el admin no conectó -> el calendario interno sigue funcionando
+  // Cambió el vet asignado: el evento viejo vive en OTRO calendario y hay que sacarlo de ahí.
+  const cambioDeCalendario = Boolean(
+    a.google_event_id && a.calendar_owner_id && a.calendar_owner_id !== a.vet_id,
+  )
+  if (cambioDeCalendario) {
+    await borrarEventoDe(admin, a.calendar_owner_id as string, a.google_event_id as string)
+  }
+
+  const integ = await getIntegration(admin, a.vet_id)
+  if (!integ?.refresh_token) {
+    // El vet no conectó Google. Si además veníamos de otro calendario, ya se limpió allá: se
+    // olvida el id para no dejar apuntando a un evento que ya no existe.
+    if (cambioDeCalendario) {
+      await admin
+        .from("appointments")
+        .update({ google_event_id: null, calendar_owner_id: null })
+        .eq("id", a.id)
+    }
+    return null
+  }
 
   const access = await accessTokenFrom(integ.refresh_token)
   const calId = encodeURIComponent(integ.google_calendar_id)
   const attendeeEmails = await attendeeEmailsFor(admin, a.owner_id, a.vet_id)
-  const isUpdate = Boolean(a.google_event_id)
+  // Tras un cambio de calendario el evento se CREA (el id viejo era de la agenda del otro vet).
+  const eventIdVigente = cambioDeCalendario ? null : a.google_event_id
+  const isUpdate = Boolean(eventIdVigente)
   const url = isUpdate
-    ? `${CAL_API}/${calId}/events/${encodeURIComponent(a.google_event_id as string)}?sendUpdates=all`
+    ? `${CAL_API}/${calId}/events/${encodeURIComponent(eventIdVigente as string)}?sendUpdates=all`
     : `${CAL_API}/${calId}/events?sendUpdates=all`
   const res = await fetch(url, {
     method: isUpdate ? "PATCH" : "POST",
@@ -199,137 +242,35 @@ export async function pushAppointment(appointmentId: string): Promise<string | n
   })
   if (!res.ok) throw new Error(`Google Calendar ${isUpdate ? "patch" : "insert"} falló (${res.status})`)
   const ev = (await res.json()) as { id?: string }
-  if (ev.id && ev.id !== a.google_event_id) {
-    await admin.from("appointments").update({ google_event_id: ev.id }).eq("id", a.id)
+  const nuevoId = ev.id ?? eventIdVigente
+  if (nuevoId !== a.google_event_id || a.calendar_owner_id !== a.vet_id) {
+    await admin
+      .from("appointments")
+      .update({ google_event_id: nuevoId, calendar_owner_id: a.vet_id })
+      .eq("id", a.id)
   }
-  return ev.id ?? a.google_event_id
+  return nuevoId
 }
 
-// Borra el evento remoto (al eliminar la cita), del calendario del admin de esa clínica.
-export async function deleteRemoteEvent(clinicId: string, googleEventId: string): Promise<void> {
+/**
+ * Borra el evento remoto al eliminar la cita, del calendario de quien lo tenía
+ * (`appointments.calendar_owner_id`, capturado antes de borrar la fila).
+ */
+export async function deleteRemoteEvent(
+  calendarOwnerId: string,
+  googleEventId: string,
+): Promise<void> {
   const admin = createAdminClient()
-  const adminUserId = await resolveClinicAdmin(admin, clinicId)
-  if (!adminUserId) return
-  const integ = await getIntegration(admin, adminUserId)
+  const integ = await getIntegration(admin, calendarOwnerId)
   if (!integ?.refresh_token) return
   const access = await accessTokenFrom(integ.refresh_token)
   const calId = encodeURIComponent(integ.google_calendar_id)
-  const res = await fetch(`${CAL_API}/${calId}/events/${encodeURIComponent(googleEventId)}?sendUpdates=all`, {
-    method: "DELETE",
-    headers: { Authorization: `Bearer ${access}` },
-  })
+  const res = await fetch(
+    `${CAL_API}/${calId}/events/${encodeURIComponent(googleEventId)}?sendUpdates=all`,
+    { method: "DELETE", headers: { Authorization: `Bearer ${access}` } },
+  )
   // 410 = ya borrado; lo tratamos como éxito idempotente.
   if (!res.ok && res.status !== 410 && res.status !== 404) {
     throw new Error(`Google Calendar delete falló (${res.status})`)
   }
-}
-
-type GoogleEvent = {
-  id: string
-  status?: string
-  summary?: string
-  description?: string
-  start?: { dateTime?: string; date?: string }
-  end?: { dateTime?: string; date?: string }
-}
-
-const UPSERT_CHUNK_SIZE = 500
-
-// Pull incremental: trae los cambios del Google Calendar del ADMIN de la clínica desde el último
-// syncToken y los aplica en BLOQUE (upsert por chunks, no fila-por-fila: con calendarios grandes, un
-// round-trip por evento colgaba la función serverless — incidente 2026-07-31, 1.567 eventos).
-// Requiere el índice único appointments(clinic_id, google_event_id) — migración 0042. Devuelve nº de
-// eventos procesados. `clinicId`, no `userId`: cualquier vet de la clínica puede disparar el pull,
-// pero siempre lee la cuenta del admin (clinics.owner_id).
-export async function pullEvents(clinicId: string): Promise<number> {
-  const admin = createAdminClient()
-  const adminUserId = await resolveClinicAdmin(admin, clinicId)
-  if (!adminUserId) return 0
-  const integ = await getIntegration(admin, adminUserId)
-  if (!integ?.refresh_token) return 0
-
-  const access = await accessTokenFrom(integ.refresh_token)
-  const calId = encodeURIComponent(integ.google_calendar_id)
-
-  const upserts: Record<string, unknown>[] = []
-  const cancelledIds: string[] = []
-  let pageToken: string | undefined
-  let nextSyncToken: string | undefined
-  const syncToken = integ.sync_token ?? undefined
-
-  for (;;) {
-    const params = new URLSearchParams()
-    if (syncToken) params.set("syncToken", syncToken)
-    else params.set("timeMin", new Date(Date.now() - 30 * 864e5).toISOString()) // primer sync: 30 días atrás
-    if (pageToken) params.set("pageToken", pageToken)
-    params.set("showDeleted", "true")
-    params.set("singleEvents", "true")
-
-    const res = await fetch(`${CAL_API}/${calId}/events?${params.toString()}`, {
-      headers: { Authorization: `Bearer ${access}` },
-    })
-    if (res.status === 410) {
-      // syncToken vencido -> reiniciar sync completo la próxima vez.
-      await admin.from("calendar_integrations").update({ sync_token: null }).eq("user_id", adminUserId)
-      return 0
-    }
-    if (!res.ok) throw new Error(`Google Calendar list falló (${res.status})`)
-    const json = (await res.json()) as {
-      items?: GoogleEvent[]
-      nextPageToken?: string
-      nextSyncToken?: string
-    }
-
-    for (const ev of json.items ?? []) {
-      if (ev.status === "cancelled") {
-        cancelledIds.push(ev.id)
-        continue
-      }
-      const start = ev.start?.dateTime ?? (ev.start?.date ? `${ev.start.date}T00:00:00Z` : null)
-      const end = ev.end?.dateTime ?? (ev.end?.date ? `${ev.end.date}T00:00:00Z` : null)
-      if (!start || !end) continue
-      upserts.push({
-        clinic_id: clinicId,
-        google_event_id: ev.id,
-        title: ev.summary ?? "(sin título)",
-        notes: ev.description ?? null,
-        starts_at: start,
-        ends_at: end,
-        status: "scheduled",
-        updated_at: new Date().toISOString(),
-      })
-    }
-
-    if (json.nextPageToken) {
-      pageToken = json.nextPageToken
-      continue
-    }
-    nextSyncToken = json.nextSyncToken
-    break
-  }
-
-  // Upsert por chunks: solo toca las columnas listadas arriba (patient_id/owner_id/vet_id/status
-  // ya asignados en la app quedan intactos para filas existentes; nuevas filas nacen sin paciente).
-  for (let i = 0; i < upserts.length; i += UPSERT_CHUNK_SIZE) {
-    const chunk = upserts.slice(i, i + UPSERT_CHUNK_SIZE)
-    const { error } = await admin
-      .from("appointments")
-      .upsert(chunk, { onConflict: "clinic_id,google_event_id" })
-    if (error) throw new Error(`Upsert de eventos falló: ${error.message}`)
-  }
-
-  // Cancelaciones por chunks (update masivo; no-op si el evento no existía localmente).
-  for (let i = 0; i < cancelledIds.length; i += UPSERT_CHUNK_SIZE) {
-    const chunk = cancelledIds.slice(i, i + UPSERT_CHUNK_SIZE)
-    await admin
-      .from("appointments")
-      .update({ status: "canceled" })
-      .eq("clinic_id", clinicId)
-      .in("google_event_id", chunk)
-  }
-
-  if (nextSyncToken) {
-    await admin.from("calendar_integrations").update({ sync_token: nextSyncToken }).eq("user_id", adminUserId)
-  }
-  return upserts.length + cancelledIds.length
 }

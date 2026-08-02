@@ -3,10 +3,10 @@ import { NextResponse } from "next/server"
 import { createClient } from "@/lib/supabase/server"
 import { upsertGoogleIntegration } from "@/lib/google-calendar"
 
-// Guarda el refresh_token de Google del ADMINISTRADOR de la clínica (obtenido tras reautorizar con
-// scope calendar.events). Desde 0048_calendar_admin_redesign, hay UNA sola cuenta por clínica —
-// solo clinics.owner_id puede conectar. El token llega del navegador una sola vez
-// (session.provider_refresh_token) y se persiste server-side.
+// Conecta el Google Calendar DEL USUARIO que lo pide (calendario v3: uno por persona, elegido a
+// mano desde Conexiones — ya no hay vinculación automática en el login, ni calendario de clínica).
+// El refresh token llega del navegador una sola vez (session.provider_refresh_token) y se persiste
+// server-side.
 export async function POST(req: Request) {
   const supabase = await createClient()
   const {
@@ -22,6 +22,21 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Falta refresh_token" }, { status: 400 })
   }
 
+  // El token viene de session.provider_refresh_token, que es el del proveedor con el que se inició
+  // sesión — NO necesariamente Google. Pasó en producción: alguien entró con Microsoft y el token
+  // de Microsoft terminó guardado en la fila de Google. Se guardaba sin chistar y recién fallaba
+  // al sincronizar, con un "invalid_grant" que no señalaba a ningún lado.
+  const sessionProvider = (user as unknown as { app_metadata?: { provider?: string } }).app_metadata
+    ?.provider
+  if (sessionProvider !== "google") {
+    return NextResponse.json(
+      {
+        error: `Esta sesión se inició con ${sessionProvider ?? "otro proveedor"}, así que su token no sirve para Google. Usá el botón "Conectar Google Calendar" para reautorizar con Google.`,
+      },
+      { status: 400 },
+    )
+  }
+
   const { data: prof } = await supabase
     .from("profiles")
     .select("clinic_id")
@@ -30,26 +45,16 @@ export async function POST(req: Request) {
   const clinicId = (prof as { clinic_id: string | null } | null)?.clinic_id
   if (!clinicId) return NextResponse.json({ error: "El usuario no tiene clínica" }, { status: 400 })
 
-  const { data: clinic } = await supabase.from("clinics").select("owner_id").eq("id", clinicId).maybeSingle()
-  const ownerId = (clinic as { owner_id: string | null } | null)?.owner_id
-  if (ownerId !== user.id) {
-    return NextResponse.json(
-      { error: "Solo el administrador de la clínica puede conectar el calendario" },
-      { status: 403 },
-    )
-  }
-
-  // Una clínica sincroniza con UN proveedor. La UI ya no ofrece el segundo, pero la ruta tiene que
-  // negarse igual: acumular dos calendarios deja uno recibiendo citas que nadie mira.
+  // Un usuario sincroniza con UN proveedor. Para cambiar, se desconecta el otro primero.
   const { data: otro } = await supabase
     .from("calendar_integrations")
     .select("provider")
-    .eq("clinic_id", clinicId)
+    .eq("user_id", user.id)
     .neq("provider", "google")
     .maybeSingle()
   if (otro) {
     return NextResponse.json(
-      { error: "Esta clínica ya sincroniza con Outlook Calendar. Desconectalo antes de conectar Google." },
+      { error: "Ya tenés Outlook Calendar conectado. Desconectalo antes de conectar Google." },
       { status: 409 },
     )
   }

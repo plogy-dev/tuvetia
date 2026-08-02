@@ -1,22 +1,19 @@
-import Link from "next/link"
 import { CalendarDays, Mail, MessageCircle } from "lucide-react"
 
 import { createClient } from "@/lib/supabase/server"
 import { EmailSettings, type EmailIntegrationView } from "@/components/settings/email-settings"
 import { WhatsappSettings } from "@/components/settings/whatsapp-settings"
+import { CalendarSettings, type CalendarProvider } from "@/components/settings/calendar-settings"
 import { HelpTip } from "@/components/help-tip"
-import { Button } from "@/components/ui/button"
 import { PageHeader, PageShell } from "@/components/ui/page-shell"
 
 // Conexiones — la sección que el cliente separa de Configuración: acá vive todo lo que conecta a
 // Tuvetia con el mundo de afuera. No duplica nada; son los mismos componentes que estaban en
 // Configuración, que ahora apunta acá en vez de repetirlos.
 //
-// La tarjeta de Google Calendar es de SÓLO LECTURA a propósito. `GoogleCalendarConnect` dispara un
-// pull automático al montar, y `dashboard/calendario/page.tsx` documenta un incidente de producción
-// del 2026-07-31 en el que ese pull insertó 1.567 citas espurias del calendario personal del vet.
-// Montarlo también acá sería repetir el pull en una segunda página. Hasta que se resuelva qué
-// calendario de Google se sincroniza, la gestión se queda en Calendario y acá sólo se informa.
+// El calendario se conecta ACÁ y solo acá (calendario v3, migración 0049): es una decisión de cada
+// usuario, explícita, eligiendo Google u Outlook. Antes se vinculaba solo al iniciar sesión y se
+// gestionaba desde la página de Calendario.
 
 export const dynamic = "force-dynamic"
 
@@ -32,12 +29,13 @@ export default async function ConexionesPage() {
       .from("email_integrations")
       .select("status, from_email, from_name, last_error, verified_at")
       .maybeSingle(),
+    // El calendario es del usuario, no de la clínica: su propia fila, sea del proveedor que sea
+    // (hay a lo sumo una — conectar el segundo exige desconectar el primero).
     user
       ? supabase
           .from("calendar_integrations")
-          .select("id, connected_at")
+          .select("provider")
           .eq("user_id", user.id)
-          .eq("provider", "google")
           .maybeSingle()
       : Promise.resolve({ data: null }),
   ])
@@ -48,7 +46,9 @@ export default async function ConexionesPage() {
     agent_mode: "auto" | "review" | "paused" | "intervene"
   } | null
   const email = emailRow as EmailIntegrationView | null
-  const googleConnected = Boolean(cal)
+  const calendarConnected = ((cal as { provider: string } | null)?.provider ?? null) as
+    | CalendarProvider
+    | null
 
   return (
     <PageShell width="narrow">
@@ -87,17 +87,19 @@ export default async function ConexionesPage() {
 
         <section className="rounded-lg border border-line-soft bg-card p-4 shadow-sm">
           <div className="mb-3 flex items-center gap-2 text-sm font-semibold text-fg">
-            <CalendarDays className="size-4 text-fg-faint" aria-hidden /> Google Calendar
+            <CalendarDays className="size-4 text-fg-faint" aria-hidden /> Calendario
+            <HelpTip>
+              Es <b>tu</b> calendario, no el de la clínica: las citas donde figures como veterinario
+              se crean ahí, invitando al titular. Elegí <b>Google</b> u <b>Outlook</b> — uno de los
+              dos. Tuvetia solo <b>escribe</b> en tu calendario; nunca lee tus eventos.
+            </HelpTip>
           </div>
           <p className="mb-3 text-sm text-fg-muted">
-            {googleConnected
-              ? "Tu cuenta de Google está conectada. La sincronización se gestiona desde el Calendario, junto a las citas que afecta."
-              : "Todavía no has conectado Google Calendar. Se conecta desde el Calendario, junto a las citas que afecta."}
+            {calendarConnected
+              ? "Las citas que tengas asignadas aparecen en tu calendario, con el titular invitado."
+              : "Conectá tu calendario para que las citas que tengas asignadas aparezcan ahí, con el titular invitado."}
           </p>
-          <Button variant="outline" render={<Link href="/dashboard/calendario" />}>
-            <CalendarDays className="size-4" aria-hidden />
-            {googleConnected ? "Gestionar en Calendario" : "Conectar desde Calendario"}
-          </Button>
+          <CalendarSettings connected={calendarConnected} />
         </section>
       </div>
     </PageShell>

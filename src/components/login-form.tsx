@@ -15,8 +15,6 @@ import {
 } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
 import { Loader2Icon } from "lucide-react"
-import { GOOGLE_CALENDAR_SCOPE } from "@/lib/google-calendar-scope"
-import { MICROSOFT_CALENDAR_SCOPE } from "@/lib/microsoft-calendar-scope"
 
 /* Glifo "chispa" de la marca Tuvetia (patrón del Sidebar del cliente). */
 function BrandGlyph() {
@@ -97,12 +95,9 @@ export function LoginForm({
     const { error } = await supabase.auth.signInWithOAuth({
       provider: "google",
       options: {
-        // Pide el scope de calendario en el propio login: quien entra con Google queda auto-sincronizado
-        // sin pasos extra (el callback ya captura el refresh_token — ver /auth/callback). Contrapartida
-        // asumida: todo login con Google muestra la pantalla de "app no verificada" de Google hasta que
-        // la app pase su verificación (~10 días). access_type=offline para obtener refresh_token.
-        scopes: GOOGLE_CALENDAR_SCOPE,
-        queryParams: { access_type: "offline" },
+        // El login NO pide permisos de calendario (calendario v3): quien quiera sincronizar lo
+        // conecta a mano desde Conexiones. Pedirlo acá hacía que TODO login con Google mostrara la
+        // pantalla de "app no verificada", incluso a quien nunca usa el calendario.
         redirectTo: `${window.location.origin}/auth/callback${(() => {
           const next = new URLSearchParams(window.location.search).get("next")
           return next ? `?next=${encodeURIComponent(next)}` : ""
@@ -122,10 +117,8 @@ export function LoginForm({
     const { error } = await supabase.auth.signInWithOAuth({
       provider: "azure",
       options: {
-        // Igual que Google: se pide el scope de calendario en el propio login para vincular
-        // Outlook Calendar sin un paso extra (el callback captura el refresh_token — ver
-        // /auth/callback). offline_access es obligatorio en Azure para que devuelva refresh token.
-        scopes: `email ${MICROSOFT_CALENDAR_SCOPE}`,
+        // Igual que Google: sin scope de calendario. Outlook se conecta desde Conexiones.
+        scopes: "email",
         redirectTo: `${window.location.origin}/auth/callback${(() => {
           const next = new URLSearchParams(window.location.search).get("next")
           return next ? `?next=${encodeURIComponent(next)}` : ""

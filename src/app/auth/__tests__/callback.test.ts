@@ -33,26 +33,12 @@ function pedir(qs: string) {
   return GET(new NextRequest(`https://app.tuvetia.com/auth/callback${qs}`))
 }
 
-// Simula profiles.clinic_id + clinics.owner_id: la vinculación automática (0048_calendar_admin_
-// redesign) solo corre si quien loguea ES el admin de su clínica. `ownerId` por defecto es el mismo
-// usuario del test (USUARIO.id), para no tener que repetirlo en cada caso que sí espera vinculación.
-function mockClinicLookup(clinicId: string | null, ownerId: string | null | undefined = USUARIO.id) {
-  from.mockImplementation((table: string) => ({
-    select: () => ({
-      eq: () => ({
-        maybeSingle: async () => {
-          if (table === "clinics") return { data: ownerId === null ? null : { owner_id: ownerId } }
-          return { data: clinicId === null ? null : { clinic_id: clinicId } }
-        },
-      }),
-    }),
-  }))
-}
-
 beforeEach(() => {
   vi.clearAllMocks()
   exchangeCodeForSession.mockResolvedValue({ data: { user: USUARIO, session: {} }, error: null })
-  mockClinicLookup(null)
+  from.mockReturnValue({
+    select: () => ({ eq: () => ({ maybeSingle: async () => ({ data: null }) }) }),
+  })
 })
 
 describe("el canje del enlace del correo", () => {
@@ -113,46 +99,26 @@ describe("protección contra open redirect", () => {
   })
 })
 
-describe("vinculación de Google Calendar", () => {
-  it("un fallo vinculando el calendario NO rompe el ingreso", async () => {
-    // El invitado tiene que entrar aunque la vinculación reviente: si no, un problema de calendario
-    // deja a alguien fuera de su clínica.
+// El login NO vincula ningún calendario (calendario v3, migración 0049). Antes sí, y de ahí
+// salieron los dos peores defectos del módulo: el calendario PERSONAL del vet terminaba
+// sincronizado con la agenda de la clínica sin que nadie lo hubiera pedido, y el token que se
+// guardaba era el de la sesión —no el del proveedor de la fila—, así que un login con Microsoft
+// dejaba un token de Microsoft guardado como si fuera de Google.
+//
+// Estas pruebas fijan la ausencia: si alguien vuelve a enganchar el calendario acá, fallan.
+describe("el login no vincula ningún calendario", () => {
+  it("aunque el login traiga un refresh token, no lo guarda", async () => {
     exchangeCodeForSession.mockResolvedValue({
-      data: { user: USUARIO, session: { provider_refresh_token: "rt-1" } }, error: null,
+      data: { user: USUARIO, session: { provider_refresh_token: "rt-1" } },
+      error: null,
     })
-    from.mockImplementation(() => {
-      throw new Error("sin service_role")
-    })
-    const res = await pedir("?code=abc123&next=%2Finvitar%2Ftok-9")
-    expect(res.headers.get("location")).toBe("https://app.tuvetia.com/invitar/tok-9")
-  })
-
-  it("sin app_metadata.provider (u otro valor) asume Google", async () => {
-    exchangeCodeForSession.mockResolvedValue({
-      data: { user: USUARIO, session: { provider_refresh_token: "rt-1" } }, error: null,
-    })
-    mockClinicLookup("c-1")
-    await pedir("?code=abc123")
-    expect(upsertGoogleIntegration).toHaveBeenCalledWith("u-1", "c-1", "rt-1")
-    expect(upsertMicrosoftIntegration).not.toHaveBeenCalled()
-  })
-
-  it("si quien loguea NO es el admin de la clínica, no vincula nada", async () => {
-    // Desde 0048_calendar_admin_redesign hay una sola cuenta por clínica (clinics.owner_id). Un vet
-    // sin ese rol puede tener refresh token (pidió el scope al loguear con Google), pero vincularlo
-    // dejaría una fila inerte y confundiría al resto del equipo.
-    exchangeCodeForSession.mockResolvedValue({
-      data: { user: USUARIO, session: { provider_refresh_token: "rt-1" } }, error: null,
-    })
-    mockClinicLookup("c-1", "otro-user")
-    await pedir("?code=abc123")
+    const res = await pedir("?code=abc123")
     expect(upsertGoogleIntegration).not.toHaveBeenCalled()
     expect(upsertMicrosoftIntegration).not.toHaveBeenCalled()
+    expect(res.headers.get("location")).toBe("https://app.tuvetia.com/dashboard")
   })
-})
 
-describe("vinculación de Outlook Calendar", () => {
-  it("un login con Microsoft (provider azure) vincula por upsertMicrosoftIntegration", async () => {
+  it("tampoco con un login de Microsoft", async () => {
     exchangeCodeForSession.mockResolvedValue({
       data: {
         user: { ...USUARIO, app_metadata: { provider: "azure" } },
@@ -160,9 +126,8 @@ describe("vinculación de Outlook Calendar", () => {
       },
       error: null,
     })
-    mockClinicLookup("c-1")
     const res = await pedir("?code=abc123&next=%2Fdashboard%2Fcalendario")
-    expect(upsertMicrosoftIntegration).toHaveBeenCalledWith("u-1", "c-1", "rt-2")
+    expect(upsertMicrosoftIntegration).not.toHaveBeenCalled()
     expect(upsertGoogleIntegration).not.toHaveBeenCalled()
     expect(res.headers.get("location")).toBe("https://app.tuvetia.com/dashboard/calendario")
   })
