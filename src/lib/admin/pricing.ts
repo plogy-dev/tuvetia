@@ -31,7 +31,12 @@ export const PRICING = {
   // `rag_answer_log.model` existe y dice quién respondió; ahora se agrupa por ella.
   // (~3-5k tokens de entrada + ~1k de salida por nota o respuesta citada.)
   llmPorLlamada: {
-    "deepseek-v4": 0.004,
+    // Los dos nombres REALES de la API de DeepSeek. `deepseek-v4` a secas no existe —la API
+    // responde «The supported API model names are deepseek-v4-pro or deepseek-v4-flash»— y estaba
+    // tarifado acá y puesto como default en `athos-agent/model.ts`, así que era una fila que nunca
+    // se iba a llenar. Verificado contra la API el 2026-08-01.
+    "deepseek-v4-flash": 0.004,
+    "deepseek-v4-pro": 0.012,
     "deepseek-chat": 0.004,
     "claude-sonnet-5": 0.024, // 4k in × $3/M + 1k out × $15/M
     "claude-haiku-4-5": 0.009,

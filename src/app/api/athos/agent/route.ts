@@ -12,6 +12,7 @@ import {
 import { ATHOS_AGENT_SYSTEM_PROMPT } from "@/lib/athos-agent/system-prompt"
 import { buildAthosTools } from "@/lib/athos-agent/tools"
 import { agentModel } from "@/lib/athos-agent/model"
+import { clasificarFallo } from "@/lib/athos-agent/cascada"
 import { registrarUso } from "@/lib/athos-agent/usage"
 import { rateLimit } from "@/lib/athos-agent/rate-limit"
 import type { AgentContext } from "@/lib/athos-agent/actions"
@@ -169,21 +170,26 @@ export async function POST(req: Request) {
         console.error("[athos/agent] fallo al persistir el turno:", e)
       }
     },
+    // El mensaje sale de `clasificarFallo`, la MISMA función que decide si la cascada cae al
+    // respaldo. Antes esta ruta mantenía su propia lista de subcadenas y las dos se desincronizaron
+    // en cuestión de horas: el arreglo de "rate limit" entró en `cascada.ts` y esta copia se quedó
+    // con el `"rate"` viejo. Una sola taxonomía, dos consumidores.
     onError: (error) => {
       console.error("[athos/agent] falló la generación:", error)
-      const msg = error instanceof Error ? error.message : String(error)
-      const m = msg.toLowerCase()
-      if (m.includes("credit") || m.includes("billing") || m.includes("quota") || m.includes("insufficient"))
-        return "El proveedor de IA rechazó la petición por saldo o cuota. Avisá al equipo técnico."
-      if (m.includes("api key") || m.includes("apikey") || m.includes("authentication") || m.includes("401"))
-        return "La credencial del proveedor de IA no es válida. Avisá al equipo técnico."
-      // "rate limit" completo: `"generated".includes("rate")` es true, así que con "rate" a secas
-      // un fallo cualquiera que mencionara "generate" se le mostraba al vet como límite de tasa.
-      if (m.includes("rate limit") || m.includes("rate_limit") || m.includes("429"))
-        return "El proveedor está limitando las peticiones. Esperá unos segundos y reintentá."
-      if (m.includes("timeout") || m.includes("aborted") || m.includes("etimedout"))
-        return "La respuesta tardó demasiado y se cortó. Reintentá."
-      return "No se pudo generar la respuesta. El detalle quedó en el log del servidor."
+      switch (clasificarFallo(error)) {
+        case "saldo":
+          return "El proveedor de IA rechazó la petición por saldo o cuota. Avisá al equipo técnico."
+        case "credencial":
+          return "La credencial del proveedor de IA no es válida. Avisá al equipo técnico."
+        case "limite":
+          return "El proveedor está limitando las peticiones. Esperá unos segundos y reintentá."
+        case "servicio":
+          return "El proveedor de IA está caído o sobrecargado. Reintentá en un momento."
+        case "red":
+          return "La respuesta tardó demasiado y se cortó. Reintentá."
+        default:
+          return "No se pudo generar la respuesta. El detalle quedó en el log del servidor."
+      }
     },
   })
 }

@@ -3,10 +3,10 @@
 // se paga en producción y rutear por rol:
 //
 //   ATHOS_AGENT_PROVIDER = anthropic | deepseek   (loop multi-tool del agente; default anthropic)
-//   ATHOS_AGENT_MODEL    = id del modelo           (default claude-sonnet-5 / deepseek-v4)
+//   ATHOS_AGENT_MODEL    = id del modelo           (default claude-sonnet-5 / deepseek-v4-flash)
 //   ATHOS_AUTO_PROVIDER  = anthropic | deepseek   (clasificador/redactor del modo auto; default
 //                                                  hereda ATHOS_AGENT_PROVIDER)
-//   ATHOS_AUTO_MODEL     = id del modelo           (default claude-haiku-4-5 / deepseek-v4)
+//   ATHOS_AUTO_MODEL     = id del modelo           (default claude-haiku-4-5 / deepseek-v4-flash)
 //   ATHOS_VISION_MODEL   = id del modelo           (visión; siempre Anthropic, default claude-haiku-4-5)
 //
 // Las tres superficies aceptan además una CASCADA (`*_CASCADE`), que tiene prioridad sobre el par
@@ -17,7 +17,7 @@
 // desincronizaban.
 //
 // Nota honesta: el tool-calling de DeepSeek es menos maduro que el de Anthropic (lo documentó el
-// equipo de athos-service). El switch existe para MEDIRLO: probar el loop con deepseek-v4 contra
+// equipo de athos-service). El switch existe para MEDIRLO: probar el loop con deepseek-v4-pro contra
 // el golden set antes de dejarlo fijo. El modo auto (una sola llamada, sin tools) es el candidato
 // natural para DeepSeek desde el día uno.
 
@@ -32,8 +32,24 @@ const deepseek = createDeepSeek({
   ...(process.env.DEEPSEEK_BASE_URL ? { baseURL: process.env.DEEPSEEK_BASE_URL } : {}),
 })
 
+// Los únicos proveedores con SDK cableado. Existe como lista explícita —y no como el `else` de un
+// ternario— porque sin ella un typo era invisible y peligroso: `@deepsek` caía al else y resolvía
+// contra Anthropic, así que la "cascada" terminaba siendo dos llamadas al MISMO proveedor sin
+// crédito. La Ola 2.2 del plan de remediación arregló exactamente esto en `provider_cascade.py`
+// (`PROVEEDORES_VALIDOS`); el port a TypeScript lo había reintroducido.
+const PROVEEDORES = {
+  anthropic: (model: string) => anthropic(model),
+  deepseek: (model: string) => deepseek(model),
+} as const
+
+export type Proveedor = keyof typeof PROVEEDORES
+
+export function esProveedorValido(nombre: string): nombre is Proveedor {
+  return nombre in PROVEEDORES
+}
+
 function resolve(provider: string, model: string): LanguageModel {
-  return provider === "deepseek" ? deepseek(model) : anthropic(model)
+  return esProveedorValido(provider) ? PROVEEDORES[provider](model) : anthropic(model)
 }
 
 /**
@@ -65,7 +81,18 @@ function conCascadaSiHay(
   cadenaEnv: string | undefined,
   fallback: () => Omit<ModeloElegido, "modeloPrimario">,
 ): ModeloElegido {
-  const cadena = leerCadena(cadenaEnv)
+  // Se descartan los eslabones con proveedor desconocido ANTES de armar nada. Un typo así no puede
+  // degradar en silencio a "todo va a Anthropic": es justo el escenario en el que la cascada parece
+  // encendida y no protege de nada.
+  const cadena = leerCadena(cadenaEnv).filter((e) => {
+    if (esProveedorValido(e.proveedor)) return true
+    console.warn(
+      `[athos/${superficie}] proveedor desconocido "${e.proveedor}" en la cascada:` +
+        ` se descarta "${e.modelo}@${e.proveedor}". Válidos: ${Object.keys(PROVEEDORES).join(", ")}`,
+    )
+    return false
+  })
+
   if (!cadena.length) {
     const solo = fallback()
     return { ...solo, modeloPrimario: solo.modelId }
@@ -94,9 +121,15 @@ function conCascadaSiHay(
 
 // CASCADA ENTRE PROVEEDORES (cláusula 1.4), en el mismo formato que athos-service:
 //
-//   ATHOS_AGENT_CASCADE  = "claude-sonnet-5@anthropic,deepseek-v4@deepseek"
-//   ATHOS_AUTO_CASCADE   = "claude-haiku-4-5@anthropic,deepseek-v4@deepseek"
+//   ATHOS_AGENT_CASCADE  = "deepseek-v4-flash@deepseek,claude-sonnet-5@anthropic"
+//   ATHOS_AUTO_CASCADE   = "deepseek-v4-flash@deepseek,claude-haiku-4-5@anthropic"
 //   ATHOS_VISION_CASCADE = "claude-haiku-4-5@anthropic"
+//
+// ⚠️ EL ORDEN NO ES COSMÉTICO. `provider_cascade.py` lo dice en su docstring: «Anthropic NO debe ir
+// primero mientras su cuenta no tenga crédito: cada intento suyo agregaría una llamada fallida y su
+// latencia antes de llegar al proveedor que sí puede responder». Los ejemplos de arriba ponen
+// DeepSeek primero por eso. **Cuando Anthropic vuelva a tener saldo conviene invertirlos**: su
+// tool-calling es más maduro y el agente usa 17 herramientas.
 //
 // Vacías = un solo proveedor, el comportamiento de siempre. Existen porque el 2026-07-31 la cuenta
 // de Anthropic se quedó sin crédito y el asistente se cayó ENTERO, mientras el chat clínico —que sí
@@ -106,7 +139,7 @@ export function agentModel(): ModeloElegido {
   return conCascadaSiHay("agent", process.env.ATHOS_AGENT_CASCADE, () => {
     const provider = process.env.ATHOS_AGENT_PROVIDER ?? "anthropic"
     const modelId =
-      process.env.ATHOS_AGENT_MODEL ?? (provider === "deepseek" ? "deepseek-v4" : "claude-sonnet-5")
+      process.env.ATHOS_AGENT_MODEL ?? (provider === "deepseek" ? "deepseek-v4-flash" : "claude-sonnet-5")
     return { model: resolve(provider, modelId), modelId, provider }
   })
 }
@@ -118,7 +151,7 @@ export function autoModel(): ModeloElegido {
     const provider =
       process.env.ATHOS_AUTO_PROVIDER ?? process.env.ATHOS_AGENT_PROVIDER ?? "anthropic"
     const modelId =
-      process.env.ATHOS_AUTO_MODEL ?? (provider === "deepseek" ? "deepseek-v4" : "claude-haiku-4-5")
+      process.env.ATHOS_AUTO_MODEL ?? (provider === "deepseek" ? "deepseek-v4-flash" : "claude-haiku-4-5")
     return { model: resolve(provider, modelId), modelId, provider }
   })
 }

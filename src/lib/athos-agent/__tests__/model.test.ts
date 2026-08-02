@@ -126,7 +126,11 @@ describe("autoModel y visionModel", () => {
 
   it("sin cascada, el modo auto hereda el proveedor del agente", () => {
     process.env.ATHOS_AGENT_PROVIDER = "deepseek"
-    expect(autoModel().modelId).toBe("deepseek-v4")
+    // `deepseek-v4-flash`, no `deepseek-v4`: ese último NO EXISTE. La API responde «The supported
+    // API model names are deepseek-v4-pro or deepseek-v4-flash», así que el default anterior
+    // reventaba en cuanto alguien ponía ATHOS_AGENT_PROVIDER=deepseek sin fijar el modelo.
+    // Verificado contra la API real el 2026-08-01.
+    expect(autoModel().modelId).toBe("deepseek-v4-flash")
   })
 
   it("visión sigue siendo Anthropic por defecto y admite su propia cascada", async () => {
@@ -137,5 +141,47 @@ describe("autoModel y visionModel", () => {
     const elegido = visionModel()
     await (elegido.model as LanguageModelV3).doGenerate(PARAMS)
     expect(elegido.modelId).toBe("claude-sonnet-5")
+  })
+})
+
+describe("lista blanca de proveedores", () => {
+  beforeEach(() => ENV.forEach((k) => delete process.env[k]))
+  afterEach(() => {
+    fallos.clear()
+    ENV.forEach((k) => delete process.env[k])
+  })
+
+  it("un typo en el proveedor NO se resuelve contra Anthropic en silencio", async () => {
+    // Éste era el escenario peligroso: `@deepsek` caía al else del ternario y devolvía un modelo de
+    // Anthropic, así que la "cascada" eran dos llamadas a la MISMA cuenta sin crédito — y nada en
+    // los logs decía que el respaldo no existía.
+    const avisos: string[] = []
+    const warn = vi.spyOn(console, "warn").mockImplementation((m) => avisos.push(String(m)))
+
+    fallos.set("anthropic:claude-sonnet-5", "Your credit balance is too low")
+    process.env.ATHOS_AGENT_CASCADE = "claude-sonnet-5@anthropic,deepseek-v4-flash@deepsek"
+    const elegido = agentModel()
+
+    // El eslabón malo se descartó, así que queda un solo modelo y no hay respaldo que lo salve:
+    // el fallo del primario se propaga en vez de fingir que había cascada.
+    await expect((elegido.model as LanguageModelV3).doGenerate(PARAMS)).rejects.toThrow("credit")
+    expect(avisos.some((a) => a.includes("deepsek") && a.includes("desconocido"))).toBe(true)
+    warn.mockRestore()
+  })
+
+  it("con el proveedor bien escrito, el respaldo sí entra", async () => {
+    fallos.set("anthropic:claude-sonnet-5", "Your credit balance is too low")
+    process.env.ATHOS_AGENT_CASCADE = "claude-sonnet-5@anthropic,deepseek-v4-flash@deepseek"
+    const elegido = agentModel()
+    await (elegido.model as LanguageModelV3).doGenerate(PARAMS)
+    expect(elegido.modelId).toBe("deepseek-v4-flash")
+    expect(elegido.provider).toBe("deepseek")
+  })
+
+  it("si TODOS los eslabones son inválidos, cae al par PROVIDER/MODEL de siempre", () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {})
+    process.env.ATHOS_AGENT_CASCADE = "x@openai,y@gemini"
+    expect(agentModel().modelId).toBe("claude-sonnet-5")
+    warn.mockRestore()
   })
 })
