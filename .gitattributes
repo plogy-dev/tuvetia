@@ -1,0 +1,9 @@
+# Los entregables al cliente son binarios: si git les aplica conversión de fin de línea
+# (autocrlf en Windows), quedan corruptos y nadie lo nota hasta que el cliente abre el archivo.
+# Git hoy los detecta bien por heurística; esto lo vuelve explícito.
+*.pdf  binary
+*.docx binary
+*.xlsx binary
+*.png  binary
+*.jpg  binary
+*.ico  binary
