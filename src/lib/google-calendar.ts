@@ -67,6 +67,29 @@ function googleCreds(): { id: string; secret: string } {
   return { id, secret }
 }
 
+/**
+ * Traduce el error del endpoint de token de Google a algo accionable.
+ *
+ * Google contesta 400 con el motivo REAL en el cuerpo (`error`/`error_description`), y antes se
+ * descartaba: el vet veía "falló (400)" y no había forma de saber si el token estaba revocado, si
+ * las credenciales del servidor no eran las que emitieron ese token, o qué. Los dos casos de abajo
+ * son los que pasan de verdad y tienen arreglos distintos.
+ */
+function explicarErrorDeToken(status: number, error: string, description: string): string {
+  if (error === "invalid_grant") {
+    // El refresh token ya no sirve: revocado desde la cuenta de Google, o vencido porque la app
+    // sigue en modo "Testing" en Google Cloud (ahí los refresh token duran 7 días).
+    return "Google rechazó el token guardado (invalid_grant): fue revocado o venció. Reconectá Google Calendar. Si se repite cada semana, la app sigue en modo Testing en Google Cloud — hay que publicarla."
+  }
+  if (error === "invalid_client" || error === "unauthorized_client") {
+    // El token lo emitió el cliente OAuth configurado en Supabase Auth, pero el refresh lo firma
+    // GOOGLE_CLIENT_ID/SECRET del servidor. Si no son el MISMO cliente, Google lo rechaza.
+    return "Las credenciales del servidor no son las que emitieron el token (invalid_client). GOOGLE_CLIENT_ID/GOOGLE_CLIENT_SECRET tienen que ser el MISMO cliente OAuth configurado en Supabase Auth → Google."
+  }
+  const detalle = description || error || `HTTP ${status}`
+  return `Google rechazó el refresh del token: ${detalle}`
+}
+
 // Refresca un access token a partir del refresh token del admin.
 async function accessTokenFrom(refreshToken: string): Promise<string> {
   const { id, secret } = googleCreds()
@@ -80,7 +103,15 @@ async function accessTokenFrom(refreshToken: string): Promise<string> {
       grant_type: "refresh_token",
     }),
   })
-  if (!res.ok) throw new Error(`Google token refresh falló (${res.status})`)
+  if (!res.ok) {
+    const cuerpo = (await res.json().catch(() => ({}))) as {
+      error?: string
+      error_description?: string
+    }
+    const msg = explicarErrorDeToken(res.status, cuerpo.error ?? "", cuerpo.error_description ?? "")
+    console.error(`[google-calendar] refresh falló (${res.status}):`, cuerpo)
+    throw new Error(msg)
+  }
   const json = (await res.json()) as { access_token?: string }
   if (!json.access_token) throw new Error("Google no devolvió access_token")
   return json.access_token
