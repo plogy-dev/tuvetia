@@ -102,24 +102,11 @@ body.bg-papel .navb-2:hover,body.bg-hielo .navb-2:hover{background:var(--surface
 .navb-3{padding:10px 11px;background:transparent;border-color:var(--line);color:var(--ink-soft);gap:4px}
 .navb-3:hover{color:var(--ink);border-color:var(--ink-soft)}
 .navb-3 svg{width:15px;height:15px}
-.navb-3 .chev{width:11px;height:11px;transition:transform .35s var(--ease)}
-.lang.open .chev{transform:rotate(180deg)}
+/* --acc-nav/--on-nav se quedan: los usa .navb-1 ("Agenda una demo"), no sólo el menú de idioma. */
 :root{--acc-nav:var(--athos);--on-nav:#fff}
 body.bg-foto,body.bg-houston{--acc-nav:var(--athos-lift,#D88B83);--on-nav:#10231a}
 
-/* menú de idioma */
-.lang{position:relative}
-.lang-menu{position:absolute;top:calc(100% + 9px);right:0;min-width:132px;padding:5px;
-  border:1px solid var(--line);border-radius:11px;background:color-mix(in srgb,var(--paper) 92%,transparent);
-  backdrop-filter:blur(20px) saturate(150%);box-shadow:0 20px 44px -14px rgba(0,0,0,.5);
-  opacity:0;transform:translateY(-6px) scale(.97);pointer-events:none;transition:.32s var(--ease)}
-.lang.open .lang-menu{opacity:1;transform:none;pointer-events:auto}
-.lang-i{display:flex;align-items:center;justify-content:space-between;gap:10px;width:100%;
-  background:transparent;border:0;font-family:inherit;font-size:13px;color:var(--ink-soft);
-  padding:9px 11px;border-radius:7px;cursor:pointer;text-align:left;transition:.25s}
-.lang-i:hover{background:color-mix(in srgb,var(--ink) 8%,transparent);color:var(--ink)}
-.lang-i.on{color:var(--ink);font-weight:600}
-.lang-i.on::after{content:'';width:5px;height:5px;border-radius:50%;background:var(--acc-nav);flex-shrink:0}
+/* Las reglas del menú de idioma (.lang, .lang-menu, .lang-i, .chev) se fueron con su markup. */
 /* hamburguesa — solo móvil */
 .nav-burger{display:none}
 .burger-lines{width:15px;height:11px;position:relative;display:block}
@@ -672,8 +659,8 @@ body.bg-foto .tv-bk{opacity:1}
 .tv-how.open .tv-howb{max-height:380px}
 .tv-howb div{padding:0 16px 16px;font-size:12.5px;line-height:1.75;color:var(--faint)}
 .tv-howb b{color:var(--ink-soft);font-weight:500;font-family:var(--font-mono),monospace;font-size:11.5px}
-.tv-todo{border:1px dashed #D9A646;border-radius:7px;padding:12px 14px;font-family:var(--font-mono),monospace;font-size:10.5px;line-height:1.85;color:#C08A28;letter-spacing:.03em;margin-bottom:18px}
-body.bg-foto .tv-todo,body.bg-houston .tv-todo{color:#E8C179}
+/* .tv-todo se fue con la nota interna que estilaba (la que decía "borra este aviso antes de
+   publicar" y se renderizaba en el paso 3 de la calculadora). */
 .tv-lead{border-top:1px solid var(--line2);padding-top:22px}
 .tv-leadh{font-size:17px;font-weight:700;letter-spacing:-.02em;margin-bottom:5px}
 .tv-leads{font-size:13px;color:var(--ink-soft);margin-bottom:16px;line-height:1.55}

@@ -1,6 +1,9 @@
 "use client";
 
 import { useEffect } from "react";
+import Image from "next/image";
+// Ver la nota de `DemoPage.tsx`: import estático sin `fill` porque el CSS ya dimensiona el <img>.
+import prodCierre from "@/public/media/prod-cierre.png";
 import { initSubpage } from "@/lib/landing/subpage";
 import { v } from "@/lib/landing/vars";
 import Background from "@/components/landing/Background";
@@ -450,7 +453,7 @@ export default function ProductoPage() {
 
         <section className="pclose" data-io>
           <div className="pclose-bg">
-            <img src="/media/prod-cierre.png" alt="" loading="lazy" />
+            <Image src={prodCierre} alt="" sizes="100vw" placeholder="blur" />
           </div>
           <div className="pclose-in">
             <h2 className="st" style={v({ i: 0, y: "20px" })}>

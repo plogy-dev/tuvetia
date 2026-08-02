@@ -290,11 +290,6 @@ export default function CalcModal() {
                         </div>
                       </div>
                     </div>
-                    <div className="tv-todo">
-                      ⚠ NOTA INTERNA — El &quot;retorno por $1&quot; depende de un precio que todavía no existe.
-                      <br />
-                      Hasta que lo definas, esa tarjeta va en gris. Borra este aviso antes de publicar.
-                    </div>
                     <div className="tv-vs">
                       <div className="tv-col">
                         <div className="tv-colh">Hoy</div>
