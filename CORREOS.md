@@ -11,9 +11,9 @@ decisión de arquitectura, no un detalle de implementación.
 **La regla en una línea:** si el correo lo manda *el sistema*, va por Resend; si lo manda *una
 persona* (o Athos por ella), va por Composio con la cuenta de esa persona.
 
-> **Estado:** el camino de Composio está en construcción. Hasta que esté, la conexión por miembro
-> sigue siendo App Password + SMTP/IMAP. Lo que se retira cuando entre Composio está listado al
-> final, en §Qué se retira.
+> **Estado:** Composio ya está conectado a Athos — el veterinario conecta su Gmail en Conexiones y
+> Athos lee y escribe con esa cuenta. Falta migrar la **bandeja** de Comunicaciones, que todavía se
+> llena por IMAP; hasta que eso pase, el camino viejo sigue en pie. Ver §Qué falta.
 
 ---
 
@@ -93,6 +93,23 @@ conexión es **por miembro**, y es la que Athos usa cuando ese miembro le pide a
 Si el miembro no conectó nada, la app se lo dice y le muestra cómo conectarla — no falla en silencio
 ni cae a la cuenta de otro.
 
+Cómo está armado:
+
+- [`src/lib/composio/gmail.ts`](src/lib/composio/gmail.ts) — conectar, estado, y ejecutar las tools
+  de Gmail con la cuenta de un miembro. El `userId` de Composio **es nuestro `profiles.id`**: por eso
+  la cuenta que conecta una persona es exactamente la que Athos usa cuando esa persona le pide algo,
+  sin ninguna tabla intermedia que mantener sincronizada.
+- Tools de Athos: `search_emails` y `read_email_thread` (lectura directa), `send_email` y
+  `reply_email` (**propuesta** — el vet aprueba en la tarjeta, donde puede corregir destinatario,
+  asunto y cuerpo antes de que salga).
+- Se usa `connectedAccounts.link()`, no `initiate()`: para auth configs administradas, `initiate()`
+  quedó retirado y responde 400. El SDK tiene una excepción dedicada para ese caso.
+
+**Por qué el SDK y no REST**, que es el estilo del repo: Composio documenta el SDK y **no** su API
+REST — la ejecución de tools no tiene endpoint publicado. Adivinar rutas contra una API sin
+documentar es peor que una dependencia, y además el SDK trae los tipos, así que un cambio de forma
+lo caza `tsc` en vez del primer clic de un veterinario.
+
 **Por qué Composio y no App Password:** leer Gmail exige scopes **restringidos**
 (`gmail.readonly`/`gmail.modify`), que para una app propia significan verificación de Google más una
 auditoría **CASA renovable cada 12 meses**. El OAuth administrado de Composio evita ese trámite. La
@@ -116,14 +133,19 @@ generar una contraseña de 16 caracteres, pegarla). OAuth es un clic.
    distingue un fallo de red o un 429 —reintentable— de uno de configuración, que reintentar no
    arregla.
 
-## Qué se retira cuando entre Composio
+## Qué falta
 
-Todo lo que hacía de "correo de un miembro" por SMTP/IMAP, porque pasa a hacerlo Composio:
+**Migrar la bandeja de Comunicaciones → Correo a Composio.** Hoy se llena con el barrido IMAP
+(`src/lib/email/inbox.ts`), que todavía usa la conexión por App Password. Cuando pase a Composio se
+retira todo el camino viejo:
 
 - `src/lib/email/{smtp,imap,integrations,actions,send-user-email,inbox,sync}.ts`
 - `src/components/settings/email-settings.tsx` (el formulario de App Password)
 - Las tablas `email_integrations` e `invoice_email_threads`
 - Los dos barridos IMAP colgados del cron de cartera
+
+El orden importa: **primero se verifica que Composio funcione con una cuenta real, después se
+borra lo anterior.** Al revés, un Auth Config mal configurado deja a Athos sin ningún camino.
 
 **Se pierde una cosa, y es a propósito:** la lectura automática de respuestas a facturas. Hoy
 `sync.ts` lee el buzón institucional, clasifica la intención del cliente (promesa de pago, disputa),

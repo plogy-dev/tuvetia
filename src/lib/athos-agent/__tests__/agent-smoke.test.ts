@@ -44,12 +44,8 @@ const ctx = {
   model: "deepseek-v4-flash",
 }
 
-// Cliente de Supabase mínimo: las tools de lectura no se ejercitan acá (dependen de la RLS real),
-// pero buildAthosTools lo necesita para construirse.
-//
-// `maybeSingle` devuelve un hilo porque `reply_email` es la única tool de ESCRITURA que consulta
-// antes de proponer: resuelve el asunto y el titular desde el hilo en vez de confiar en el modelo.
-// Con `data: null` no llegaría a proponer y el test de "ninguna escritura ejecuta" no probaría nada.
+// Cliente de Supabase mínimo: las tools de lectura no se ejercitan acá (dependen de la RLS real,
+// y las de correo van contra Composio), pero buildAthosTools lo necesita para construirse.
 const fakeSupabase = {
   from: () => ({
     select: () => ({
@@ -166,7 +162,12 @@ describe("inventario de tools — cobertura y separación lectura/escritura", ()
       const args: Record<string, unknown> = {
         send_whatsapp_message: { to_phone: "3001234567", body: "hola colega" },
         send_email: { to_email: "ana@ejemplo.com", subject: "Control de Luna", body: "Hola Ana…" },
-        reply_email: { thread_id: "2fa4dac8-2a34-4d03-85d7-f44f93780c34", body: "Perfecto." },
+        reply_email: {
+          thread_id: "18f9c2a4b7e1d3f0", // id de Gmail, no un uuid nuestro
+          to_email: "ana@ejemplo.com",
+          subject: "Re: Control de Luna",
+          body: "Perfecto.",
+        },
         create_appointment: { title: "Control", date: "2026-08-01", time: "10:00" },
         update_appointment: { appointment_id: "apt-1", change_summary: "mover" },
         create_owner: { full_name: "Ana Pérez" },

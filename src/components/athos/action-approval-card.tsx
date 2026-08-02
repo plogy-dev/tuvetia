@@ -39,9 +39,11 @@ const TOOL_LABELS: Record<string, { label: string; icon: typeof MessageCircle }>
  *
  * Antes esto era un booleano cableado a `send_whatsapp_message` con un único `<Textarea>` sobre
  * `payload.body`. Un correo necesita destinatario y asunto además del cuerpo, así que se declara
- * por tool. Lo que NO está acá no es editable: `reply_email` a propósito no deja tocar destinatario
- * ni asunto — los resuelve el ejecutor desde el hilo, y poder cambiarlos permitiría desviar una
- * respuesta a otra dirección o romper el hilado.
+ * por tool.
+ *
+ * En los dos correos el destinatario ES editable, y a propósito: el modelo lo saca de lo que leyó
+ * del hilo, y si se equivocó de dirección el vet tiene que poder corregirlo ANTES de aprobar — no
+ * después, cuando el correo ya salió. Lo que no está en esta lista no se puede tocar.
  */
 type CampoEditable = { campo: string; label: string; multilinea: boolean }
 
@@ -52,7 +54,11 @@ const CAMPOS_EDITABLES: Record<string, CampoEditable[]> = {
     { campo: "subject", label: "Asunto", multilinea: false },
     { campo: "body", label: "Mensaje", multilinea: true },
   ],
-  reply_email: [{ campo: "body", label: "Respuesta", multilinea: true }],
+  reply_email: [
+    { campo: "to_email", label: "Para", multilinea: false },
+    { campo: "subject", label: "Asunto", multilinea: false },
+    { campo: "body", label: "Respuesta", multilinea: true },
+  ],
 }
 
 /** Tools cuyo efecto es mandarle algo a alguien: el botón lo dice ("Aprobar y enviar"). */

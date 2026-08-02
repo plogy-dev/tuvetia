@@ -5,7 +5,7 @@ import { createAdminClient } from "@/lib/supabase/admin"
 import { pushAppointment } from "@/lib/google-calendar"
 import { validarPayload } from "@/lib/athos-agent/payload-schemas"
 import { sendWhatsAppText } from "@/lib/whatsapp/send-message"
-import { sendUserEmail } from "@/lib/email/send-user-email"
+import { ejecutarGmail, GMAIL_TOOLS } from "@/lib/composio/gmail"
 
 export const runtime = "nodejs"
 
@@ -150,37 +150,28 @@ async function dispatch(
     }
 
     case "send_email": {
-      // Sale de la cuenta del vet que APRUEBA, no de una cuenta de clínica: el correo lo firma
-      // una persona y el titular tiene que poder responderle a ella.
-      const r = await sendUserEmail(action.clinic_id, userId, {
-        to: String(p.to_email ?? ""),
+      // Sale de la cuenta del vet que APRUEBA: el correo lo firma una persona y el titular tiene
+      // que poder responderle a ella. Athos nunca escribe desde la cuenta de otro.
+      const r = await ejecutarGmail(userId, GMAIL_TOOLS.enviar, {
+        recipient_email: String(p.to_email ?? ""),
         subject: String(p.subject ?? ""),
         body: String(p.body ?? ""),
-        ownerId: (p.owner_id as string | null) ?? action.owner_id,
       })
-      return { message_id: r.messageId, thread_id: r.threadId, ...(r.warning ? { aviso: r.warning } : {}) }
+      if (!r.ok) throw new Error(r.error)
+      return { enviado: true, gmail: r.data }
     }
 
     case "reply_email": {
-      // Ni destinatario ni asunto salen del payload: `sendClinicEmail` los resuelve desde el hilo,
-      // que es lo que garantiza que la respuesta llegue a quien escribió y quede EN el hilo.
-      const { data: hilo } = await supabase
-        .from("email_threads")
-        .select("id, participants, owner_id")
-        .eq("id", String(p.thread_id))
-        .maybeSingle()
-      if (!hilo) throw new Error("No se encontró el hilo al que responder")
-      const h = hilo as { id: string; participants: string[] | null; owner_id: string | null }
-      const destino = (h.participants ?? [])[0]
-      if (!destino) throw new Error("El hilo no tiene un destinatario al que responder")
-
-      const r = await sendUserEmail(action.clinic_id, userId, {
-        to: destino,
+      // `thread_id` es el hilo de Gmail: pasárselo es lo que hace que la respuesta quede DENTRO de
+      // la conversación en vez de abrir una nueva.
+      const r = await ejecutarGmail(userId, GMAIL_TOOLS.enviar, {
+        recipient_email: String(p.to_email ?? ""),
+        subject: String(p.subject ?? ""),
         body: String(p.body ?? ""),
-        threadId: h.id,
-        ownerId: h.owner_id ?? action.owner_id,
+        thread_id: String(p.thread_id ?? ""),
       })
-      return { message_id: r.messageId, thread_id: r.threadId, ...(r.warning ? { aviso: r.warning } : {}) }
+      if (!r.ok) throw new Error(r.error)
+      return { enviado: true, thread_id: p.thread_id as string, gmail: r.data }
     }
 
     case "create_appointment": {

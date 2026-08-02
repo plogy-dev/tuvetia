@@ -13,6 +13,7 @@ import { z } from "zod"
 import type { SupabaseClient } from "@supabase/supabase-js"
 
 import { proposeAction, type AgentContext } from "./actions"
+import { ejecutarGmail, GMAIL_TOOLS } from "@/lib/composio/gmail"
 
 type SB = SupabaseClient
 
@@ -286,60 +287,46 @@ export function buildAthosTools(supabase: SB, ctx: AgentContext) {
 
     search_emails: tool({
       description:
-        "Busca en el correo de la clínica por texto (asunto, cuerpo o remitente). Devuelve hilos con su último mensaje. Úsala para encontrar un correo antes de responderlo, o para responder '¿qué me escribió el laboratorio?'.",
+        "Busca en el correo del VETERINARIO por texto (usa la sintaxis de búsqueda de Gmail: 'from:ana@…', 'subject:factura', o texto suelto). Devuelve los mensajes con su id de hilo. Úsala para encontrar un correo antes de responderlo, o para contestar '¿qué me escribió el laboratorio?'.",
       inputSchema: z.object({
-        query: z.string().min(2).describe("Texto a buscar en asunto, cuerpo o remitente"),
-        owner_id: z.string().uuid().optional().describe("Acotar a los hilos de un titular"),
+        query: z
+          .string()
+          .min(2)
+          .describe("Búsqueda estilo Gmail: texto, from:correo, subject:asunto, is:unread…"),
         limit: z.number().int().min(1).max(20).optional(),
       }),
-      execute: async ({ query, owner_id, limit }) => {
-        const pattern = `%${escapeLike(query)}%`
-        let q = supabase
-          .from("email_messages")
-          .select("id, thread_id, direction, from_email, subject, snippet, created_at, read_at")
-          .or(`subject.ilike.${pattern},body_text.ilike.${pattern},from_email.ilike.${pattern}`)
-          .order("created_at", { ascending: false })
-          .limit(limit ?? 10)
-        if (owner_id) {
-          // Los hilos del titular primero: sin esto habría que filtrar en memoria.
-          const { data: hilos } = await supabase
-            .from("email_threads")
-            .select("id")
-            .eq("owner_id", owner_id)
-          const ids = ((hilos ?? []) as { id: string }[]).map((h) => h.id)
-          if (ids.length === 0) return { count: 0, messages: [] }
-          q = q.in("thread_id", ids)
+      execute: async ({ query, limit }) => {
+        if (!ctx.userId) {
+          return { error: "El correo se lee con la cuenta del veterinario, y este turno no tiene una." }
         }
-        const { data, error } = await q
-        if (error) return { error: error.message }
-        return { count: (data ?? []).length, messages: data ?? [] }
+        const r = await ejecutarGmail(ctx.userId, GMAIL_TOOLS.buscar, {
+          query,
+          max_results: limit ?? 10,
+        })
+        if (!r.ok) return { error: r.error }
+        return { messages: r.data }
       },
     }),
 
     read_email_thread: tool({
       description:
-        "El hilo de correo completo, en orden. Úsala DESPUÉS de search_emails para leer la conversación antes de redactar una respuesta — responder sin leer el hilo produce respuestas que no encajan.",
+        "El hilo de correo completo, en orden. Úsala DESPUÉS de search_emails con el thread_id que devolvió — responder sin leer el hilo produce respuestas que no encajan.",
       inputSchema: z.object({
-        thread_id: z.string().uuid(),
+        thread_id: z.string().describe("id del hilo de Gmail, de search_emails"),
         limit: z.number().int().min(1).max(30).optional(),
       }),
       execute: async ({ thread_id, limit }) => {
-        const { data: hilo, error: hiloErr } = await supabase
-          .from("email_threads")
-          .select("id, subject, participants, owner_id, last_message_at")
-          .eq("id", thread_id)
-          .maybeSingle()
-        if (hiloErr) return { error: hiloErr.message }
-        if (!hilo) return { error: "No existe ese hilo (o no es de tu clínica)." }
-
-        const { data, error } = await supabase
-          .from("email_messages")
-          .select("direction, from_email, to_emails, subject, body_text, created_at, attachments")
-          .eq("thread_id", thread_id)
-          .order("created_at", { ascending: true })
-          .limit(limit ?? 20)
-        if (error) return { error: error.message }
-        return { thread: hilo, count: (data ?? []).length, messages: data ?? [] }
+        if (!ctx.userId) {
+          return { error: "El correo se lee con la cuenta del veterinario, y este turno no tiene una." }
+        }
+        // Gmail no tiene "traer hilo" como tool separada: se busca por su id, que es lo que la
+        // sintaxis `thread:` hace nativamente.
+        const r = await ejecutarGmail(ctx.userId, GMAIL_TOOLS.buscar, {
+          query: `thread:${thread_id}`,
+          max_results: limit ?? 20,
+        })
+        if (!r.ok) return { error: r.error }
+        return { thread_id, messages: r.data }
       },
     }),
 
@@ -477,31 +464,23 @@ export function buildAthosTools(supabase: SB, ctx: AgentContext) {
 
     reply_email: tool({
       description:
-        "PROPONE responder DENTRO de un hilo de correo existente (el vet aprueba/edita en la tarjeta). El asunto y el hilado los arma el sistema — vos solo escribís el cuerpo. Lee el hilo con read_email_thread antes de redactar.",
+        "PROPONE responder DENTRO de un hilo de correo existente (el vet aprueba/edita en la tarjeta). Lee el hilo con read_email_thread antes de redactar. El destinatario y el asunto los resuelve Gmail a partir del hilo.",
       inputSchema: z.object({
-        thread_id: z.string().uuid().describe("id del hilo, de search_emails o read_email_thread"),
+        thread_id: z.string().describe("id del hilo de Gmail, de search_emails o read_email_thread"),
+        to_email: z.string().email().describe("A quién responde, tomado del hilo"),
+        subject: z.string().min(1).max(200).describe("Asunto del hilo (con Re: si corresponde)"),
         body: z.string().min(1).max(5000).describe("Cuerpo de la respuesta, en texto plano"),
       }),
-      execute: async ({ thread_id, body }) => {
-        // El destinatario y el asunto salen del hilo al ejecutar, no del modelo: si los inventara,
-        // la respuesta se iría a otra dirección o rompería el hilado.
-        const { data: hilo } = await supabase
-          .from("email_threads")
-          .select("subject, owner_id")
-          .eq("id", thread_id)
-          .maybeSingle()
-        if (!hilo) return { error: "No existe ese hilo (o no es de tu clínica)." }
-        const h = hilo as { subject: string | null; owner_id: string | null }
-        return proposeAction(
+      execute: async ({ thread_id, to_email, subject, body }) =>
+        proposeAction(
           ctx,
           "reply_email",
-          { thread_id, body },
-          `Responder el correo "${h.subject ?? "(sin asunto)"}"`,
+          { thread_id, to_email: to_email.trim().toLowerCase(), subject, body },
+          `Responder el correo "${subject}"`,
           // La tarjeta se cuelga del HILO, no de la conversación donde se pidió: es en la bandeja
           // de correo donde el vet la va a buscar.
-          { ownerId: h.owner_id, conversationKey: thread_id },
-        )
-      },
+          { conversationKey: thread_id },
+        ),
     }),
 
     create_appointment: tool({

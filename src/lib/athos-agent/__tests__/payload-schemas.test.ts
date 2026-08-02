@@ -128,19 +128,22 @@ describe("revalidacion del payload al aprobar", () => {
     expect(validarPayload("send_email", { ...base, subject: "" }).ok).toBe(false)
   })
 
-  it("una respuesta NO acepta destinatario ni asunto del override", () => {
-    // Los resuelve el ejecutor desde el hilo. Si el override pudiera fijarlos, una respuesta podría
-    // desviarse a otra dirección o romper el hilado.
-    const r = validarPayload("reply_email", {
-      thread_id: "2fa4dac8-2a34-4d03-85d7-f44f93780c34",
+  it("una respuesta acepta el hilo de Gmail, que no es un uuid nuestro", () => {
+    // El hilo vive en Gmail: su id es una cadena de Google. Exigir uuid acá rechazaría TODA
+    // respuesta — el modo de fallo exacto que tuvo `create_appointment` con `add_allergy`.
+    const base = {
+      thread_id: "18f9c2a4b7e1d3f0",
+      to_email: "ana@ejemplo.com",
+      subject: "Re: Control de Luna",
       body: "Perfecto, la esperamos.",
-      to_email: "otro@ejemplo.com",
-      subject: "Secuestrado",
-    })
-    expect(r.ok).toBe(true)
-    if (r.ok) {
-      expect(r.payload).not.toHaveProperty("to_email")
-      expect(r.payload).not.toHaveProperty("subject")
     }
+    expect(validarPayload("reply_email", base).ok).toBe(true)
+    // El destinatario sí se valida: el vet puede corregirlo en la tarjeta y un typo manda la
+    // respuesta a un desconocido.
+    expect(validarPayload("reply_email", { ...base, to_email: "ana(arroba)ejemplo" }).ok).toBe(false)
+    // Y lo desconocido se sigue descartando.
+    const r = validarPayload("reply_email", { ...base, from_email: "otro@ejemplo.com" })
+    expect(r.ok).toBe(true)
+    if (r.ok) expect(r.payload).not.toHaveProperty("from_email")
   })
 })

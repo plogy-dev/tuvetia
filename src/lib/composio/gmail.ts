@@ -1,0 +1,158 @@
+import "server-only"
+
+// Correo de Athos vía Composio — la cuenta de Google que conecta CADA MIEMBRO.
+//
+// Es uno de los dos únicos caminos de correo del sistema (ver CORREOS.md): lo que manda una
+// persona —o Athos por ella— sale de su propia cuenta. Lo que manda el sistema (facturas,
+// cobranza, notificaciones) va por Resend y no pasa por acá.
+//
+// POR QUÉ EL SDK Y NO REST DIRECTO, que es el estilo del repo. Composio documenta el SDK y NO su
+// API REST: la ejecución de tools no tiene endpoint publicado. Adivinar rutas y formas contra una
+// API sin documentar es peor que una dependencia — y además el SDK trae los tipos, así que un
+// cambio de forma lo caza `tsc` en vez del primer clic de un veterinario.
+//
+// La identidad: el `userId` de Composio es NUESTRO `profiles.id`. Así la conexión que hace un
+// miembro es la que Athos usa cuando ese miembro le pide algo, sin tabla intermedia que sincronizar.
+
+import { Composio } from "@composio/core"
+
+/** Slug del toolkit. Microsoft queda para después; hoy solo Google. */
+export const GMAIL_TOOLKIT = "gmail"
+
+export const GMAIL_TOOLS = {
+  enviar: "GMAIL_SEND_EMAIL",
+  buscar: "GMAIL_FETCH_EMAILS",
+} as const
+
+function apiKey(): string | null {
+  return process.env.COMPOSIO_API_KEY?.trim() || null
+}
+
+function authConfigId(): string | null {
+  return process.env.COMPOSIO_GMAIL_AUTH_CONFIG_ID?.trim() || null
+}
+
+/** ¿Está Composio configurado en este despliegue? La UI lo usa para explicar en vez de fallar. */
+export function composioConfigurado(): boolean {
+  return apiKey() !== null && authConfigId() !== null
+}
+
+let cliente: Composio | null = null
+
+function composio(): Composio {
+  const key = apiKey()
+  if (!key) {
+    throw new Error("Falta COMPOSIO_API_KEY en el servidor: el correo de Athos no está disponible.")
+  }
+  // Una sola instancia por proceso: el SDK mantiene su propio cliente HTTP.
+  cliente ??= new Composio({ apiKey: key })
+  return cliente
+}
+
+export interface EstadoConexion {
+  conectado: boolean
+  /** Correo de la cuenta conectada, para mostrarlo en Conexiones. */
+  email: string | null
+}
+
+/**
+ * ¿Este miembro conectó su Gmail?
+ *
+ * Se pregunta a Composio en vez de guardar una copia nuestra: la conexión puede caerse del lado de
+ * Google (el usuario revoca el acceso) y una tabla propia diría "conectado" para siempre. La
+ * fuente de verdad es quien tiene el token.
+ */
+export async function estadoConexion(userId: string): Promise<EstadoConexion> {
+  if (!composioConfigurado()) return { conectado: false, email: null }
+  try {
+    const { items } = await composio().connectedAccounts.list({
+      userIds: [userId],
+      toolkitSlugs: [GMAIL_TOOLKIT],
+    })
+    const activa = items.find((c) => c.status === "ACTIVE")
+    if (!activa) return { conectado: false, email: null }
+    // El correo de la cuenta viene en los datos del proveedor y su forma depende del toolkit; se
+    // lee defensivamente porque no vale la pena romper la página por un dato decorativo.
+    const datos = activa.data as Record<string, unknown> | undefined
+    const email =
+      typeof datos?.email === "string"
+        ? datos.email
+        : typeof datos?.user_email === "string"
+          ? datos.user_email
+          : null
+    return { conectado: true, email }
+  } catch (e) {
+    console.error(`[composio/gmail] no se pudo consultar la conexión de ${userId}:`, e)
+    return { conectado: false, email: null }
+  }
+}
+
+/**
+ * Empieza la conexión: devuelve la URL a la que hay que mandar al veterinario.
+ *
+ * Se usa `link()` y no `initiate()`: para auth configs administradas por Composio, `initiate()`
+ * está retirado y responde 400 (el SDK tiene una excepción dedicada,
+ * ComposioLegacyConnectedAccountsEndpointRetiredError).
+ */
+export async function iniciarConexion(userId: string, callbackUrl: string): Promise<string> {
+  const auth = authConfigId()
+  if (!auth) {
+    throw new Error("Falta COMPOSIO_GMAIL_AUTH_CONFIG_ID en el servidor.")
+  }
+  const request = await composio().connectedAccounts.link(userId, auth, { callbackUrl })
+  if (!request.redirectUrl) {
+    throw new Error("Composio no devolvió una URL de autorización.")
+  }
+  return request.redirectUrl
+}
+
+/** Desconecta: borra la cuenta conectada de ese miembro. */
+export async function desconectar(userId: string): Promise<void> {
+  const { items } = await composio().connectedAccounts.list({
+    userIds: [userId],
+    toolkitSlugs: [GMAIL_TOOLKIT],
+  })
+  for (const cuenta of items) {
+    await composio().connectedAccounts.delete(cuenta.id)
+  }
+}
+
+export type ResultadoTool =
+  | { ok: true; data: unknown }
+  | { ok: false; error: string; sinConectar?: boolean }
+
+/**
+ * Ejecuta una tool de Gmail con la cuenta de ese miembro.
+ *
+ * Devuelve un resultado en vez de lanzar: quien llama es una tool de Athos, y un error tiene que
+ * volver al modelo como texto ("no tenés el correo conectado") para que se lo diga al vet, no
+ * tumbar el turno del agente.
+ */
+export async function ejecutarGmail(
+  userId: string,
+  slug: string,
+  args: Record<string, unknown>,
+): Promise<ResultadoTool> {
+  if (!composioConfigurado()) {
+    return { ok: false, error: "El correo por Composio no está configurado en este servidor." }
+  }
+  try {
+    const r = await composio().tools.execute(slug, { userId, arguments: args })
+    if (!r.successful) {
+      return { ok: false, error: r.error ?? "Gmail rechazó la operación." }
+    }
+    return { ok: true, data: r.data }
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : "Error desconocido"
+    // El caso más común y el único con una acción clara del lado del vet: nunca conectó la cuenta.
+    if (/no connected account|not connected|connected account not found/i.test(msg)) {
+      return {
+        ok: false,
+        error: "No tenés tu correo conectado. Se conecta en Conexiones → Correo de Athos.",
+        sinConectar: true,
+      }
+    }
+    console.error(`[composio/gmail] ${slug} falló para ${userId}:`, msg)
+    return { ok: false, error: msg }
+  }
+}
