@@ -1,13 +1,19 @@
 # Correos de Tuvetia
 
-Tuvetia manda correo por **tres caminos distintos**, y confundirlos es el error caro. Este documento
-dice cuál usar y por qué existe cada uno.
+Tuvetia manda y lee correo por **exactamente dos caminos**. No hay un tercero, y agregarlo es una
+decisión de arquitectura, no un detalle de implementación.
 
 | | Sale de | Lo usa | Transporte |
 |---|---|---|---|
-| **Transaccional** | `vet@tuvetia.com`, firmado con el nombre de la clínica | Facturas, cobranza, notificaciones | **Resend** |
-| **Personal** | La cuenta que cada miembro conectó | Bandeja de Comunicaciones, correos que redacta Athos | SMTP de esa cuenta |
-| **Plataforma** | El remitente propio de Tuvetia | Correos de `/admin` a los usuarios de la plataforma | SMTP de plataforma |
+| **Transaccional** | `vet@tuvetia.com`, firmado con el nombre de la clínica | Facturas, cobranza, y las notificaciones de `/admin` a los veterinarios | **Resend** |
+| **De Athos** | La cuenta Google que conectó **cada miembro** | Athos leyendo y escribiendo correo, y la bandeja de Comunicaciones | **Composio** (OAuth) |
+
+**La regla en una línea:** si el correo lo manda *el sistema*, va por Resend; si lo manda *una
+persona* (o Athos por ella), va por Composio con la cuenta de esa persona.
+
+> **Estado:** el camino de Composio está en construcción. Hasta que esté, la conexión por miembro
+> sigue siendo App Password + SMTP/IMAP. Lo que se retira cuando entre Composio está listado al
+> final, en §Qué se retira.
 
 ---
 
@@ -67,29 +73,36 @@ es que el admin conecte **ese mismo** buzón en Conexiones → *Correo de la cl�
 
 ---
 
-## 2. Personal — la bandeja de cada miembro
+### Notificaciones de plataforma
 
-Cada miembro conecta **su** cuenta en Conexiones → *Mi correo* (App Password de Gmail). De ahí:
-
-- se lee su bandeja, que se ve en **Comunicaciones → Correo**;
-- salen los correos que **Athos** redacta para los titulares y el vet aprueba.
-
-Punto de entrada: [`sendUserEmail`](src/lib/email/send-user-email.ts). Cada bandeja es privada — la
-RLS es `user_id = auth.uid()`, así que un miembro no ve el correo de otro.
-
-**Por qué SMTP/IMAP y no la API de Gmail:** `gmail.readonly`, `gmail.modify` y `gmail.compose` son
-scopes **restringidos** de Google: exigen verificación más una auditoría CASA renovable cada 12
-meses. Las App Passwords están exceptuadas y sirven para enviar **y** leer. Además IMAP es estándar,
-así que la misma implementación va a servir para Outlook. Está documentado en el encabezado de la
-migración `0039`.
+[`platform-sender.ts`](src/lib/email/platform-sender.ts) — el envío desde `/admin/usuarios`. Va por
+el mismo Resend, pero **sin** nombre de clínica ni Reply-To: acá el destinatario es el veterinario y
+quien le escribe es Tuvetia. Por eso es un módulo aparte y no un parámetro de
+`sendTransactionalEmail`.
 
 ---
 
-## 3. Plataforma — Tuvetia hablándole a sus usuarios
+## 2. De Athos — la cuenta de cada miembro, vía Composio
 
-[`platform-sender.ts`](src/lib/email/platform-sender.ts), por SMTP propio
-(`PLATFORM_SMTP_*`). Lo usa el envío desde `/admin/usuarios`. Es correo de Tuvetia a **sus** usuarios
-(los veterinarios), no a clientes de una clínica — por eso no lleva nombre de clínica ni Reply-To.
+Cada miembro conecta **su** cuenta de Google en Conexiones (Microsoft queda para después). Esa
+conexión es **por miembro**, y es la que Athos usa cuando ese miembro le pide algo:
+
+- *"¿qué me escribió la dueña de Luna?"* → Athos lee **su** buzón;
+- *"respondele que la esperamos el martes"* → el correo sale de **su** cuenta.
+
+Si el miembro no conectó nada, la app se lo dice y le muestra cómo conectarla — no falla en silencio
+ni cae a la cuenta de otro.
+
+**Por qué Composio y no App Password:** leer Gmail exige scopes **restringidos**
+(`gmail.readonly`/`gmail.modify`), que para una app propia significan verificación de Google más una
+auditoría **CASA renovable cada 12 meses**. El OAuth administrado de Composio evita ese trámite. La
+contrapartida está asumida: al conectar, el veterinario ve el nombre de Composio en la pantalla de
+consentimiento de Google, no el de Tuvetia. (Con credenciales propias diría "Tuvetia", pero vuelve
+CASA.)
+
+**Por qué no App Passwords, que sí funcionan:** dependen de que Google las siga permitiendo y de que
+el admin de Workspace no las bloquee — y le piden al veterinario un trámite manual (activar 2FA,
+generar una contraseña de 16 caracteres, pegarla). OAuth es un clic.
 
 ---
 
@@ -103,11 +116,32 @@ migración `0039`.
    distingue un fallo de red o un 429 —reintentable— de uno de configuración, que reintentar no
    arregla.
 
+## Qué se retira cuando entre Composio
+
+Todo lo que hacía de "correo de un miembro" por SMTP/IMAP, porque pasa a hacerlo Composio:
+
+- `src/lib/email/{smtp,imap,integrations,actions,send-user-email,inbox,sync}.ts`
+- `src/components/settings/email-settings.tsx` (el formulario de App Password)
+- Las tablas `email_integrations` e `invoice_email_threads`
+- Los dos barridos IMAP colgados del cron de cartera
+
+**Se pierde una cosa, y es a propósito:** la lectura automática de respuestas a facturas. Hoy
+`sync.ts` lee el buzón institucional, clasifica la intención del cliente (promesa de pago, disputa),
+guarda el comprobante adjunto y crea la tarea de verificación. Al desaparecer el buzón institucional
+eso deja de existir: las facturas salen con Reply-To al administrador y **él lee las respuestas en
+su correo, como cualquier persona**. Los comprobantes que llegan por **WhatsApp** se siguen
+capturando solos — ese canal tiene su propio webhook.
+
 ## Configuración
 
 ```bash
+# Transaccional (Resend)
 RESEND_API_KEY=            # API key de Resend (server, nunca NEXT_PUBLIC_)
 TRANSACTIONAL_FROM_EMAIL=vet@tuvetia.com
+
+# Correo de Athos (Composio)
+COMPOSIO_API_KEY=          # API key del proyecto en Composio
+COMPOSIO_GMAIL_AUTH_CONFIG_ID=   # ac_... del Auth Config de Gmail
 ```
 
 **Antes del primer envío hay que verificar el dominio en Resend** (registros SPF y DKIM de

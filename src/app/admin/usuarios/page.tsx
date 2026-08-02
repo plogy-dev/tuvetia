@@ -67,10 +67,9 @@ export default async function AdminUsuariosPage() {
 
       {!configurado && (
         <div className="rounded-lg border border-amber-500/40 bg-amber-500/10 p-3 text-sm">
-          <b>El envío de correos está deshabilitado.</b> Falta configurar el remitente de plataforma
-          en Vercel: <code>PLATFORM_SMTP_HOST</code>, <code>PLATFORM_SMTP_FROM_EMAIL</code> y{" "}
-          <code>PLATFORM_SMTP_PASSWORD</code>. Antes de enviar a varios destinatarios, revisá SPF y
-          DKIM del dominio.
+          <b>El envío de correos está deshabilitado.</b> Falta <code>RESEND_API_KEY</code> en Vercel.
+          Además, antes del primer envío el dominio del remitente tiene que estar verificado en
+          Resend (SPF y DKIM) — ver <code>CORREOS.md</code>.
         </div>
       )}
 
