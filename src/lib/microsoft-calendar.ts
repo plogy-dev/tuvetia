@@ -75,8 +75,19 @@ function microsoftCreds(): { id: string; secret: string; tenant: string } {
   return { id, secret, tenant }
 }
 
-// Refresca un access token a partir del refresh token del vet.
-async function accessTokenFrom(refreshToken: string): Promise<string> {
+/**
+ * Refresca un access token a partir del refresh token del vet, y **guarda el refresh token rotado**.
+ *
+ * Esa segunda mitad no es un detalle: Azure AD devuelve un `refresh_token` NUEVO en cada refresh, y
+ * la ventana de 90 días se renueva con el que devuelve, no con el que se mandó. Descartándolo, el
+ * token guardado envejece igual aunque se use todos los días, y **toda conexión de Outlook deja de
+ * funcionar ~90 días después de conectarse** — con "Microsoft rechazó el token guardado", que es
+ * indistinguible de una revocación real, así que el diagnóstico apunta al lado equivocado.
+ *
+ * El espejo de Google no tiene este problema sólo porque sus refresh tokens son de larga duración.
+ * La estructura copiada de un proveedor al otro esconde esa diferencia.
+ */
+async function accessTokenFrom(refreshToken: string, userId: string): Promise<string> {
   const { id, secret, tenant } = microsoftCreds()
   const res = await fetch(`https://login.microsoftonline.com/${tenant}/oauth2/v2.0/token`, {
     method: "POST",
@@ -100,8 +111,23 @@ async function accessTokenFrom(refreshToken: string): Promise<string> {
       `Microsoft rechazó el token guardado: ${detalle}. Puede que haya sido revocado — reconectá Outlook Calendar desde Conexiones.`,
     )
   }
-  const json = (await res.json()) as { access_token?: string }
+  const json = (await res.json()) as { access_token?: string; refresh_token?: string }
   if (!json.access_token) throw new Error("Microsoft no devolvió access_token")
+
+  // Sólo se guarda si vino uno nuevo: escribir `null` pisaría el que sí funciona y dejaría la
+  // integración muerta en el acto. Es best-effort — si el guardado falla, el access token de esta
+  // llamada sirve igual y lo peor que pasa es que la rotación se pierda una vez más.
+  if (json.refresh_token && json.refresh_token !== refreshToken) {
+    const { error } = await createAdminClient()
+      .from("calendar_integrations")
+      .update({ refresh_token: json.refresh_token, updated_at: new Date().toISOString() })
+      .eq("user_id", userId)
+      .eq("provider", "microsoft")
+    if (error) {
+      console.error("[microsoft-calendar] no se pudo guardar el refresh token rotado:", error.message)
+    }
+  }
+
   return json.access_token
 }
 
@@ -174,7 +200,7 @@ async function borrarEventoDe(
   try {
     const integ = await getIntegration(admin, ownerUserId)
     if (!integ?.refresh_token) return
-    const access = await accessTokenFrom(integ.refresh_token)
+    const access = await accessTokenFrom(integ.refresh_token, ownerUserId)
     const base = eventsBaseUrl(integ.google_calendar_id)
     await fetch(`${base}/${encodeURIComponent(eventId)}`, {
       method: "DELETE",
@@ -223,7 +249,7 @@ export async function pushAppointment(appointmentId: string): Promise<string | n
     return null
   }
 
-  const access = await accessTokenFrom(integ.refresh_token)
+  const access = await accessTokenFrom(integ.refresh_token, a.vet_id as string)
   const base = eventsBaseUrl(integ.google_calendar_id)
   const attendeeEmails = await attendeeEmailsFor(admin, a.owner_id, a.vet_id)
   const eventIdVigente = cambioDeCalendario ? null : a.microsoft_event_id
@@ -257,7 +283,7 @@ export async function deleteRemoteEvent(
   const admin = createAdminClient()
   const integ = await getIntegration(admin, calendarOwnerId)
   if (!integ?.refresh_token) return
-  const access = await accessTokenFrom(integ.refresh_token)
+  const access = await accessTokenFrom(integ.refresh_token, calendarOwnerId)
   const base = eventsBaseUrl(integ.google_calendar_id)
   const res = await fetch(`${base}/${encodeURIComponent(microsoftEventId)}`, {
     method: "DELETE",
