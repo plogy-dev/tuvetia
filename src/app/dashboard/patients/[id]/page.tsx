@@ -69,7 +69,7 @@ export default async function PatientHistoryPage({ params }: { params: Promise<{
     { data: vaxData },
     { data: consultData },
     { data: attachData },
-    { data: apptData },
+    { data: apptData, error: apptError },
   ] = await Promise.all([
       supabase.from("allergies").select("id, allergen, severity, reaction").eq("patient_id", id),
       supabase
@@ -102,13 +102,23 @@ export default async function PatientHistoryPage({ params }: { params: Promise<{
         .eq("patient_id", id)
         .order("created_at", { ascending: false }),
       // Citas del paciente: las próximas primero, después la historia hacia atrás.
+      //
+      // El `!appointments_vet_id_fkey` NO es decoración: `appointments` tiene TRES claves foráneas a
+      // `profiles` —`vet_id`, `created_by` y `calendar_owner_id` (esta última de la 0049)—, así que
+      // un `vet:profiles(...)` a secas es ambiguo y PostgREST responde PGRST201 en vez de datos.
+      // Sin el hint esta sección mostraba "Citas (0)" para todos los pacientes. Mismo estilo que
+      // `lib/facturacion/queries.ts`.
       supabase
         .from("appointments")
-        .select("id, title, reason, status, starts_at, vet:profiles(full_name)")
+        .select("id, title, reason, status, starts_at, vet:profiles!appointments_vet_id_fkey(full_name)")
         .eq("patient_id", id)
         .order("starts_at", { ascending: false })
         .limit(50),
     ])
+
+  // Un embed ambiguo devuelve `error` y `data: null`, y sin mirarlo el `?? []` de abajo lo convierte
+  // en "este paciente no tiene citas". Es indistinguible de la verdad, y así pasó desapercibido.
+  if (apptError) console.error("[ficha] no se pudieron cargar las citas:", apptError.message)
 
   const allergies = (allergyData as unknown as Allergy[] | null) ?? []
   const medications = (medData as unknown as Medication[] | null) ?? []
