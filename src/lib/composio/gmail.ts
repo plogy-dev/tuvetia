@@ -99,11 +99,32 @@ export async function iniciarConexion(userId: string, callbackUrl: string): Prom
   if (!auth) {
     throw new Error("Falta COMPOSIO_GMAIL_AUTH_CONFIG_ID en el servidor.")
   }
-  const request = await composio().connectedAccounts.link(userId, auth, { callbackUrl })
-  if (!request.redirectUrl) {
-    throw new Error("Composio no devolvió una URL de autorización.")
+  try {
+    const request = await composio().connectedAccounts.link(userId, auth, { callbackUrl })
+    if (!request.redirectUrl) {
+      throw new Error("Composio no devolvió una URL de autorización.")
+    }
+    return request.redirectUrl
+  } catch (e) {
+    throw new Error(explicarFalloDeConexion(e))
   }
-  return request.redirectUrl
+}
+
+/**
+ * Traduce el fallo de `link()` a algo accionable.
+ *
+ * El SDK envuelve todo en "Failed to create connected account link" y esconde la causa real en
+ * `cause` — que no le dice nada a nadie. El primer intento contra la API real falló justamente por
+ * una key de SOLO LECTURA, y ese mensaje genérico habría mandado a buscar el problema al código.
+ */
+function explicarFalloDeConexion(e: unknown): string {
+  const causa = (e as { cause?: { error?: { error?: { slug?: string; message?: string } } } })?.cause
+  const detalle = causa?.error?.error
+  if (detalle?.slug === "APIKey_InsufficientPermissions") {
+    return 'La API key de Composio es de solo lectura. En el dashboard de Composio dale permiso de ESCRITURA sobre "connected_accounts" (o usá una key que ya lo tenga).'
+  }
+  if (detalle?.message) return `Composio rechazó la conexión: ${detalle.message}`
+  return e instanceof Error ? e.message : "No se pudo iniciar la conexión con Composio."
 }
 
 /** Desconecta: borra la cuenta conectada de ese miembro. */
