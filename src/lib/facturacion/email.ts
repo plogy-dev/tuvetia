@@ -12,9 +12,8 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 
 import { getAppBaseUrl } from '@/lib/base-url';
 import { createAdminClient } from '@/lib/supabase/admin';
-import { loadEmailCredentials, markError } from '@/lib/email/integrations';
-import { sendEmail } from '@/lib/email/smtp';
 import { buildMessageId } from '@/lib/email/threading';
+import { loadClinicSender, sendTransactionalEmail, transactionalFrom } from '@/lib/email/transactional';
 import { markInvoiceSent } from './invoices';
 
 export interface SendInvoiceEmailInput {
@@ -29,7 +28,7 @@ export type SendInvoiceEmailResult =
   | { ok: true; to: string; fullNumber: string; publicUrl: string }
   | {
       ok: false;
-      reason: 'email_no_configurado' | 'sin_destinatario' | 'factura_no_encontrada' | 'envio_fallido';
+      reason: 'sin_destinatario' | 'factura_no_encontrada' | 'envio_fallido';
       error?: string;
     };
 
@@ -68,9 +67,10 @@ export async function sendInvoiceByEmail(
   }
   if (!to) return { ok: false, reason: 'sin_destinatario' };
 
-  // 3) Credenciales de la clínica. null = no configurado (estado normal, no un error).
-  const creds = await loadEmailCredentials(clinicId);
-  if (!creds) return { ok: false, reason: 'email_no_configurado' };
+  // 3) Quién firma: nombre de la clínica + Reply-To a sus administradores. El correo sale de
+  //    vet@tuvetia.com — ya no hace falta que la clínica configure SMTP para poder facturar.
+  //    Ver CORREOS.md.
+  const sender = await loadClinicSender(clinicId);
 
   const fullNumber = invoice.full_number ?? invoice.number ?? '';
   const publicUrl = `${getAppBaseUrl()}/f/${invoice.share_token}`;
@@ -78,7 +78,7 @@ export async function sendInvoiceByEmail(
 
   // Message-ID propio: raíz del hilo. `unique` con el reloj permite reenviar la misma factura sin
   // repetir el id — el RFC lo exige y hay servidores que rechazan el duplicado.
-  const messageId = buildMessageId(invoice.id, creds.from_email, String(Date.now()));
+  const messageId = buildMessageId(invoice.id, transactionalFrom(), String(Date.now()));
 
   const saludo = input.message?.trim();
   const text = [
@@ -92,14 +92,11 @@ export async function sendInvoiceByEmail(
     .filter(Boolean)
     .join('\n');
 
-  const result = await sendEmail(creds, { to, subject, text, messageId });
+  const result = await sendTransactionalEmail(clinicId, { to, subject, text, messageId }, sender);
 
   if (!result.ok) {
-    // Un fallo estructural (credencial rechazada) marca la integración en error para que el vet lo
-    // vea en Configuración. Un transitorio no: la credencial sigue siendo válida.
-    if (!result.transient) {
-      await markError(clinicId, result.error ?? 'El servidor de correo rechazó el envío.');
-    }
+    // Ya no se marca `email_integrations` en error: el fallo es de Resend o del dominio de Tuvetia,
+    // no de la credencial de la clínica — culparla ahí mandaría al vet a arreglar lo que no está roto.
     return { ok: false, reason: 'envio_fallido', error: result.error };
   }
 

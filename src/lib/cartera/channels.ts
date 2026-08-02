@@ -16,8 +16,8 @@ import 'server-only';
 // Nunca decide A QUIÉN ni CUÁNDO contactar (eso es del gate Ley 2300 en el
 // dominio): solo materializa el envío que el despachador ya autorizó.
 
-import { loadEmailCredentials } from '@/lib/email/integrations';
-import { sendEmail } from '@/lib/email/smtp';
+import { resendApiKey } from '@/lib/email/resend';
+import { sendTransactionalEmail, transactionalFrom } from '@/lib/email/transactional';
 import { buildMessageId } from '@/lib/email/threading';
 import { loadIntegration, sendWhatsAppText } from '@/lib/whatsapp/send-message';
 import type { CommsChannel } from '@/lib/supabase/types';
@@ -34,17 +34,20 @@ export class RealMessaging implements MessagingPort {
   async connectedChannels(): Promise<CommsChannel[]> {
     const channels: CommsChannel[] = [];
 
-    const [integ, correo] = await Promise.all([
-      loadIntegration(this.clinicId),
-      loadEmailCredentials(this.clinicId),
-    ]);
+    const integ = await loadIntegration(this.clinicId);
     if (integ && integ.status === 'connected') channels.push('WHATSAPP');
-    // El correo se reporta conectado sólo si la clínica lo conectó de verdad. Si no, se salta con
-    // log — igual que antes, pero ahora por ausencia de configuración y no por diseño.
-    if (correo) channels.push('EMAIL');
+
+    // El correo de cobranza es TRANSACCIONAL: sale del remitente de Tuvetia firmado con el nombre
+    // de la clínica (ver CORREOS.md). Ya no depende de que cada clínica configure su SMTP —antes
+    // era el motivo #1 por el que la cobranza terminaba siendo sólo WhatsApp—, así que el canal
+    // está disponible para todas mientras Tuvetia tenga su remitente configurado.
+    //
+    // Esto NO decide si se contacta a alguien: eso sigue siendo del gate de la Ley 2300 (ventana
+    // horaria, un contacto por día, canal autorizado) dentro del dominio.
+    if (resendApiKey()) channels.push('EMAIL');
     else
       console.log(
-        `[cartera/channels] clinic=${this.clinicId} canal EMAIL omitido: sin integración de correo`,
+        `[cartera/channels] clinic=${this.clinicId} canal EMAIL omitido: falta RESEND_API_KEY`,
       );
     return channels;
   }
@@ -66,28 +69,31 @@ export class RealMessaging implements MessagingPort {
   /**
    * Recordatorio de cobranza por correo.
    *
-   * Se apoya en el mismo transporte que ya usa la facturación (`@/lib/email/smtp`), que devuelve
-   * `transient` distinguiendo un fallo de red o un límite del proveedor —reprogramable— de una
-   * credencial rechazada. El despachador usa esa distinción para no perder el recordatorio.
+   * Sale por el remitente TRANSACCIONAL de Tuvetia (vet@tuvetia.com), firmado con el nombre de la
+   * clínica y con Reply-To a sus administradores — ver CORREOS.md. `sendTransactionalEmail` devuelve
+   * `transient` distinguiendo un fallo de red o un 429 —reprogramable— de uno de configuración
+   * (dominio sin verificar, clave revocada). El despachador usa esa distinción para no perder el
+   * recordatorio.
    *
    * El asunto y el cuerpo llegan ya redactados en `msg`: este adaptador NO decide qué decir, ni a
    * quién, ni cuándo — eso es del gate de la Ley 2300 en el dominio.
    */
   private async sendEmail(msg: OutboundMessage): Promise<SendResult> {
-    const creds = await loadEmailCredentials(this.clinicId);
-    if (!creds) return fail('sin integración de correo en esta clínica');
-
     // Message-ID propio: es la raíz del hilo y lo que permite reconocer la respuesta del titular
     // cuando entra por IMAP. Sin él, la respuesta llegaría como un correo suelto sin conversación.
-    const messageId = buildMessageId(msg.invoiceId ?? this.clinicId, creds.from_email, `${Date.now()}`);
-    const r = await sendEmail(creds, {
+    const messageId = buildMessageId(
+      msg.invoiceId ?? this.clinicId,
+      transactionalFrom(),
+      `${Date.now()}`,
+    );
+    const r = await sendTransactionalEmail(this.clinicId, {
       to: msg.to,
       subject: msg.subject?.trim() || 'Recordatorio de pago',
       text: msg.body,
       messageId,
     });
     if (!r.ok) return fail(r.error ?? 'Error de envío de correo', r.transient ?? false);
-    return { ok: true, provider: 'email', providerMessageId: r.messageId, status: 'ENVIADO' };
+    return { ok: true, provider: 'email', providerMessageId: r.id, status: 'ENVIADO' };
   }
 
   private async sendWhatsApp(msg: OutboundMessage): Promise<SendResult> {

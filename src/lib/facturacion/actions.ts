@@ -767,13 +767,13 @@ export async function sendInvoiceEmailAction(
     if (!r.ok) {
       // Cada motivo tiene una acción distinta del lado del vet: mandarlos todos al mismo mensaje
       // hacía que "el correo del cliente está vacío" se leyera como "falta configurar el correo".
+      // Ya no existe 'email_no_configurado': desde que las facturas salen por el remitente de
+      // Tuvetia (ver CORREOS.md), la clínica no necesita configurar SMTP para poder facturar.
       const MENSAJES: Record<typeof r.reason, string> = {
-        email_no_configurado:
-          'El correo de la clínica no está configurado. Configuralo en Configuración → Correo, o usá WhatsApp.',
         sin_destinatario:
           'Este pagador no tiene correo registrado. Agregalo en su ficha o escribí una dirección al enviar.',
         factura_no_encontrada: 'No se encontró la factura.',
-        envio_fallido: `El servidor de correo rechazó el envío${r.error ? `: ${r.error}` : '.'}`,
+        envio_fallido: `No se pudo enviar la factura${r.error ? `: ${r.error}` : '.'}`,
       };
       return { ok: false, error: MENSAJES[r.reason] };
     }

@@ -1,26 +1,31 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 // Canal de correo del motor de cartera. Se prueba el ADAPTADOR, no el transporte: que traduzca
-// bien entre el puerto de mensajería y `@/lib/email/smtp`, y sobre todo que **no pierda un
+// bien entre el puerto de mensajería y el envío transaccional, y sobre todo que **no pierda un
 // recordatorio en silencio**, que es el único fallo caro de este archivo.
 //
 // El canal estuvo devolviendo `email_no_configurado` incluso después de que el módulo de correo
 // funcionara — las facturas salían y las respuestas entraban, pero la cobranza seguía siendo sólo
 // WhatsApp. Estas pruebas fijan el comportamiento para que no vuelva a quedar desconectado.
+//
+// Desde que el correo de cobranza es TRANSACCIONAL (sale del remitente de Tuvetia, ver CORREOS.md),
+// el canal ya no depende del SMTP de cada clínica: depende de que Tuvetia tenga su remitente
+// configurado. `remitenteConfigurado` simula eso.
 
-let credenciales: { from_email: string; credential: string } | null = null;
-let resultadoEnvio: { ok: boolean; messageId: string | null; error?: string; transient?: boolean } = {
+let remitenteConfigurado = true;
+let resultadoEnvio: { ok: boolean; id: string | null; error?: string; transient?: boolean } = {
   ok: true,
-  messageId: '<enviado@tuvetia>',
+  id: '<enviado@tuvetia>',
 };
 const enviados: unknown[] = [];
 
-vi.mock('@/lib/email/integrations', () => ({
-  loadEmailCredentials: async () => credenciales,
+vi.mock('@/lib/email/resend', () => ({
+  resendApiKey: () => (remitenteConfigurado ? 're_test' : null),
 }));
 
-vi.mock('@/lib/email/smtp', () => ({
-  sendEmail: async (_creds: unknown, input: unknown) => {
+vi.mock('@/lib/email/transactional', () => ({
+  transactionalFrom: () => 'vet@tuvetia.com',
+  sendTransactionalEmail: async (_clinicId: string, input: unknown) => {
     enviados.push(input);
     return resultadoEnvio;
   },
@@ -44,8 +49,8 @@ const MSG = {
 };
 
 beforeEach(() => {
-  credenciales = { from_email: 'clinica@ejemplo.com', credential: 'x' };
-  resultadoEnvio = { ok: true, messageId: '<enviado@tuvetia>' };
+  remitenteConfigurado = true;
+  resultadoEnvio = { ok: true, id: '<enviado@tuvetia>' };
   enviados.length = 0;
 });
 
@@ -75,19 +80,26 @@ describe('canal de correo de cartera', () => {
     expect((enviados[0] as { subject: string }).subject).toBe('Recordatorio de pago');
   });
 
-  it('sin integración de correo falla con mensaje claro, no lanza', async () => {
-    credenciales = null;
+  it('sin remitente de Tuvetia falla con mensaje claro, no lanza', async () => {
+    // Ya no es "la clínica no configuró su correo": el remitente es de la plataforma, así que si
+    // falta, falta para todos y es un problema de despliegue, no del vet.
+    resultadoEnvio = {
+      ok: false,
+      id: null,
+      error: 'Falta RESEND_API_KEY en el servidor: los correos de Tuvetia no pueden salir.',
+      transient: false,
+    };
     const r = await new RealMessaging('clinic-a').send(MSG);
     expect(r.ok).toBe(false);
     expect(r.status).toBe('FALLIDO');
-    expect(r.error).toContain('sin integración de correo');
+    expect(r.error).toContain('RESEND_API_KEY');
     expect(r.transient).toBe(false); // estructural: reintentar no arregla nada
   });
 
   it('PROPAGA transient: un fallo de red reprograma en vez de perder el recordatorio', async () => {
     // Es la razón de ser de este flag. Si se perdiera, un corte de red momentáneo marcaría el
     // recordatorio como omitido y el titular nunca recibiría el aviso.
-    resultadoEnvio = { ok: false, messageId: null, error: 'ETIMEDOUT', transient: true };
+    resultadoEnvio = { ok: false, id: null, error: 'ETIMEDOUT', transient: true };
     const r = await new RealMessaging('clinic-a').send(MSG);
     expect(r.ok).toBe(false);
     expect(r.transient).toBe(true);
@@ -95,7 +107,7 @@ describe('canal de correo de cartera', () => {
   });
 
   it('una credencial rechazada NO es transitoria', async () => {
-    resultadoEnvio = { ok: false, messageId: null, error: 'auth rechazada', transient: false };
+    resultadoEnvio = { ok: false, id: null, error: 'dominio no verificado', transient: false };
     const r = await new RealMessaging('clinic-a').send(MSG);
     expect(r.transient).toBe(false);
   });
@@ -106,9 +118,11 @@ describe('canal de correo de cartera', () => {
     expect(enviados).toHaveLength(0);
   });
 
-  it('connectedChannels reporta EMAIL sólo si la clínica lo conectó', async () => {
+  it('connectedChannels reporta EMAIL para CUALQUIER clínica si Tuvetia tiene remitente', async () => {
+    // El cambio de fondo: la cobranza por correo ya no exige que cada clínica configure SMTP, que
+    // era el motivo por el que en la práctica terminaba siendo sólo WhatsApp.
     expect(await new RealMessaging('clinic-a').connectedChannels()).toContain('EMAIL');
-    credenciales = null;
+    remitenteConfigurado = false;
     expect(await new RealMessaging('clinic-a').connectedChannels()).not.toContain('EMAIL');
   });
 });
