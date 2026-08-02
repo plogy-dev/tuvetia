@@ -89,7 +89,7 @@ export default async function PatientHistoryPage({ params }: { params: Promise<{
             // Solo metadata de transcripts: el full_text lo trae on-demand el componente de
             // historia al seleccionar (pacientes con historia larga bajaban TODOS los textos).
             "transcripts:transcripts(id, created_at), " +
-            "notes:clinical_notes(id, status, subjective, objective, assessment, plan, ai_model, allergy_gate_triggered), " +
+            "notes:clinical_notes(id, status, subjective, objective, assessment, plan, ai_generated_at, allergy_gate_triggered), " +
             "audios:consultation_audios(id, storage_path, duration_secs, created_at)",
         )
         .eq("patient_id", id)
