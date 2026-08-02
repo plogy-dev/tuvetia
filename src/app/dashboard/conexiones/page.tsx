@@ -23,11 +23,13 @@ export default async function ConexionesPage() {
     data: { user },
   } = await supabase.auth.getUser()
 
-  const [{ data: wa }, { data: emailRow }, { data: cal }] = await Promise.all([
+  const [{ data: wa }, { data: emailRow }, { data: cal }, { data: myEmailRow }] = await Promise.all([
     supabase.from("whatsapp_integrations").select("status, phone_number, agent_mode").maybeSingle(),
+    // Cuenta INSTITUCIONAL de la clínica: la que manda facturas y cobranza (user_id null).
     supabase
       .from("email_integrations")
       .select("status, from_email, from_name, last_error, verified_at")
+      .is("user_id", null)
       .maybeSingle(),
     // El calendario es del usuario, no de la clínica: su propia fila, sea del proveedor que sea
     // (hay a lo sumo una — conectar el segundo exige desconectar el primero).
@@ -35,6 +37,14 @@ export default async function ConexionesPage() {
       ? supabase
           .from("calendar_integrations")
           .select("provider")
+          .eq("user_id", user.id)
+          .maybeSingle()
+      : Promise.resolve({ data: null }),
+    // Cuenta PERSONAL del miembro: su bandeja y lo que Athos envía por él.
+    user
+      ? supabase
+          .from("email_integrations")
+          .select("status, from_email, from_name, last_error, verified_at")
           .eq("user_id", user.id)
           .maybeSingle()
       : Promise.resolve({ data: null }),
@@ -46,6 +56,7 @@ export default async function ConexionesPage() {
     agent_mode: "auto" | "review" | "paused" | "intervene"
   } | null
   const email = emailRow as EmailIntegrationView | null
+  const myEmail = myEmailRow as EmailIntegrationView | null
   const calendarConnected = ((cal as { provider: string } | null)?.provider ?? null) as
     | CalendarProvider
     | null
@@ -76,13 +87,26 @@ export default async function ConexionesPage() {
 
         <section className="rounded-lg border border-line-soft bg-card p-4 shadow-sm">
           <div className="mb-3 flex items-center gap-2 text-sm font-semibold text-fg">
-            <Mail className="size-4 text-fg-faint" aria-hidden /> Correo
+            <Mail className="size-4 text-fg-faint" aria-hidden /> Correo de la clínica
             <HelpTip>
-              Con el correo conectado, las <b>facturas</b> salen por email con su enlace de pago. Se
-              usa una <b>contraseña de aplicación</b> de Gmail, nunca la contraseña de la cuenta.
+              La cuenta <b>institucional</b>: de acá salen las <b>facturas</b> con su enlace de pago
+              y los recordatorios de cobranza. Una factura no sale a nombre de una persona. Se usa
+              una <b>contraseña de aplicación</b> de Gmail, nunca la contraseña de la cuenta.
             </HelpTip>
           </div>
           <EmailSettings integration={email} />
+        </section>
+
+        <section className="rounded-lg border border-line-soft bg-card p-4 shadow-sm">
+          <div className="mb-3 flex items-center gap-2 text-sm font-semibold text-fg">
+            <Mail className="size-4 text-fg-faint" aria-hidden /> Mi correo
+            <HelpTip>
+              Es <b>tu</b> cuenta, no la de la clínica: acá se lee tu bandeja en Comunicaciones y de
+              acá salen los correos que <b>Athos</b> redacta para los titulares. Cada miembro conecta
+              la suya. Se usa una <b>contraseña de aplicación</b> de Gmail.
+            </HelpTip>
+          </div>
+          <EmailSettings integration={myEmail} scope="personal" />
         </section>
 
         <section className="rounded-lg border border-line-soft bg-card p-4 shadow-sm">

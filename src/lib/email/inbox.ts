@@ -1,6 +1,6 @@
 import "server-only"
 
-// Bandeja de correo de la clínica: baja el buzón y lo GUARDA entero (email_threads /
+// Bandeja de correo PERSONAL de cada miembro: baja su buzón y lo GUARDA entero (email_threads /
 // email_messages, migración 0050). Es lo que hace posible ver el correo en la app y que Athos lo
 // lea; antes el barrido leía el INBOX y descartaba todo lo que no fuera respuesta a una factura.
 //
@@ -11,7 +11,7 @@ import "server-only"
 // puesto en riesgo facturación a cambio de ahorrar una conexión IMAP. Este archivo tiene su propio
 // cursor (email_integrations.inbox_last_uid) y no toca nada de cartera.
 //
-// Idempotente por `message_id` (unique con clinic_id): reprocesar una ventana no duplica. Eso
+// Idempotente por `message_id` (unique con user_id): reprocesar una ventana no duplica. Eso
 // importa porque el cursor avanza al final del lote, así que un fallo a mitad relee lo ya visto.
 
 import type { SupabaseClient } from "@supabase/supabase-js"
@@ -23,6 +23,7 @@ import { parseMessageIds } from "./threading"
 
 export interface InboxSyncResult {
   clinicId: string
+  userId: string
   fetched: number
   stored: number
 }
@@ -52,6 +53,7 @@ function normalizar(email: string | null | undefined): string {
 async function resolverHilo(
   admin: SupabaseClient,
   clinicId: string,
+  userId: string,
   msg: InboundEmail,
 ): Promise<{ threadId: string; esNuevo: boolean } | null> {
   const referenciados = [
@@ -63,7 +65,7 @@ async function resolverHilo(
     const { data } = await admin
       .from("email_messages")
       .select("thread_id")
-      .eq("clinic_id", clinicId)
+      .eq("user_id", userId)
       .in("message_id", referenciados)
       .limit(1)
     const hit = (data ?? [])[0] as { thread_id: string } | undefined
@@ -80,13 +82,14 @@ async function resolverHilo(
     .upsert(
       {
         clinic_id: clinicId,
+        user_id: userId,
         root_message_id: raiz,
         subject: msg.subject ?? null,
         participants: [normalizar(msg.fromEmail)].filter(Boolean),
         last_message_at: (msg.date ?? new Date()).toISOString(),
         updated_at: new Date().toISOString(),
       },
-      { onConflict: "clinic_id,root_message_id" },
+      { onConflict: "user_id,root_message_id" },
     )
     .select("id")
     .single()
@@ -132,18 +135,23 @@ async function vincularTitular(
   }
 }
 
-/** Baja y guarda el buzón de una clínica. Nunca lanza: un fallo no puede cortar el barrido global. */
-export async function syncInboxForClinic(clinicId: string): Promise<InboxSyncResult> {
-  const result: InboxSyncResult = { clinicId, fetched: 0, stored: 0 }
+/**
+ * Baja y guarda el buzón de UN MIEMBRO. Nunca lanza: un fallo no puede cortar el barrido global.
+ *
+ * Es el buzón personal de ese miembro, no el de la clínica: la cuenta institucional (user_id null)
+ * la lee `sync.ts` para las respuestas de facturas, y no tiene bandeja.
+ */
+export async function syncInboxForUser(clinicId: string, userId: string): Promise<InboxSyncResult> {
+  const result: InboxSyncResult = { clinicId, userId, fetched: 0, stored: 0 }
   const admin = createAdminClient()
 
-  const creds = await loadEmailCredentials(clinicId)
+  const creds = await loadEmailCredentials(clinicId, userId)
   if (!creds) return result // sin correo conectado: estado normal, no un error
 
   const { data: integ } = await admin
     .from("email_integrations")
     .select("inbox_last_uid")
-    .eq("clinic_id", clinicId)
+    .eq("user_id", userId)
     .maybeSingle()
   const cursor = (integ as { inbox_last_uid: number | null } | null)?.inbox_last_uid ?? null
 
@@ -156,9 +164,9 @@ export async function syncInboxForClinic(clinicId: string): Promise<InboxSyncRes
     // demás clínicas sigue.
     const msg = (e as Error).message ?? "No se pudo leer el buzón"
     if (/auth|login|credentials|invalid/i.test(msg)) {
-      await markError(clinicId, `IMAP rechazó la conexión: ${msg}`)
+      await markError(clinicId, `IMAP rechazó la conexión: ${msg}`, userId)
     }
-    console.error(`[email/inbox] clinic=${clinicId} fallo leyendo el buzón:`, msg)
+    console.error(`[email/inbox] user=${userId} fallo leyendo el buzón:`, msg)
     return result
   }
 
@@ -171,7 +179,7 @@ export async function syncInboxForClinic(clinicId: string): Promise<InboxSyncRes
     if (!msg.messageId) continue // sin Message-ID no se puede deduplicar ni hilar
 
     try {
-      const hilo = await resolverHilo(admin, clinicId, msg)
+      const hilo = await resolverHilo(admin, clinicId, userId, msg)
       if (!hilo) continue
 
       // Lo que sale de esta cuenta es nuestro; el resto es entrante. Gmail copia los enviados al
@@ -182,6 +190,7 @@ export async function syncInboxForClinic(clinicId: string): Promise<InboxSyncRes
       const { error: insErr } = await admin.from("email_messages").upsert(
         {
           clinic_id: clinicId,
+          user_id: userId,
           thread_id: hilo.threadId,
           message_id: msg.messageId,
           in_reply_to: msg.inReplyTo,
@@ -201,7 +210,7 @@ export async function syncInboxForClinic(clinicId: string): Promise<InboxSyncRes
           imap_uid: msg.uid,
           created_at: fecha,
         },
-        { onConflict: "clinic_id,message_id", ignoreDuplicates: true },
+        { onConflict: "user_id,message_id", ignoreDuplicates: true },
       )
       if (insErr) {
         console.error(`[email/inbox] no se pudo guardar ${msg.messageId}:`, insErr.message)
@@ -229,24 +238,31 @@ export async function syncInboxForClinic(clinicId: string): Promise<InboxSyncRes
     await admin
       .from("email_integrations")
       .update({ inbox_last_uid: maxUid })
-      .eq("clinic_id", clinicId)
+      .eq("user_id", userId)
   }
 
   return result
 }
 
-/** Barrido de todas las clínicas con correo conectado. Lo llama el cron. */
-export async function syncInboxForAllClinics(): Promise<InboxSyncResult[]> {
+/**
+ * Barrido de todos los buzones PERSONALES conectados. Lo llama el cron.
+ *
+ * `not("user_id", "is", null)` deja fuera la cuenta institucional a propósito: esa la lee `sync.ts`
+ * para las respuestas de facturas y no tiene bandeja. Sin ese filtro, el correo de cobranza
+ * aparecería como si fuera de alguien.
+ */
+export async function syncInboxForAllUsers(): Promise<InboxSyncResult[]> {
   const admin = createAdminClient()
   const { data } = await admin
     .from("email_integrations")
-    .select("clinic_id")
+    .select("clinic_id, user_id")
     .eq("status", "connected")
-  const clinics = ((data ?? []) as { clinic_id: string }[]).map((r) => r.clinic_id)
+    .not("user_id", "is", null)
+  const cuentas = (data ?? []) as { clinic_id: string; user_id: string }[]
 
   const out: InboxSyncResult[] = []
-  for (const clinicId of clinics) {
-    out.push(await syncInboxForClinic(clinicId))
+  for (const c of cuentas) {
+    out.push(await syncInboxForUser(c.clinic_id, c.user_id))
   }
   return out
 }

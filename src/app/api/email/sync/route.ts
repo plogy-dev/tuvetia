@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server"
 
 import { createClient } from "@/lib/supabase/server"
-import { syncInboxForClinic } from "@/lib/email/inbox"
+import { syncInboxForUser } from "@/lib/email/inbox"
 
 export const runtime = "nodejs"
 export const maxDuration = 120 // IMAP puede tardar con un buzón grande
@@ -24,7 +24,7 @@ export async function POST() {
   if (!clinicId) return NextResponse.json({ error: "El usuario no tiene clínica" }, { status: 400 })
 
   try {
-    const r = await syncInboxForClinic(clinicId)
+    const r = await syncInboxForUser(clinicId, user.id)
     return NextResponse.json({ ok: true, fetched: r.fetched, stored: r.stored })
   } catch (e) {
     return NextResponse.json({ error: (e as Error).message }, { status: 502 })

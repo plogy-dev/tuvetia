@@ -52,12 +52,16 @@ const ConnectSchema = z.object({
     .pipe(z.string().min(8, 'La contraseña de aplicación parece incompleta')),
 });
 
-export async function connectEmailAction(
-  _prev: EmailActionState,
-  formData: FormData,
-): Promise<EmailActionState> {
+/**
+ * Conecta una cuenta de correo. `personal` decide de QUIÉN es (migración 0051):
+ *   - false → la cuenta institucional de la clínica: facturas y cobranza.
+ *   - true  → la cuenta del miembro que la está conectando: su bandeja y lo que envía Athos.
+ * El flujo es idéntico en los dos casos; lo único que cambia es el dueño que se guarda.
+ */
+async function conectar(formData: FormData, personal: boolean): Promise<EmailActionState> {
   try {
     const { clinicId, userId } = await requireClinic();
+    const owner = personal ? userId : null;
     const parsed = ConnectSchema.safeParse({
       from_email: formData.get('from_email'),
       from_name: formData.get('from_name') || undefined,
@@ -73,6 +77,7 @@ export async function connectEmailAction(
     const trial: EmailCredentials = {
       id: '',
       clinic_id: clinicId,
+      user_id: null, // credencial en memoria solo para el handshake: no representa a ningún dueño
       provider: 'smtp',
       from_email: d.from_email,
       from_name: d.from_name ?? null,
@@ -103,6 +108,7 @@ export async function connectEmailAction(
     await saveEmailIntegration({
       clinicId,
       userId,
+      ownerUserId: owner,
       fromEmail: d.from_email,
       fromName: d.from_name ?? null,
       credential: d.credential,
@@ -111,22 +117,47 @@ export async function connectEmailAction(
       await markError(
         clinicId,
         smtpErrorHelp(check.error ?? 'El servidor de correo rechazó la conexión.'),
+        owner,
       );
-      revalidatePath('/dashboard/settings');
+      revalidarCorreo();
       return { ok: false, error: smtpErrorHelp(check.error ?? 'No se pudo conectar.') };
     }
-    await markConnected(clinicId);
-    revalidatePath('/dashboard/settings');
+    await markConnected(clinicId, owner);
+    revalidarCorreo();
     return { ok: true };
   } catch (e) {
     return { ok: false, error: e instanceof Error ? e.message : 'Error inesperado' };
   }
 }
 
-export async function disconnectEmailAction(): Promise<EmailActionState> {
+/** Las tres pantallas donde se ve el estado del correo. */
+function revalidarCorreo() {
+  revalidatePath('/dashboard/settings');
+  revalidatePath('/dashboard/conexiones');
+  revalidatePath('/dashboard/comunicaciones/correo');
+}
+
+/** Cuenta institucional de la clínica (facturas y cobranza). */
+export async function connectEmailAction(
+  _prev: EmailActionState,
+  formData: FormData,
+): Promise<EmailActionState> {
+  return conectar(formData, false);
+}
+
+/** Cuenta personal del miembro (su bandeja y lo que envía Athos por él). */
+export async function connectMyEmailAction(
+  _prev: EmailActionState,
+  formData: FormData,
+): Promise<EmailActionState> {
+  return conectar(formData, true);
+}
+
+async function desconectar(personal: boolean): Promise<EmailActionState> {
   try {
-    const { clinicId } = await requireClinic();
-    const existing = await getEmailIntegration(clinicId);
+    const { clinicId, userId } = await requireClinic();
+    const owner = personal ? userId : null;
+    const existing = await getEmailIntegration(clinicId, owner);
     if (!existing) return { ok: true };
     // Se borra la CREDENCIAL, no la fila: el from_email y los hilos quedan, y reconectar es solo
     // volver a pegar la contraseña.
@@ -138,12 +169,20 @@ export async function disconnectEmailAction(): Promise<EmailActionState> {
         credential_enc: null,
         updated_at: new Date().toISOString(),
       })
-      .eq('clinic_id', clinicId);
-    revalidatePath('/dashboard/settings');
+      .eq('id', existing.id);
+    revalidarCorreo();
     return { ok: true };
   } catch (e) {
     return { ok: false, error: e instanceof Error ? e.message : 'Error inesperado' };
   }
+}
+
+export async function disconnectEmailAction(): Promise<EmailActionState> {
+  return desconectar(false);
+}
+
+export async function disconnectMyEmailAction(): Promise<EmailActionState> {
+  return desconectar(true);
 }
 
 /**

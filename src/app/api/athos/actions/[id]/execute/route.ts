@@ -5,7 +5,7 @@ import { createAdminClient } from "@/lib/supabase/admin"
 import { pushAppointment } from "@/lib/google-calendar"
 import { validarPayload } from "@/lib/athos-agent/payload-schemas"
 import { sendWhatsAppText } from "@/lib/whatsapp/send-message"
-import { sendClinicEmail } from "@/lib/email/send-clinic-email"
+import { sendUserEmail } from "@/lib/email/send-user-email"
 
 export const runtime = "nodejs"
 
@@ -150,12 +150,13 @@ async function dispatch(
     }
 
     case "send_email": {
-      const r = await sendClinicEmail(action.clinic_id, {
+      // Sale de la cuenta del vet que APRUEBA, no de una cuenta de clínica: el correo lo firma
+      // una persona y el titular tiene que poder responderle a ella.
+      const r = await sendUserEmail(action.clinic_id, userId, {
         to: String(p.to_email ?? ""),
         subject: String(p.subject ?? ""),
         body: String(p.body ?? ""),
         ownerId: (p.owner_id as string | null) ?? action.owner_id,
-        sentBy: userId,
       })
       return { message_id: r.messageId, thread_id: r.threadId, ...(r.warning ? { aviso: r.warning } : {}) }
     }
@@ -173,12 +174,11 @@ async function dispatch(
       const destino = (h.participants ?? [])[0]
       if (!destino) throw new Error("El hilo no tiene un destinatario al que responder")
 
-      const r = await sendClinicEmail(action.clinic_id, {
+      const r = await sendUserEmail(action.clinic_id, userId, {
         to: destino,
         body: String(p.body ?? ""),
         threadId: h.id,
         ownerId: h.owner_id ?? action.owner_id,
-        sentBy: userId,
       })
       return { message_id: r.messageId, thread_id: r.threadId, ...(r.warning ? { aviso: r.warning } : {}) }
     }

@@ -14,8 +14,20 @@ export const metadata = { title: "Correo · Tuvetia" }
 export default async function CorreoPage() {
   const supabase = await createClient()
 
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
+
   const [{ data: integ }, { data: hilos, error: hilosError }, { data: msgs }] = await Promise.all([
-    supabase.from("email_integrations").select("status, from_email").maybeSingle(),
+    // La bandeja es del MIEMBRO, no de la clínica (migración 0051): la cuenta institucional manda
+    // facturas y no tiene bandeja. La RLS ya acota los hilos y mensajes a los propios.
+    user
+      ? supabase
+          .from("email_integrations")
+          .select("status, from_email")
+          .eq("user_id", user.id)
+          .maybeSingle()
+      : Promise.resolve({ data: null }),
     supabase
       .from("email_threads")
       .select("id, subject, participants, owner_id, last_message_at, unread_count, owner:owners(full_name)")
@@ -34,10 +46,11 @@ export default async function CorreoPage() {
     return (
       <div className="mx-auto flex w-full max-w-md flex-col items-center gap-4 px-6 py-16 text-center">
         <Mail className="size-10 text-muted-foreground" />
-        <h1 className="text-lg font-semibold">El correo no está conectado</h1>
+        <h1 className="text-lg font-semibold">No conectaste tu correo</h1>
         <p className="text-sm text-muted-foreground">
-          Conectá la cuenta de correo de la clínica para leer y responder desde acá. Se usa una{" "}
-          <b>contraseña de aplicación</b> de Gmail, nunca la contraseña de la cuenta.
+          Conectá <b>tu</b> cuenta de correo para leer y responder desde acá, y para que Athos pueda
+          escribirles a los titulares por vos. Se usa una <b>contraseña de aplicación</b> de Gmail,
+          nunca la contraseña de la cuenta.
         </p>
         <Button render={<Link href="/dashboard/conexiones" />}>Conectar en Conexiones</Button>
       </div>

@@ -1,12 +1,14 @@
 import "server-only"
 
-// El ÚNICO camino de salida de correo de la bandeja — mismo rol que `sendWhatsAppText` para
-// WhatsApp: envía por SMTP y deja el rastro en `email_messages`, para que lo enviado aparezca en el
-// hilo al lado de lo recibido en vez de desaparecer.
+// El ÚNICO camino de salida de la bandeja — mismo rol que `sendWhatsAppText` para WhatsApp: envía
+// por SMTP y deja el rastro en `email_messages`, para que lo enviado aparezca en el hilo al lado de
+// lo recibido en vez de desaparecer.
 //
-// No lo usa la cobranza: esa manda sus facturas por su propio camino (`sync.ts` + `smtp.ts`
-// directo) y guarda en `comm_messages`/`invoice_email_threads`. Son dos registros distintos a
-// propósito — uno es la conversación, el otro la trazabilidad de cobro.
+// Sale de la cuenta PERSONAL del miembro (migración 0051), no de la institucional: un correo a un
+// titular lo escribe una persona y tiene que poder responderse a esa persona. La cuenta de la
+// clínica queda para facturas y cobranza, que van por su propio camino (`facturacion/email.ts` y
+// `cartera/channels.ts`) y guardan en `comm_messages`/`invoice_email_threads`. Son dos registros
+// distintos a propósito: uno es la conversación, el otro la trazabilidad de cobro.
 
 import type { SupabaseClient } from "@supabase/supabase-js"
 
@@ -56,8 +58,9 @@ async function ultimasReferencias(
  * Con `threadId` responde DENTRO de ese hilo (asunto `Re:` y headers de hilado); sin él abre uno
  * nuevo. Devuelve el hilo para que la UI pueda navegar hasta ahí.
  */
-export async function sendClinicEmail(
+export async function sendUserEmail(
   clinicId: string,
+  userId: string,
   input: {
     to: string
     subject?: string | null
@@ -65,14 +68,13 @@ export async function sendClinicEmail(
     /** Responder dentro de este hilo. Si falta, se abre uno nuevo. */
     threadId?: string | null
     ownerId?: string | null
-    sentBy?: string | null
   },
 ): Promise<SendClinicEmailResult> {
   const admin = createAdminClient()
 
-  const creds = await loadEmailCredentials(clinicId)
+  const creds = await loadEmailCredentials(clinicId, userId)
   if (!creds) {
-    throw new Error("La clínica no tiene el correo conectado. Se conecta desde Conexiones.")
+    throw new Error("No tenés el correo conectado. Se conecta desde Conexiones.")
   }
 
   // Hilo destino y headers de hilado.
@@ -82,7 +84,7 @@ export async function sendClinicEmail(
       .from("email_threads")
       .select("id, root_message_id, subject")
       .eq("id", input.threadId)
-      .eq("clinic_id", clinicId)
+      .eq("user_id", userId)
       .maybeSingle()
     hilo = (data as ThreadRow | null) ?? null
     if (!hilo) throw new Error("No se encontró el hilo al que responder")
@@ -127,6 +129,7 @@ export async function sendClinicEmail(
         .upsert(
           {
             clinic_id: clinicId,
+            user_id: userId,
             root_message_id: messageIdFinal,
             subject: asunto,
             participants: [input.to.trim().toLowerCase()],
@@ -134,7 +137,7 @@ export async function sendClinicEmail(
             last_message_at: ahora,
             updated_at: ahora,
           },
-          { onConflict: "clinic_id,root_message_id" },
+          { onConflict: "user_id,root_message_id" },
         )
         .select("id, root_message_id, subject")
         .single()
@@ -144,6 +147,7 @@ export async function sendClinicEmail(
 
     const { error: insErr } = await admin.from("email_messages").insert({
       clinic_id: clinicId,
+      user_id: userId,
       thread_id: hilo.id,
       message_id: messageIdFinal,
       in_reply_to: hilado?.inReplyTo ?? null,
@@ -156,7 +160,7 @@ export async function sendClinicEmail(
       snippet: snippetOf(input.body),
       // Lo enviado nace leído: nadie tiene que "revisarlo".
       read_at: ahora,
-      sent_by: input.sentBy ?? null,
+      sent_by: userId,
       created_at: ahora,
     })
     if (insErr) throw insErr

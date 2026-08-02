@@ -46,7 +46,7 @@ export default async function SettingsPage() {
   // para PostgREST.)
   const [{ data: wa }, { data: emailRow }] = await Promise.all([
     supabase.from("whatsapp_integrations").select("status").maybeSingle(),
-    supabase.from("email_integrations").select("status").maybeSingle(),
+    supabase.from("email_integrations").select("status").is("user_id", null).maybeSingle(),
   ])
   const waConnected = (wa as { status?: string } | null)?.status === "connected"
   const emailConnected = (emailRow as { status?: string } | null)?.status === "connected"

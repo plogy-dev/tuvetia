@@ -41,6 +41,9 @@ export function loadPlatformEmailCredentials(): EmailCredentials | null {
   return {
     id: "platform",
     clinic_id: "platform",
+    // El remitente de PLATAFORMA sale de variables de entorno, no de email_integrations: no es de
+    // una clínica ni de un miembro.
+    user_id: null,
     provider: "smtp",
     from_email: from,
     from_name: process.env.PLATFORM_SMTP_FROM_NAME ?? "Tuvetia",

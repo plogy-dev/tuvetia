@@ -10,7 +10,9 @@ import { AlertTriangle, CheckCircle2, Mail } from "lucide-react"
 
 import {
   connectEmailAction,
+  connectMyEmailAction,
   disconnectEmailAction,
+  disconnectMyEmailAction,
   type EmailActionState,
 } from "@/lib/email/actions"
 
@@ -26,9 +28,19 @@ export interface EmailIntegrationView {
   verified_at: string | null
 }
 
-export function EmailSettings({ integration }: { integration: EmailIntegrationView | null }) {
+export function EmailSettings({
+  integration,
+  // `scope` decide de quién es la cuenta (migración 0051): la institucional de la clínica manda
+  // facturas y cobranza; la personal es la bandeja del miembro y lo que Athos envía por él. El
+  // formulario es el mismo — cambia a qué server action va.
+  scope = "clinic",
+}: {
+  integration: EmailIntegrationView | null
+  scope?: "clinic" | "personal"
+}) {
+  const personal = scope === "personal"
   const [connectState, connectAction, connecting] = useActionState<EmailActionState, FormData>(
-    connectEmailAction,
+    personal ? connectMyEmailAction : connectEmailAction,
     null,
   )
   const [disconnecting, setDisconnecting] = useState(false)
@@ -43,7 +55,7 @@ export function EmailSettings({ integration }: { integration: EmailIntegrationVi
   async function handleDisconnect() {
     setDisconnecting(true)
     try {
-      await disconnectEmailAction()
+      await (personal ? disconnectMyEmailAction() : disconnectEmailAction())
     } finally {
       setDisconnecting(false)
       setShowForm(false)

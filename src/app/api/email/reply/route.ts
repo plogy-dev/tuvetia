@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server"
 
 import { createClient } from "@/lib/supabase/server"
-import { sendClinicEmail } from "@/lib/email/send-clinic-email"
+import { sendUserEmail } from "@/lib/email/send-user-email"
 
 export const runtime = "nodejs"
 
@@ -41,12 +41,11 @@ export async function POST(req: Request) {
   }
 
   try {
-    const r = await sendClinicEmail(h.clinic_id, {
+    const r = await sendUserEmail(h.clinic_id, user.id, {
       to: destino,
       body: body.body.trim(),
       threadId: h.id,
       ownerId: h.owner_id,
-      sentBy: user.id,
     })
     return NextResponse.json({ ok: true, message_id: r.messageId, aviso: r.warning ?? null })
   } catch (e) {
