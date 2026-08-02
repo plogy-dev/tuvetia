@@ -102,6 +102,8 @@ export function AppointmentCalendar({
   googleConnected,
   microsoftConnected,
   canManageCalendarConnection,
+  showGoogle,
+  showMicrosoft,
 }: {
   initialAppointments: AppointmentRow[]
   initialRange: { start: string; end: string }
@@ -111,6 +113,9 @@ export function AppointmentCalendar({
   googleConnected: boolean
   microsoftConnected: boolean
   canManageCalendarConnection: boolean
+  /** Qué proveedor corresponde a esta clínica — uno solo. Ver pickCalendarProviders en la página. */
+  showGoogle: boolean
+  showMicrosoft: boolean
 }) {
   const [supabase] = useState(() => createClient())
   const [events, setEvents] = useState<CalendarEvent[]>(() => initialAppointments.map(toEvent))
@@ -323,16 +328,25 @@ export function AppointmentCalendar({
         </h1>
         <div className="flex flex-wrap items-center gap-2">
           <IcsFeedButton />
-          <GoogleCalendarConnect
-            connected={googleConnected}
-            canConnect={canManageCalendarConnection}
-            onSynced={() => void loadRange(range.start, range.end)}
-          />
-          <MicrosoftCalendarConnect
-            connected={microsoftConnected}
-            canConnect={canManageCalendarConnection}
-            onSynced={() => void loadRange(range.start, range.end)}
-          />
+          {showGoogle && (
+            <GoogleCalendarConnect
+              connected={googleConnected}
+              canConnect={canManageCalendarConnection}
+              onSynced={() => void loadRange(range.start, range.end)}
+            />
+          )}
+          {showMicrosoft && (
+            <MicrosoftCalendarConnect
+              connected={microsoftConnected}
+              canConnect={canManageCalendarConnection}
+              onSynced={() => void loadRange(range.start, range.end)}
+            />
+          )}
+          {!showGoogle && !showMicrosoft && (
+            <span className="text-xs text-muted-foreground">
+              El administrador no conectó ningún calendario
+            </span>
+          )}
           <Button onClick={newAppointment}>
             <PlusIcon /> Nueva cita
           </Button>

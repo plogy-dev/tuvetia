@@ -18,6 +18,31 @@ import { APPOINTMENT_SELECT, type AppointmentRow, type PatientOption, type Selec
 // "Sincronizar") por la razón de fondo que causó el incidente original: no bloquear el render con
 // una llamada a una API externa.
 
+/**
+ * Qué botón de calendario mostrar. Lo conectado MANDA sobre el proveedor del login: si la clínica ya
+ * sincroniza con uno, el otro no se ofrece aunque el admin entre hoy con el otro proveedor — cambiar
+ * de calendario es desconectar primero, no acumular dos.
+ */
+function pickCalendarProviders({
+  googleConnected,
+  microsoftConnected,
+  canManage,
+  loginProvider,
+}: {
+  googleConnected: boolean
+  microsoftConnected: boolean
+  canManage: boolean
+  loginProvider: string | null
+}): { showGoogle: boolean; showMicrosoft: boolean } {
+  if (googleConnected) return { showGoogle: true, showMicrosoft: false }
+  if (microsoftConnected) return { showGoogle: false, showMicrosoft: true }
+  // Nada conectado: solo el admin puede conectar, y se le ofrece según cómo entró.
+  if (!canManage) return { showGoogle: false, showMicrosoft: false }
+  if (loginProvider === "azure") return { showGoogle: false, showMicrosoft: true }
+  if (loginProvider === "google") return { showGoogle: true, showMicrosoft: false }
+  return { showGoogle: true, showMicrosoft: true } // correo/magic link: que elija
+}
+
 export default async function CalendarioPage() {
   const supabase = await createClient()
 
@@ -91,6 +116,21 @@ export default async function CalendarioPage() {
   const googleConnected = Boolean(googleInteg)
   const microsoftConnected = Boolean(microsoftInteg)
 
+  // Una clínica sincroniza con UN proveedor, y cuál es lo decide cómo entró el admin: con Google va
+  // Google Calendar, con Microsoft va Outlook. Ofrecer los dos a la vez era el error: el vet elegía
+  // uno, y el otro quedaba ahí invitando a conectar un segundo calendario que nadie va a mirar.
+  //
+  // Quien entró con correo/magic link no trae token de ningún proveedor, así que ahí sí se le
+  // ofrecen los dos y el primero que conecte queda fijado (después ya no se ofrece el otro).
+  const loginProvider =
+    (user as { app_metadata?: { provider?: string } } | null)?.app_metadata?.provider ?? null
+  const { showGoogle, showMicrosoft } = pickCalendarProviders({
+    googleConnected,
+    microsoftConnected,
+    canManage: canManageCalendarConnection,
+    loginProvider,
+  })
+
   const patients: PatientOption[] = (
     (pts as { id: string; name: string; owner_id: string | null }[] | null) ?? []
   ).map((p) => ({ id: p.id, label: p.name, ownerId: p.owner_id }))
@@ -120,6 +160,8 @@ export default async function CalendarioPage() {
         googleConnected={googleConnected}
         microsoftConnected={microsoftConnected}
         canManageCalendarConnection={canManageCalendarConnection}
+        showGoogle={showGoogle}
+        showMicrosoft={showMicrosoft}
       />
     </div>
   )

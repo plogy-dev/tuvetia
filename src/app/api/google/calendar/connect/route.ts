@@ -39,6 +39,21 @@ export async function POST(req: Request) {
     )
   }
 
+  // Una clínica sincroniza con UN proveedor. La UI ya no ofrece el segundo, pero la ruta tiene que
+  // negarse igual: acumular dos calendarios deja uno recibiendo citas que nadie mira.
+  const { data: otro } = await supabase
+    .from("calendar_integrations")
+    .select("provider")
+    .eq("clinic_id", clinicId)
+    .neq("provider", "google")
+    .maybeSingle()
+  if (otro) {
+    return NextResponse.json(
+      { error: "Esta clínica ya sincroniza con Outlook Calendar. Desconectalo antes de conectar Google." },
+      { status: 409 },
+    )
+  }
+
   try {
     await upsertGoogleIntegration(
       user.id,
