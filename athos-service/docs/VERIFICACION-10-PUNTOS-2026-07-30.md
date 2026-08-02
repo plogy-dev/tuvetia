@@ -1,6 +1,6 @@
 # Los 10 puntos priorizados — estado y qué falta exactamente para el 100 %
 
-**Corte:** 2026-07-31, 12:40 · **Commit:** `877d964` · **Contrato:** COT-2026-TUV-001
+**Corte:** 2026-08-01, 18:30 · **Commit:** `a98dc8c` · **Contrato:** COT-2026-TUV-001
 **Regla:** Otrosí num. 2.3 — *sólo cuenta lo integrado y operando en el entorno accesible al cliente*.
 
 Cada punto verificado hoy contra el código, las variables reales de Railway, la captura de las
@@ -27,7 +27,7 @@ clasificación de nuestra parte: etiquetaba la métrica como si fuera el estado 
 
 | # | Punto | Entregado | Medición | Qué falta | De quién |
 |---|---|---|---|---|---|
-| 1 | Cascada + routing de 3 modelos | ✅ | 3/3 proveedores configurados y probados | **0 fallbacks en producción** — ver §1 | — |
+| 1 | Cascada + routing de 3 modelos | ✅ | 3/3 proveedores probados · **1 fallback REAL en producción** (31-jul) | endurecer el clasificador de errores — ver §1 | nuestro |
 | 2 | Agent smoke testing | ✅ | 22 casos en CI | nada | — |
 | 3 | Abstención | ✅ | **92,6 %** seguridad | juicio semántico: el 100 % no existe (§3) | — |
 | 4 | Citas correctas | ✅ | **100 %** procedencia, estructural | nada de lo que exige el contrato | — |
@@ -40,27 +40,77 @@ clasificación de nuestra parte: etiquetaba la métrica como si fuera el estado 
 
 **10 entregados y verificados · 0 con desarrollo pendiente · 0 incumplidos.**
 
-### ⚠️ Una variable de producción sin poner, y hoy tiñe el smoke de rojo
+### ✅ Las dos variables que faltaban ya están puestas
 
-`/api/health` responde **`ok: false`, `missing: ['platform_admins']`**: falta `PLATFORM_ADMIN_EMAILS`
-en Vercel. Sin ella **nadie** entra al panel `/admin` — falla cerrado, así que no es un agujero de
-seguridad, pero es el **único** motivo por el que el workflow **Smoke E2E está en rojo**.
+- **`PLATFORM_ADMIN_EMAILS`** (Vercel, 31-jul): sin ella nadie entraba al panel `/admin` y el
+  **Smoke E2E quedaba en rojo**. Verificada en `vercel env ls production`.
+- **`CRON_SECRET`** (GitHub Actions, 31-jul 16:55): el cron de cartera llevaba **6 corridas en rojo
+  sin que nadie lo viera**. Verificado el 01-ago: sweep y smoke corren **verdes en schedule**, sin
+  skips. Un schedule rojo ahora abre un issue automáticamente.
 
-Se resuelve en un minuto, y es una decisión de a quién se le da acceso:
+> El `/api/health` completo exige el `CRON_SECRET` en la cabecera, así que quien lo corra tiene que
+> tenerlo a mano. Sin credencial responde `Unauthorized`, que es el comportamiento correcto.
 
-```bash
-vercel env add PLATFORM_ADMIN_EMAILS production   # correo1@x.com,correo2@y.com
-```
+### ⚠️ Lo que cambió el 01-ago y esta tabla todavía no medía
+
+Entraron **14 commits** después del corte anterior: bandeja de WhatsApp en tiempo real, panel de
+administración con costos y envío de correo, resumen clínico del paciente, vacunas y medicación, y
+la cascada del agente extendida a sus tres superficies.
+
+Dos consecuencias para la entrega:
+
+1. **Tres migraciones sin aplicar al principal** (`0044` Realtime de WhatsApp, `0045` hardening de
+   facturación, `0046` uso del agente). Sin la `0044` la bandeja nueva no recibe nada en vivo.
+2. **Una revisión de código del 01-ago dejó 11 defectos abiertos** en la cascada del agente
+   (4 ya cerrados por Felipe el mismo día). Ninguno impide la demo; el más urgente está en §1.
 
 ---
 
-## 1 · Cascada + routing de 3 modelos — ✅ 100 %
+## 1 · Cascada + routing de 3 modelos — ✅ entregado · endurecimiento pendiente
 
-**Falta: nada.**
+**Falta: endurecer el clasificador de errores** (nuestro, ~1 hora). Ver el final de esta sección.
 
 Verificado contra los tres proveedores reales: Gemini responde en 4,0 s, Claude en 7,2 s; el camino
 feliz se queda en DeepSeek (1,4 s) sin llamar a los otros; con el primario caído responde Gemini
 (3,9 s); con los dos primeros caídos **llega hasta Claude** (3,7 s).
+
+### El 31-jul dejó de ser una prueba y pasó a ser un caso real
+
+Hasta entonces la única evidencia era la caída forzada. El 31-jul la cuenta de Anthropic se quedó
+**sin crédito de verdad** y quedó a la vista que la cascada cubría el servicio de RAG pero **no la
+capa agéntica**: el chat clínico siguió respondiendo con su respaldo mientras el asistente de Next
+se caía entero. Corregido el mismo día (`4e45c00`), con la evidencia literal del respaldo
+respondiendo:
+
+| Qué pasó | Resultado |
+|---|---|
+| Anthropic rechaza por saldo agotado | «Your credit balance is too low…» |
+| La cascada cae a DeepSeek | respondió «OK» |
+| Respuesta entregada al usuario | sí, sin interrupción |
+
+O sea que la fila «0 fallbacks en producción» de la versión anterior **ya no aplica**: hay uno, real,
+y salió bien. Es mejor evidencia que la prueba forzada.
+
+El 01-ago Felipe extendió esa cascada a las **tres** superficies del agente
+(`ATHOS_AGENT_CASCADE`, `ATHOS_AUTO_CASCADE`, `ATHOS_VISION_CASCADE`), de modo que una caída de
+Anthropic ya no tumba tampoco la autorespuesta de WhatsApp ni el OCR de facturas.
+
+### Lo que la revisión del 01-ago dejó abierto
+
+Una revisión de código encontró **15 defectos** en la cascada de TypeScript. Felipe cerró 4 el mismo
+día: la traza que atribuía a Claude lo escrito por DeepSeek, el `"rate"` que hacía match dentro de
+`"generated"`, el respaldo sin credencial que dejaba `/api/health` en verde, y la extensión a las
+tres superficies. **Quedan 11**, y dos importan para la operación:
+
+- **El clasificador reconoce «sin crédito» y casi ningún otro error de Anthropic.** El 401 de una
+  clave revocada llega como `invalid x-api-key`, que no contiene «api key» (lleva guiones) ni «401».
+  Importa porque **hay una rotación de credenciales pendiente**: es el escenario que se va a
+  provocar a propósito.
+- **El bucle de herramientas del agente son 8 pasos**, y la garantía de «nunca a mitad de respuesta»
+  vale por paso, no por respuesta. Si el saldo se agota en el paso 3, el veterinario puede ver una
+  nota cosida de dos modelos.
+
+Ninguno de los 11 impide la demo. Los dos de arriba conviene cerrarlos antes de rotar credenciales.
 
 Routing en dos niveles: por **tarea** (redacción vs. liviano) y por **consulta** — con cobertura
 `limited` la nota escala al modelo que mide mejor en fidelidad. Es el 12-15 % de los casos, medido
@@ -416,15 +466,19 @@ Los datos **existían desde el inicio** en `athos_messages` — nunca se perdier
 
 ## Resumen de lo que falta, por dueño
 
-### Tuyo — 6 minutos
+### Tuyo — 30 segundos, más dos tareas de operación
 
 | Qué | Cierra | Tiempo |
 |---|---|---|
 | ~~Enviar una invitación real~~ | punto 9 → parcial | **HECHO 30-jul 21:27 UTC** |
-| **`GOOGLE_CLIENT_ID` + `GOOGLE_CLIENT_SECRET` en Vercel** | punto 7 → 90 % | 5 min |
+| ~~`GOOGLE_CLIENT_ID` + `GOOGLE_CLIENT_SECRET` en Vercel~~ | punto 7 → 90 % | **HECHO 31-jul** |
 | **Invitar un correo sin cuenta y hacer clic** | confirma el arreglo del §9 | 30 s |
+| **Recargar saldo de Anthropic** | calidad del asistente en la demo | 5 min |
+| **Rotar las credenciales** que pasaron por chat (Gemini, Railway, Anthropic, DeepSeek) | higiene | 15 min |
 
-Con esa credencial: **10 de 10**.
+> La cascada evita la caída, **no reemplaza el saldo**: sin crédito el asistente responde con
+> DeepSeek, cuyo manejo de herramientas es menos maduro y el agente usa 17. Para grabar los demos
+> conviene Anthropic con saldo.
 
 ### Nuestro
 
@@ -432,8 +486,11 @@ Con esa credencial: **10 de 10**.
 |---|---|---|
 | ~~Transcripción en tiempo real~~ | punto 8 → ✅ | **HECHO** |
 | ~~Enlace de invitación para quien no tiene cuenta~~ (§9) | punto 9 → ✅ | **HECHO** |
+| **Aplicar `0044`, `0045` y `0046` al principal** | la bandeja en vivo y el panel de costos | ~30 min |
+| **Endurecer el clasificador de errores de la cascada** (§1) | el fallback sobrevive a la rotación | ~1 h |
 
-**Nada.** No queda desarrollo pendiente de los 10 puntos.
+**No queda desarrollo pendiente de los 10 puntos.** Lo de arriba es operación y endurecimiento de
+algo que ya está entregado y funcionando.
 
 ### Mejora continua — no son entregas pendientes
 
@@ -457,14 +514,20 @@ alcanzable en un juicio semántico.
 
 ## Otras variables ausentes en Vercel
 
-El código lee **34** variables de entorno; en Vercel hay **8**. Además de las dos de Google, faltan las
-de WhatsApp:
+**Esta sección quedó vieja: pasaron de 8 a 23.** Verificado con `vercel env ls production` el
+01-ago. Ya están puestas las dos de Google, `WHATSAPP_TOKEN_KEY`, las tres de Evolution,
+`NEXT_PUBLIC_SITE_URL`, `CRON_SECRET`, `PLATFORM_ADMIN_EMAILS` y las de DeepSeek con su cascada.
 
-| Variable | Qué rompe |
-|---|---|
-| `WHATSAPP_TOKEN_KEY` | cifrado de los tokens de Meta — **lanza al conectar** |
-| `META_APP_ID`, `META_APP_SECRET`, `NEXT_PUBLIC_META_APP_ID`, `NEXT_PUBLIC_META_ES_CONFIG_ID` | WhatsApp embebido de Meta (cae al proveedor que sale de la plataforma) |
-| `EVOLUTION_BASE_URL`, `EVOLUTION_API_KEY`, `EVOLUTION_WEBHOOK_TOKEN`, `NEXT_PUBLIC_SITE_URL` | el proveedor alternativo de WhatsApp |
+Lo que sigue ausente, y si importa:
+
+| Variable | Qué rompe | ¿Importa hoy? |
+|---|---|---|
+| `META_APP_ID`, `META_APP_SECRET`, `NEXT_PUBLIC_META_APP_ID`, `NEXT_PUBLIC_META_ES_CONFIG_ID` | WhatsApp embebido de Meta | **No** — `NEXT_PUBLIC_WA_PROVIDER` apunta a Evolution, que sí está configurado |
+| `PLATFORM_SMTP_*` (6 variables, nuevas del 01-ago) | el envío de correo desde `/admin/usuarios` | **No para la demo** — sin ellas el botón queda deshabilitado y la página lo explica, en vez de fallar al apretar |
+
+> Antes de la primera tanda masiva de correo hay que verificar **SPF y DKIM** del dominio. Sin eso
+> —y sin manejo de rebotes ni enlace de baja— se quema la reputación del dominio para TODO el correo
+> del producto, incluidas las facturas de las clínicas.
 
 **Las demás ausencias no importan** — tienen valor por defecto correcto: `ATHOS_AGENT_PROVIDER` y
 `ATHOS_AGENT_MODEL` (por eso el agente funciona con Claude sin estar configuradas), `ATHOS_AUTO_*`,

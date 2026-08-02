@@ -46,6 +46,27 @@ citaban como garantía cumplida.
 | 2.5 | El test de "el cuerpo al primario no cambió" ahora **mira el cuerpo** (assert de `thinking`); `_sin_red` levanta `BaseException` — y al activarlo **destapó una fuga real** (llamada a Cohere sin mockear en `test_chat`, tapada por el fail-open del Tier 2) | ✅ + fuga corregida |
 | 2.6 | `GEMINI_MODEL`/`GEMINI_LIGHT_MODEL` eliminadas (config muerta que nadie leía, citada como evidencia) | ✅ `config.py`, `.env.example`, docs |
 | 2.7 | 👤 **No encender `LLM_CASCADE_*` en Railway** hasta mergear esta rama; después, encender es agregar la variable | Regla operativa |
+| 2.8 | La cascada cubría el RAG (Python) pero **no la capa agéntica** (Next). Se descubrió el 31-jul cuando Anthropic se quedó sin crédito: el chat clínico siguió respondiendo y el asistente cayó entero | ✅ `4e45c00` — misma idea portada a TypeScript |
+| 2.9 | Extendida a las **tres** superficies del agente (`ATHOS_AGENT_CASCADE`, `ATHOS_AUTO_CASCADE`, `ATHOS_VISION_CASCADE`): una caída de Anthropic ya no tumba la autorespuesta de WhatsApp ni el OCR de facturas | ✅ 01-ago |
+| 2.10 | El `modelId` que se persiste lo reescribe la cascada al caer al respaldo — antes decía que respondió el primario aunque contestara el respaldo. **Es el mismo defecto que 2.1, repetido en el front** | ✅ `57005b1` |
+| 2.11 | `"rate"` a secas hacía match dentro de `"generated"`: un error NUESTRO disparaba el respaldo y pagaba una segunda llamada entera | ✅ `57005b1` |
+| 2.12 | `/api/health` exige la credencial de **cada** proveedor nombrado en las cadenas: un respaldo sin key no protege de nada y daba falsa tranquilidad | ✅ `88c0295` |
+
+### Lo que la revisión de código del 01-ago dejó abierto en 2.8
+
+Se revisó la cascada de TypeScript a fondo: **15 defectos**, de los que 2.10–2.12 cerraron 4.
+**Quedan 11.** Ninguno impide la demo; dos importan para la operación:
+
+| # | Qué | Por qué importa ahora |
+|---|---|---|
+| 2.13 | El clasificador reconoce «sin crédito» y **casi ningún otro error de Anthropic**: un 401 de clave revocada llega como `invalid x-api-key`, sin «api key» (lleva guiones) ni «401» | 👤 **Hay una rotación de credenciales pendiente** — es justo el escenario que se va a provocar |
+| 2.14 | El bucle de herramientas son **8 pasos**, y «nunca a mitad de respuesta» vale por paso, no por respuesta: si el saldo se agota en el paso 3, el veterinario ve una nota cosida de dos modelos | Contradice la garantía que el propio módulo declara |
+| 2.15 | Sin lista blanca de proveedores, un typo (`@deepsek`) manda todo a Anthropic en silencio. **La Ola 2.2 ya arregló esto en Python** | El front repite el defecto que el backend cerró |
+| — | Otros 8 (reintentos que reproducen la cadena entera, fallos de respaldo sin registrar, taxonomía de errores duplicada con `route.ts`, guarda de tipo sólo en el primario…) | Backlog |
+
+> El caso 2.15 y el 2.10 son el mismo patrón: **la cascada de Python ya había resuelto estos
+> problemas y el port a TypeScript los reintrodujo**. Vale la pena mirar `provider_cascade.py`
+> entero antes de seguir endureciendo el front.
 
 ## Ola 3 — Documentos de entrega ✅ (antes de la reunión del ~3-ago)
 
@@ -88,6 +109,22 @@ ya no borra `department_code` ni pisa UVT; EXENTO ≠ Excluido en el documento f
   **Sigue sin aplicar al 2026-08-01**: los advisors del principal todavía reportan
   `function_search_path_mutable` en las dos funciones.
 
+### 👤 Tres migraciones sin aplicar al principal (estado al 01-ago 18:30)
+
+| Migración | Qué hace | Qué pasa si no se aplica |
+|---|---|---|
+| `0044_realtime_whatsapp_messages` | Publica `whatsapp_messages` en `supabase_realtime`. La publicación existía pero estaba **vacía**, así que ninguna suscripción emitía nada, en silencio | La bandeja nueva **no recibe mensajes en vivo**; se queda con el poll de 15 s |
+| `0045_facturacion_db_hardening` | `search_path` + 21 índices de FK | Siguen los avisos del linter de Supabase |
+| `0046_athos_agent_usage` | Tabla de uso del agente de Next, con `tokens_in`/`tokens_out` reales | `/admin/costos` no puede cobrar Anthropic: el dato no existe en ningún lado |
+
+La `0044` es idempotente (guardada con `if not exists` sobre `pg_publication_tables`) y la `0045`
+tiene 22 guardas de idempotencia sobre 23 sentencias, así que reaplicarlas es inocuo.
+
+> ⚠️ **Verificar antes de aplicar:** la de facturación se renumeró de `0043` a `0045` porque la tanda
+> de calendario de Santiago se llevó el `0043`. Si algún entorno llegó a aplicar la versión vieja
+> **como `0043`**, hay que confirmar que la `0043` de calendario no quedó saltada por la colisión de
+> números. El contenido de la renumerada es idéntico (`R100` en git): el riesgo no es esa, es la otra.
+
 ## Pendientes que quedan fuera de esta rama
 
 1. ~~👤 `CRON_SECRET` en Actions (0.1)~~ — ✅ hecho el 31-jul; sweep y smoke corren verdes.
@@ -107,5 +144,23 @@ ya no borra `department_code` ni pisa UVT; EXENTO ≠ Excluido en el documento f
 - Backend: `ruff` ✅ · `pytest` ✅ (233 casos; con DB local corren también los de integración).
 - CI: la primera corrida del PR ejercita el job con Postgres; tras 0.1, `gh workflow run` de sweep
   y smoke deben salir verdes y el smoke sin skips.
-- Tras aplicar 0042: re-correr los advisors de Supabase — deben desaparecer
-  `function_search_path_mutable` de facturación y las 21 FKs sin índice.
+- Tras aplicar **0045** (era 0042 cuando se escribió esto): re-correr los advisors de Supabase —
+  deben desaparecer `function_search_path_mutable` de facturación y las 21 FKs sin índice.
+- Tras aplicar **0044**: `scripts/verificar-realtime.sql` debe devolver la fila de
+  `whatsapp_messages` en `pg_publication_tables`. Hoy la publicación está vacía.
+
+## Estado al 2026-08-01, 18:30
+
+Verificado contra `origin/master` en `a98dc8c`, no contra los mensajes de commit:
+
+| | |
+|---|---|
+| Suite del front | ✅ 388 pruebas, 37 archivos |
+| Tipos | ✅ `tsc --noEmit` sin errores |
+| Producción (Vercel) | ✅ raíz 200 · `/dashboard` 307 · agente 401 (exige sesión) |
+| Backend RAG (Railway) | ✅ `{"status":"ok","service":"athos"}` |
+| Variables en Vercel | ✅ 23 en producción |
+| Cron de cartera y smoke | ✅ verdes en schedule desde el 31-jul |
+
+**Lo que falta es operación, no desarrollo:** aplicar las tres migraciones, recargar el saldo de
+Anthropic, rotar las credenciales que pasaron por chat, y cerrar 2.13/2.14 antes de rotar.
