@@ -15,6 +15,7 @@ import { Loader2, Mail, RefreshCw, Send, Sparkles } from "lucide-react"
 import { toast } from "sonner"
 
 import { createClient } from "@/lib/supabase/client"
+import { normalizarFilaRealtime } from "@/lib/realtime-timestamp"
 import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
 import { EmptyState } from "@/components/ui/empty-state"
@@ -103,7 +104,15 @@ export function EmailInbox({
       .on(
         "postgres_changes",
         { event: "INSERT", schema: "public", table: "email_messages" },
-        (payload) => agregar([payload.new as unknown as InboxEmail]),
+        // `normalizarFilaRealtime` NO es opcional: Realtime entrega los `timestamptz` con el formato
+        // del WAL ("2026-08-01 19:19:20+00") y PostgREST con el ISO de JSON ("…T19:19:20+00:00"). Y
+        // como `' '` (0x20) es menor que `'T'` (0x54), un correo recién llegado se ordenaba ARRIBA de
+        // todo el hilo en el `localeCompare` de acá abajo, y el cursor no avanzaba nunca con las
+        // filas del socket. Mismo defecto que tuvo la bandeja de WhatsApp.
+        (payload) =>
+          agregar([
+            normalizarFilaRealtime(payload.new as unknown as InboxEmail, ["created_at"]),
+          ]),
       )
       .subscribe(async (status) => {
         if (status !== "SUBSCRIBED") return

@@ -12,7 +12,7 @@ import { Check, CheckCheck, CircleAlert, Loader2, MessageCircle, Plus, Send, Spa
 import { toast } from "sonner"
 
 import { createClient } from "@/lib/supabase/client"
-import { normalizarTimestamp } from "@/lib/realtime-timestamp"
+import { normalizarFilaRealtime } from "@/lib/realtime-timestamp"
 import { ActionApprovalCard, type ProposedAction } from "@/components/athos/action-approval-card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -56,15 +56,10 @@ function contactOf(m: InboxMessage): string {
 // ISO de JSON ("…T19:19:20+00:00"). Este componente compara `created_at` como string —el cursor y
 // el orden de las conversaciones— así que las filas que llegan por el socket se pasan por acá ANTES
 // de tocar el estado. Ver `lib/realtime-timestamp.ts` para la medición que lo motivó.
-function desdeRealtime(row: InboxMessage): InboxMessage {
-  return {
-    ...row,
-    created_at: normalizarTimestamp(row.created_at),
-    read_at: normalizarTimestamp(row.read_at),
-    delivered_at: normalizarTimestamp(row.delivered_at),
-    failed_at: normalizarTimestamp(row.failed_at),
-  }
-}
+const CAMPOS_FECHA = ["created_at", "read_at", "delivered_at", "failed_at"] as const
+
+const desdeRealtime = (row: InboxMessage): InboxMessage =>
+  normalizarFilaRealtime(row, CAMPOS_FECHA)
 
 function fmtTime(iso: string): string {
   const d = new Date(iso)
