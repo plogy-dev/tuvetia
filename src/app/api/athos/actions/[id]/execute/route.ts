@@ -5,6 +5,7 @@ import { createAdminClient } from "@/lib/supabase/admin"
 import { pushAppointment } from "@/lib/google-calendar"
 import { validarPayload } from "@/lib/athos-agent/payload-schemas"
 import { sendWhatsAppText } from "@/lib/whatsapp/send-message"
+import { sendClinicEmail } from "@/lib/email/send-clinic-email"
 
 export const runtime = "nodejs"
 
@@ -146,6 +147,40 @@ async function dispatch(
         { ownerId: (p.owner_id as string | null) ?? action.owner_id, sentBy: userId, agentMode: "review" },
       )
       return { wa_message_id: waMessageId, message }
+    }
+
+    case "send_email": {
+      const r = await sendClinicEmail(action.clinic_id, {
+        to: String(p.to_email ?? ""),
+        subject: String(p.subject ?? ""),
+        body: String(p.body ?? ""),
+        ownerId: (p.owner_id as string | null) ?? action.owner_id,
+        sentBy: userId,
+      })
+      return { message_id: r.messageId, thread_id: r.threadId, ...(r.warning ? { aviso: r.warning } : {}) }
+    }
+
+    case "reply_email": {
+      // Ni destinatario ni asunto salen del payload: `sendClinicEmail` los resuelve desde el hilo,
+      // que es lo que garantiza que la respuesta llegue a quien escribió y quede EN el hilo.
+      const { data: hilo } = await supabase
+        .from("email_threads")
+        .select("id, participants, owner_id")
+        .eq("id", String(p.thread_id))
+        .maybeSingle()
+      if (!hilo) throw new Error("No se encontró el hilo al que responder")
+      const h = hilo as { id: string; participants: string[] | null; owner_id: string | null }
+      const destino = (h.participants ?? [])[0]
+      if (!destino) throw new Error("El hilo no tiene un destinatario al que responder")
+
+      const r = await sendClinicEmail(action.clinic_id, {
+        to: destino,
+        body: String(p.body ?? ""),
+        threadId: h.id,
+        ownerId: h.owner_id ?? action.owner_id,
+        sentBy: userId,
+      })
+      return { message_id: r.messageId, thread_id: r.threadId, ...(r.warning ? { aviso: r.warning } : {}) }
     }
 
     case "create_appointment": {

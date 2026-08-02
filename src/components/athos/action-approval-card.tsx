@@ -5,11 +5,12 @@
 // en athos_actions + audit_logs.
 
 import { useState } from "react"
-import { CalendarPlus, Check, ClipboardEdit, Loader2, MessageCircle, PawPrint, Sparkles, UserPlus, X } from "lucide-react"
+import { CalendarPlus, Check, ClipboardEdit, Loader2, Mail, MessageCircle, PawPrint, Sparkles, UserPlus, X } from "lucide-react"
 import Link from "next/link"
 import { toast } from "sonner"
 
 import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 
 export type ProposedAction = {
@@ -29,7 +30,33 @@ const TOOL_LABELS: Record<string, { label: string; icon: typeof MessageCircle }>
   create_patient: { label: "Nuevo paciente", icon: PawPrint },
   create_owner_and_patient: { label: "Titular + paciente", icon: PawPrint },
   update_patient_record: { label: "Actualizar ficha", icon: ClipboardEdit },
+  send_email: { label: "Correo", icon: Mail },
+  reply_email: { label: "Respuesta por correo", icon: Mail },
 }
+
+/**
+ * Qué campos del payload puede editar el vet antes de aprobar, por tool.
+ *
+ * Antes esto era un booleano cableado a `send_whatsapp_message` con un único `<Textarea>` sobre
+ * `payload.body`. Un correo necesita destinatario y asunto además del cuerpo, así que se declara
+ * por tool. Lo que NO está acá no es editable: `reply_email` a propósito no deja tocar destinatario
+ * ni asunto — los resuelve el ejecutor desde el hilo, y poder cambiarlos permitiría desviar una
+ * respuesta a otra dirección o romper el hilado.
+ */
+type CampoEditable = { campo: string; label: string; multilinea: boolean }
+
+const CAMPOS_EDITABLES: Record<string, CampoEditable[]> = {
+  send_whatsapp_message: [{ campo: "body", label: "Texto del mensaje", multilinea: true }],
+  send_email: [
+    { campo: "to_email", label: "Para", multilinea: false },
+    { campo: "subject", label: "Asunto", multilinea: false },
+    { campo: "body", label: "Mensaje", multilinea: true },
+  ],
+  reply_email: [{ campo: "body", label: "Respuesta", multilinea: true }],
+}
+
+/** Tools cuyo efecto es mandarle algo a alguien: el botón lo dice ("Aprobar y enviar"). */
+const ENVIA = new Set(["send_whatsapp_message", "send_email", "reply_email"])
 
 // Estados finales tal como los ve el vet. `approved` es intermedio: la ruta de ejecución RESERVA
 // la acción (compare-and-set) antes de despachar, así que una fila puede quedarse ahí si el
@@ -50,23 +77,35 @@ export function ActionApprovalCard({
   action: ProposedAction
   onResolved?: (id: string, status: "executed" | "rejected" | "failed") => void
 }) {
-  const editable = action.tool_name === "send_whatsapp_message"
-  const [body, setBody] = useState(editable ? String(action.payload.body ?? "") : "")
+  const campos = CAMPOS_EDITABLES[action.tool_name] ?? []
+  const editable = campos.length > 0
+  // Valores de trabajo, sembrados del payload propuesto. Se comparan contra el original al aprobar
+  // para mandar SOLO lo que el vet tocó.
+  const [valores, setValores] = useState<Record<string, string>>(() =>
+    Object.fromEntries(campos.map((c) => [c.campo, String(action.payload[c.campo] ?? "")])),
+  )
   const [busy, setBusy] = useState<"execute" | "reject" | null>(null)
   const [resolved, setResolved] = useState<string | null>(action.status !== "proposed" ? action.status : null)
   const [aviso, setAviso] = useState<{ texto: string; enlace: string | null } | null>(null)
 
+  /** Solo los campos que el vet cambió; si no tocó nada, no se manda override. */
+  function overrideEditado(): Record<string, string> | null {
+    const cambios: Record<string, string> = {}
+    for (const c of campos) {
+      const nuevo = valores[c.campo]?.trim() ?? ""
+      if (nuevo !== String(action.payload[c.campo] ?? "")) cambios[c.campo] = nuevo
+    }
+    return Object.keys(cambios).length > 0 ? cambios : null
+  }
+
   async function act(kind: "execute" | "reject") {
     setBusy(kind)
     try {
+      const override = kind === "execute" && editable ? overrideEditado() : null
       const res = await fetch(`/api/athos/actions/${action.id}/${kind}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(
-          kind === "execute" && editable && body.trim() !== String(action.payload.body ?? "")
-            ? { payload_override: { body: body.trim() } }
-            : {},
-        ),
+        body: JSON.stringify(override ? { payload_override: override } : {}),
       })
       const json = (await res.json().catch(() => ({}))) as {
         error?: string
@@ -113,12 +152,28 @@ export function ActionApprovalCard({
         <span>{action.summary}</span>
       </p>
       {editable && !resolved && (
-        <Textarea
-          value={body}
-          onChange={(e) => setBody(e.target.value)}
-          className="mt-2 min-h-20 text-sm"
-          aria-label="Texto del mensaje propuesto (editable)"
-        />
+        <div className="mt-2 flex flex-col gap-2">
+          {campos.map((c) =>
+            c.multilinea ? (
+              <Textarea
+                key={c.campo}
+                value={valores[c.campo] ?? ""}
+                onChange={(e) => setValores((v) => ({ ...v, [c.campo]: e.target.value }))}
+                className="min-h-20 text-sm"
+                aria-label={`${c.label} (editable)`}
+              />
+            ) : (
+              <Input
+                key={c.campo}
+                value={valores[c.campo] ?? ""}
+                onChange={(e) => setValores((v) => ({ ...v, [c.campo]: e.target.value }))}
+                className="text-sm"
+                placeholder={c.label}
+                aria-label={`${c.label} (editable)`}
+              />
+            ),
+          )}
+        </div>
       )}
       {resolved ? (
         <>
@@ -136,9 +191,15 @@ export function ActionApprovalCard({
         </>
       ) : (
         <div className="mt-2 flex items-center gap-2">
-          <Button size="sm" onClick={() => act("execute")} disabled={busy !== null || (editable && !body.trim())}>
+          <Button
+            size="sm"
+            onClick={() => act("execute")}
+            // Ningún campo editable puede quedar vacío: aprobar un correo sin asunto o sin cuerpo
+            // fallaría recién en el servidor, después de haber dicho "Aprobar".
+            disabled={busy !== null || campos.some((c) => !(valores[c.campo] ?? "").trim())}
+          >
             {busy === "execute" ? <Loader2 className="size-4 animate-spin" /> : <Check className="size-4" />}
-            Aprobar{action.tool_name === "send_whatsapp_message" ? " y enviar" : ""}
+            Aprobar{ENVIA.has(action.tool_name) ? " y enviar" : ""}
           </Button>
           <Button size="sm" variant="outline" onClick={() => act("reject")} disabled={busy !== null}>
             {busy === "reject" ? <Loader2 className="size-4 animate-spin" /> : <X className="size-4" />}

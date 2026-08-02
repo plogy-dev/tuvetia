@@ -1,5 +1,6 @@
 import { runCarteraForAllClinics } from "@/lib/cartera/run-all"
 import { syncEmailRepliesForAllClinics } from "@/lib/email/sync"
+import { syncInboxForAllClinics } from "@/lib/email/inbox"
 
 // Barrido de cartera: recorre las clínicas con recordatorios activos, programa los pasos que
 // falten y despacha los vencidos. El motor ya existía y estaba cubierto por tests, pero no tenía
@@ -48,7 +49,19 @@ export async function GET(req: Request) {
       console.error("cron/cartera email-sync:", email.error)
     }
 
-    return Response.json({ ok: true, ...result, email })
+    // Bandeja de correo (migración 0050): guarda el buzón entero para la sección Comunicaciones y
+    // para que Athos pueda leerlo. Va acá por el mismo motivo que el de arriba —no hay cupo para un
+    // cron propio— y es una pasada IMAP SEPARADA a propósito: el barrido de cartera despacha
+    // cobranzas y no tiene tests, así que no se lo toca para ahorrar una conexión.
+    let inbox: Awaited<ReturnType<typeof syncInboxForAllClinics>> | { error: string }
+    try {
+      inbox = await syncInboxForAllClinics()
+    } catch (e) {
+      inbox = { error: e instanceof Error ? e.message : "barrido de bandeja fallido" }
+      console.error("cron/cartera email-inbox:", inbox.error)
+    }
+
+    return Response.json({ ok: true, ...result, email, inbox })
   } catch (e) {
     // Incluye el aborto por zona horaria incorrecta (assertBusinessTimezone): preferimos un 500
     // ruidoso y ningún envío, antes que despachar cobranzas en el horario equivocado.

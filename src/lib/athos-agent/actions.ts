@@ -31,7 +31,19 @@ export async function proposeAction(
   toolName: string,
   payload: Record<string, unknown>,
   summary: string,
-  refs: { patientId?: string | null; ownerId?: string | null } = {},
+  refs: {
+    patientId?: string | null
+    ownerId?: string | null
+    /**
+     * Dónde tiene que aparecer la propuesta, si no es la conversación en curso.
+     *
+     * Por defecto es `ctx.conversationKey` (el teléfono en la bandeja de WhatsApp, el patient_id en
+     * el chat). Una propuesta de correo pertenece a SU hilo: sin esto, pedirle a Athos desde el chat
+     * que responda un correo dejaría la tarjeta colgada del chat y nunca aparecería en la bandeja
+     * de correo, que es donde el vet la va a buscar.
+     */
+    conversationKey?: string | null
+  } = {},
 ): Promise<ProposedActionResult> {
   const admin = createAdminClient()
   const { data, error } = await admin
@@ -40,7 +52,7 @@ export async function proposeAction(
       clinic_id: ctx.clinicId,
       patient_id: refs.patientId ?? ctx.patientId ?? null,
       owner_id: refs.ownerId ?? null,
-      conversation_key: ctx.conversationKey,
+      conversation_key: refs.conversationKey ?? ctx.conversationKey,
       source: ctx.source,
       tool_name: toolName,
       payload,

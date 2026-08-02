@@ -79,6 +79,20 @@ export const PAYLOAD_SCHEMAS = {
     owner_id: uuid.nullable().optional(),
     in_reply_to: z.string().nullable().optional(),
   }),
+  // El correo del destinatario se valida como email: el vet puede editarlo en la tarjeta antes de
+  // aprobar, y un typo ahí manda el correo a un desconocido.
+  send_email: z.object({
+    to_email: z.string().email(),
+    subject: z.string().min(1).max(200),
+    body: z.string().min(1).max(5000),
+    owner_id: uuid.nullable().optional(),
+  }),
+  // Responder no lleva destinatario ni asunto: los resuelve el ejecutor desde el hilo. Si llegaran
+  // en el override, `z.object()` los descarta — que es justo lo que se quiere.
+  reply_email: z.object({
+    thread_id: uuid,
+    body: z.string().min(1).max(5000),
+  }),
   create_appointment: CREATE_APPOINTMENT,
   update_appointment: UPDATE_APPOINTMENT,
   create_owner: OWNER,

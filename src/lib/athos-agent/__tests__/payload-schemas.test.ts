@@ -105,15 +105,42 @@ describe("revalidacion del payload al aprobar", () => {
     expect(r.ok).toBe(true)
   })
 
-  it("cubre las 7 tools de escritura: agregar una obliga a declarar su esquema", () => {
+  it("cubre las 9 tools de escritura: agregar una obliga a declarar su esquema", () => {
     expect(Object.keys(PAYLOAD_SCHEMAS).sort()).toEqual([
       "create_appointment",
       "create_owner",
       "create_owner_and_patient",
       "create_patient",
+      "reply_email",
+      "send_email",
       "send_whatsapp_message",
       "update_appointment",
       "update_patient_record",
     ])
+  })
+
+  it("rechaza un destinatario que no es un correo", () => {
+    // El vet puede editar el `to_email` en la tarjeta antes de aprobar; un typo ahí manda el correo
+    // a un desconocido, y eso no se deshace.
+    const base = { to_email: "ana@ejemplo.com", subject: "Control de Luna", body: "Hola Ana…" }
+    expect(validarPayload("send_email", base).ok).toBe(true)
+    expect(validarPayload("send_email", { ...base, to_email: "ana(arroba)ejemplo" }).ok).toBe(false)
+    expect(validarPayload("send_email", { ...base, subject: "" }).ok).toBe(false)
+  })
+
+  it("una respuesta NO acepta destinatario ni asunto del override", () => {
+    // Los resuelve el ejecutor desde el hilo. Si el override pudiera fijarlos, una respuesta podría
+    // desviarse a otra dirección o romper el hilado.
+    const r = validarPayload("reply_email", {
+      thread_id: "2fa4dac8-2a34-4d03-85d7-f44f93780c34",
+      body: "Perfecto, la esperamos.",
+      to_email: "otro@ejemplo.com",
+      subject: "Secuestrado",
+    })
+    expect(r.ok).toBe(true)
+    if (r.ok) {
+      expect(r.payload).not.toHaveProperty("to_email")
+      expect(r.payload).not.toHaveProperty("subject")
+    }
   })
 })
