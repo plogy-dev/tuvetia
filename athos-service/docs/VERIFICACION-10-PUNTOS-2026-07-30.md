@@ -96,6 +96,25 @@ El 01-ago Felipe extendió esa cascada a las **tres** superficies del agente
 (`ATHOS_AGENT_CASCADE`, `ATHOS_AUTO_CASCADE`, `ATHOS_VISION_CASCADE`), de modo que una caída de
 Anthropic ya no tumba tampoco la autorespuesta de WhatsApp ni el OCR de facturas.
 
+### Paridad completa: los TRES proveedores en las DOS superficies (02-ago)
+
+Hasta el 02-ago el backend tenía tres proveedores y el agente sólo dos: una caída simultánea de
+DeepSeek y Anthropic tumbaba el asistente mientras el chat clínico seguía en pie con Gemini. Ya no.
+
+Verificado contra los proveedores reales, con la cuenta de Anthropic **sin saldo de verdad**:
+
+| Escenario | Quién responde | Latencia |
+|---|---|---|
+| Gemini directo | `gemini-3.6-flash` | 1,6 s |
+| Anthropic seco → Gemini | **Gemini** | 2,0 s |
+| Anthropic seco → Gemini → DeepSeek | **Gemini** | 1,6 s |
+
+> Un detalle que costó encontrar: `npm i @ai-sdk/google` instala la 4.x, que habla la
+> especificación **v4**, mientras Anthropic y DeepSeek hablan **v3**. La cascada exige v3, así que
+> un modelo v4 no falla ruidosamente: se **descarta como respaldo inválido** y la cadena sigue con
+> un proveedor menos. Se creía tener tres y había dos. Está fijado a `~3.0.103` y hay una prueba
+> (`sdk-compat.test.ts`) que falla si un `npm update` lo vuelve a introducir.
+
 ### Lo que la revisión del 01-ago dejó abierto
 
 Una revisión de código encontró **15 defectos** en la cascada de TypeScript. Felipe cerró 4 el mismo

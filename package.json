@@ -14,6 +14,7 @@
   "dependencies": {
     "@ai-sdk/anthropic": "^3.0.103",
     "@ai-sdk/deepseek": "^2.0.50",
+    "@ai-sdk/google": "~3.0.103",
     "@ai-sdk/react": "^3.0.239",
     "@base-ui/react": "^1.6.0",
     "@dnd-kit/core": "^6.3.1",
