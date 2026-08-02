@@ -23,6 +23,7 @@
 
 import { anthropic } from "@ai-sdk/anthropic"
 import { createDeepSeek } from "@ai-sdk/deepseek"
+import { createGoogleGenerativeAI } from "@ai-sdk/google"
 import type { LanguageModel } from "ai"
 
 import { conCascada, leerCadena } from "@/lib/athos-agent/cascada"
@@ -32,14 +33,33 @@ const deepseek = createDeepSeek({
   ...(process.env.DEEPSEEK_BASE_URL ? { baseURL: process.env.DEEPSEEK_BASE_URL } : {}),
 })
 
+// Gemini. La variable se llama GEMINI_API_KEY —no GOOGLE_*— para usar el MISMO nombre que
+// athos-service en Railway: es la misma cuenta y quien opera no debería tener que recordar dos
+// nombres para la misma credencial. `GOOGLE_CLIENT_ID`/`GOOGLE_CLIENT_SECRET` son de OAuth de
+// Calendar y no tienen nada que ver.
+const google = createGoogleGenerativeAI({
+  apiKey: process.env.GEMINI_API_KEY ?? "",
+  ...(process.env.GEMINI_BASE_URL ? { baseURL: process.env.GEMINI_BASE_URL } : {}),
+})
+
 // Los únicos proveedores con SDK cableado. Existe como lista explícita —y no como el `else` de un
 // ternario— porque sin ella un typo era invisible y peligroso: `@deepsek` caía al else y resolvía
 // contra Anthropic, así que la "cascada" terminaba siendo dos llamadas al MISMO proveedor sin
 // crédito. La Ola 2.2 del plan de remediación arregló exactamente esto en `provider_cascade.py`
 // (`PROVEEDORES_VALIDOS`); el port a TypeScript lo había reintroducido.
+//
+// Las claves son las MISMAS que `PROVEEDORES_VALIDOS` de athos-service: el proveedor de Gemini se
+// llama `google`, no `gemini` — así una cadena escrita para el backend vale igual acá. (`openai`
+// existe allá y no acá: nadie lo usa en esta superficie.)
+//
+// ⚠️ CUIDADO AL ACTUALIZAR `@ai-sdk/google`: está fijado en 3.x a propósito. La 4.x habla la
+// especificación **v4** y la cascada exige v3 (lo mismo que anthropic y deepseek), así que un
+// modelo v4 se descarta como respaldo inválido — con aviso en el log, pero SIN cascada. Se detectó
+// al instalarlo: `npm i @ai-sdk/google` trae la 4.x y Gemini quedaba fuera en silencio.
 const PROVEEDORES = {
   anthropic: (model: string) => anthropic(model),
   deepseek: (model: string) => deepseek(model),
+  google: (model: string) => google(model),
 } as const
 
 export type Proveedor = keyof typeof PROVEEDORES
@@ -121,9 +141,16 @@ function conCascadaSiHay(
 
 // CASCADA ENTRE PROVEEDORES (cláusula 1.4), en el mismo formato que athos-service:
 //
-//   ATHOS_AGENT_CASCADE  = "deepseek-v4-flash@deepseek,claude-sonnet-5@anthropic"
-//   ATHOS_AUTO_CASCADE   = "deepseek-v4-flash@deepseek,claude-haiku-4-5@anthropic"
-//   ATHOS_VISION_CASCADE = "claude-haiku-4-5@anthropic"
+//   ATHOS_AGENT_CASCADE  = "deepseek-v4-flash@deepseek,gemini-3.6-flash@google,claude-sonnet-5@anthropic"
+//   ATHOS_AUTO_CASCADE   = "deepseek-v4-flash@deepseek,gemini-3.6-flash@google,claude-haiku-4-5@anthropic"
+//   ATHOS_VISION_CASCADE = "claude-haiku-4-5@anthropic,gemini-3.6-flash@google"
+//
+// Los TRES proveedores, igual que la cascada de athos-service (cláusula 1.4). Gemini se sumó el
+// 2026-08-02: hasta entonces esta superficie tenía dos y el backend tres, así que una caída
+// simultánea de DeepSeek y Anthropic tumbaba el agente mientras el chat clínico seguía en pie.
+//
+// Visión es el caso especial: DeepSeek no expone visión estable, pero Gemini SÍ, así que ahí el
+// respaldo es Gemini y no un segundo modelo de Anthropic.
 //
 // ⚠️ EL ORDEN NO ES COSMÉTICO. `provider_cascade.py` lo dice en su docstring: «Anthropic NO debe ir
 // primero mientras su cuenta no tenga crédito: cada intento suyo agregaría una llamada fallida y su

@@ -34,6 +34,9 @@ vi.mock("@ai-sdk/anthropic", () => ({ anthropic: (id: string) => falso("anthropi
 vi.mock("@ai-sdk/deepseek", () => ({
   createDeepSeek: () => (id: string) => falso("deepseek", id),
 }))
+vi.mock("@ai-sdk/google", () => ({
+  createGoogleGenerativeAI: () => (id: string) => falso("google", id),
+}))
 
 const { agentModel, autoModel, visionModel } = await import("@/lib/athos-agent/model")
 
@@ -183,5 +186,55 @@ describe("lista blanca de proveedores", () => {
     process.env.ATHOS_AGENT_CASCADE = "x@openai,y@gemini"
     expect(agentModel().modelId).toBe("claude-sonnet-5")
     warn.mockRestore()
+  })
+})
+
+describe("los TRES proveedores (paridad con athos-service)", () => {
+  beforeEach(() => ENV.forEach((k) => delete process.env[k]))
+  afterEach(() => {
+    fallos.clear()
+    ENV.forEach((k) => delete process.env[k])
+  })
+
+  it("`google` es un proveedor válido — se llama así, NO `gemini`", async () => {
+    // El vocabulario es el de `PROVEEDORES_VALIDOS` de provider_cascade.py, para que una cadena
+    // escrita para el backend valga igual acá.
+    fallos.set("anthropic:claude-sonnet-5", "Your credit balance is too low")
+    process.env.ATHOS_AGENT_CASCADE = "claude-sonnet-5@anthropic,gemini-3.6-flash@google"
+
+    const elegido = agentModel()
+    await (elegido.model as LanguageModelV3).doGenerate(PARAMS)
+    expect(elegido.modelId).toBe("gemini-3.6-flash")
+    expect(elegido.provider).toBe("google")
+  })
+
+  it("`@gemini` NO es válido y se descarta con aviso", async () => {
+    const avisos: string[] = []
+    const warn = vi.spyOn(console, "warn").mockImplementation((m) => avisos.push(String(m)))
+    process.env.ATHOS_AGENT_CASCADE = "claude-sonnet-5@anthropic,gemini-3.6-flash@gemini"
+    agentModel()
+    expect(avisos.some((a) => a.includes("gemini") && a.includes("desconocido"))).toBe(true)
+    warn.mockRestore()
+  })
+
+  it("la cadena de tres recorre DeepSeek -> Gemini -> Claude", async () => {
+    // La paridad completa con la cláusula 1.4: que caigan DOS proveedores y el tercero responda.
+    fallos.set("deepseek:deepseek-v4-flash", "Your credit balance is too low")
+    fallos.set("google:gemini-3.6-flash", "429 rate limit exceeded")
+    process.env.ATHOS_AGENT_CASCADE =
+      "deepseek-v4-flash@deepseek,gemini-3.6-flash@google,claude-sonnet-5@anthropic"
+
+    const elegido = agentModel()
+    await (elegido.model as LanguageModelV3).doGenerate(PARAMS)
+    expect(elegido.modelId).toBe("claude-sonnet-5")
+    expect(elegido.provider).toBe("anthropic")
+  })
+
+  it("visión admite Gemini de respaldo (DeepSeek no tiene visión, Gemini sí)", async () => {
+    fallos.set("anthropic:claude-haiku-4-5", "Overloaded")
+    process.env.ATHOS_VISION_CASCADE = "claude-haiku-4-5@anthropic,gemini-3.6-flash@google"
+    const elegido = visionModel()
+    await (elegido.model as LanguageModelV3).doGenerate(PARAMS)
+    expect(elegido.modelId).toBe("gemini-3.6-flash")
   })
 })
