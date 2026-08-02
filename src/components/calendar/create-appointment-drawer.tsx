@@ -10,6 +10,7 @@ import { Loader2Icon, Trash2Icon } from "lucide-react"
 import { toast } from "sonner"
 
 import { createClient } from "@/lib/supabase/client"
+import { borrarEventosRemotos } from "@/lib/calendar-remote"
 import { Button } from "@/components/ui/button"
 import {
   Drawer,
@@ -82,11 +83,8 @@ export function CreateAppointmentDrawer({
   owners: SelectOption[]
   vets: SelectOption[]
   onSaved: (appointmentId: string) => void
-  onDeleted: (
-    googleEventId: string | null,
-    microsoftEventId: string | null,
-    calendarOwnerId: string | null,
-  ) => void
+  /** Ya no lleva los ids del evento: el borrado remoto ocurre acá dentro, antes de borrar la fila. */
+  onDeleted: () => void
 }) {
   const isMobile = useIsMobile()
   const isEdit = Boolean(initial.id)
@@ -187,21 +185,28 @@ export function CreateAppointmentDrawer({
   async function handleDelete() {
     if (!initial.id) return
     setDeleting(true)
+
+    // PRIMERO el calendario externo, DESPUÉS la fila. El orden es de seguridad, no de comodidad:
+    // mientras la cita existe, el servidor puede leer de ella en qué calendario vive y de quién es.
+    // Al revés había que mandarle esos datos desde el navegador, y nada los ataba a esta cita — se
+    // podía pedir el borrado de un evento cualquiera del calendario personal de un colega.
+    const remoto = await borrarEventosRemotos(initial.id)
+
     const { error: delError } = await supabase.from("appointments").delete().eq("id", initial.id)
     setDeleting(false)
     if (delError) {
       setError(delError.message)
       return
     }
-    toast.success("Cita eliminada")
+    // Best-effort: si el proveedor externo falló, la cita se borra igual y se avisa. Dejarla en
+    // Tuvetia porque Google no contesta sería peor que un evento huérfano.
+    if (!remoto.ok) {
+      toast.warning(`Cita eliminada, pero no se pudo quitar del calendario: ${remoto.errores[0]}`)
+    } else {
+      toast.success("Cita eliminada")
+    }
     onOpenChange(false)
-    // La fila ya no existe: los ids del evento y el dueño del calendario van desde acá, capturados
-    // al abrir el drawer. Después de este punto no hay forma de saber en qué calendario vivía.
-    onDeleted(
-      initial.google_event_id ?? null,
-      initial.microsoft_event_id ?? null,
-      initial.calendar_owner_id ?? null,
-    )
+    onDeleted()
   }
 
   return (
