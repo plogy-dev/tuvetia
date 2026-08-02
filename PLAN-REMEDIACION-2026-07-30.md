@@ -52,21 +52,34 @@ citaban como garantía cumplida.
 | 2.11 | `"rate"` a secas hacía match dentro de `"generated"`: un error NUESTRO disparaba el respaldo y pagaba una segunda llamada entera | ✅ `57005b1` |
 | 2.12 | `/api/health` exige la credencial de **cada** proveedor nombrado en las cadenas: un respaldo sin key no protege de nada y daba falsa tranquilidad | ✅ `88c0295` |
 
-### Lo que la revisión de código del 01-ago dejó abierto en 2.8
+### La revisión de código del 01-ago: 15 defectos, 13 cerrados ✅
 
-Se revisó la cascada de TypeScript a fondo: **15 defectos**, de los que 2.10–2.12 cerraron 4.
-**Quedan 11.** Ninguno impide la demo; dos importan para la operación:
+Se revisó la cascada de TypeScript a fondo. `57005b1` y `88c0295` cerraron 4 (son 2.10–2.12);
+`0fd5964` cerró los **9 restantes que son de Athos**, más uno que apareció al verificar.
 
-| # | Qué | Por qué importa ahora |
+| # | Qué | Estado |
 |---|---|---|
-| 2.13 | El clasificador reconoce «sin crédito» y **casi ningún otro error de Anthropic**: un 401 de clave revocada llega como `invalid x-api-key`, sin «api key» (lleva guiones) ni «401» | 👤 **Hay una rotación de credenciales pendiente** — es justo el escenario que se va a provocar |
-| 2.14 | El bucle de herramientas son **8 pasos**, y «nunca a mitad de respuesta» vale por paso, no por respuesta: si el saldo se agota en el paso 3, el veterinario ve una nota cosida de dos modelos | Contradice la garantía que el propio módulo declara |
-| 2.15 | Sin lista blanca de proveedores, un typo (`@deepsek`) manda todo a Anthropic en silencio. **La Ola 2.2 ya arregló esto en Python** | El front repite el defecto que el backend cerró |
-| — | Otros 8 (reintentos que reproducen la cadena entera, fallos de respaldo sin registrar, taxonomía de errores duplicada con `route.ts`, guarda de tipo sólo en el primario…) | Backlog |
+| 2.13 | El clasificador miraba SÓLO el mensaje por subcadenas. El AI SDK arma `APICallError` con el mensaje pelado del proveedor, sin el estado: un 401 de clave revocada llega como `invalid x-api-key`, que no contiene «api key» (lleva guiones) ni «401» | ✅ `clasificarFallo` mira `statusCode` y `responseBody`. **Verificado contra la API real: el saldo agotado de Anthropic llega con estado 400**, no 401 ni 402 — por eso el saldo se evalúa ANTES que el estado |
+| 2.14 | El bucle son **8 pasos** y «nunca a mitad de respuesta» valía por paso: agotarse el saldo en el paso 3 dejaba la nota cosida de dos modelos | ✅ el proveedor queda FIJADO por respuesta |
+| 2.15 | Sin lista blanca, un typo (`@deepsek`) mandaba todo a Anthropic en silencio | ✅ `PROVEEDORES` explícito; los eslabones inválidos se descartan con aviso |
+| 2.16 | La taxonomía de errores estaba duplicada en `route.ts` y **ya se había desincronizado**: el arreglo de "rate limit" entró en `cascada.ts` y la copia de la ruta quedó vieja | ✅ una sola función, dos consumidores |
+| 2.17 | `maxRetries` envuelve la cascada por fuera: una caída total reproducía la cadena entera 3 veces | ✅ el error final sale con `isRetryable: false` |
+| 2.18 | Un error no-proveedor en un RESPALDO abortaba la cadena entera | ✅ sólo corta si falla así el primario |
+| 2.19 | Los fallos de respaldo no se registraban: no había cómo distinguir «también caído» de «nunca configurado» | ✅ log por intento con su clase de fallo |
+| 2.20 | Los respaldos se casteaban sin validar → `m.doStream is not a function` tapando el error real | ✅ se validan al armar la cadena |
+| 2.21 | Los ejemplos ponían Anthropic primero, que es lo que `provider_cascade.py` prohíbe sin crédito | ✅ DeepSeek primero, con la nota de cuándo invertirlos |
+| 2.22 | **`deepseek-v4` NO EXISTE** — apareció al verificar contra la API. Estaba como default en `model.ts` y tarifado en `/admin/costos`; bastaba `ATHOS_AGENT_PROVIDER=deepseek` sin fijar modelo para que reventara | ✅ `deepseek-v4-flash` en defaults y ejemplos; la tabla de precios lista los dos nombres reales |
 
-> El caso 2.15 y el 2.10 son el mismo patrón: **la cascada de Python ya había resuelto estos
-> problemas y el port a TypeScript los reintrodujo**. Vale la pena mirar `provider_cascade.py`
-> entero antes de seguir endureciendo el front.
+Quedan 2, y **no son de Athos**: el tour de onboarding que se rompe con la barra colapsada, y las
+dos copias sobrevivientes de la regla de ruta activa (`site-header.tsx`, `athos-sidebar-section.tsx`).
+
+> **El patrón que conviene no repetir.** 2.10 y 2.15 son defectos que las Olas 2.1 y 2.2 **ya habían
+> resuelto en Python**, y el port a TypeScript los reintrodujo. Antes de seguir tocando el front,
+> leer `provider_cascade.py` entero.
+>
+> Y sobre las pruebas: las de la primera versión **pasaban en verde inventando mensajes** como
+> `"401 Unauthorized"` que el SDK nunca produce. Ahora construyen `APICallError` con el estado y el
+> cuerpo reales. Una prueba que fabrica su propia entrada no prueba nada.
 
 ## Ola 3 — Documentos de entrega ✅ (antes de la reunión del ~3-ago)
 
@@ -106,24 +119,28 @@ ya no borra `department_code` ni pisa UVT; EXENTO ≠ Excluido en el documento f
   `facturacion_assign_next_number` y `touch_updated_at` + 21 índices de FK (facturación/equipo).
   Validada contra la cadena completa de migraciones en local. 👤 **Aplicar al principal** con el
   flujo de siempre (dev → PR → principal, `MIGRACIONES.md`) — no se aplicó automáticamente.
-  **Sigue sin aplicar al 2026-08-01**: los advisors del principal todavía reportan
-  `function_search_path_mutable` en las dos funciones.
+  **APLICADA — verificado el 2026-08-02** contra el esquema del principal: las dos funciones
+  tienen `proconfig` con el `search_path` fijo y los 21 índices están presentes.
 
-### 👤 Tres migraciones sin aplicar al principal (estado al 01-ago 18:30)
+### ✅ Las tres migraciones están aplicadas al principal — verificado 2026-08-02
 
-| Migración | Qué hace | Qué pasa si no se aplica |
+Consultado el esquema del principal (`auxlnexhkmtoedrzfsnz`) directamente, no leído de un documento:
+
+| Migración | Qué hace | Verificación |
 |---|---|---|
-| `0044_realtime_whatsapp_messages` | Publica `whatsapp_messages` en `supabase_realtime`. La publicación existía pero estaba **vacía**, así que ninguna suscripción emitía nada, en silencio | La bandeja nueva **no recibe mensajes en vivo**; se queda con el poll de 15 s |
-| `0045_facturacion_db_hardening` | `search_path` + 21 índices de FK | Siguen los avisos del linter de Supabase |
-| `0046_athos_agent_usage` | Tabla de uso del agente de Next, con `tokens_in`/`tokens_out` reales | `/admin/costos` no puede cobrar Anthropic: el dato no existe en ningún lado |
+| `0044_realtime_whatsapp_messages` | Publica `whatsapp_messages` en `supabase_realtime`. La publicación existía pero estaba **vacía**, así que ninguna suscripción emitía nada, en silencio | ✅ publicada · **RLS sigue activa** y la policy SELECT está presente, que es lo que impide que una clínica reciba los mensajes de otra |
+| `0045_facturacion_db_hardening` | `search_path` + 21 índices de FK | ✅ **2/2** funciones con `search_path` fijo · **21/21** índices presentes |
+| `0046_athos_agent_usage` | Tabla de uso del agente de Next, con `tokens_in`/`tokens_out` reales | ✅ tabla con RLS, 1 policy, 4 índices, 10 columnas |
 
-La `0044` es idempotente (guardada con `if not exists` sobre `pg_publication_tables`) y la `0045`
-tiene 22 guardas de idempotencia sobre 23 sentencias, así que reaplicarlas es inocuo.
+> **La duda de la renumeración queda cerrada.** La de facturación se renumeró de `0043` a `0045`
+> porque la tanda de calendario se llevó ese número, y quedaba por confirmar que la `0043` de
+> calendario no hubiera quedado saltada por la colisión. **No lo quedó:** la `0042` creaba el índice
+> `appointments_clinic_google_event_uidx` como PARCIAL (`where google_event_id is not null`) y la
+> `0043` lo corrige a TOTAL. En el principal el índice es total, o sea que la `0043` corrió.
 
-> ⚠️ **Verificar antes de aplicar:** la de facturación se renumeró de `0043` a `0045` porque la tanda
-> de calendario de Santiago se llevó el `0043`. Si algún entorno llegó a aplicar la versión vieja
-> **como `0043`**, hay que confirmar que la `0043` de calendario no quedó saltada por la colisión de
-> números. El contenido de la renumerada es idéntico (`R100` en git): el riesgo no es esa, es la otra.
+⚠️ **`0044` falta en DEV**, al revés del flujo normal: se aplicó primero al principal porque el
+diagnóstico se hizo ahí (`pg_publication_tables` devolvía cero filas el 31-jul). Conviene aplicarla
+a dev para que los dos entornos no diverjan.
 
 ## Pendientes que quedan fuera de esta rama
 
@@ -162,5 +179,6 @@ Verificado contra `origin/master` en `a98dc8c`, no contra los mensajes de commit
 | Variables en Vercel | ✅ 23 en producción |
 | Cron de cartera y smoke | ✅ verdes en schedule desde el 31-jul |
 
-**Lo que falta es operación, no desarrollo:** aplicar las tres migraciones, recargar el saldo de
-Anthropic, rotar las credenciales que pasaron por chat, y cerrar 2.13/2.14 antes de rotar.
+**Lo que falta es operación, no desarrollo:** recargar el saldo de Anthropic y rotar las
+credenciales que pasaron por chat. Las tres migraciones ya están aplicadas (verificado 02-ago) y
+2.13/2.14 se cerraron en `0fd5964`, así que la rotación ya no tumba el asistente.

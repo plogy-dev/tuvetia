@@ -59,8 +59,9 @@ la cascada del agente extendida a sus tres superficies.
 
 Dos consecuencias para la entrega:
 
-1. **Tres migraciones sin aplicar al principal** (`0044` Realtime de WhatsApp, `0045` hardening de
-   facturación, `0046` uso del agente). Sin la `0044` la bandeja nueva no recibe nada en vivo.
+1. ~~Tres migraciones sin aplicar al principal~~ — **verificado el 02-ago contra el esquema de
+   producción: las tres están aplicadas.** `0044` publicada con la RLS intacta, `0045` con 2/2
+   funciones y 21/21 índices, `0046` con tabla, policy e índices.
 2. **Una revisión de código del 01-ago dejó 11 defectos abiertos** en la cascada del agente
    (4 ya cerrados por Felipe el mismo día). Ninguno impide la demo; el más urgente está en §1.
 
@@ -486,8 +487,8 @@ Los datos **existían desde el inicio** en `athos_messages` — nunca se perdier
 |---|---|---|
 | ~~Transcripción en tiempo real~~ | punto 8 → ✅ | **HECHO** |
 | ~~Enlace de invitación para quien no tiene cuenta~~ (§9) | punto 9 → ✅ | **HECHO** |
-| **Aplicar `0044`, `0045` y `0046` al principal** | la bandeja en vivo y el panel de costos | ~30 min |
-| **Endurecer el clasificador de errores de la cascada** (§1) | el fallback sobrevive a la rotación | ~1 h |
+| ~~Aplicar `0044`, `0045` y `0046` al principal~~ | la bandeja en vivo y el panel de costos | **HECHO** (verificado 02-ago) |
+| ~~Endurecer el clasificador de errores de la cascada~~ (§1) | el fallback sobrevive a la rotación | **HECHO** `0fd5964` |
 
 **No queda desarrollo pendiente de los 10 puntos.** Lo de arriba es operación y endurecimiento de
 algo que ya está entregado y funcionando.
