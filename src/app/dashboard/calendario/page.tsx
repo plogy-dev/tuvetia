@@ -3,17 +3,20 @@ import { endOfWeek, startOfWeek } from "date-fns"
 import { createClient } from "@/lib/supabase/server"
 import { AppointmentCalendarLazy as AppointmentCalendar } from "@/components/calendar/appointment-calendar-lazy"
 import { DataError } from "@/components/data-error"
-import { APPOINTMENT_SELECT, type AppointmentRow, type SelectOption } from "@/lib/appointments"
+import { APPOINTMENT_SELECT, type AppointmentRow, type PatientOption, type SelectOption } from "@/lib/appointments"
 
 // REVERTIDO 2026-07-31 (incidente en producción): el pull automático al abrir esta página traía el
 // calendario "primary" de Google —el personal del vet, no uno de la clínica— completo (30 días,
 // paginado sin límite) y lo insertaba como citas visibles para toda la clínica. Con 1 usuario real
 // generó 1.567 filas espurias ("Cumpleaños de mi mamá", "Trabajo", ...) antes de que el sync_token
-// llegara a guardarse, así que cada carga de página lo repetía desde cero. No reintroducir el pull
-// automático sin antes resolver qué calendario de Google se sincroniza (ver CALENDARIO.md
-// §Pendientes: "Sync por-vet usando primary vs. calendario dedicado de clínica — a decidir"). El pull
-// manual con el botón "Sincronizar" (/api/google/calendar/sync) tiene el mismo problema de fondo y
-// debería evitarse hasta resolverlo.
+// llegara a guardarse, así que cada carga de página lo repetía desde cero.
+//
+// RESUELTO 2026-08-02 (0048_calendar_admin_redesign): a partir de ahora hay UNA sola cuenta de
+// Google/Outlook por clínica — la del administrador (clinics.owner_id), fijada una vez al crear la
+// clínica — en vez de una por vet logueado. Ya no hay ambigüedad sobre "qué calendario de Google se
+// sincroniza" (era el pendiente abierto en CALENDARIO.md). El pull sigue siendo manual (botón
+// "Sincronizar") por la razón de fondo que causó el incidente original: no bloquear el render con
+// una llamada a una API externa.
 
 export default async function CalendarioPage() {
   const supabase = await createClient()
@@ -34,37 +37,63 @@ export default async function CalendarioPage() {
         | null)?.clinic_id ?? null
     : null
 
-  const [{ data: appts, error: apptsError }, { data: pts }, { data: owns }, { data: profs }, { data: integ }] =
-    await Promise.all([
-      supabase
-        .from("appointments")
-        .select(APPOINTMENT_SELECT)
-        .lte("starts_at", rangeEnd.toISOString())
-        .gte("ends_at", rangeStart.toISOString())
-        .order("starts_at", { ascending: true }),
-      // Guarda de escala: opciones de los selects del drawer acotadas (búsqueda tipada: backlog).
-      supabase.from("patients").select("id, name").order("name").limit(1000),
-      supabase.from("owners").select("id, full_name").order("full_name").limit(1000),
-      clinicId
-        ? supabase.from("profiles").select("id, full_name").eq("clinic_id", clinicId)
-        : Promise.resolve({ data: null }),
-      // Solo columnas no-secretas (refresh_token/sync_token están revocadas al cliente).
-      user
-        ? supabase
-            .from("calendar_integrations")
-            .select("id, connected_at")
-            .eq("user_id", user.id)
-            .eq("provider", "google")
-            .maybeSingle()
-        : Promise.resolve({ data: null }),
-    ])
+  // Quién es el admin de la clínica (clinics.owner_id, ver 0048_calendar_admin_redesign): solo esa
+  // cuenta puede conectar/reconectar Google u Outlook — el resto de la clínica ve el estado, nomás.
+  const ownerId = clinicId
+    ? ((await supabase.from("clinics").select("owner_id").eq("id", clinicId).maybeSingle()).data as
+        | { owner_id: string | null }
+        | null)?.owner_id ?? null
+    : null
+  const canManageCalendarConnection = Boolean(user && ownerId && user.id === ownerId)
 
-  const googleConnected = Boolean(integ)
+  const [
+    { data: appts, error: apptsError },
+    { data: pts },
+    { data: owns },
+    { data: profs },
+    { data: googleInteg },
+    { data: microsoftInteg },
+  ] = await Promise.all([
+    supabase
+      .from("appointments")
+      .select(APPOINTMENT_SELECT)
+      .lte("starts_at", rangeEnd.toISOString())
+      .gte("ends_at", rangeStart.toISOString())
+      .order("starts_at", { ascending: true }),
+    // Guarda de escala: opciones de los selects del drawer acotadas (búsqueda tipada: backlog).
+    // owner_id viaja para el autocompletado/bloqueo titular↔paciente del drawer.
+    supabase.from("patients").select("id, name, owner_id").order("name").limit(1000),
+    supabase.from("owners").select("id, full_name").order("full_name").limit(1000),
+    clinicId
+      ? supabase.from("profiles").select("id, full_name").eq("clinic_id", clinicId)
+      : Promise.resolve({ data: null }),
+    // Solo columnas no-secretas (refresh_token/sync_token están revocadas al cliente). Por clínica,
+    // no por user_id propio: la RLS de 0048 deja ver el estado de conexión del admin a cualquier
+    // vet de la clínica (hay a lo sumo una fila por proveedor, la del admin).
+    clinicId
+      ? supabase
+          .from("calendar_integrations")
+          .select("id, connected_at")
+          .eq("clinic_id", clinicId)
+          .eq("provider", "google")
+          .maybeSingle()
+      : Promise.resolve({ data: null }),
+    clinicId
+      ? supabase
+          .from("calendar_integrations")
+          .select("id, connected_at")
+          .eq("clinic_id", clinicId)
+          .eq("provider", "microsoft")
+          .maybeSingle()
+      : Promise.resolve({ data: null }),
+  ])
 
-  const patients: SelectOption[] = ((pts as { id: string; name: string }[] | null) ?? []).map((p) => ({
-    id: p.id,
-    label: p.name,
-  }))
+  const googleConnected = Boolean(googleInteg)
+  const microsoftConnected = Boolean(microsoftInteg)
+
+  const patients: PatientOption[] = (
+    (pts as { id: string; name: string; owner_id: string | null }[] | null) ?? []
+  ).map((p) => ({ id: p.id, label: p.name, ownerId: p.owner_id }))
   const owners: SelectOption[] = ((owns as { id: string; full_name: string }[] | null) ?? []).map((o) => ({
     id: o.id,
     label: o.full_name,
@@ -89,6 +118,8 @@ export default async function CalendarioPage() {
         owners={owners}
         vets={vets}
         googleConnected={googleConnected}
+        microsoftConnected={microsoftConnected}
+        canManageCalendarConnection={canManageCalendarConnection}
       />
     </div>
   )

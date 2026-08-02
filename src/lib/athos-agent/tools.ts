@@ -399,15 +399,15 @@ export function buildAthosTools(supabase: SB, ctx: AgentContext) {
 
     create_appointment: tool({
       description:
-        "PROPONE agendar una cita (el vet aprueba en la tarjeta). Consulta list_available_slots primero. date YYYY-MM-DD y time HH:mm en hora local.",
+        "PROPONE agendar una cita (el vet aprueba en la tarjeta). Paciente, titular y motivo son OBLIGATORIOS: consulta search_patients primero (ya devuelve owner_id, úsalo tal cual — no inventes un titular distinto). Consulta list_available_slots antes de elegir horario. date YYYY-MM-DD y time HH:mm en hora local.",
       inputSchema: z.object({
         title: z.string().min(1),
         date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
         time: z.string().regex(/^\d{2}:\d{2}$/),
         duration_min: z.number().int().min(5).max(240).default(30),
-        patient_id: z.string().uuid().nullable().optional(),
-        owner_id: z.string().uuid().nullable().optional(),
-        reason: z.string().nullable().optional(),
+        patient_id: z.string().uuid().describe("id del paciente, de search_patients"),
+        owner_id: z.string().uuid().describe("owner_id del paciente elegido (viene en search_patients)"),
+        reason: z.string().min(1).describe("motivo de la cita, obligatorio"),
         notes: z.string().nullable().optional(),
       }),
       execute: async ({ title, date, time, duration_min, patient_id, owner_id, reason, notes }) => {
@@ -421,13 +421,13 @@ export function buildAthosTools(supabase: SB, ctx: AgentContext) {
             title,
             starts_at: slot.from,
             ends_at: slot.to,
-            patient_id: patient_id ?? null,
-            owner_id: owner_id ?? null,
-            reason: reason ?? null,
+            patient_id,
+            owner_id,
+            reason,
             notes: notes ?? null,
           },
           `Agendar "${title}" el ${date} a las ${time} (${duration_min} min)`,
-          { patientId: patient_id ?? null, ownerId: owner_id ?? null },
+          { patientId: patient_id, ownerId: owner_id },
         )
       },
     }),

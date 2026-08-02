@@ -1,14 +1,10 @@
 "use client"
 
-// Conectar Google Calendar manualmente: fallback para quien entró con email/Microsoft, o con Google
+// Conectar Outlook Calendar manualmente: fallback para quien entró con email/Google, o con Microsoft
 // antes de este cambio (login-form/signup-form ya piden el scope y auto-conectan en el callback). Al
-// conectar, reautoriza con el scope calendar.events (offline) y, al volver, captura el
-// provider_refresh_token de la sesión y lo guarda server-side (route /api/google/calendar/connect).
-//
-// El pull automático corre acá (cliente, en un useEffect), NO en el server component de la página:
-// bloquear el render server-side en el pull colgó /dashboard/calendario con un calendario grande
-// (incidente 2026-07-31, ver google-calendar.ts). Así la página siempre pinta al instante con lo que
-// ya hay en BD, y el sync llega en segundo plano apenas monta este componente.
+// conectar, reautoriza con el scope Calendars.ReadWrite (offline_access) y, al volver, captura el
+// provider_refresh_token de la sesión y lo guarda server-side (route /api/microsoft/calendar/connect).
+// Espejo de google-calendar-connect.tsx — ver ese archivo para el porqué del auto-sync en el cliente.
 
 import { useEffect, useRef, useState } from "react"
 import { useRouter } from "next/navigation"
@@ -17,9 +13,9 @@ import { toast } from "sonner"
 
 import { createClient } from "@/lib/supabase/client"
 import { Button } from "@/components/ui/button"
-import { GOOGLE_CALENDAR_SCOPE } from "@/lib/google-calendar-scope"
+import { MICROSOFT_CALENDAR_SCOPE } from "@/lib/microsoft-calendar-scope"
 
-export function GoogleCalendarConnect({
+export function MicrosoftCalendarConnect({
   connected,
   canConnect,
   onSynced,
@@ -34,30 +30,30 @@ export function GoogleCalendarConnect({
   const captured = useRef(false)
   const autoSynced = useRef(false)
 
-  // Al volver del consentimiento (?google=connected), captura el refresh token y lo persiste.
+  // Al volver del consentimiento (?microsoft=connected), captura el refresh token y lo persiste.
   useEffect(() => {
     if (captured.current) return
     const url = new URL(window.location.href)
-    if (url.searchParams.get("google") !== "connected") return
+    if (url.searchParams.get("microsoft") !== "connected") return
     captured.current = true
     void (async () => {
       const {
         data: { session },
       } = await supabase.auth.getSession()
       const refreshToken = session?.provider_refresh_token
-      url.searchParams.delete("google")
+      url.searchParams.delete("microsoft")
       window.history.replaceState({}, "", url.toString())
       if (!refreshToken) {
-        toast.error("Google no devolvió un refresh token. Revisa el consentimiento (offline access).")
+        toast.error("Microsoft no devolvió un refresh token. Revisá el consentimiento (offline_access).")
         return
       }
-      const res = await fetch("/api/google/calendar/connect", {
+      const res = await fetch("/api/microsoft/calendar/connect", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ refresh_token: refreshToken }),
       })
       if (res.ok) {
-        toast.success("Google Calendar conectado")
+        toast.success("Outlook Calendar conectado")
         router.refresh()
       } else {
         const j = (await res.json().catch(() => ({}))) as { error?: string }
@@ -67,8 +63,7 @@ export function GoogleCalendarConnect({
   }, [supabase, router])
 
   // Sync automático en segundo plano al montar, si ya está conectado (no bloquea el render de la
-  // página — ver comentario de arriba). `sync` es function declaration, hoisted: se puede referenciar
-  // acá aunque se defina más abajo en el componente.
+  // página). `sync` es function declaration, hoisted.
   useEffect(() => {
     if (!connected || autoSynced.current) return
     autoSynced.current = true
@@ -78,23 +73,22 @@ export function GoogleCalendarConnect({
 
   async function connect() {
     const { error } = await supabase.auth.signInWithOAuth({
-      provider: "google",
+      provider: "azure",
       options: {
-        scopes: GOOGLE_CALENDAR_SCOPE,
-        queryParams: { access_type: "offline", prompt: "consent" },
-        redirectTo: `${window.location.origin}/dashboard/calendario?google=connected`,
+        scopes: `email ${MICROSOFT_CALENDAR_SCOPE}`,
+        redirectTo: `${window.location.origin}/dashboard/calendario?microsoft=connected`,
       },
     })
-    if (error) toast.error(`No se pudo iniciar la conexión con Google: ${error.message}`)
+    if (error) toast.error(`No se pudo iniciar la conexión con Microsoft: ${error.message}`)
   }
 
   async function sync() {
     setSyncing(true)
     try {
-      const res = await fetch("/api/google/calendar/sync", { method: "POST" })
+      const res = await fetch("/api/microsoft/calendar/sync", { method: "POST" })
       const json = (await res.json()) as { changed?: number; error?: string }
       if (!res.ok) throw new Error(json.error ?? `HTTP ${res.status}`)
-      toast.success(`Sincronizado con Google (${json.changed ?? 0} cambios)`)
+      toast.success(`Sincronizado con Outlook (${json.changed ?? 0} cambios)`)
       onSynced?.()
     } catch (e) {
       toast.error(`No se pudo sincronizar: ${(e as Error).message}`)
@@ -109,12 +103,12 @@ export function GoogleCalendarConnect({
     // fallaría con 403.
     if (!canConnect) {
       return (
-        <span className="text-xs text-muted-foreground">El administrador no conectó Google Calendar</span>
+        <span className="text-xs text-muted-foreground">El administrador no conectó Outlook Calendar</span>
       )
     }
     return (
       <Button variant="outline" onClick={connect}>
-        <CalendarPlus className="size-4" /> Conectar Google Calendar
+        <CalendarPlus className="size-4" /> Conectar Outlook Calendar
       </Button>
     )
   }
@@ -122,7 +116,7 @@ export function GoogleCalendarConnect({
   return (
     <div className="flex items-center gap-2">
       <span className="inline-flex items-center gap-1 text-xs text-muted-foreground">
-        <CalendarCheck className="size-4 text-green-600" /> Google conectado
+        <CalendarCheck className="size-4 text-green-600" /> Outlook conectado
       </span>
       <Button variant="outline" size="sm" onClick={sync} disabled={syncing}>
         {syncing ? <Loader2 className="size-4 animate-spin" /> : <RefreshCw className="size-4" />}

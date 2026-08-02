@@ -16,6 +16,7 @@ import {
 import { Input } from "@/components/ui/input"
 import { Loader2Icon } from "lucide-react"
 import { GOOGLE_CALENDAR_SCOPE } from "@/lib/google-calendar-scope"
+import { MICROSOFT_CALENDAR_SCOPE } from "@/lib/microsoft-calendar-scope"
 
 /* Glifo "chispa" de la marca Tuvetia (patrón del Sidebar del cliente). */
 function BrandGlyph() {
@@ -121,7 +122,10 @@ export function LoginForm({
     const { error } = await supabase.auth.signInWithOAuth({
       provider: "azure",
       options: {
-        scopes: "email",
+        // Igual que Google: se pide el scope de calendario en el propio login para vincular
+        // Outlook Calendar sin un paso extra (el callback captura el refresh_token — ver
+        // /auth/callback). offline_access es obligatorio en Azure para que devuelva refresh token.
+        scopes: `email ${MICROSOFT_CALENDAR_SCOPE}`,
         redirectTo: `${window.location.origin}/auth/callback${(() => {
           const next = new URLSearchParams(window.location.search).get("next")
           return next ? `?next=${encodeURIComponent(next)}` : ""

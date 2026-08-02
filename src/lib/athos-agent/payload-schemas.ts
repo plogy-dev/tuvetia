@@ -26,14 +26,18 @@ import { z } from "zod"
 const uuid = z.string().uuid()
 const textoOpcional = z.string().nullable().optional()
 
-/** Los tres campos de fecha se guardan ya resueltos a ISO, no como `date`/`time`. */
+// Los tres campos de fecha se guardan ya resueltos a ISO, no como `date`/`time`. patient_id,
+// owner_id y reason pasan a ser obligatorios (0048_calendar_admin_redesign endureció el RPC del
+// mismo modo — paciente, titular, vet y motivo obligatorios, y el paciente debe ser DEL titular):
+// si el modelo no los trae, la propuesta ya no llega a proponerse (ver tools.ts), así que acá deben
+// exigirse igual o una revisión editada a mano podría colarlos vacíos.
 const CREATE_APPOINTMENT = z.object({
   title: z.string().min(1),
   starts_at: z.string().datetime({ offset: true }),
   ends_at: z.string().datetime({ offset: true }),
-  patient_id: uuid.nullable().optional(),
-  owner_id: uuid.nullable().optional(),
-  reason: textoOpcional,
+  patient_id: uuid,
+  owner_id: uuid,
+  reason: z.string().min(1),
   notes: textoOpcional,
 })
 

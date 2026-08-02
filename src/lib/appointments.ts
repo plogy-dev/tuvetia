@@ -31,7 +31,7 @@ export const APPOINTMENT_STATUS_ORDER: AppointmentStatus[] = [
 // Columnas que se piden a PostgREST (RLS aísla por clínica). El embed to-one patient:patients(name)
 // llega como objeto plano en runtime (mismo gotcha documentado en DATABASE.md).
 export const APPOINTMENT_SELECT =
-  "id, title, reason, status, starts_at, ends_at, patient_id, owner_id, vet_id, notes, google_event_id, patient:patients(name)"
+  "id, title, reason, status, starts_at, ends_at, patient_id, owner_id, vet_id, notes, google_event_id, microsoft_event_id, patient:patients(name)"
 
 export type AppointmentRow = {
   id: string
@@ -45,6 +45,7 @@ export type AppointmentRow = {
   vet_id: string | null
   notes: string | null
   google_event_id: string | null
+  microsoft_event_id: string | null
   patient: { name: string } | null
 }
 
@@ -87,5 +88,10 @@ function clampToStartDay(start: Date, end: Date): Date {
   return endOfStartDay.getTime() > start.getTime() ? endOfStartDay : end
 }
 
-// Opción para los <Select> de paciente / titular / veterinario.
+// Opción para los <Select> de titular / veterinario.
 export type SelectOption = { id: string; label: string }
+
+// Opción de paciente: trae su titular para el autocompletado/bloqueo del drawer (ver
+// create-appointment-drawer.tsx) — elegir un paciente completa el titular, y si ya había un
+// titular elegido que no es el suyo, se bloquea la selección.
+export type PatientOption = SelectOption & { ownerId: string | null }

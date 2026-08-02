@@ -1,11 +1,11 @@
 import { NextResponse } from "next/server"
 
 import { createClient } from "@/lib/supabase/server"
-import { upsertGoogleIntegration } from "@/lib/google-calendar"
+import { upsertMicrosoftIntegration } from "@/lib/microsoft-calendar"
 
-// Guarda el refresh_token de Google del ADMINISTRADOR de la clínica (obtenido tras reautorizar con
-// scope calendar.events). Desde 0048_calendar_admin_redesign, hay UNA sola cuenta por clínica —
-// solo clinics.owner_id puede conectar. El token llega del navegador una sola vez
+// Guarda el refresh_token de Microsoft del ADMINISTRADOR de la clínica (obtenido tras reautorizar
+// con el scope Calendars.ReadWrite). Desde 0048_calendar_admin_redesign, hay UNA sola cuenta por
+// clínica — solo clinics.owner_id puede conectar. El token llega del navegador una sola vez
 // (session.provider_refresh_token) y se persiste server-side.
 export async function POST(req: Request) {
   const supabase = await createClient()
@@ -16,7 +16,7 @@ export async function POST(req: Request) {
 
   const body = (await req.json().catch(() => ({}))) as {
     refresh_token?: string
-    google_calendar_id?: string
+    calendar_id?: string
   }
   if (!body.refresh_token) {
     return NextResponse.json({ error: "Falta refresh_token" }, { status: 400 })
@@ -40,12 +40,7 @@ export async function POST(req: Request) {
   }
 
   try {
-    await upsertGoogleIntegration(
-      user.id,
-      clinicId,
-      body.refresh_token,
-      body.google_calendar_id || "primary",
-    )
+    await upsertMicrosoftIntegration(user.id, clinicId, body.refresh_token, body.calendar_id || "primary")
   } catch (e) {
     return NextResponse.json({ error: (e as Error).message }, { status: 500 })
   }

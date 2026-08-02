@@ -6,13 +6,15 @@ import { PAYLOAD_SCHEMAS, validarPayload } from "../payload-schemas"
 // payload sale del servidor y vuelve sin que nada lo mire: el vet puede editar la propuesta —esa es
 // la intencion— pero lo editado tiene que seguir siendo valido.
 
+// patient_id, owner_id y reason son obligatorios desde 0048_calendar_admin_redesign (el RPC
+// create_appointment ahora los exige, y valida que el paciente sea DEL titular indicado).
 const CITA_OK = {
   title: "Control",
   starts_at: "2026-08-01T15:00:00.000Z",
   ends_at: "2026-08-01T15:30:00.000Z",
   patient_id: "2fa4dac8-2a34-4d03-85d7-f44f93780c34",
-  owner_id: null,
-  reason: null,
+  owner_id: "9c1b1e7a-9a4a-4a3a-9c1a-3a4a9c1b1e7a",
+  reason: "Control de rutina",
   notes: null,
 }
 

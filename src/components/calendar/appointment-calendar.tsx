@@ -35,6 +35,7 @@ import {
   toEvent,
   type AppointmentRow,
   type CalendarEvent,
+  type PatientOption,
   type SelectOption,
 } from "@/lib/appointments"
 import {
@@ -43,6 +44,7 @@ import {
 } from "./create-appointment-drawer"
 import { HelpTip } from "@/components/help-tip"
 import { GoogleCalendarConnect } from "./google-calendar-connect"
+import { MicrosoftCalendarConnect } from "./microsoft-calendar-connect"
 import { IcsFeedButton } from "./ics-feed-button"
 import {
   AgendaEventContent,
@@ -98,13 +100,17 @@ export function AppointmentCalendar({
   owners,
   vets,
   googleConnected,
+  microsoftConnected,
+  canManageCalendarConnection,
 }: {
   initialAppointments: AppointmentRow[]
   initialRange: { start: string; end: string }
-  patients: SelectOption[]
+  patients: PatientOption[]
   owners: SelectOption[]
   vets: SelectOption[]
   googleConnected: boolean
+  microsoftConnected: boolean
+  canManageCalendarConnection: boolean
 }) {
   const [supabase] = useState(() => createClient())
   const [events, setEvents] = useState<CalendarEvent[]>(() => initialAppointments.map(toEvent))
@@ -149,8 +155,8 @@ export function AppointmentCalendar({
     setDrawerOpen(true)
   }, [])
 
-  // Push/delete a Google: best-effort y solo si el vet conectó su calendario. El calendario interno
-  // es la fuente de verdad; si Google falla, la cita local no se ve afectada.
+  // Push/delete a Google/Microsoft: best-effort y solo si el vet conectó ese calendario. El
+  // calendario interno es la fuente de verdad; si el proveedor falla, la cita local no se ve afectada.
   const pushToGoogle = useCallback(
     async (appointmentId: string) => {
       if (!googleConnected) return
@@ -181,6 +187,38 @@ export function AppointmentCalendar({
       }
     },
     [googleConnected],
+  )
+
+  const pushToMicrosoft = useCallback(
+    async (appointmentId: string) => {
+      if (!microsoftConnected) return
+      try {
+        await fetch("/api/microsoft/calendar/push", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ appointment_id: appointmentId }),
+        })
+      } catch {
+        /* best-effort */
+      }
+    },
+    [microsoftConnected],
+  )
+
+  const deleteFromMicrosoft = useCallback(
+    async (microsoftEventId: string | null) => {
+      if (!microsoftConnected || !microsoftEventId) return
+      try {
+        await fetch("/api/microsoft/calendar/delete", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ microsoft_event_id: microsoftEventId }),
+        })
+      } catch {
+        /* best-effort */
+      }
+    },
+    [microsoftConnected],
   )
 
   const handleRangeChange = useCallback(
@@ -218,6 +256,7 @@ export function AppointmentCalendar({
         vet_id: a.vet_id,
         notes: a.notes ?? undefined,
         google_event_id: a.google_event_id,
+        microsoft_event_id: a.microsoft_event_id,
       })
     },
     [openDrawer],
@@ -238,24 +277,29 @@ export function AppointmentCalendar({
         return
       }
       void pushToGoogle(event.id)
+      void pushToMicrosoft(event.id)
     },
-    [supabase, range, loadRange, pushToGoogle],
+    [supabase, range, loadRange, pushToGoogle, pushToMicrosoft],
   )
 
   const handleSaved = useCallback(
     (appointmentId: string) => {
       void loadRange(range.start, range.end)
-      if (appointmentId) void pushToGoogle(appointmentId)
+      if (appointmentId) {
+        void pushToGoogle(appointmentId)
+        void pushToMicrosoft(appointmentId)
+      }
     },
-    [loadRange, range, pushToGoogle],
+    [loadRange, range, pushToGoogle, pushToMicrosoft],
   )
 
   const handleDeleted = useCallback(
-    (googleEventId: string | null) => {
+    (googleEventId: string | null, microsoftEventId: string | null) => {
       void loadRange(range.start, range.end)
       void deleteFromGoogle(googleEventId)
+      void deleteFromMicrosoft(microsoftEventId)
     },
-    [loadRange, range, deleteFromGoogle],
+    [loadRange, range, deleteFromGoogle, deleteFromMicrosoft],
   )
 
   function newAppointment() {
@@ -272,14 +316,21 @@ export function AppointmentCalendar({
         <h1 className="flex items-center gap-1.5 text-lg font-semibold">
           Calendario
           <HelpTip>
-            Agendá y arrastrá citas. <b>Conectar Google Calendar</b> sincroniza en ambos sentidos;{" "}
-            <b>Enlace ICS</b> muestra la agenda en Google sin conectar la cuenta (solo lectura).
+            Agendá y arrastrá citas. <b>Conectar Google Calendar</b> u <b>Outlook Calendar</b>{" "}
+            sincroniza en ambos sentidos; <b>Enlace ICS</b> muestra la agenda en Google sin conectar
+            la cuenta (solo lectura).
           </HelpTip>
         </h1>
         <div className="flex flex-wrap items-center gap-2">
           <IcsFeedButton />
           <GoogleCalendarConnect
             connected={googleConnected}
+            canConnect={canManageCalendarConnection}
+            onSynced={() => void loadRange(range.start, range.end)}
+          />
+          <MicrosoftCalendarConnect
+            connected={microsoftConnected}
+            canConnect={canManageCalendarConnection}
             onSynced={() => void loadRange(range.start, range.end)}
           />
           <Button onClick={newAppointment}>

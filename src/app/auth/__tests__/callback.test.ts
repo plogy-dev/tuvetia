@@ -21,7 +21,10 @@ vi.mock("@/lib/supabase/server", () => ({
   }),
 }))
 vi.mock("@/lib/google-calendar", () => ({ upsertGoogleIntegration: vi.fn() }))
+vi.mock("@/lib/microsoft-calendar", () => ({ upsertMicrosoftIntegration: vi.fn() }))
 
+import { upsertGoogleIntegration } from "@/lib/google-calendar"
+import { upsertMicrosoftIntegration } from "@/lib/microsoft-calendar"
 import { GET } from "@/app/auth/callback/route"
 
 const USUARIO = { id: "u-1" }
@@ -30,12 +33,26 @@ function pedir(qs: string) {
   return GET(new NextRequest(`https://app.tuvetia.com/auth/callback${qs}`))
 }
 
+// Simula profiles.clinic_id + clinics.owner_id: la vinculación automática (0048_calendar_admin_
+// redesign) solo corre si quien loguea ES el admin de su clínica. `ownerId` por defecto es el mismo
+// usuario del test (USUARIO.id), para no tener que repetirlo en cada caso que sí espera vinculación.
+function mockClinicLookup(clinicId: string | null, ownerId: string | null | undefined = USUARIO.id) {
+  from.mockImplementation((table: string) => ({
+    select: () => ({
+      eq: () => ({
+        maybeSingle: async () => {
+          if (table === "clinics") return { data: ownerId === null ? null : { owner_id: ownerId } }
+          return { data: clinicId === null ? null : { clinic_id: clinicId } }
+        },
+      }),
+    }),
+  }))
+}
+
 beforeEach(() => {
   vi.clearAllMocks()
   exchangeCodeForSession.mockResolvedValue({ data: { user: USUARIO, session: {} }, error: null })
-  from.mockReturnValue({
-    select: () => ({ eq: () => ({ maybeSingle: async () => ({ data: null }) }) }),
-  })
+  mockClinicLookup(null)
 })
 
 describe("el canje del enlace del correo", () => {
@@ -108,5 +125,45 @@ describe("vinculación de Google Calendar", () => {
     })
     const res = await pedir("?code=abc123&next=%2Finvitar%2Ftok-9")
     expect(res.headers.get("location")).toBe("https://app.tuvetia.com/invitar/tok-9")
+  })
+
+  it("sin app_metadata.provider (u otro valor) asume Google", async () => {
+    exchangeCodeForSession.mockResolvedValue({
+      data: { user: USUARIO, session: { provider_refresh_token: "rt-1" } }, error: null,
+    })
+    mockClinicLookup("c-1")
+    await pedir("?code=abc123")
+    expect(upsertGoogleIntegration).toHaveBeenCalledWith("u-1", "c-1", "rt-1")
+    expect(upsertMicrosoftIntegration).not.toHaveBeenCalled()
+  })
+
+  it("si quien loguea NO es el admin de la clínica, no vincula nada", async () => {
+    // Desde 0048_calendar_admin_redesign hay una sola cuenta por clínica (clinics.owner_id). Un vet
+    // sin ese rol puede tener refresh token (pidió el scope al loguear con Google), pero vincularlo
+    // dejaría una fila inerte y confundiría al resto del equipo.
+    exchangeCodeForSession.mockResolvedValue({
+      data: { user: USUARIO, session: { provider_refresh_token: "rt-1" } }, error: null,
+    })
+    mockClinicLookup("c-1", "otro-user")
+    await pedir("?code=abc123")
+    expect(upsertGoogleIntegration).not.toHaveBeenCalled()
+    expect(upsertMicrosoftIntegration).not.toHaveBeenCalled()
+  })
+})
+
+describe("vinculación de Outlook Calendar", () => {
+  it("un login con Microsoft (provider azure) vincula por upsertMicrosoftIntegration", async () => {
+    exchangeCodeForSession.mockResolvedValue({
+      data: {
+        user: { ...USUARIO, app_metadata: { provider: "azure" } },
+        session: { provider_refresh_token: "rt-2" },
+      },
+      error: null,
+    })
+    mockClinicLookup("c-1")
+    const res = await pedir("?code=abc123&next=%2Fdashboard%2Fcalendario")
+    expect(upsertMicrosoftIntegration).toHaveBeenCalledWith("u-1", "c-1", "rt-2")
+    expect(upsertGoogleIntegration).not.toHaveBeenCalled()
+    expect(res.headers.get("location")).toBe("https://app.tuvetia.com/dashboard/calendario")
   })
 })

@@ -36,6 +36,7 @@ import {
   APPOINTMENT_STATUS,
   APPOINTMENT_STATUS_ORDER,
   type AppointmentStatus,
+  type PatientOption,
   type SelectOption,
 } from "@/lib/appointments"
 
@@ -53,6 +54,7 @@ export type AppointmentFormInitial = {
   vet_id?: string | null
   notes?: string
   google_event_id?: string | null
+  microsoft_event_id?: string | null
 }
 
 // ISO -> valor de <input type="datetime-local"> (hora local del navegador).
@@ -74,11 +76,11 @@ export function CreateAppointmentDrawer({
   open: boolean
   onOpenChange: (o: boolean) => void
   initial: AppointmentFormInitial
-  patients: SelectOption[]
+  patients: PatientOption[]
   owners: SelectOption[]
   vets: SelectOption[]
   onSaved: (appointmentId: string) => void
-  onDeleted: (googleEventId: string | null) => void
+  onDeleted: (googleEventId: string | null, microsoftEventId: string | null) => void
 }) {
   const isMobile = useIsMobile()
   const isEdit = Boolean(initial.id)
@@ -86,16 +88,38 @@ export function CreateAppointmentDrawer({
   const [loading, setLoading] = useState(false)
   const [deleting, setDeleting] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [ownerMismatch, setOwnerMismatch] = useState<string | null>(null)
 
-  const [title, setTitle] = useState(initial.title ?? "")
   const [status, setStatus] = useState<AppointmentStatus>(initial.status ?? "scheduled")
   const [startsAt, setStartsAt] = useState(toInput(initial.starts_at))
   const [endsAt, setEndsAt] = useState(toInput(initial.ends_at))
   const [patientId, setPatientId] = useState(initial.patient_id ?? NONE)
   const [ownerId, setOwnerId] = useState(initial.owner_id ?? NONE)
   const [vetId, setVetId] = useState(initial.vet_id ?? NONE)
-  const [reason, setReason] = useState(initial.reason ?? "")
+  // El motivo hace también de título del evento (summary de Google/Outlook) — un solo campo, no dos
+  // que dijeran casi lo mismo. Si se edita una cita vieja sin motivo (p.ej. un evento traído por
+  // pull, que solo tiene título), se siembra desde el título para no arrancar en blanco.
+  const [reason, setReason] = useState(initial.reason ?? initial.title ?? "")
   const [notes, setNotes] = useState(initial.notes ?? "")
+
+  // Elegir un paciente completa el titular automáticamente. Si ya había un titular elegido y el
+  // paciente que se intenta elegir no es suyo, se bloquea (no se cambia patientId) y se explica por
+  // qué — pedido explícito: "si ese paciente no está relacionado al titular... no lo permite".
+  function handlePatientChange(id: string) {
+    if (id === NONE) {
+      setPatientId(NONE)
+      setOwnerMismatch(null)
+      return
+    }
+    const patient = patients.find((p) => p.id === id)
+    if (ownerId !== NONE && patient && patient.ownerId !== ownerId) {
+      setOwnerMismatch("Ese paciente no pertenece al titular seleccionado.")
+      return
+    }
+    setPatientId(id)
+    setOwnerMismatch(null)
+    if (patient?.ownerId) setOwnerId(patient.ownerId)
+  }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -110,15 +134,32 @@ export function CreateAppointmentDrawer({
       setError("La cita debe terminar después de empezar")
       return
     }
+    if (patientId === NONE) {
+      setError("Elegí el paciente")
+      return
+    }
+    if (ownerId === NONE) {
+      setError("Elegí el titular")
+      return
+    }
+    if (vetId === NONE) {
+      setError("Elegí el veterinario")
+      return
+    }
+    const reasonTrimmed = reason.trim()
+    if (!reasonTrimmed) {
+      setError("Escribí el motivo de la cita")
+      return
+    }
     setLoading(true)
     const args = {
-      p_title: title.trim(),
+      p_title: reasonTrimmed,
       p_starts_at: startsIso,
       p_ends_at: endsIso,
-      p_patient_id: patientId === NONE ? null : patientId,
-      p_owner_id: ownerId === NONE ? null : ownerId,
-      p_vet_id: vetId === NONE ? null : vetId,
-      p_reason: reason.trim() || null,
+      p_patient_id: patientId,
+      p_owner_id: ownerId,
+      p_vet_id: vetId,
+      p_reason: reasonTrimmed,
       p_status: status,
       p_notes: notes.trim() || null,
     }
@@ -148,7 +189,7 @@ export function CreateAppointmentDrawer({
     }
     toast.success("Cita eliminada")
     onOpenChange(false)
-    onDeleted(initial.google_event_id ?? null)
+    onDeleted(initial.google_event_id ?? null, initial.microsoft_event_id ?? null)
   }
 
   return (
@@ -164,16 +205,6 @@ export function CreateAppointmentDrawer({
           className="flex flex-col gap-4 overflow-y-auto px-4 text-sm"
         >
           <FieldGroup>
-            <Field>
-              <FieldLabel htmlFor="appt-title">Título</FieldLabel>
-              <Input
-                id="appt-title"
-                value={title}
-                onChange={(e) => setTitle(e.target.value)}
-                required
-                placeholder="Control, vacunación…"
-              />
-            </Field>
             <div className="grid grid-cols-2 gap-4">
               <Field>
                 <FieldLabel htmlFor="appt-start">Inicio</FieldLabel>
@@ -198,13 +229,13 @@ export function CreateAppointmentDrawer({
             </div>
             <Field>
               <FieldLabel htmlFor="appt-patient">Paciente</FieldLabel>
-              <Select value={patientId} onValueChange={(v) => setPatientId((v as string) ?? NONE)}>
+              <Select value={patientId} onValueChange={(v) => handlePatientChange((v as string) ?? NONE)}>
                 <SelectTrigger id="appt-patient" className="w-full">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectGroup>
-                    <SelectItem value={NONE}>Sin paciente</SelectItem>
+                    <SelectItem value={NONE}>Elegí un paciente</SelectItem>
                     {patients.map((p) => (
                       <SelectItem key={p.id} value={p.id}>
                         {p.label}
@@ -213,17 +244,24 @@ export function CreateAppointmentDrawer({
                   </SelectGroup>
                 </SelectContent>
               </Select>
+              {ownerMismatch && <FieldDescription className="text-destructive">{ownerMismatch}</FieldDescription>}
             </Field>
             <div className="grid grid-cols-2 gap-4">
               <Field>
                 <FieldLabel htmlFor="appt-owner">Titular</FieldLabel>
-                <Select value={ownerId} onValueChange={(v) => setOwnerId((v as string) ?? NONE)}>
+                <Select
+                  value={ownerId}
+                  onValueChange={(v) => {
+                    setOwnerId((v as string) ?? NONE)
+                    setOwnerMismatch(null)
+                  }}
+                >
                   <SelectTrigger id="appt-owner" className="w-full">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
                     <SelectGroup>
-                      <SelectItem value={NONE}>Sin titular</SelectItem>
+                      <SelectItem value={NONE}>Elegí un titular</SelectItem>
                       {owners.map((o) => (
                         <SelectItem key={o.id} value={o.id}>
                           {o.label}
@@ -232,6 +270,7 @@ export function CreateAppointmentDrawer({
                     </SelectGroup>
                   </SelectContent>
                 </Select>
+                <FieldDescription>Se completa solo al elegir el paciente.</FieldDescription>
               </Field>
               <Field>
                 <FieldLabel htmlFor="appt-vet">Veterinario</FieldLabel>
@@ -241,7 +280,7 @@ export function CreateAppointmentDrawer({
                   </SelectTrigger>
                   <SelectContent>
                     <SelectGroup>
-                      <SelectItem value={NONE}>Sin asignar</SelectItem>
+                      <SelectItem value={NONE}>Elegí un veterinario</SelectItem>
                       {vets.map((v) => (
                         <SelectItem key={v.id} value={v.id}>
                           {v.label}
@@ -250,6 +289,7 @@ export function CreateAppointmentDrawer({
                     </SelectGroup>
                   </SelectContent>
                 </Select>
+                <FieldDescription>Queda citado en su calendario, como una invitación.</FieldDescription>
               </Field>
             </div>
             <Field>
@@ -278,7 +318,8 @@ export function CreateAppointmentDrawer({
                 id="appt-reason"
                 value={reason}
                 onChange={(e) => setReason(e.target.value)}
-                placeholder="Motivo de la cita"
+                required
+                placeholder="Control, vacunación…"
               />
             </Field>
             <Field>

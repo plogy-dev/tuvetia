@@ -1,9 +1,9 @@
 import { NextResponse } from "next/server"
 
 import { createClient } from "@/lib/supabase/server"
-import { pushAppointment } from "@/lib/google-calendar"
+import { pushAppointment } from "@/lib/microsoft-calendar"
 
-// Empuja una cita al Google Calendar del ADMIN de la clínica (crea o actualiza el evento, con el
+// Empuja una cita al Outlook Calendar del ADMIN de la clínica (crea o actualiza el evento, con el
 // titular y el vet asignado como invitados). No-op si el admin no conectó.
 export async function POST(req: Request) {
   const supabase = await createClient()
@@ -18,8 +18,8 @@ export async function POST(req: Request) {
   }
 
   try {
-    const googleEventId = await pushAppointment(body.appointment_id)
-    return NextResponse.json({ google_event_id: googleEventId })
+    const microsoftEventId = await pushAppointment(body.appointment_id)
+    return NextResponse.json({ microsoft_event_id: microsoftEventId })
   } catch (e) {
     return NextResponse.json({ error: (e as Error).message }, { status: 502 })
   }
