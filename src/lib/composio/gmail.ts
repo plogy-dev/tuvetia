@@ -161,6 +161,74 @@ export type ResultadoTool =
   | { ok: true; data: unknown }
   | { ok: false; error: string; sinConectar?: boolean }
 
+/** Un correo, ya normalizado para la bandeja. */
+export interface CorreoBandeja {
+  id: string
+  threadId: string
+  de: string
+  para: string
+  asunto: string
+  preview: string
+  fecha: string
+  /** Lo que salió de esta cuenta, para pintarlo del otro lado de la conversación. */
+  esPropio: boolean
+  leido: boolean
+  adjuntos: number
+}
+
+type MensajeGmail = {
+  messageId?: string
+  threadId?: string
+  sender?: string
+  to?: string
+  subject?: string
+  preview?: { body?: string }
+  messageText?: string
+  messageTimestamp?: string
+  labelIds?: string[]
+  attachmentList?: unknown[]
+}
+
+function normalizar_(m: MensajeGmail): CorreoBandeja {
+  const labels = m.labelIds ?? []
+  return {
+    id: m.messageId ?? "",
+    threadId: m.threadId ?? m.messageId ?? "",
+    de: m.sender ?? "(desconocido)",
+    para: m.to ?? "",
+    asunto: m.subject ?? "(sin asunto)",
+    preview: (m.preview?.body ?? m.messageText ?? "").slice(0, 200),
+    fecha: m.messageTimestamp ?? new Date().toISOString(),
+    // Gmail etiqueta lo enviado con SENT: es más fiable que comparar direcciones, porque el vet
+    // puede tener alias y el `sender` viene como "Nombre <correo>".
+    esPropio: labels.includes("SENT"),
+    leido: !labels.includes("UNREAD"),
+    adjuntos: (m.attachmentList ?? []).length,
+  }
+}
+
+/**
+ * Trae correos de la cuenta del miembro, ya normalizados.
+ *
+ * Se lee EN VIVO contra Gmail en vez de mantener una copia en nuestra base. Es lo que evita todo
+ * el aparato que hacía falta antes —barrido periódico, deduplicación, hilado, realtime— y, sobre
+ * todo, evita guardar el correo de la clínica en nuestros servidores: menos superficie bajo la Ley
+ * 1581. La contrapartida es que la bandeja tarda lo que tarde Gmail en responder.
+ */
+export async function listarBandeja(
+  userId: string,
+  opciones: { query?: string; limite?: number } = {},
+): Promise<{ ok: true; correos: CorreoBandeja[] } | { ok: false; error: string; sinConectar?: boolean }> {
+  const r = await ejecutarGmail(userId, GMAIL_TOOLS.buscar, {
+    max_results: opciones.limite ?? 25,
+    ...(opciones.query ? { query: opciones.query } : {}),
+  })
+  if (!r.ok) return r
+  const data = r.data as { messages?: MensajeGmail[] } | undefined
+  const correos = (data?.messages ?? []).map(normalizar_)
+  return { ok: true, correos }
+}
+
 /**
  * Ejecuta una tool de Gmail con la cuenta de ese miembro.
  *

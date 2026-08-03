@@ -11,9 +11,8 @@ decisión de arquitectura, no un detalle de implementación.
 **La regla en una línea:** si el correo lo manda *el sistema*, va por Resend; si lo manda *una
 persona* (o Athos por ella), va por Composio con la cuenta de esa persona.
 
-> **Estado:** Composio ya está conectado a Athos — el veterinario conecta su Gmail en Conexiones y
-> Athos lee y escribe con esa cuenta. Falta migrar la **bandeja** de Comunicaciones, que todavía se
-> llena por IMAP; hasta que eso pase, el camino viejo sigue en pie. Ver §Qué falta.
+> **Estado:** los dos caminos están en pie y verificados contra las APIs reales. El de SMTP/IMAP por
+> cuenta se retiró por completo.
 
 ---
 
@@ -133,19 +132,27 @@ generar una contraseña de 16 caracteres, pegarla). OAuth es un clic.
    distingue un fallo de red o un 429 —reintentable— de uno de configuración, que reintentar no
    arregla.
 
-## Qué falta
+## La bandeja se lee EN VIVO
 
-**Migrar la bandeja de Comunicaciones → Correo a Composio.** Hoy se llena con el barrido IMAP
-(`src/lib/email/inbox.ts`), que todavía usa la conexión por App Password. Cuando pase a Composio se
-retira todo el camino viejo:
+Comunicaciones → Correo consulta Gmail cuando se abre la página. **No hay copia en nuestra base:**
+ni tablas de correo, ni barrido periódico, ni realtime.
 
-- `src/lib/email/{smtp,imap,integrations,actions,send-user-email,inbox,sync}.ts`
-- `src/components/settings/email-settings.tsx` (el formulario de App Password)
-- Las tablas `email_integrations` e `invoice_email_threads`
-- Los dos barridos IMAP colgados del cron de cartera
+Antes sí la había (`email_threads`/`email_messages`, llenadas por IMAP) y el precio era alto: un
+cursor que mantener, deduplicación, hilado, y el correo entero de la clínica guardado en nuestros
+servidores — superficie bajo Ley 1581 que no hacía falta. El costo de leer en vivo es esperar a
+Gmail al abrir; a cambio desaparece todo ese aparato.
 
-El orden importa: **primero se verifica que Composio funcione con una cuenta real, después se
-borra lo anterior.** Al revés, un Auth Config mal configurado deja a Athos sin ningún camino.
+Se muestra el comienzo de cada correo, con enlace para abrirlo completo en Gmail.
+
+## Lo que ya se retiró
+
+`src/lib/email/{imap,inbox,send-user-email,sync}.ts`, la ruta `/api/email/sync` y los barridos IMAP
+del cron. La conexión por App Password dejó de usarse para el correo del miembro.
+
+**Se perdió una cosa, a propósito:** la lectura automática de respuestas a facturas. Clasificaba la
+intención del cliente, guardaba el comprobante adjunto y creaba la tarea de verificación. Las
+facturas ahora salen con Reply-To al administrador y **él lee las respuestas en su correo, como
+cualquier persona**. Los comprobantes que llegan por **WhatsApp** se siguen capturando solos.
 
 **Se pierde una cosa, y es a propósito:** la lectura automática de respuestas a facturas. Hoy
 `sync.ts` lee el buzón institucional, clasifica la intención del cliente (promesa de pago, disputa),
@@ -162,9 +169,19 @@ RESEND_API_KEY=            # API key de Resend (server, nunca NEXT_PUBLIC_)
 TRANSACTIONAL_FROM_EMAIL=vet@tuvetia.com
 
 # Correo de Athos (Composio)
-COMPOSIO_API_KEY=          # API key del proyecto en Composio
+COMPOSIO_API_KEY=          # necesita permiso de ESCRITURA sobre connected_accounts
 COMPOSIO_GMAIL_AUTH_CONFIG_ID=   # ac_... del Auth Config de Gmail
 ```
+
+Dos cosas que costaron un rato descubrir, ambas verificadas contra la API real:
+
+- La API key necesita **escritura** sobre `connected_accounts`. Con una de solo lectura se pueden
+  listar cuentas pero no crear ninguna, y el error del SDK ("Failed to create connected account
+  link") no lo dice — ya viene traducido en
+  [`composio/gmail.ts`](src/lib/composio/gmail.ts).
+- Ejecutar una tool exige declarar la **versión del toolkit, con fecha**: `"latest"` no sirve para
+  ejecución manual. Está fijada en el código y se puede pisar con
+  `COMPOSIO_GMAIL_TOOLKIT_VERSION` para probar una nueva sin desplegar.
 
 **Antes del primer envío hay que verificar el dominio en Resend** (registros SPF y DKIM de
 `tuvetia.com`). Sin eso Resend rechaza con *"domain is not verified"* — el error ya viene traducido a
