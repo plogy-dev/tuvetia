@@ -33,7 +33,7 @@ export default async function ConexionesPage() {
 
   const composioListo = composioConfigurado()
 
-  const [{ data: wa }, { data: emailRow }, { data: cal }, correoAthos, calendarioAthos, { data: clinica }] =
+  const [{ data: wa }, { data: emailRow }, { data: cal }, correoAthos, { data: clinica }] =
     await Promise.all([
     supabase.from("whatsapp_integrations").select("status, phone_number, agent_mode").maybeSingle(),
     // Cuenta INSTITUCIONAL de la clínica: la que manda facturas y cobranza (user_id null).
@@ -57,14 +57,20 @@ export default async function ConexionesPage() {
     user && composioListo
       ? estadoConexion(user.id)
       : Promise.resolve({ conectado: false, proveedor: null, email: null }),
-    // El calendario de Google, que ahora vive en Composio.
-    user
-      ? estadoCalendario(user.id)
-      : Promise.resolve({ conectado: false, proveedor: null as "google" | null }),
-    // ¿Quien mira es el administrador de la clínica? De eso depende que su calendario sea el que
-    // recibe las citas — o que conectarlo no sirva de nada, que es peor no decirlo.
+    // De quién es el calendario de la clínica: su administrador. Con eso se resuelve tanto si quien
+    // mira puede conectarlo como el estado que se le muestra.
     user ? supabase.from("clinics").select("owner_id").maybeSingle() : Promise.resolve({ data: null }),
   ])
+
+  const administrador = (clinica as { owner_id: string | null } | null)?.owner_id ?? null
+  const esAdministrador = Boolean(user && administrador && administrador === user.id)
+
+  // El estado que importa es el del calendario DE LA CLÍNICA —el del administrador—, no el de quien
+  // está mirando. Un veterinario que abre esta página necesita saber si las citas están llegando a
+  // algún lado; su propia conexión no cambia nada desde que el evento vive en el del administrador.
+  const calendarioClinica = administrador
+    ? await estadoCalendario(administrador)
+    : { conectado: false, proveedor: null as "google" | null }
 
   const waRow = wa as {
     status: "pending" | "connected" | "disconnected"
@@ -72,11 +78,9 @@ export default async function ConexionesPage() {
     agent_mode: "auto" | "review" | "paused" | "intervene"
   } | null
   const email = emailRow as EmailIntegrationView | null
-  // Un usuario tiene UN calendario. Google manda porque es el camino nuevo: si alguien quedó con
-  // una fila vieja de Outlook y además conectó Google, lo que va a recibir las citas es Google.
-  const esAdministrador =
-    Boolean(user) && (clinica as { owner_id: string | null } | null)?.owner_id === user!.id
-  const calendarConnected: CalendarProvider | null = calendarioAthos.conectado
+  // Google manda porque es el camino nuevo: si alguien quedó con una fila vieja de Outlook y además
+  // conectó Google, lo que va a recibir las citas es Google.
+  const calendarConnected: CalendarProvider | null = calendarioClinica.conectado
     ? "google"
     : (((cal as { provider: string } | null)?.provider ?? null) as CalendarProvider | null)
 
@@ -150,7 +154,9 @@ export default async function ConexionesPage() {
               ? calendarConnected
                 ? "Las citas de la clínica se crean en tu calendario, con el titular y el veterinario invitados."
                 : "Sos el administrador: conectá tu calendario para que las citas de la clínica se creen ahí, invitando al titular y al veterinario asignado."
-              : "Las citas de la clínica se crean en el calendario del administrador. Cuando te asignen una, te llega la invitación por correo — no hace falta que conectes el tuyo."}
+              : calendarConnected
+                ? "Las citas de la clínica se crean en el calendario del administrador. Cuando te asignen una, te llega la invitación por correo — no hace falta que conectes el tuyo."
+                : "El administrador todavía no conectó el calendario de la clínica, así que las citas quedan sólo en Tuvetia y nadie recibe invitación. Pedile que lo conecte desde esta misma pantalla."}
           </p>
           {esAdministrador && <CalendarSettings connected={calendarConnected} />}
         </section>
