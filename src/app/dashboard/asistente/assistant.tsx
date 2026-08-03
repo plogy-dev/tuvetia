@@ -14,6 +14,7 @@ import { toast } from "sonner"
 
 import { renderInline, splitBlocks } from "@/components/athos/rich-text"
 import { ActionApprovalCard } from "@/components/athos/action-approval-card"
+import { ConnectEmailCard } from "@/components/athos/connect-email-card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
@@ -46,7 +47,20 @@ const READ_TOOL_LABELS: Record<string, string> = {
   get_clinic_hours: "los horarios de la clínica",
   list_available_slots: "los cupos disponibles",
   search_whatsapp_conversation: "la conversación de WhatsApp",
+  search_emails: "tu correo",
+  read_email_thread: "el hilo de correo",
   search_clinical_evidence: "la literatura veterinaria",
+}
+
+/**
+ * ¿La tool falló porque falta conectar una cuenta?
+ *
+ * Es un fallo con SOLUCIÓN, no un error a informar: se rinde como tarjeta con el botón de conectar
+ * en vez de una línea gris que el vet no puede accionar.
+ */
+function necesitaConexion(output: unknown): boolean {
+  if (!output || typeof output !== "object") return false
+  return (output as { needs_connection?: unknown }).needs_connection === "gmail"
 }
 
 // Salida de una tool de ESCRITURA: la acción quedó registrada como PROPUESTA (ver
@@ -132,6 +146,13 @@ function ToolPartView({ part }: { part: ToolUIPart }) {
               status: "proposed",
             }}
           />
+        </div>
+      )
+    }
+    if (necesitaConexion(part.output)) {
+      return (
+        <div className="py-1.5">
+          <ConnectEmailCard />
         </div>
       )
     }
