@@ -31,11 +31,11 @@ function apiKey(): string {
   return key
 }
 
-async function evo<T>(path: string, init?: RequestInit): Promise<T> {
+async function evo<T>(path: string, init?: RequestInit, timeoutMs = TIMEOUT_MS): Promise<T> {
   const res = await fetch(`${baseUrl()}${path}`, {
     ...init,
     headers: { apikey: apiKey(), "Content-Type": "application/json", ...(init?.headers ?? {}) },
-    signal: AbortSignal.timeout(TIMEOUT_MS),
+    signal: AbortSignal.timeout(timeoutMs),
   })
   if (!res.ok) {
     const body = await res.text().catch(() => "")
@@ -117,12 +117,21 @@ export async function getOwnerPhone(instanceName: string): Promise<string | null
 }
 
 // Presencia "escribiendo…" — parte de la cadencia humana. Best-effort.
+//
+// TIMEOUT CORTO Y PROPIO. Con los 20 s de todo lo demás, un Evolution inalcanzable hacía que el vet
+// esperara CUARENTA segundos por un fallo: veinte acá y veinte en el envío de verdad. Medido en vivo
+// el 2026-08-03. Y es la peor espera posible, porque este paso es decorativo: si la presencia no
+// sale, el mensaje se manda igual. Cinco segundos alcanzan de sobra para algo que corre antes de un
+// delay de tipeo de 1,2–3,5 s, y recortan a la mitad lo que tarda en fallar.
+const TIMEOUT_PRESENCIA_MS = 5_000
+
 export async function sendComposing(instanceName: string, number: string, delayMs: number): Promise<void> {
   try {
-    await evo(`/chat/sendPresence/${encodeURIComponent(instanceName)}`, {
-      method: "POST",
-      body: JSON.stringify({ number, presence: "composing", delay: delayMs }),
-    })
+    await evo(
+      `/chat/sendPresence/${encodeURIComponent(instanceName)}`,
+      { method: "POST", body: JSON.stringify({ number, presence: "composing", delay: delayMs }) },
+      TIMEOUT_PRESENCIA_MS,
+    )
   } catch {
     // opcional por diseño
   }
