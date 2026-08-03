@@ -9,32 +9,23 @@
 // diario para servir a un caso nuevo — el riesgo no compensa. Acá se reusa lo que SÍ está pensado
 // para reusarse y ya está probado embebido fuera del chat: el mismo endpoint del agente
 // (`/api/athos/agent`), `rich-text` para el formato y `ActionApprovalCard` para las propuestas
-// (que ya vive también dentro de la bandeja de WhatsApp).
+// (que ya vive también dentro de la bandeja de WhatsApp). El render del hilo se mudó a
+// `athos/athos-mensajes.tsx` cuando el widget global lo necesitó — era la tercera copia.
 //
 // El agente propone y el vet aprueba, igual que en el resto del producto: nada de lo que Athos
 // sugiera acá se ejecuta solo.
 
 import { useEffect, useRef, useState } from "react"
 import { useChat } from "@ai-sdk/react"
-import { DefaultChatTransport, getToolName as getStaticToolName, type ToolUIPart } from "ai"
+import { DefaultChatTransport } from "ai"
 import { Bot, Loader2, SendHorizontal } from "lucide-react"
 import { toast } from "sonner"
 
-import { ActionApprovalCard } from "@/components/athos/action-approval-card"
-import { renderInline, splitBlocks } from "@/components/athos/rich-text"
+import { AthosMensajes } from "@/components/athos/athos-mensajes"
 import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
 
 const transport = new DefaultChatTransport({ api: "/api/athos/agent" })
-
-/** Igual que en el asistente: una tool de ESCRITURA devuelve la acción ya registrada como propuesta. */
-function asProposed(output: unknown): { action_id: string; summary: string } | null {
-  if (!output || typeof output !== "object") return null
-  const o = output as Record<string, unknown>
-  return typeof o.action_id === "string" && o.status === "proposed" && typeof o.summary === "string"
-    ? { action_id: o.action_id, summary: o.summary }
-    : null
-}
 
 const SUGERENCIAS = [
   "¿Qué es el Modo Fantasma?",
@@ -102,61 +93,7 @@ export function OnboardingAthos({ clinicName }: { clinicName: string }) {
           </div>
         )}
 
-        {messages.map((m) => (
-          <div key={m.id} className={m.role === "user" ? "flex justify-end" : ""}>
-            {m.role === "user" ? (
-              <div className="max-w-[85%] rounded-2xl rounded-br-sm bg-primary px-3 py-2 text-sm text-primary-foreground">
-                {m.parts.map((p, i) => (p.type === "text" ? <span key={i}>{p.text}</span> : null))}
-              </div>
-            ) : (
-              <div className="space-y-1.5">
-                {m.parts.map((p, i) => {
-                  if (p.type === "text") {
-                    return (
-                      <div
-                        key={i}
-                        className="rounded-2xl rounded-tl-sm border bg-muted/50 px-3 py-1 text-sm leading-relaxed"
-                      >
-                        {splitBlocks(p.text).map((blk, j) => (
-                          <div key={j} className="border-b border-border/60 py-2 last:border-b-0 last:pb-0">
-                            {renderInline(blk.text, [], `${m.id}-${i}-${j}`)}
-                          </div>
-                        ))}
-                      </div>
-                    )
-                  }
-                  if (p.type.startsWith("tool-")) {
-                    const part = p as ToolUIPart
-                    if (part.state === "output-available") {
-                      const prop = asProposed(part.output)
-                      if (prop) {
-                        return (
-                          <ActionApprovalCard
-                            key={i}
-                            action={{
-                              id: prop.action_id,
-                              tool_name: String(getStaticToolName(part)),
-                              summary: prop.summary,
-                              payload: (part.input ?? {}) as Record<string, unknown>,
-                              status: "proposed",
-                            }}
-                          />
-                        )
-                      }
-                      return null
-                    }
-                    return (
-                      <div key={i} className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                        <Loader2 className="size-3 animate-spin" /> Consultando…
-                      </div>
-                    )
-                  }
-                  return null
-                })}
-              </div>
-            )}
-          </div>
-        ))}
+        <AthosMensajes messages={messages} />
 
         {busy && (
           <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
