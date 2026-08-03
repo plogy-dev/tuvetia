@@ -85,7 +85,42 @@ for f in supabase/migrations/*.sql; do psql "...misma URL..." -v ON_ERROR_STOP=1
 
 El shim crea el mínimo de Supabase que el esquema asume (`auth.users`, `auth.uid()`, los roles
 `anon`/`authenticated`/`service_role`) para que el SQL del repo aplique tal cual en un Postgres
-pelado. Secuencia verificada contra `pgvector:pg16`.
+pelado.
+
+> **Esta secuencia estuvo ROTA entre el 2026-07-27 y el 2026-08-02, y conviene saber por qué.**
+>
+> La `0022` empieza con `alter table public.memberships …` sobre una tabla que **ningún archivo del
+> repo creaba**: nació aplicada a mano al principal y nunca se escribió. Con `ON_ERROR_STOP=1` el
+> bucle moría ahí, así que **las 32 migraciones siguientes nunca se ejecutaron desde cero** — y
+> levantar un dev nuevo era imposible, aunque este documento dijera lo contrario.
+>
+> Lo cierra `0021b_objetos_que_nadie_crea.sql`, que crea los cuatro objetos huérfanos
+> (`memberships`, el tipo `clinic_role`, y las RPC `create_owner`/`create_patient`) y es un no-op
+> exacto sobre cualquier base donde ya existan.
+>
+> Si el bucle vuelve a morir en un `alter`/`revoke` sobre algo que no existe, es el mismo patrón:
+> un objeto aplicado a mano que nunca entró al repo. La forma de detectarlos es cruzar los
+> `alter table` / `drop policy` / `revoke on function` contra los `create` de `bootstrap/` +
+> `migrations/`.
+
+**El registro de migraciones NO describe el estado real, y no sirve para saber qué falta.** Medido
+el 2026-08-02 contra el principal: `supabase_migrations.schema_migrations` tiene 56 filas contra 53
+archivos — 10 archivos aplicados sin registrar, 13 filas sin archivo, y 11 números que significan
+cosas distintas acá y allá (`"0022"` en el registro es `security_hardening`; en el repo es
+`multi_clinic_memberships`). O sea que `supabase migration list` contra el principal miente en las
+dos direcciones, y `db push` re-aplicaría 10 migraciones — entre ellas la del índice HNSW, que son
+4 GB.
+
+Lo único que dice la verdad es la introspección del catálogo:
+
+```sql
+-- tablas          → pg_class / pg_namespace
+-- columnas        → information_schema.columns
+-- funciones       → md5(regexp_replace(prosrc,'\s+','','g')) y comparar contra el archivo
+-- índices         → pg_index / pg_class
+-- policies        → pg_policy
+-- realtime        → pg_publication_rel
+```
 
 **Cuál usar:** el dev remoto es más fiel (misma RLS y mismos tipos que producción) y es lo que el CI
 prefiere si el secreto está puesto. El local sirve para iterar rápido y como red cuando el dev no
