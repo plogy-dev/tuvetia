@@ -25,7 +25,9 @@ type NoteH = {
   objective: string | null
   assessment: string | null
   plan: string | null
-  ai_model: string | null
+  // El id del modelo (`ai_model`) no se trae: la nota la firma Athos, no el motor. Ver el comentario
+  // largo en `dashboard/consultas/[id]/page.tsx`.
+  ai_generated_at: string | null
   allergy_gate_triggered: boolean
 }
 // full_text es opcional: el server ya solo manda metadata (id, created_at) y el texto se trae
@@ -326,9 +328,9 @@ export function PatientConsultationHistory({
                       </div>
                     )
                   })}
-                  {note.ai_model && (
+                  {note.ai_generated_at && (
                     <p className="flex items-center gap-1 text-xs text-muted-foreground">
-                      <Sparkles className="size-3" /> Redactada por {note.ai_model}
+                      <Sparkles className="size-3" /> Redactada por Athos
                     </p>
                   )}
                 </>

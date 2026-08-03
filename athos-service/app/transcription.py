@@ -76,7 +76,11 @@ def _call_deepgram(audio: bytes, mime: str = "audio/webm") -> dict[str, Any]:
     """Transcribe con Deepgram Nova: español, diarización, puntuación."""
     api_key = _settings_value("deepgram_api_key", "DEEPGRAM_API_KEY")
     if not api_key:
-        raise HTTPException(status_code=500, detail="falta DEEPGRAM_API_KEY")
+        # El `detail` de una HTTPException llega TAL CUAL al toast del vet (`lib/athos.ts` lo
+        # superficia a propósito), así que no puede nombrar al proveedor ni a su variable de
+        # entorno. Lo que el operador necesita va al log; al vet, qué le pasó y qué hacer.
+        log.error("falta DEEPGRAM_API_KEY: la transcripción no puede correr")
+        raise HTTPException(status_code=500, detail="la transcripción no está configurada en el servidor")
     model = _settings_value("stt_model", "STT_MODEL", "nova-2")
     params = {
         "model": model,
@@ -89,7 +93,10 @@ def _call_deepgram(audio: bytes, mime: str = "audio/webm") -> dict[str, Any]:
     with httpx.Client(timeout=300) as client:
         resp = client.post(DEEPGRAM_URL, params=params, headers=headers, content=audio)
     if resp.status_code != 200:
-        raise HTTPException(status_code=502, detail=f"Deepgram respondió {resp.status_code}: {resp.text[:200]}")
+        # Mismo motivo que arriba, y acá era peor: además del nombre del proveedor se arrastraban
+        # 200 caracteres de su cuerpo crudo hasta el navegador del vet.
+        log.error("Deepgram respondió %s: %s", resp.status_code, resp.text[:500])
+        raise HTTPException(status_code=502, detail=f"no se pudo transcribir el audio ({resp.status_code})")
     return resp.json()
 
 

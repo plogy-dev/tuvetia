@@ -20,6 +20,7 @@ import {
   type LineInput,
   type ValidationIssue,
 } from '@/lib/facturacion/domain/invoice';
+import { finDelDiaBogota } from '@/lib/date-utils';
 import { computeInvoiceTotals } from '@/lib/facturacion/domain/money';
 import {
   deriveFollowupStatus,
@@ -284,7 +285,9 @@ export async function refreshInvoiceStatus(
   const derived = deriveStatus(events, {
     now,
     totalCents: detail.invoice.total_cents,
-    dueDate: detail.invoice.due_date ? new Date(detail.invoice.due_date) : null,
+    // `due_date` es una columna DATE: `new Date('2026-08-15')` daba medianoche UTC = 19:00 del 14 en
+    // Bogotá, y la factura se marcaba VENCIDA 29 horas antes. Vence al TERMINAR el día 15.
+    dueDate: detail.invoice.due_date ? finDelDiaBogota(detail.invoice.due_date) : null,
   });
   // 4ª dimensión: el seguimiento se deriva del recaudo + los insumos del motor
   // de cartera: tarea humana abierta, canales revocados y envíos hechos.
@@ -366,33 +369,69 @@ async function insertPaymentWithApplication(
     paymentAmountCents: args.amountCents,
   });
 
-  const { data: payment, error: payErr } = await supabase
-    .from('payments')
-    .insert({
-      clinic_id: clinicId,
-      created_by: args.createdBy ?? null,
+  // RESERVA ATÓMICA antes de insertar nada.
+  //
+  // `applyPaymentToInvoice` valida el sobrepago contra `alreadyPaidCents`, que se LEYÓ antes — es un
+  // TOCTOU. Dos pestañas con la misma factura abierta, ambas "Registrar pago" del saldo completo:
+  // las dos leían 0, las dos pasaban la validación, y quedaban dos filas en `payments` con
+  // `paid_cents = 2×total`. El badge decía "Pagada", el doble ingreso entraba a Finanzas, y NO había
+  // vuelta atrás: `payments/actions.ts` se niega a borrar un pago ya aplicado.
+  //
+  // El compare-and-set sobre `paid_cents` deja pasar a una sola. El valor que escribe acá es
+  // provisional: `refreshInvoiceStatus` lo recalcula después desde `payment_applications`, que es la
+  // fuente de verdad. Esto es un cerrojo, no un cálculo.
+  const { data: reserva, error: resErr } = await supabase
+    .from('invoices')
+    .update({ paid_cents: args.alreadyPaidCents + application.appliedCents })
+    .eq('id', args.invoiceId)
+    .eq('clinic_id', clinicId)
+    .eq('paid_cents', args.alreadyPaidCents)
+    .select('id');
+  if (resErr) throw new Error(`No se pudo registrar el pago: ${resErr.message}`);
+  if (!reserva || reserva.length === 0) {
+    throw new Error(
+      'Otro pago de esta factura se registró al mismo tiempo. Recargá para ver el saldo real antes de volver a cobrar.',
+    );
+  }
+
+  try {
+    const { data: payment, error: payErr } = await supabase
+      .from('payments')
+      .insert({
+        clinic_id: clinicId,
+        created_by: args.createdBy ?? null,
+        method: args.method,
+        amount_cents: args.amountCents,
+        reference: args.reference ?? null,
+        note: args.note ?? null,
+        received_at: now.toISOString(),
+      })
+      .select('id')
+      .single();
+    if (payErr) throw new Error(`No se pudo registrar el pago: ${payErr.message}`);
+
+    const { error: appErr } = await supabase.from('payment_applications').insert({
+      payment_id: (payment as { id: string }).id,
+      invoice_id: args.invoiceId,
+      amount_cents: application.appliedCents,
+    });
+    if (appErr) throw new Error(`No se pudo aplicar el pago: ${appErr.message}`);
+
+    await appendEvent(supabase, args.invoiceId, 'PAYMENT_APPLIED', {
+      amountCents: application.appliedCents,
       method: args.method,
-      amount_cents: args.amountCents,
-      reference: args.reference ?? null,
-      note: args.note ?? null,
-      received_at: now.toISOString(),
-    })
-    .select('id')
-    .single();
-  if (payErr) throw new Error(`No se pudo registrar el pago: ${payErr.message}`);
-
-  const { error: appErr } = await supabase.from('payment_applications').insert({
-    payment_id: (payment as { id: string }).id,
-    invoice_id: args.invoiceId,
-    amount_cents: application.appliedCents,
-  });
-  if (appErr) throw new Error(`No se pudo aplicar el pago: ${appErr.message}`);
-
-  await appendEvent(supabase, args.invoiceId, 'PAYMENT_APPLIED', {
-    amountCents: application.appliedCents,
-    method: args.method,
-  });
-  return application;
+    });
+    return application;
+  } catch (e) {
+    // La reserva no llegó a usarse: devolver el contador a lo que estaba, o la factura queda
+    // marcada como cobrada sin que exista el pago — peor que el fallo original.
+    await supabase
+      .from('invoices')
+      .update({ paid_cents: args.alreadyPaidCents })
+      .eq('id', args.invoiceId)
+      .eq('clinic_id', clinicId);
+    throw e;
+  }
 }
 
 // ─── Rango de numeración (auto-crea sandbox si no hay) ───────────────────────
@@ -422,6 +461,31 @@ async function ensureActiveRange(
     .single();
   if (error) throw new Error(`No se pudo crear el rango sandbox: ${error.message}`);
   return data as NumberingRangeRow;
+}
+
+/**
+ * ¿El rango avanzó respecto de `numeroAntes`? O sea: ¿la RPC de numeración alcanzó a commitear?
+ *
+ * Existe porque un fallo de red y un "rango agotado" llegan a `postgrest-js` de la misma forma —los
+ * dos como `error`— y la diferencia decide si se puede deshacer la emisión o no. Preguntarle a la
+ * base es determinístico; parsear el mensaje de error, no.
+ *
+ * Si esta consulta TAMBIÉN falla, devuelve `true`: ante la duda se asume que el número se consumió.
+ * Es el lado seguro — deja una factura que hay que revisar a mano, en vez de un salto silencioso en
+ * la numeración fiscal.
+ */
+async function elRangoAvanzo(
+  supabase: SupabaseClient,
+  rangeId: string,
+  numeroAntes: number,
+): Promise<boolean> {
+  const { data, error } = await supabase
+    .from('numbering_ranges')
+    .select('current_number')
+    .eq('id', rangeId)
+    .maybeSingle<{ current_number: number }>();
+  if (error || !data) return true;
+  return data.current_number > numeroAntes;
 }
 
 // ─── Emisión ─────────────────────────────────────────────────────────────────
@@ -566,6 +630,17 @@ export async function issueInvoice(
         )
       : null;
 
+  // El rango va ANTES del claim, y ese orden es el arreglo.
+  //
+  // `ensureActiveRange` puede fallar —su INSERT choca contra `numbering_ranges_active_uniq` si dos
+  // emisiones concurrentes de una clínica sin rango— y corría DESPUÉS de pasar la factura a
+  // EMITIENDO. Como el único rollback que existía era el del error de numeración, esa excepción
+  // dejaba la factura en EMITIENDO PARA SIEMPRE: `issueInvoice` la rechaza por no estar en BORRADOR,
+  // `discardDraft` también, y `InvoiceActionsPanel` no le pinta ningún botón. Ni se emite ni se
+  // descarta. Corriendo antes, si falla la factura ni siquiera entró a ese estado.
+  const range = await ensureActiveRange(supabase, clinicId, invoice.doc_kind, req.createdBy);
+  const numeroAntes = range.current_number;
+
   // Guarda optimista: solo UN caller pasa el borrador a EMITIENDO.
   const { data: claimed, error: claimErr } = await supabase
     .from('invoices')
@@ -580,13 +655,28 @@ export async function issueInvoice(
   }
 
   // Consecutivo: atómico y NUNCA reutilizado (aunque algo falle después).
-  const range = await ensureActiveRange(supabase, clinicId, invoice.doc_kind, req.createdBy);
   const { data: numberData, error: numErr } = await supabase.rpc(
     'facturacion_assign_next_number',
     { p_range_id: range.id },
   );
   if (numErr) {
-    // Devolver el borrador para que el vet pueda reintentar (no se asignó número).
+    // NO se deshace a ciegas. postgrest-js devuelve los fallos de RED en `error`, igual que un
+    // "rango agotado": desde acá los dos se ven idénticos. Si la RPC alcanzó a hacer COMMIT y sólo
+    // se perdió la respuesta, volver a BORRADOR hace que el vet reintente y queme un SEGUNDO número
+    // — y el primero queda como un salto permanente en la numeración, que en Colombia es un problema
+    // fiscal, no cosmético.
+    //
+    // Así que se pregunta a la base qué pasó de verdad, en vez de adivinar por el mensaje.
+    const consumido = await elRangoAvanzo(supabase, range.id, numeroAntes);
+    if (consumido) {
+      console.error(
+        `[facturacion] la factura ${invoice.id} consumió un consecutivo del rango ${range.id} y no se pudo confirmar. Queda en EMITIENDO a propósito: revisar antes de reintentar.`,
+        numErr,
+      );
+      throw new Error(
+        'El consecutivo se asignó pero no se pudo confirmar la emisión. No reintentes: avisá al equipo para no saltar un número de la numeración.',
+      );
+    }
     await supabase
       .from('invoices')
       .update({ status: 'BORRADOR' })
@@ -639,7 +729,25 @@ export async function issueInvoice(
     })
     .eq('id', invoice.id)
     .eq('clinic_id', clinicId);
-  if (updErr) throw new Error(`No se pudo marcar la emisión: ${updErr.message}`);
+  if (updErr) {
+    // Acá el consecutivo YA está consumido. Volver a BORRADOR sería lo peor que se puede hacer: el
+    // vet reintenta, quema otro número, y el primero queda como salto permanente. Se reintenta el
+    // update una vez —el caso típico es un corte de red, no un dato inválido— y si tampoco, se deja
+    // el número escrito para que la factura sea recuperable en vez de perdida.
+    const { error: reintentoErr } = await supabase
+      .from('invoices')
+      .update({ numbering_range_id: range.id, number, full_number: fullNumber })
+      .eq('id', invoice.id)
+      .eq('clinic_id', clinicId);
+    console.error(
+      `[facturacion] la factura ${invoice.id} tomó el consecutivo ${fullNumber} y no se pudo marcar EMITIDA. Queda en EMITIENDO con su número escrito: se completa a mano, NO se reemite.`,
+      updErr,
+      reintentoErr ?? '',
+    );
+    throw new Error(
+      `La factura tomó el número ${fullNumber} pero no se pudo cerrar la emisión. No la reemitas: avisá al equipo para completarla sin saltar el consecutivo.`,
+    );
+  }
   await appendEvent(supabase, invoice.id, 'ISSUED', { number, fullNumber });
 
   // Inventario: descuento al emitir (decisión de producto heredada de Vetnia).

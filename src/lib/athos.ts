@@ -1,5 +1,6 @@
 // Cliente del microservicio Athos (RAG clínico). Llama /athos/chat (SSE) y /athos/phantom/suggest
 // con el JWT de Supabase del usuario. La URL base viene de NEXT_PUBLIC_ATHOS_URL.
+import { sinNombresDeProveedor } from "@/lib/sin-proveedores"
 import { createClient } from "@/lib/supabase/client"
 
 const ATHOS_URL = process.env.NEXT_PUBLIC_ATHOS_URL ?? ""
@@ -13,6 +14,23 @@ async function authHeaders(): Promise<Record<string, string>> {
     "Content-Type": "application/json",
     ...(session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {}),
   }
+}
+
+// Arma el mensaje que ve el vet a partir de una respuesta fallida del microservicio.
+//
+// El `detail` de FastAPI se superficia a propósito: sin él el toast sólo decía "Athos respondió
+// 500" y escondía la causa real (falta una credencial, la consulta no tiene audio, el usuario no
+// pertenece a la clínica). Pero se superficia TACHADO — llegó a traer el nombre del proveedor de
+// transcripción y 200 caracteres de su cuerpo crudo. Ver `lib/sin-proveedores.ts` para por qué el
+// arreglo de origen no alcanza.
+async function mensajeDeError(res: Response): Promise<string> {
+  const detail = await res
+    .clone()
+    .json()
+    .then((b) => (b as { detail?: string })?.detail)
+    .catch(() => null)
+  const limpio = detail ? sinNombresDeProveedor(detail) : ""
+  return `Athos respondió ${res.status}${limpio ? `: ${limpio}` : ""}`
 }
 
 export type Citation = {
@@ -141,16 +159,7 @@ export async function athosTranscribe(params: {
       clinic_id: params.clinicId,
     }),
   })
-  if (!res.ok) {
-    // Superficiar el `detail` de FastAPI: sin esto el toast solo decía "Athos respondió 500"
-    // y ocultaba la causa real (falta DEEPGRAM_API_KEY / SUPABASE_URL, Deepgram 4xx, etc.).
-    const detail = await res
-      .clone()
-      .json()
-      .then((b) => (b as { detail?: string })?.detail)
-      .catch(() => null)
-    throw new Error(`Athos respondió ${res.status}${detail ? `: ${detail}` : ""}`)
-  }
+  if (!res.ok) throw new Error(await mensajeDeError(res))
   return (await res.json()) as TranscribeResponse
 }
 
@@ -174,13 +183,6 @@ export async function athosWhatsappSuggest(params: {
       messages: params.messages,
     }),
   })
-  if (!res.ok) {
-    const detail = await res
-      .clone()
-      .json()
-      .then((b) => (b as { detail?: string })?.detail)
-      .catch(() => null)
-    throw new Error(`Athos respondió ${res.status}${detail ? `: ${detail}` : ""}`)
-  }
+  if (!res.ok) throw new Error(await mensajeDeError(res))
   return (await res.json()) as WhatsappSuggestResponse
 }

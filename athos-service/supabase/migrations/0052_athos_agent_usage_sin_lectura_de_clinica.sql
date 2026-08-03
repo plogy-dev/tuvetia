@@ -1,0 +1,22 @@
+-- La telemetría del agente deja de ser legible por la clínica.
+--
+-- `athos_agent_usage` (0046) guarda `provider`, `model` y `fell_back_from`: los ids crudos del
+-- proveedor y del modelo que respondieron. Con la policy de 0046, un miembro de la clínica podía
+-- leer sus propias filas — no por una pantalla, sino pidiéndoselas directo a PostgREST con su
+-- propio token. Desde hoy ningún nombre de modelo puede llegar a un usuario, así que esa lectura
+-- sobra.
+--
+-- Y sobra en el sentido literal: NADIE la usa. Verificado sobre el árbol antes de escribir esto —
+-- las únicas dos consultas a la tabla en todo `src/` son `lib/athos-agent/usage.ts`, que INSERTA
+-- con service_role, y `lib/admin/metrics.ts`, que lee con service_role para el panel /admin. El
+-- propio comentario de 0046 ya decía que /admin "lee con service_role, que se salta RLS a
+-- propósito", así que quitar la policy no le cambia nada al panel.
+--
+-- Sin policy de SELECT y con RLS habilitada, la tabla queda cerrada a todo lo que no sea
+-- service_role — el mismo régimen que ya tienen INSERT y UPDATE desde 0046.
+drop policy if exists "athos_agent_usage_select" on public.athos_agent_usage;
+
+-- Comprobación (opcional, para correr a mano después de aplicarla):
+--   select count(*) from pg_policies
+--   where schemaname = 'public' and tablename = 'athos_agent_usage';
+-- Tiene que devolver 0.

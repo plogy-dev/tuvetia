@@ -21,7 +21,7 @@ import {
   localWeekday,
   TZ_OFFSET,
 } from "./agenda"
-import { ejecutarGmail, GMAIL_TOOLS } from "@/lib/composio/gmail"
+import { ejecutarGmail, estadoConexion, GMAIL_TOOLS } from "@/lib/composio/gmail"
 
 type SB = SupabaseClient
 
@@ -37,6 +37,27 @@ function escapeLike(q: string): string {
 }
 
 // ─── Tools ───────────────────────────────────────────────────────────────────
+
+/**
+ * ¿Falta conectar el correo? Devuelve el resultado a mostrar, o null si está todo bien.
+ *
+ * Se comprueba ANTES de proponer, no al ejecutar. Si no, Athos redactaría el correo, el vet lo
+ * aprobaría, y recién ahí se enteraría de que no tiene la cuenta conectada — habiendo perdido el
+ * texto y sin entender por qué falló.
+ */
+async function faltaCorreoConectado(
+  userId: string | null,
+): Promise<{ error: string; needs_connection?: string } | null> {
+  if (!userId) {
+    return { error: "El correo se envía con la cuenta del veterinario, y este turno no tiene una." }
+  }
+  const { conectado } = await estadoConexion(userId)
+  if (conectado) return null
+  return {
+    error: "Todavía no conectaste tu correo, así que no puedo enviarlo por vos.",
+    needs_connection: "gmail",
+  }
+}
 
 export function buildAthosTools(supabase: SB, ctx: AgentContext) {
   return {
@@ -251,7 +272,9 @@ export function buildAthosTools(supabase: SB, ctx: AgentContext) {
           query,
           max_results: limit ?? 10,
         })
-        if (!r.ok) return { error: r.error }
+        // `needs_connection` NO es decorativo: la UI del chat lo usa para mostrar una tarjeta con
+        // el botón de conectar, en vez de una línea de error que el vet no puede accionar.
+        if (!r.ok) return r.sinConectar ? { error: r.error, needs_connection: "gmail" } : { error: r.error }
         return { messages: r.data }
       },
     }),
@@ -273,7 +296,7 @@ export function buildAthosTools(supabase: SB, ctx: AgentContext) {
           query: `thread:${thread_id}`,
           max_results: limit ?? 20,
         })
-        if (!r.ok) return { error: r.error }
+        if (!r.ok) return r.sinConectar ? { error: r.error, needs_connection: "gmail" } : { error: r.error }
         return { thread_id, messages: r.data }
       },
     }),
@@ -400,27 +423,32 @@ export function buildAthosTools(supabase: SB, ctx: AgentContext) {
         body: z.string().min(1).max(5000).describe("Cuerpo en texto plano"),
         owner_id: z.string().uuid().nullable().optional(),
       }),
-      execute: async ({ to_email, subject, body, owner_id }) =>
-        proposeAction(
+      execute: async ({ to_email, subject, body, owner_id }) => {
+        const falta = await faltaCorreoConectado(ctx.userId)
+        if (falta) return falta
+        return proposeAction(
           ctx,
           "send_email",
           { to_email: to_email.trim().toLowerCase(), subject, body, owner_id: owner_id ?? null },
           `Enviar correo a ${to_email}: "${subject}"`,
           { ownerId: owner_id ?? null },
-        ),
+        )
+      },
     }),
 
     reply_email: tool({
       description:
-        "PROPONE responder DENTRO de un hilo de correo existente (el vet aprueba/edita en la tarjeta). Lee el hilo con read_email_thread antes de redactar. El destinatario y el asunto los resuelve Gmail a partir del hilo.",
+        "PROPONE responder DENTRO de un hilo de correo existente (el vet aprueba/edita en la tarjeta). Lee el hilo con read_email_thread ANTES de redactar: de ahí sacás el destinatario y el asunto, que tenés que pasar vos. `to_email` debe ser una dirección que YA participa del hilo — al aprobar se verifica contra Gmail y si no participa la respuesta no sale. Para escribirle a alguien nuevo usá send_email.",
       inputSchema: z.object({
         thread_id: z.string().describe("id del hilo de Gmail, de search_emails o read_email_thread"),
         to_email: z.string().email().describe("A quién responde, tomado del hilo"),
         subject: z.string().min(1).max(200).describe("Asunto del hilo (con Re: si corresponde)"),
         body: z.string().min(1).max(5000).describe("Cuerpo de la respuesta, en texto plano"),
       }),
-      execute: async ({ thread_id, to_email, subject, body }) =>
-        proposeAction(
+      execute: async ({ thread_id, to_email, subject, body }) => {
+        const falta = await faltaCorreoConectado(ctx.userId)
+        if (falta) return falta
+        return proposeAction(
           ctx,
           "reply_email",
           { thread_id, to_email: to_email.trim().toLowerCase(), subject, body },
@@ -428,7 +456,8 @@ export function buildAthosTools(supabase: SB, ctx: AgentContext) {
           // La tarjeta se cuelga del HILO, no de la conversación donde se pidió: es en la bandeja
           // de correo donde el vet la va a buscar.
           { conversationKey: thread_id },
-        ),
+        )
+      },
     }),
 
     create_appointment: tool({

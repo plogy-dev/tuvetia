@@ -31,6 +31,15 @@ vi.mock("@/lib/supabase/admin", () => ({
   }),
 }))
 
+// Las tools de correo consultan Composio antes de proponer (para no hacer redactar un correo que
+// después no se puede enviar). Se intercepta: `correoConectado` decide qué contesta.
+let correoConectado = true
+vi.mock("@/lib/composio/gmail", () => ({
+  estadoConexion: async () => ({ conectado: correoConectado, email: "vet@ejemplo.com" }),
+  ejecutarGmail: async () => ({ ok: true, data: {} }),
+  GMAIL_TOOLS: { enviar: "GMAIL_SEND_EMAIL", buscar: "GMAIL_FETCH_EMAILS" },
+}))
+
 const { proposeAction } = await import("../actions")
 const { buildAthosTools, localToIso } = await import("../tools")
 
@@ -60,6 +69,7 @@ const fakeSupabase = {
 beforeEach(() => {
   inserted.length = 0
   insertError = null
+  correoConectado = true
 })
 
 describe("proposeAction — invariantes que sostienen la aprobación humana", () => {
@@ -149,6 +159,25 @@ describe("inventario de tools — cobertura y separación lectura/escritura", ()
   it("cada tool declara un inputSchema (el modelo no manda campos libres)", () => {
     for (const [nombre, t] of Object.entries(tools)) {
       expect((t as { inputSchema?: unknown }).inputSchema, nombre).toBeDefined()
+    }
+  })
+
+  // Sin cuenta conectada, redactar el correo sería trabajo tirado: el vet lo aprueba y recién ahí
+  // se entera de que no se puede enviar, habiendo perdido el texto. Se avisa ANTES de proponer.
+  it("las tools de correo NO proponen si el vet no conectó su cuenta", async () => {
+    correoConectado = false
+    for (const nombre of ["send_email", "reply_email"] as const) {
+      inserted.length = 0
+      const t = tools[nombre] as unknown as { execute: (a: unknown) => Promise<unknown> }
+      const r = (await t.execute({
+        to_email: "ana@ejemplo.com",
+        subject: "Control",
+        body: "Hola",
+        thread_id: "18f9c2a4b7e1d3f0",
+      })) as Record<string, unknown>
+      expect(inserted.length, `${nombre} no debería proponer sin cuenta`).toBe(0)
+      // La marca que hace que el chat muestre la tarjeta de conectar en vez de una línea de error.
+      expect(r.needs_connection, nombre).toBe("gmail")
     }
   })
 

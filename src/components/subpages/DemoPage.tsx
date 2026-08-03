@@ -1,6 +1,11 @@
 "use client";
 
 import { useEffect, useState, type FormEvent } from "react";
+import Image from "next/image";
+// Import estático a propósito, sin `fill`: el CSS de `.demo-bg img` ya fuerza
+// `width:100%;height:100%;object-fit:cover`, así que pisa las medidas intrínsecas y el layout queda
+// exactamente igual que con el <img> crudo. `fill` habría cambiado el posicionamiento del elemento.
+import demoBg from "@/public/media/demo.png";
 import { initSubpage } from "@/lib/landing/subpage";
 import { v } from "@/lib/landing/vars";
 import { buildWaLink, MEET_SCHEDULING_URL } from "@/lib/landing/contact";
@@ -85,7 +90,7 @@ export default function DemoPage() {
       <div className="pg pg-demo">
         <section className="demo in">
           <div className="demo-bg">
-            <img src="/media/demo.png" alt="" fetchPriority="high" />
+            <Image src={demoBg} alt="" priority sizes="100vw" placeholder="blur" />
           </div>
 
           <div className="wrap">

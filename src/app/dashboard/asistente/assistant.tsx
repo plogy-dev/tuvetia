@@ -14,6 +14,8 @@ import { toast } from "sonner"
 
 import { renderInline, splitBlocks } from "@/components/athos/rich-text"
 import { ActionApprovalCard } from "@/components/athos/action-approval-card"
+import { ConnectEmailCard } from "@/components/athos/connect-email-card"
+import { PendingActions } from "@/components/athos/pending-actions"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
@@ -46,7 +48,20 @@ const READ_TOOL_LABELS: Record<string, string> = {
   get_clinic_hours: "los horarios de la clínica",
   list_available_slots: "los cupos disponibles",
   search_whatsapp_conversation: "la conversación de WhatsApp",
+  search_emails: "tu correo",
+  read_email_thread: "el hilo de correo",
   search_clinical_evidence: "la literatura veterinaria",
+}
+
+/**
+ * ¿La tool falló porque falta conectar una cuenta?
+ *
+ * Es un fallo con SOLUCIÓN, no un error a informar: se rinde como tarjeta con el botón de conectar
+ * en vez de una línea gris que el vet no puede accionar.
+ */
+function necesitaConexion(output: unknown): boolean {
+  if (!output || typeof output !== "object") return false
+  return (output as { needs_connection?: unknown }).needs_connection === "gmail"
 }
 
 // Salida de una tool de ESCRITURA: la acción quedó registrada como PROPUESTA (ver
@@ -69,10 +84,27 @@ function outputError(output: unknown): string | null {
 
 // Bloques de texto del asistente con el formato de siempre (rich-text compartido). El agente cita
 // las fuentes en el propio texto, así que renderInline va sin lista de citas.
+/**
+ * Quita las marcas `[[propuesto:…]]` que se persisten con el turno.
+ *
+ * Son contexto PARA EL MODELO —le muestran que ese turno sí llamó una herramienta, y no solo lo
+ * dijo— pero no son contenido para el veterinario. Ver `turnoAGuardar` en conversacion.ts.
+ */
+function sinMarcas(texto: string): string {
+  return texto
+    .replace(/\s*\[\[propuesto:[a-z_,]+\]\]/g, "")
+    // `sanearHistorial` agrega esta segunda marca a los turnos VIEJOS que afirmaban una propuesta
+    // sin haberla registrado. Igual que la otra: contexto para el modelo, invisible para el vet.
+    .replace(/\s*\[\[sin-propuesta:[^\]]*\]\]/g, "")
+    .trim()
+}
+
 function TextBlocks({ text, kp }: { text: string; kp: string }) {
+  const limpio = sinMarcas(text)
+  if (!limpio) return null
   return (
     <div className="rounded-2xl rounded-tl-sm border bg-muted/50 px-4 py-1 text-sm leading-relaxed">
-      {splitBlocks(text).map((blk, j) =>
+      {splitBlocks(limpio).map((blk, j) =>
         blk.heading ? (
           <div key={j} className="pt-3 pb-1 text-[13px] font-semibold tracking-tight">
             {renderInline(blk.text, [], `${kp}h${j}`)}
@@ -132,6 +164,13 @@ function ToolPartView({ part }: { part: ToolUIPart }) {
               status: "proposed",
             }}
           />
+        </div>
+      )
+    }
+    if (necesitaConexion(part.output)) {
+      return (
+        <div className="py-1.5">
+          <ConnectEmailCard />
         </div>
       )
     }
@@ -377,6 +416,10 @@ export function Assistant({
             No se pudo consultar a Athos: {error.message}
           </div>
         )}
+
+        {/* Lo que quedó esperando aprobación, leído de athos_actions. Las tarjetas del streaming
+            se pierden al recargar (solo se persiste el texto del turno); esto no. */}
+        <PendingActions recargarToken={messages.length} />
       </div>
 
       {/* Composer */}

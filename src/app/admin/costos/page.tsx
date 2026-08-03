@@ -1,5 +1,5 @@
 import { loadPlatformMetrics, daysAgo, since, countBy } from "@/lib/admin/metrics"
-import { PRICING, costoAnthropic, fmtUsd } from "@/lib/admin/pricing"
+import { PRICING, costoTokens, fmtUsd } from "@/lib/admin/pricing"
 import {
   Table,
   TableBody,
@@ -40,22 +40,45 @@ export default async function AdminCostosPage() {
   // ── Agente de Next: costo REAL por tokens (migración 0046) ────────────────────────────────────
   // Este consumo era INVISIBLE hasta ahora: el agente con herramientas, la sugerencia de WhatsApp,
   // el modo auto y la visión de facturas llaman a Anthropic desde Next y no dejaban rastro.
-  const porModeloAgente = new Map<string, { llamadas: number; tin: number; tout: number }>()
+  // Se agrupa por (PROVEEDOR, modelo), no sólo por modelo: la tarifa depende de quién cobra, y con
+  // la cascada activa el mismo turno puede haberlo respondido cualquiera de los tres.
+  const porModeloAgente = new Map<
+    string,
+    { provider: string | null; model: string; llamadas: number; tin: number; tout: number }
+  >()
   for (const u of usage30) {
-    const cur = porModeloAgente.get(u.model) ?? { llamadas: 0, tin: 0, tout: 0 }
+    const clave = `${u.provider ?? "?"}·${u.model}`
+    const cur = porModeloAgente.get(clave) ?? {
+      provider: u.provider ?? null,
+      model: u.model,
+      llamadas: 0,
+      tin: 0,
+      tout: 0,
+    }
     cur.llamadas += 1
     cur.tin += u.tokens_in ?? 0
     cur.tout += u.tokens_out ?? 0
-    porModeloAgente.set(u.model, cur)
+    porModeloAgente.set(clave, cur)
   }
-  const lineasAgente = [...porModeloAgente.entries()]
-    .map(([modelo, v]) => ({
-      concepto: `Agente Next · ${modelo}`,
-      detalle: `${v.llamadas} llamadas · ${(v.tin / 1000).toFixed(1)}k in / ${(v.tout / 1000).toFixed(1)}k out — costo real`,
-      costo: costoAnthropic(modelo, v.tin, v.tout),
-    }))
+  const lineasAgente = [...porModeloAgente.values()]
+    .map((v) => {
+      const { usd, tarifado } = costoTokens(v.provider, v.model, v.tin, v.tout)
+      const tokens = `${(v.tin / 1000).toFixed(1)}k in / ${(v.tout / 1000).toFixed(1)}k out`
+      return {
+        concepto: `Agente Next · ${v.model}`,
+        detalle: tarifado
+          ? `${v.llamadas} llamadas · ${tokens} — costo real`
+          : `${v.llamadas} llamadas · ${tokens} — SIN TARIFA CARGADA para ${v.provider ?? "proveedor desconocido"}, no suma al total`,
+        costo: usd,
+      }
+    })
     .sort((a, b) => b.costo - a.costo)
   const agenteCost = lineasAgente.reduce((s, l) => s + l.costo, 0)
+  // Cuántas llamadas quedaron fuera del total por falta de tarifa. Es lo que convierte el total en
+  // una cifra honesta: sin esto, un proveedor sin tarifa se vería como "gastó cero".
+  const sinTarifa = [...porModeloAgente.values()].filter(
+    (v) => !costoTokens(v.provider, v.model, 0, 0).tarifado,
+  )
   const respaldos30 = usage30.filter((u) => u.fell_back_from).length
 
   const retrievalCost = retrievals30.length * PRICING.coherePerRetrieval
@@ -90,7 +113,7 @@ export default async function AdminCostosPage() {
         .reduce((s, x) => s + (x.duration_secs ?? 0), 0) / 60
       const agente = since(m.agentUsage.filter((x) => x.clinic_id === c.id), d30)
       const agenteC = agente.reduce(
-        (s, u) => s + costoAnthropic(u.model, u.tokens_in ?? 0, u.tokens_out ?? 0),
+        (s, u) => s + costoTokens(u.provider, u.model, u.tokens_in ?? 0, u.tokens_out ?? 0).usd,
         0,
       )
       return {
@@ -117,6 +140,17 @@ export default async function AdminCostosPage() {
           tokens. La factura real vive en cada proveedor.
         </p>
       </div>
+
+      {sinTarifa.length > 0 && (
+        <div className="rounded-lg border border-amber-500/40 bg-amber-500/10 p-3 text-sm">
+          <b>El total está incompleto.</b> Hay consumo de{" "}
+          {[...new Set(sinTarifa.map((v) => v.provider ?? "proveedor desconocido"))].join(", ")} sin
+          tarifa por token cargada, así que esas llamadas se listan pero <b>no suman</b>. Se cargan en{" "}
+          <code>TOKENS_POR_MILLON</code> de <code>src/lib/admin/pricing.ts</code>. Van vacías a
+          propósito: antes se cobraban a tarifa de Anthropic —del orden de 10× de más para DeepSeek—
+          bajo un rótulo que dice «costo real».
+        </div>
+      )}
 
       {m.agentUsage.length === 0 && (
         <div className="rounded-lg border border-amber-500/40 bg-amber-500/10 p-3 text-sm">

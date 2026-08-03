@@ -11,18 +11,36 @@
 // La página los muestra por separado a propósito: mezclarlos daría una cifra que parece exacta y no
 // lo es. Pendiente anotado en ESTADO.md: loguear tokens también en `rag_answer_log`.
 
-/** Tarifas de Anthropic por millón de tokens. Verificadas 2026-08-01 contra la tabla de modelos. */
-export const ANTHROPIC_POR_MILLON: Record<string, { entrada: number; salida: number }> = {
+/**
+ * Tarifas por millón de tokens, POR PROVEEDOR.
+ *
+ * Antes esto era una sola tabla de Anthropic y `costoAnthropic` se le aplicaba a TODAS las filas de
+ * `athos_agent_usage`. Eso funcionaba mientras el agente sólo hablaba con Anthropic; desde que la
+ * cascada suma DeepSeek y Gemini, cada llamada de un modelo ajeno caía al default de $3/$15 y se
+ * cobraba a tarifa Sonnet — del orden de 10× de más para DeepSeek. Y la página rotula esa columna
+ * "costo real (tokens medidos)", que es la única línea del panel que dice no ser una estimación.
+ *
+ * `athos_agent_usage.provider` ya guardaba quién respondió; sólo faltaba mirarlo.
+ */
+export const TOKENS_POR_MILLON: Record<string, Record<string, { entrada: number; salida: number }>> = {
+  // Verificadas 2026-08-01 contra la tabla de modelos.
   // Claude Sonnet 5 tiene precio introductorio de $2/$10 hasta el 2026-08-31. Acá va el precio
   // PLENO a propósito: el panel sobreestima un poco este mes y no se rompe solo en septiembre.
-  "claude-sonnet-5": { entrada: 3, salida: 15 },
-  "claude-haiku-4-5": { entrada: 1, salida: 5 },
-  "claude-opus-5": { entrada: 5, salida: 25 },
-  "claude-opus-4-8": { entrada: 5, salida: 25 },
+  anthropic: {
+    "claude-sonnet-5": { entrada: 3, salida: 15 },
+    "claude-haiku-4-5": { entrada: 1, salida: 5 },
+    "claude-opus-5": { entrada: 5, salida: 25 },
+    "claude-opus-4-8": { entrada: 5, salida: 25 },
+  },
+  // 👤 PENDIENTE: las tarifas por token de DeepSeek y Gemini. Van vacías A PROPÓSITO.
+  //
+  // Poner una cifra aproximada acá sería repetir el defecto que este cambio arregla: un número
+  // inventado bajo un rótulo que dice "costo real" es peor que un hueco declarado. Mientras estén
+  // vacías, el panel muestra esas líneas como "sin tarifa cargada" y las deja fuera del total, que
+  // pasa a anunciarse como parcial. Se llenan con la página de precios de cada proveedor.
+  deepseek: {},
+  google: {},
 }
-
-/** Si un modelo no está en la tabla, se cobra como Sonnet: sobreestimar es mejor que ignorar. */
-export const ANTHROPIC_POR_DEFECTO = { entrada: 3, salida: 15 }
 
 export const PRICING = {
   // Estimación por llamada de generación de athos-service, POR MODELO. Antes era una tarifa única
@@ -84,8 +102,23 @@ export const PRICING = {
 export const fmtUsd = (n: number) =>
   n.toLocaleString("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 2 })
 
-/** Costo real de una tanda de tokens de Anthropic. */
-export function costoAnthropic(model: string, tokensIn: number, tokensOut: number): number {
-  const t = ANTHROPIC_POR_MILLON[model] ?? ANTHROPIC_POR_DEFECTO
-  return (tokensIn / 1_000_000) * t.entrada + (tokensOut / 1_000_000) * t.salida
+/**
+ * Costo real de una tanda de tokens, según quién los cobró.
+ *
+ * Devuelve `tarifado: false` cuando ese (proveedor, modelo) no tiene tarifa cargada, en vez de
+ * caer a la de otro. Quien llama decide qué hacer con eso — la página lo dice en la fila y no lo
+ * suma al total. Silenciar el hueco es lo que hacía que el panel mintiera con cara de exactitud.
+ */
+export function costoTokens(
+  provider: string | null,
+  model: string,
+  tokensIn: number,
+  tokensOut: number,
+): { usd: number; tarifado: boolean } {
+  const t = TOKENS_POR_MILLON[provider ?? ""]?.[model]
+  if (!t) return { usd: 0, tarifado: false }
+  return {
+    usd: (tokensIn / 1_000_000) * t.entrada + (tokensOut / 1_000_000) * t.salida,
+    tarifado: true,
+  }
 }

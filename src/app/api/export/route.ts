@@ -13,7 +13,9 @@ const TABLES: { name: string; columns: string }[] = [
   { name: "appointments", columns: "id, patient_id, owner_id, title, reason, status, starts_at, ends_at, notes, created_at" },
   { name: "consultations", columns: "id, patient_id, owner_id, status, chief_complaint, started_at, ended_at, created_at" },
   { name: "transcripts", columns: "id, consultation_id, full_text, language, created_at" },
-  { name: "clinical_notes", columns: "id, consultation_id, status, subjective, objective, assessment, plan, citations, allergy_gate_triggered, ai_model, ai_generated_at, approved_at, created_at" },
+  // Sin `ai_model`: el export se lo lleva el cliente, y el id crudo del motor no sale de casa.
+  // `ai_generated_at` sí va — dice que la redactó Athos, que es lo que el vet necesita saber.
+  { name: "clinical_notes", columns: "id, consultation_id, status, subjective, objective, assessment, plan, citations, allergy_gate_triggered, ai_generated_at, approved_at, created_at" },
   { name: "whatsapp_messages", columns: "id, owner_id, wa_phone_from, wa_phone_to, direction, body, media_type, created_at" },
 ]
 

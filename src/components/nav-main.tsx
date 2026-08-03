@@ -73,6 +73,22 @@ export function NavMain({
   return (
     <SidebarGroup>
       <SidebarGroupContent className="flex flex-col gap-2">
+        {/* Las secciones van PRIMERO y los botones debajo, como en el demo del cliente. Antes era al
+            revés. Athos encabeza esta lista: es el primer ítem, sin ningún rótulo de grupo. */}
+        <SidebarMenu>
+          {items.map((item) => (
+            <SidebarMenuItem key={item.title}>
+              <SidebarMenuButton
+                tooltip={item.title}
+                isActive={isNavActive(pathname, item.url)}
+                render={<a href={item.url} />}
+              >
+                {item.icon}
+                <span>{item.title}</span>
+              </SidebarMenuButton>
+            </SidebarMenuItem>
+          ))}
+        </SidebarMenu>
         {/* "Iniciar consulta" es la acción primaria del sidebar del cliente, y es la que abre el
             Modo Fantasma. Reusa el drawer que ya existía en la página de Consultas: sólo cambia
             dónde se monta. "Nuevo paciente" baja a segunda fila, y sigue estando en Pacientes. */}
@@ -95,20 +111,6 @@ export function NavMain({
             />
             <PendingProposalsButton />
           </SidebarMenuItem>
-        </SidebarMenu>
-        <SidebarMenu>
-          {items.map((item) => (
-            <SidebarMenuItem key={item.title}>
-              <SidebarMenuButton
-                tooltip={item.title}
-                isActive={isNavActive(pathname, item.url)}
-                render={<a href={item.url} />}
-              >
-                {item.icon}
-                <span>{item.title}</span>
-              </SidebarMenuButton>
-            </SidebarMenuItem>
-          ))}
         </SidebarMenu>
       </SidebarGroupContent>
     </SidebarGroup>

@@ -4,6 +4,7 @@ import { z } from "zod"
 import { createClient } from "@/lib/supabase/server"
 import {
   densidadClinica,
+  sanearHistorial,
   esConsultaClinica,
   preguntasDuplicadas,
   textoDe,
@@ -53,11 +54,22 @@ export async function POST(req: Request) {
 
   const { data: prof } = await supabase
     .from("profiles")
-    .select("clinic_id")
+    .select("clinic_id, full_name")
     .eq("id", user.id)
     .maybeSingle()
-  const clinicId = (prof as { clinic_id: string | null } | null)?.clinic_id
+  const perfil = prof as { clinic_id: string | null; full_name: string | null } | null
+  const clinicId = perfil?.clinic_id
   if (!clinicId) return new Response("El usuario no tiene clínica", { status: 400 })
+
+  // Athos firmaba los correos como "Veterinaria" a secas porque nunca supo el nombre de la clínica
+  // ni el del vet. Con esto puede firmar de verdad — y un correo a un titular tiene que decir de
+  // qué veterinaria viene, o parece spam.
+  const { data: clinica } = await supabase
+    .from("clinics")
+    .select("name")
+    .eq("id", clinicId)
+    .maybeSingle()
+  const clinicName = (clinica as { name: string } | null)?.name?.trim() || null
 
   const {
     data: { session },
@@ -97,13 +109,23 @@ export async function POST(req: Request) {
       : ""
 
   const system = `${ATHOS_AGENT_SYSTEM_PROMPT}\n\n# Contexto runtime\n\n- Fecha de hoy: ${todayISO} (hora de Colombia, UTC-5).${
+    clinicName
+      ? `\n- Clínica: **${clinicName}**. Es el nombre con el que firmás los correos y el que va en el asunto cuando ayuda — nunca "Veterinaria" a secas.`
+      : ""
+  }${
+    perfil?.full_name
+      ? `\n- Hablás con ${perfil.full_name}. Los correos salen de SU cuenta: la firma lleva su nombre y debajo el de la clínica.`
+      : ""
+  }${
     patientId ? `\n- Hay un paciente en contexto (id interno: ${patientId}) — usa get_patient_summary si lo necesitas.` : ""
   }${source === "inbox" ? "\n- Estás en la bandeja de WhatsApp: el objetivo típico es proponer una respuesta con send_whatsapp_message." : ""}${avisoDensidad}`
 
   const result = streamText({
     model: elegido.model,
     system,
-    messages: await convertToModelMessages(messages as UIMessage[]),
+    // `sanearHistorial` desactiva los turnos VIEJOS que dicen haber propuesto algo sin haberlo
+    // hecho: son los que le enseñaron el patrón al modelo, y siguen en la base.
+    messages: await convertToModelMessages(sanearHistorial(messages as UIMessage[])),
     maxOutputTokens: 2000,
     tools: buildAthosTools(supabase, ctx),
     stopWhen: stepCountIs(8),

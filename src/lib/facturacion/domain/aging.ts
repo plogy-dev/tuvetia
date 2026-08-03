@@ -28,15 +28,34 @@ function empty(): AgingBucket {
   return { amountCents: 0, count: 0 };
 }
 
-/** Días de vencimiento por CALENDARIO (>0 vencido) a la fecha `now`. Vencer hoy
- *  no cuenta como vencido todavía. */
+/** El día del calendario de Bogotá de un instante, como `YYYY-MM-DD`. (`en-CA` da ese formato.) */
+function diaEnBogota(now: Date): string {
+  return new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'America/Bogota',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).format(now);
+}
+
+/**
+ * Días de vencimiento por CALENDARIO (>0 vencido) a la fecha `now`. Vencer hoy no cuenta como
+ * vencido todavía.
+ *
+ * Las dos fechas se llevan al calendario de BOGOTÁ y se anclan a medianoche UTC para restar. Antes
+ * se usaban los getters locales del proceso (`T00:00:00` sin zona y `setHours(0,0,0,0)`), que es
+ * coherente consigo mismo pero depende de dónde corra: en Vercel el proceso está en UTC, así que a
+ * partir de las 19:00 hora Colombia `nowMid` ya había saltado al día siguiente y todo lo que vencía
+ * HOY aparecía con 1 día de mora. El anclaje de zona de `cartera/business-timezone.ts` sólo protege
+ * al proceso que lo importa, y la página de cartera es otra lambda.
+ */
 export function daysOverdue(dueDate: string | null, now: Date): number {
   if (!dueDate) return 0;
-  const due = new Date(`${dueDate.slice(0, 10)}T00:00:00`);
-  if (Number.isNaN(due.getTime())) return 0;
-  const nowMid = new Date(now);
-  nowMid.setHours(0, 0, 0, 0);
-  return Math.floor((nowMid.getTime() - due.getTime()) / MS_DAY);
+  const due = Date.parse(`${dueDate.slice(0, 10)}T00:00:00Z`);
+  const hoy = Date.parse(`${diaEnBogota(now)}T00:00:00Z`);
+  if (Number.isNaN(due) || Number.isNaN(hoy)) return 0;
+  // Los dos son medianoche UTC de su día de calendario: la resta da días enteros exactos.
+  return Math.floor((hoy - due) / MS_DAY);
 }
 
 export function computeAging(items: AgingInput[], now: Date): Aging {

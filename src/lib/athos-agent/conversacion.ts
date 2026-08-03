@@ -145,6 +145,73 @@ export type TurnoAGuardar = { role: "user" | "assistant"; content: string }
  * que guardar `messages` completo duplicaría todo el historial en cada mensaje. Se guarda el último
  * mensaje del vet y la respuesta que se acaba de generar.
  */
+/**
+ * Marca que en ESE turno se propuso algo de verdad. Se persiste junto al texto.
+ *
+ * POR QUÉ. El historial guarda solo texto, así que al recargar el modelo veía decenas de turnos
+ * suyos diciendo "te dejé propuesto el correo" SIN ninguna llamada a herramienta asociada — y
+ * aprendía de su propio historial que la respuesta a "enviá un correo" ES esa frase. Empezó a
+ * escribirla sin llamar la tool: el vet leía que había una propuesta y no existía ninguna.
+ *
+ * Con la marca, el historial muestra texto Y acción juntos. La UI la esconde al renderizar
+ * (ver `sinMarcas` en el asistente): es contexto para el modelo, no contenido para el vet.
+ */
+export const MARCA_PROPUESTA = /\[\[propuesto:([a-z_,]+)\]\]/
+
+/** Nombres de las tools de ESCRITURA que dejaron una propuesta registrada en este turno. */
+function toolsQuePropusieron(respuesta: UIMessage | undefined): string[] {
+  const nombres: string[] = []
+  for (const parte of respuesta?.parts ?? []) {
+    const p = parte as { type?: string; output?: unknown }
+    if (typeof p.type !== "string" || !p.type.startsWith("tool-")) continue
+    const salida = p.output as { action_id?: unknown; status?: unknown } | undefined
+    if (salida && typeof salida.action_id === "string" && salida.status === "proposed") {
+      nombres.push(p.type.slice("tool-".length))
+    }
+  }
+  return [...new Set(nombres)]
+}
+
+/**
+ * Frases con las que Athos manda a aprobar algo. Si aparecen SIN `[[propuesto:…]]`, ese turno
+ * afirma una acción que no se registró.
+ */
+const AFIRMA_PROPUESTA =
+  /\b(te dej[ée]|dej[ée]|te propuse|propuse|dej[ao] propuest|qued[óo] propuest)\b|\baprob[áa]l[oa] en la tarjeta\b|\ben la tarjeta\b/i
+
+/**
+ * Desactiva las afirmaciones de propuesta que NO tienen su marca.
+ *
+ * PARA QUÉ. `MARCA_PROPUESTA` arregla los turnos NUEVOS, pero los que ya están guardados no la
+ * llevan — al 2026-08-03 hay 16 así en producción. El modelo los sigue recibiendo al recargar un
+ * hilo viejo, y son justamente los que le enseñaron el patrón: "decí que dejaste la propuesta, sin
+ * llamar la tool". Arreglar el guardado no desarma lo ya guardado.
+ *
+ * Se hace al LEER y no reescribiendo `athos_messages` a propósito: esa tabla es historial clínico
+ * y no se toca para arreglar un defecto nuestro. Además cubre cualquier fila vieja, incluidas las
+ * de hilos que nadie abrió todavía.
+ *
+ * No borra el turno ni lo reescribe: le agrega una nota que el modelo lee como "acá NO hubo
+ * acción". Así el ejemplo deja de ser imitable — que es todo lo que se necesita.
+ */
+export function sanearHistorial(mensajes: UIMessage[]): UIMessage[] {
+  return mensajes.map((m) => {
+    if (m.role !== "assistant") return m
+    const texto = textoDe(m)
+    if (!texto || MARCA_PROPUESTA.test(texto) || !AFIRMA_PROPUESTA.test(texto)) return m
+    return {
+      ...m,
+      parts: [
+        ...(m.parts ?? []),
+        {
+          type: "text",
+          text: "\n\n[[sin-propuesta: este turno NO registró ninguna acción; no lo imites]]",
+        },
+      ],
+    } as UIMessage
+  })
+}
+
 export function turnoAGuardar(
   entrantes: UIMessage[],
   respuesta: UIMessage | undefined,
@@ -155,6 +222,10 @@ export function turnoAGuardar(
   if (preguntaTexto) turnos.push({ role: "user", content: preguntaTexto })
 
   const respuestaTexto = respuesta ? textoDe(respuesta) : ""
-  if (respuestaTexto) turnos.push({ role: "assistant", content: respuestaTexto })
+  if (respuestaTexto) {
+    const propuestas = toolsQuePropusieron(respuesta)
+    const marca = propuestas.length ? `\n\n[[propuesto:${propuestas.join(",")}]]` : ""
+    turnos.push({ role: "assistant", content: `${respuestaTexto}${marca}` })
+  }
   return turnos
 }
