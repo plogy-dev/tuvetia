@@ -5,6 +5,13 @@ import { verifySharedSecret } from "@/lib/whatsapp/verify"
 import { getOwnerPhone } from "@/lib/whatsapp/evolution"
 import { capturarMediaEvolution } from "@/lib/whatsapp/media"
 import { horaDelProveedor } from "@/lib/whatsapp/hora-del-proveedor"
+import {
+  esConversacionIndividual,
+  textoDeMensaje,
+  tipoDeMedia,
+  tiposDeContenido,
+  type EvoMessage,
+} from "@/lib/whatsapp/baileys-mensaje"
 import { routeInbound } from "@/lib/whatsapp/inbound-router"
 
 export const runtime = "nodejs"
@@ -20,20 +27,6 @@ export const maxDuration = 60 // after(): debounce del modo auto
 //    (protección: el agente jamás toca grupos).
 //  - connection.update: open → connected · close → disconnected (aviso en Configuración).
 
-type EvoMessage = {
-  key?: { remoteJid?: string; fromMe?: boolean; id?: string }
-  pushName?: string
-  messageTimestamp?: number | string
-  message?: {
-    conversation?: string
-    extendedTextMessage?: { text?: string }
-    imageMessage?: { caption?: string }
-    videoMessage?: { caption?: string }
-    audioMessage?: object
-    documentMessage?: { fileName?: string }
-    stickerMessage?: object
-  }
-}
 type EvoPayload = {
   event?: string
   instance?: string
@@ -41,23 +34,6 @@ type EvoPayload = {
 }
 
 const digits = (s: string) => s.replace(/\D/g, "")
-
-function textOf(m: EvoMessage): string | null {
-  const msg = m.message
-  if (!msg) return null
-  return msg.conversation ?? msg.extendedTextMessage?.text ?? msg.imageMessage?.caption ?? msg.videoMessage?.caption ?? null
-}
-
-function mediaTypeOf(m: EvoMessage): string | null {
-  const msg = m.message
-  if (!msg) return null
-  if (msg.imageMessage) return "image"
-  if (msg.videoMessage) return "video"
-  if (msg.audioMessage) return "audio"
-  if (msg.documentMessage) return "document"
-  if (msg.stickerMessage) return "sticker"
-  return null
-}
 
 export async function POST(req: Request, { params }: { params: Promise<{ token: string }> }) {
   const { token } = await params
@@ -77,13 +53,21 @@ export async function POST(req: Request, { params }: { params: Promise<{ token: 
   const instance = payload?.instance
   if (!payload || !event || !instance) return NextResponse.json({ ok: true, ignored: true })
 
+  // Una línea por evento recibido. Es la única forma de distinguir "Evolution no nos manda
+  // messages.upsert" de "nos lo manda y lo estamos tirando", que desde la base se ven idénticos
+  // (cero mensajes en las dos). Sin contenido: sólo el nombre del evento y la instancia.
+  console.info(`evolution/webhook: evento=${event} instancia=${instance}`)
+
   const { data: integRow } = await admin
     .from("whatsapp_integrations")
     .select("clinic_id, phone_number, status")
     .eq("evolution_instance", instance)
     .maybeSingle()
   const integ = integRow as { clinic_id: string; phone_number: string | null; status: string } | null
-  if (!integ) return NextResponse.json({ ok: true, ignored: true })
+  if (!integ) {
+    console.warn(`evolution/webhook: instancia "${instance}" sin integración en la base`)
+    return NextResponse.json({ ok: true, ignored: true })
+  }
   const clinicId = integ.clinic_id
 
   if (event === "connection.update") {
@@ -116,13 +100,24 @@ export async function POST(req: Request, { params }: { params: Promise<{ token: 
     for (const m of list) {
       const jid = m.key?.remoteJid ?? ""
       const waMessageId = m.key?.id
-      // Grupos, broadcasts y newsletters: JAMÁS (protección dura del agente).
-      if (!waMessageId || !jid.endsWith("@s.whatsapp.net")) continue
+      if (!waMessageId || !esConversacionIndividual(jid)) {
+        // NUNCA descartar en silencio. Un webhook que se conecta bien y no guarda nada es
+        // indistinguible de uno que no recibe nada, y sin esta línea no hay forma de saber cuál de
+        // los dos es. Se loguea el JID (no es dato clínico) y jamás el contenido.
+        console.warn(`evolution/webhook: descartado por jid "${jid}" (id=${waMessageId ?? "sin-id"})`)
+        continue
+      }
       const contactPhone = jid.split("@")[0]
       const fromMe = Boolean(m.key?.fromMe)
-      const body = textOf(m)
-      const media = mediaTypeOf(m)
-      if (!body && !media) continue
+      const body = textoDeMensaje(m)
+      const media = tipoDeMedia(m)
+      if (!body && !media) {
+        // Lo mismo: acá caen los tipos que todavía no sabemos leer. Se loguean las CLAVES del
+        // objeto —no los valores— que es justo lo que hace falta para agregar el que falte.
+        const claves = tiposDeContenido(m)
+        console.warn(`evolution/webhook: sin texto ni media, tipos=[${claves}] (id=${waMessageId})`)
+        continue
+      }
 
       const { data: ownerRows } = await admin
         .from("owners")
