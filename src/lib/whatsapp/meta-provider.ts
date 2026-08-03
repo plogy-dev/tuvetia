@@ -49,6 +49,31 @@ type MetaPhoneNumber = {
   platform_type?: string
 }
 
+// Bytes de una media entrante. En Meta son DOS saltos y ninguno es público: primero se resuelve el
+// id a una URL temporal en lookaside.fbsbx.com, y esa URL también exige el Bearer del tenant. Por eso
+// no se puede guardar la URL de Meta y pintarla en un <img>: el navegador no lleva ese token, y
+// además caduca. Hay que bajar los bytes acá y guardarlos nosotros.
+export async function descargarMediaDeMeta(
+  integ: WhatsAppIntegrationRow,
+  mediaId: string,
+): Promise<{ bytes: Buffer; contentType: string | null } | null> {
+  const token = tokenOf(integ)
+  const meta = await graph<{ url?: string; mime_type?: string }>(
+    `/${encodeURIComponent(mediaId)}`,
+    token,
+  )
+  if (!meta.url) return null
+
+  // Descarga cruda: no es JSON y el host no es graph.facebook.com, así que no pasa por graph().
+  const res = await fetch(meta.url, {
+    headers: { Authorization: `Bearer ${token}` },
+    signal: AbortSignal.timeout(60_000),
+  })
+  if (!res.ok) throw new MetaApiError(`Meta media download → ${res.status}`, res.status)
+  const bytes = Buffer.from(await res.arrayBuffer())
+  return { bytes, contentType: meta.mime_type ?? res.headers.get("content-type") }
+}
+
 export const metaProvider: WhatsAppProvider = {
   name: "meta",
 

@@ -21,7 +21,10 @@ export default function robots(): MetadataRoute.Robots {
     rules: {
       userAgent: "*",
       allow: "/",
-      disallow: ["/dashboard", "/admin", "/api", "/auth", "/bienvenida", "/signup", "/login"],
+      // `/f` son las facturas que se le mandan al titular por WhatsApp y correo: públicas por diseño
+    // (el token es la credencial) pero no para indexar. La página además lleva su propio `noindex`,
+    // que es lo que de verdad la mantiene fuera si alguien la enlaza.
+    disallow: ["/dashboard", "/admin", "/api", "/auth", "/bienvenida", "/signup", "/login", "/f"],
     },
     sitemap: `${base}/sitemap.xml`,
   }

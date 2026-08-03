@@ -17,9 +17,13 @@ export default async function ComunicacionesPage() {
     supabase.from("whatsapp_integrations").select("status, phone_number").maybeSingle(),
     supabase
       .from("whatsapp_messages")
-      .select("id, owner_id, wa_message_id, wa_phone_from, wa_phone_to, direction, body, media_type, read_at, delivered_at, failed_at, error_detail, created_at")
+      .select("id, owner_id, wa_message_id, wa_phone_from, wa_phone_to, direction, body, media_type, media_url, read_at, delivered_at, failed_at, error_detail, created_at, provider_timestamp")
       // Payload inicial acotado: las conversaciones viejas salen del historial reciente; el poll
       // trae lo nuevo. (Paginación hacia atrás: backlog.)
+      //
+      // Se traen los 100 más recientes POR LLEGADA, no por hora del proveedor, y por la misma razón
+      // que el cursor: es el orden con el que "los últimos 100" significa algo estable. El hilo los
+      // reordena por `provider_timestamp` al pintarlos.
       .order("created_at", { ascending: false })
       .limit(100),
     supabase.from("owners").select("id, full_name, phone").not("phone", "is", null).order("full_name"),

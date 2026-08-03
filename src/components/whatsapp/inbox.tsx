@@ -8,7 +8,7 @@
 
 import Link from "next/link"
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
-import { Check, CheckCheck, CircleAlert, Loader2, MessageCircle, Plus, Send, Sparkles } from "lucide-react"
+import { Check, CheckCheck, CircleAlert, Loader2, MessageCircle, Paperclip, Plus, Send, Sparkles } from "lucide-react"
 import { toast } from "sonner"
 
 import { createClient } from "@/lib/supabase/client"
@@ -34,11 +34,15 @@ export type InboxMessage = {
   direction: "inbound" | "outbound"
   body: string | null
   media_type: string | null
+  /** Ruta dentro del bucket privado `whatsapp-media`, no una URL: se firma al pintarla. */
+  media_url: string | null
   read_at: string | null
   delivered_at: string | null
   failed_at?: string | null
   error_detail?: string | null
   created_at: string
+  /** Hora del proveedor. El hilo se ORDENA por esta; `created_at` es sólo la hora de llegada. */
+  provider_timestamp: string
 }
 export type InboxOwner = { id: string; full_name: string; phone: string | null }
 
@@ -56,7 +60,10 @@ function contactOf(m: InboxMessage): string {
 // ISO de JSON ("…T19:19:20+00:00"). Este componente compara `created_at` como string —el cursor y
 // el orden de las conversaciones— así que las filas que llegan por el socket se pasan por acá ANTES
 // de tocar el estado. Ver `lib/realtime-timestamp.ts` para la medición que lo motivó.
-const CAMPOS_FECHA = ["created_at", "read_at", "delivered_at", "failed_at"] as const
+// `provider_timestamp` va en la lista por la misma razón, y le importa MÁS que a las otras: es la
+// clave con la que se ordena el hilo. Un valor en formato WAL comparado como string contra los ISO
+// que trajo PostgREST ordena mal, que es exactamente el defecto que este cambio viene a cerrar.
+const CAMPOS_FECHA = ["created_at", "provider_timestamp", "read_at", "delivered_at", "failed_at"] as const
 
 const desdeRealtime = (row: InboxMessage): InboxMessage =>
   normalizarFilaRealtime(row, CAMPOS_FECHA)
@@ -67,6 +74,87 @@ function fmtTime(iso: string): string {
   return today
     ? d.toLocaleTimeString("es-CO", { hour: "2-digit", minute: "2-digit" })
     : d.toLocaleDateString("es-CO", { day: "2-digit", month: "short" })
+}
+
+const MEDIA_BUCKET = "whatsapp-media"
+const SIGNED_URL_TTL = 60 * 60
+
+// Etiqueta legible de lo que llegó, para cuando no hay (o todavía no hay) bytes.
+const NOMBRE_MEDIA: Record<string, string> = {
+  image: "Foto",
+  sticker: "Sticker",
+  video: "Video",
+  audio: "Audio",
+  document: "Documento",
+}
+const nombreMedia = (t: string | null) => (t && NOMBRE_MEDIA[t]) ?? "Adjunto"
+
+// La foto que mandó el titular. `media_url` es una RUTA del bucket privado, no una URL: se firma con
+// la sesión del vet, así que la RLS de storage vuelve a comprobar la clínica en cada firma.
+//
+// El texto plano que hay debajo (`[adjunto]`) no desaparece: sigue siendo lo que se ve mientras los
+// bytes no estén. La descarga corre en `after()` después del webhook, o sea que hay una ventana —
+// corta— en la que el mensaje ya existe y la foto todavía no. Y si la descarga falló, esa etiqueta
+// es lo que queda para siempre, que es mejor que un hueco sin explicación.
+function MediaAdjunta({ path, tipo }: { path: string; tipo: string | null }) {
+  const [supabase] = useState(() => createClient())
+  const [url, setUrl] = useState<string | null>(null)
+  const [abriendo, setAbriendo] = useState(false)
+  const esImagen = tipo === "image" || tipo === "sticker"
+
+  useEffect(() => {
+    if (!esImagen) return
+    let vivo = true
+    void supabase.storage
+      .from(MEDIA_BUCKET)
+      .createSignedUrl(path, SIGNED_URL_TTL)
+      .then(({ data }) => {
+        if (vivo && data?.signedUrl) setUrl(data.signedUrl)
+      })
+    return () => {
+      vivo = false
+    }
+  }, [supabase, path, esImagen])
+
+  // Lo que no es imagen se firma al hacer clic, no al pintar: un hilo con veinte notas de voz no
+  // tiene por qué disparar veinte firmas que nadie va a usar.
+  async function abrir() {
+    setAbriendo(true)
+    const { data, error } = await supabase.storage.from(MEDIA_BUCKET).createSignedUrl(path, SIGNED_URL_TTL)
+    setAbriendo(false)
+    if (error || !data?.signedUrl) {
+      toast.error(`No se pudo abrir el ${nombreMedia(tipo).toLowerCase()}: ${error?.message ?? "no disponible"}`)
+      return
+    }
+    window.open(data.signedUrl, "_blank", "noopener,noreferrer")
+  }
+
+  if (esImagen) {
+    if (!url) return null
+    return (
+      <button type="button" onClick={abrir} className="block cursor-zoom-in">
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          src={url}
+          alt={nombreMedia(tipo)}
+          className="max-h-64 w-full rounded-lg object-cover"
+          loading="lazy"
+        />
+      </button>
+    )
+  }
+
+  return (
+    <button
+      type="button"
+      onClick={abrir}
+      disabled={abriendo}
+      className="flex items-center gap-1.5 rounded-lg border px-2 py-1 text-xs underline-offset-2 hover:underline disabled:opacity-60"
+    >
+      {abriendo ? <Loader2 className="size-3 animate-spin" /> : <Paperclip className="size-3" />}
+      {nombreMedia(tipo)}
+    </button>
+  )
 }
 
 export function WhatsappInbox({
@@ -111,15 +199,25 @@ export function WhatsappInbox({
       const unread = m.direction === "inbound" && !m.read_at ? 1 : 0
       if (!cur) by.set(key, { phone: key, last: m, unread })
       else {
-        if (m.created_at > cur.last.created_at) cur.last = m
+        if (m.provider_timestamp > cur.last.provider_timestamp) cur.last = m
         cur.unread += unread
       }
     }
-    return [...by.values()].sort((a, b) => (a.last.created_at < b.last.created_at ? 1 : -1))
+    return [...by.values()].sort((a, b) =>
+      a.last.provider_timestamp < b.last.provider_timestamp ? 1 : -1,
+    )
   }, [messages])
 
+  // Ordenado por la hora del PROVEEDOR, no por la de llegada. `messages` está en orden de llegada
+  // (así lo va llenando Realtime), y ese orden lo invierte cualquier reintento del webhook o dos
+  // mensajes seguidos — el vet veía el hilo distinto de como el titular lo escribió.
   const thread = useMemo(
-    () => (selected ? messages.filter((m) => contactOf(m) === selected) : []),
+    () =>
+      selected
+        ? messages
+            .filter((m) => contactOf(m) === selected)
+            .sort((a, b) => (a.provider_timestamp < b.provider_timestamp ? -1 : 1))
+        : [],
     [messages, selected],
   )
 
@@ -158,7 +256,11 @@ export function WhatsappInbox({
     const catchUp = async () => {
       const { data } = await supabase
         .from("whatsapp_messages")
-        .select("id, owner_id, wa_message_id, wa_phone_from, wa_phone_to, direction, body, media_type, read_at, delivered_at, failed_at, error_detail, created_at")
+        .select("id, owner_id, wa_message_id, wa_phone_from, wa_phone_to, direction, body, media_type, media_url, read_at, delivered_at, failed_at, error_detail, created_at, provider_timestamp")
+        // El cursor sigue siendo `created_at` A PROPÓSITO, aunque el hilo se ordene por la hora del
+        // proveedor: ponerse al día necesita un reloj monótono de LLEGADA. Con `provider_timestamp`
+        // un mensaje con hora vieja (reintento, o teléfono con el reloj atrasado) quedaría por
+        // debajo del cursor y no se recuperaría nunca.
         .gt("created_at", cursorRef.current)
         .order("created_at", { ascending: true })
         .limit(200)
@@ -277,8 +379,11 @@ export function WhatsappInbox({
         error?: string
         warning?: string
         wa_message_id?: string
-        message?: { id: string; created_at: string } | null
-        result?: { wa_message_id?: string; message?: { id: string; created_at: string } | null }
+        message?: { id: string; created_at: string; provider_timestamp?: string } | null
+        result?: {
+          wa_message_id?: string
+          message?: { id: string; created_at: string; provider_timestamp?: string } | null
+        }
       }
       if (!res.ok) throw new Error(raw.error ?? `HTTP ${res.status}`)
       const j = {
@@ -303,11 +408,16 @@ export function WhatsappInbox({
           direction: "outbound",
           body: draft.trim(),
           media_type: null,
+          media_url: null,
           read_at: null,
           delivered_at: null,
           failed_at: null,
           error_detail: null,
           created_at: j.message.created_at,
+          // Viene de la BD igual que `created_at`. El respaldo existe porque este objeto se arma a
+          // mano y una sola clave de orden ausente pone el mensaje recién enviado al principio del
+          // hilo en vez de al final.
+          provider_timestamp: j.message.provider_timestamp ?? j.message.created_at,
         }
         setMessages((prev) => (prev.some((p) => p.id === real.id) ? prev : [...prev, real]))
       }
@@ -382,12 +492,12 @@ export function WhatsappInbox({
             >
               <span className="flex items-center justify-between gap-2">
                 <span className="truncate text-sm font-medium">{nameOf(c.phone)}</span>
-                <span className="shrink-0 text-[10px] text-muted-foreground">{fmtTime(c.last.created_at)}</span>
+                <span className="shrink-0 text-[10px] text-muted-foreground">{fmtTime(c.last.provider_timestamp)}</span>
               </span>
               <span className="flex items-center gap-2">
                 <span className="min-w-0 flex-1 truncate text-xs text-muted-foreground">
                   {c.last.direction === "outbound" ? "Tú: " : ""}
-                  {c.last.body ?? `[${c.last.media_type ?? "adjunto"}]`}
+                  {c.last.body ?? nombreMedia(c.last.media_type)}
                 </span>
                 {c.unread > 0 && (
                   <span className="grid size-4.5 shrink-0 place-items-center rounded-full bg-primary text-[10px] font-bold text-primary-foreground">
@@ -420,9 +530,20 @@ export function WhatsappInbox({
                         : "rounded-bl-sm border bg-background"
                     }`}
                   >
-                    <p className="whitespace-pre-wrap">{m.body ?? `[${m.media_type ?? "adjunto"}]`}</p>
+                    {m.media_url && (
+                      <div className="mb-1">
+                        <MediaAdjunta path={m.media_url} tipo={m.media_type} />
+                      </div>
+                    )}
+                    {/* El pie de foto se pinta si lo hay; el marcador sólo cuando no hay NI texto ni
+                        bytes, que es el caso en que hace falta decir que algo llegó. */}
+                    {m.body ? (
+                      <p className="whitespace-pre-wrap">{m.body}</p>
+                    ) : m.media_url ? null : (
+                      <p className="whitespace-pre-wrap italic opacity-80">{nombreMedia(m.media_type)}</p>
+                    )}
                     <span className={`mt-0.5 flex items-center justify-end gap-1 text-[10px] ${m.direction === "outbound" ? "text-primary-foreground/70" : "text-muted-foreground"}`}>
-                      {fmtTime(m.created_at)}
+                      {fmtTime(m.provider_timestamp)}
                       {m.direction === "outbound" &&
                         (m.failed_at ? (
                           <span className="inline-flex items-center gap-0.5 text-red-300" title={m.error_detail ?? "No se pudo entregar"}>

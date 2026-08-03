@@ -138,6 +138,36 @@ export async function sendText(instanceName: string, number: string, text: strin
   return id
 }
 
+// Bytes de una media entrante. Baileys no expone una URL descargable: el archivo viaja cifrado y
+// sólo la sesión viva puede descifrarlo, así que Evolution lo devuelve en base64 por este endpoint.
+// Hay que mandarle el mensaje CRUDO tal como llegó por el webhook (no basta el id): necesita las
+// claves de cifrado que vienen dentro de `message`.
+//
+// Timeout propio y más largo que el del resto: acá viajan megas, no un JSON de control.
+export async function getMediaBase64(
+  instanceName: string,
+  mensajeCrudo: unknown,
+): Promise<{ base64: string; mimetype: string | null; fileName: string | null } | null> {
+  const res = await fetch(`${baseUrl()}/chat/getBase64FromMediaMessage/${encodeURIComponent(instanceName)}`, {
+    method: "POST",
+    headers: { apikey: apiKey(), "Content-Type": "application/json" },
+    body: JSON.stringify({ message: mensajeCrudo, convertToMp4: false }),
+    signal: AbortSignal.timeout(60_000),
+  })
+  if (!res.ok) {
+    const body = await res.text().catch(() => "")
+    throw new EvolutionError(
+      `Evolution POST /chat/getBase64FromMediaMessage → ${res.status}: ${body.slice(0, 300)}`,
+      res.status,
+    )
+  }
+  const json = (await res.json().catch(() => null)) as
+    | { base64?: string; mimetype?: string; fileName?: string }
+    | null
+  if (!json?.base64) return null
+  return { base64: json.base64, mimetype: json.mimetype ?? null, fileName: json.fileName ?? null }
+}
+
 export async function logoutInstance(instanceName: string): Promise<void> {
   await evo(`/instance/logout/${encodeURIComponent(instanceName)}`, { method: "POST" })
 }

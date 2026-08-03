@@ -63,10 +63,15 @@ export async function storeReceipt(
 }
 
 /**
- * Registra un comprobante que ya vive en una URL externa (media de WhatsApp):
- * no lo re-descargamos (la media es efímera pero visible en el hilo); dejamos
- * la referencia + la tarea de verificación. Ruta futura: descargarlo al bucket
- * cuando el proveedor exponga una media-download API estable.
+ * Registra un comprobante que llegó como media de WhatsApp. Desde la 0056 lo que
+ * se recibe acá NO es una URL externa: es la ruta dentro del bucket privado
+ * `whatsapp-media`, porque el webhook ya bajó los bytes (la media del proveedor
+ * es efímera en Meta y en Baileys, así que referenciarla no servía — y de hecho
+ * `media_url` no se escribía nunca, con lo cual este camino jamás se ejecutó).
+ *
+ * OJO al leerlo: `file_path` apunta a `whatsapp-media`, no a `receipts` como el
+ * de `storeReceipt`. Lo que los distingue es el `source` de la tarea
+ * (`WHATSAPP_MEDIA` vs `ADJUNTO`). Hoy nadie lee esta tabla todavía.
  */
 export async function storeReceiptReference(
   supabase: SupabaseClient,
