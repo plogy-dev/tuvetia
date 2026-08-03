@@ -84,10 +84,22 @@ function outputError(output: unknown): string | null {
 
 // Bloques de texto del asistente con el formato de siempre (rich-text compartido). El agente cita
 // las fuentes en el propio texto, así que renderInline va sin lista de citas.
+/**
+ * Quita las marcas `[[propuesto:…]]` que se persisten con el turno.
+ *
+ * Son contexto PARA EL MODELO —le muestran que ese turno sí llamó una herramienta, y no solo lo
+ * dijo— pero no son contenido para el veterinario. Ver `turnoAGuardar` en conversacion.ts.
+ */
+function sinMarcas(texto: string): string {
+  return texto.replace(/\s*\[\[propuesto:[a-z_,]+\]\]/g, "").trim()
+}
+
 function TextBlocks({ text, kp }: { text: string; kp: string }) {
+  const limpio = sinMarcas(text)
+  if (!limpio) return null
   return (
     <div className="rounded-2xl rounded-tl-sm border bg-muted/50 px-4 py-1 text-sm leading-relaxed">
-      {splitBlocks(text).map((blk, j) =>
+      {splitBlocks(limpio).map((blk, j) =>
         blk.heading ? (
           <div key={j} className="pt-3 pb-1 text-[13px] font-semibold tracking-tight">
             {renderInline(blk.text, [], `${kp}h${j}`)}

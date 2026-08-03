@@ -145,6 +145,33 @@ export type TurnoAGuardar = { role: "user" | "assistant"; content: string }
  * que guardar `messages` completo duplicaría todo el historial en cada mensaje. Se guarda el último
  * mensaje del vet y la respuesta que se acaba de generar.
  */
+/**
+ * Marca que en ESE turno se propuso algo de verdad. Se persiste junto al texto.
+ *
+ * POR QUÉ. El historial guarda solo texto, así que al recargar el modelo veía decenas de turnos
+ * suyos diciendo "te dejé propuesto el correo" SIN ninguna llamada a herramienta asociada — y
+ * aprendía de su propio historial que la respuesta a "enviá un correo" ES esa frase. Empezó a
+ * escribirla sin llamar la tool: el vet leía que había una propuesta y no existía ninguna.
+ *
+ * Con la marca, el historial muestra texto Y acción juntos. La UI la esconde al renderizar
+ * (ver `sinMarcas` en el asistente): es contexto para el modelo, no contenido para el vet.
+ */
+export const MARCA_PROPUESTA = /\[\[propuesto:([a-z_,]+)\]\]/
+
+/** Nombres de las tools de ESCRITURA que dejaron una propuesta registrada en este turno. */
+function toolsQuePropusieron(respuesta: UIMessage | undefined): string[] {
+  const nombres: string[] = []
+  for (const parte of respuesta?.parts ?? []) {
+    const p = parte as { type?: string; output?: unknown }
+    if (typeof p.type !== "string" || !p.type.startsWith("tool-")) continue
+    const salida = p.output as { action_id?: unknown; status?: unknown } | undefined
+    if (salida && typeof salida.action_id === "string" && salida.status === "proposed") {
+      nombres.push(p.type.slice("tool-".length))
+    }
+  }
+  return [...new Set(nombres)]
+}
+
 export function turnoAGuardar(
   entrantes: UIMessage[],
   respuesta: UIMessage | undefined,
@@ -155,6 +182,10 @@ export function turnoAGuardar(
   if (preguntaTexto) turnos.push({ role: "user", content: preguntaTexto })
 
   const respuestaTexto = respuesta ? textoDe(respuesta) : ""
-  if (respuestaTexto) turnos.push({ role: "assistant", content: respuestaTexto })
+  if (respuestaTexto) {
+    const propuestas = toolsQuePropusieron(respuesta)
+    const marca = propuestas.length ? `\n\n[[propuesto:${propuestas.join(",")}]]` : ""
+    turnos.push({ role: "assistant", content: `${respuestaTexto}${marca}` })
+  }
   return turnos
 }

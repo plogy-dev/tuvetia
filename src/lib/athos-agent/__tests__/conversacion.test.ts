@@ -116,6 +116,36 @@ describe("turnoAGuardar — sólo el turno nuevo", () => {
     ])
   })
 
+  // El defecto que motiva la marca: como el historial guarda solo TEXTO, el modelo veía turnos
+  // suyos diciendo "te dejé propuesto el correo" sin ninguna llamada asociada, y aprendió a
+  // escribir la frase SIN llamar la tool. El vet buscaba una tarjeta que no existía.
+  it("marca el turno cuando de verdad se propuso algo", () => {
+    const conPropuesta = {
+      id: "a1",
+      role: "assistant",
+      parts: [
+        { type: "text", text: "Te dejé el correo listo." },
+        { type: "tool-send_email", output: { action_id: "act-1", status: "proposed" } },
+      ],
+    } as unknown as UIMessage
+    const t = turnoAGuardar(historial, conPropuesta)
+    expect(t[1].content).toContain("[[propuesto:send_email]]")
+  })
+
+  it("NO marca cuando el texto lo dice pero la tool no propuso", () => {
+    // Exactamente la alucinación: dice que propuso y no hay action_id.
+    const sinPropuesta = {
+      id: "a2",
+      role: "assistant",
+      parts: [
+        { type: "text", text: "Te dejé propuesto el correo — aprobalo en la tarjeta." },
+        { type: "tool-send_email", output: { error: "no conectado" } },
+      ],
+    } as unknown as UIMessage
+    const t = turnoAGuardar(historial, sinPropuesta)
+    expect(t[1].content).not.toContain("[[propuesto:")
+  })
+
   it("NO reenvía el historial entero", () => {
     // El cliente manda el hilo completo en cada petición: guardarlo todo duplicaría la
     // conversación entera en cada mensaje.
