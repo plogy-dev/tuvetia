@@ -11,6 +11,7 @@ import {
   estadoConexion,
   proveedoresDisponibles,
 } from "@/lib/composio/correo"
+import { estadoCalendario } from "@/lib/composio/calendario"
 import { HelpTip } from "@/components/help-tip"
 import { PageHeader, PageShell } from "@/components/ui/page-shell"
 
@@ -32,7 +33,8 @@ export default async function ConexionesPage() {
 
   const composioListo = composioConfigurado()
 
-  const [{ data: wa }, { data: emailRow }, { data: cal }, correoAthos] = await Promise.all([
+  const [{ data: wa }, { data: emailRow }, { data: cal }, correoAthos, calendarioAthos] =
+    await Promise.all([
     supabase.from("whatsapp_integrations").select("status, phone_number, agent_mode").maybeSingle(),
     // Cuenta INSTITUCIONAL de la clínica: la que manda facturas y cobranza (user_id null).
     supabase
@@ -40,19 +42,25 @@ export default async function ConexionesPage() {
       .select("status, from_email, from_name, last_error, verified_at")
       .is("user_id", null)
       .maybeSingle(),
-    // El calendario es del usuario, no de la clínica: su propia fila, sea del proveedor que sea
-    // (hay a lo sumo una — conectar el segundo exige desconectar el primero).
+    // Outlook Calendar todavía guarda su credencial acá. Google ya no: pasó a Composio, así que su
+    // estado se le pregunta a quien tiene el token (ver abajo). Cuando Outlook también migre, esta
+    // consulta y la tabla dejan de hacer falta.
     user
       ? supabase
           .from("calendar_integrations")
           .select("provider")
           .eq("user_id", user.id)
+          .eq("provider", "microsoft")
           .maybeSingle()
       : Promise.resolve({ data: null }),
     // La cuenta de correo que este miembro conectó por Composio: la que usa Athos por él.
     user && composioListo
       ? estadoConexion(user.id)
       : Promise.resolve({ conectado: false, proveedor: null, email: null }),
+    // El calendario de Google, que ahora vive en Composio.
+    user
+      ? estadoCalendario(user.id)
+      : Promise.resolve({ conectado: false, proveedor: null as "google" | null }),
   ])
 
   const waRow = wa as {
@@ -61,9 +69,11 @@ export default async function ConexionesPage() {
     agent_mode: "auto" | "review" | "paused" | "intervene"
   } | null
   const email = emailRow as EmailIntegrationView | null
-  const calendarConnected = ((cal as { provider: string } | null)?.provider ?? null) as
-    | CalendarProvider
-    | null
+  // Un usuario tiene UN calendario. Google manda porque es el camino nuevo: si alguien quedó con
+  // una fila vieja de Outlook y además conectó Google, lo que va a recibir las citas es Google.
+  const calendarConnected: CalendarProvider | null = calendarioAthos.conectado
+    ? "google"
+    : (((cal as { provider: string } | null)?.provider ?? null) as CalendarProvider | null)
 
   return (
     <PageShell width="narrow">

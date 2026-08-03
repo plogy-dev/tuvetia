@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server"
 
 import { createClient } from "@/lib/supabase/server"
-import { deleteRemoteEvent } from "@/lib/google-calendar"
+import { borrarEventoRemoto } from "@/lib/composio/calendario"
 
 // Borra el evento remoto al eliminar una cita. El evento vive en el calendario del veterinario que
 // la atendía, así que se borra con LAS CREDENCIALES DE ESE VET — no con las de quien aprieta el botón.
@@ -48,7 +48,7 @@ export async function POST(req: Request) {
   if (!eventId || !ownerId) return NextResponse.json({ ok: true })
 
   try {
-    await deleteRemoteEvent(ownerId, eventId)
+    await borrarEventoRemoto(ownerId, eventId)
     return NextResponse.json({ ok: true })
   } catch (e) {
     return NextResponse.json({ error: (e as Error).message }, { status: 502 })

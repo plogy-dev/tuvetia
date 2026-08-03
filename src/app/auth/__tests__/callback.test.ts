@@ -20,10 +20,10 @@ vi.mock("@/lib/supabase/server", () => ({
     from,
   }),
 }))
-vi.mock("@/lib/google-calendar", () => ({ upsertGoogleIntegration: vi.fn() }))
+vi.mock("@/lib/composio/calendario", () => ({ iniciarConexionCalendario: vi.fn() }))
 vi.mock("@/lib/microsoft-calendar", () => ({ upsertMicrosoftIntegration: vi.fn() }))
 
-import { upsertGoogleIntegration } from "@/lib/google-calendar"
+import { iniciarConexionCalendario } from "@/lib/composio/calendario"
 import { upsertMicrosoftIntegration } from "@/lib/microsoft-calendar"
 import { GET } from "@/app/auth/callback/route"
 
@@ -113,7 +113,7 @@ describe("el login no vincula ningún calendario", () => {
       error: null,
     })
     const res = await pedir("?code=abc123")
-    expect(upsertGoogleIntegration).not.toHaveBeenCalled()
+    expect(iniciarConexionCalendario).not.toHaveBeenCalled()
     expect(upsertMicrosoftIntegration).not.toHaveBeenCalled()
     expect(res.headers.get("location")).toBe("https://app.tuvetia.com/dashboard")
   })
@@ -128,7 +128,7 @@ describe("el login no vincula ningún calendario", () => {
     })
     const res = await pedir("?code=abc123&next=%2Fdashboard%2Fcalendario")
     expect(upsertMicrosoftIntegration).not.toHaveBeenCalled()
-    expect(upsertGoogleIntegration).not.toHaveBeenCalled()
+    expect(iniciarConexionCalendario).not.toHaveBeenCalled()
     expect(res.headers.get("location")).toBe("https://app.tuvetia.com/dashboard/calendario")
   })
 })

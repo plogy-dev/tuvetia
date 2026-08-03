@@ -36,9 +36,8 @@ export interface CorreoNormalizado {
 }
 
 export interface Adaptador {
+  /** Slug del toolkit en Composio. Su versión fija vive en `cliente.ts`, con las de todos. */
   toolkit: string
-  /** Versión del toolkit. Ejecutar a mano exige una fija: "latest" no sirve. */
-  version: string
   /** Variable de entorno con el auth config de Composio. */
   envAuthConfig: string
   /**
@@ -87,9 +86,6 @@ type MensajeGmail = {
 
 const GMAIL: Adaptador = {
   toolkit: "gmail",
-  // Verificada contra la API el 2026-08-03. Las disponibles salen del campo `availableVersions`
-  // de la definición de la tool.
-  version: process.env.COMPOSIO_GMAIL_TOOLKIT_VERSION?.trim() || "20260721_00",
   envAuthConfig: "COMPOSIO_GMAIL_AUTH_CONFIG_ID",
   // Gmail responde con un envío normal, así que el destinatario lo elegimos nosotros — y por eso
   // hay que verificarlo contra el hilo antes de mandarlo.
@@ -220,10 +216,6 @@ function filtrosOutlook(query: string, limite: number): Record<string, unknown> 
 
 const OUTLOOK: Adaptador = {
   toolkit: "outlook",
-  // Verificada contra la API el 2026-08-03, igual que la de Gmail. La default del toolkit es
-  // `00000000_00`, que NO se usa a propósito: es la que se mueve sola, y entonces un cambio en la
-  // forma de la respuesta llegaría a producción sin aviso. Se fija la última con fecha.
-  version: process.env.COMPOSIO_OUTLOOK_TOOLKIT_VERSION?.trim() || "20251016_01",
   envAuthConfig: "COMPOSIO_OUTLOOK_AUTH_CONFIG_ID",
   // OUTLOOK_OUTLOOK_REPLY_EMAIL NO acepta destinatario: Graph lo saca del mensaje original. La
   // dirección no viaja en la llamada, así que no hay nada que redirigir.

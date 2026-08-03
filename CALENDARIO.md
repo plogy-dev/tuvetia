@@ -1,4 +1,4 @@
-# Calendario interno + Google / Outlook Calendar
+# Calendario interno + Google (Composio) / Outlook Calendar
 
 Agenda de citas de la clínica. UI con **react-big-calendar** (semana/agenda, drag&drop), datos en
 `public.appointments` (aislada por clínica vía RLS), y **sincronización opcional de una sola vía
@@ -41,11 +41,10 @@ proveedor antes de guardar un token se conserva, en el cliente y en la ruta.
   - `calendar_owner_id` (`0049`) — **en el calendario de quién** vive ese evento. Sin esto, al
     cambiar el veterinario asignado el evento viejo quedaba de fantasma en la agenda del anterior,
     sin forma de encontrarlo para borrarlo.
-- **`public.calendar_integrations`** (`0007`): `refresh_token` cifrado por `(user_id, provider)`,
-  `provider` es `'google'` o `'microsoft'`. **Una fila por usuario** (conectar el segundo proveedor
-  exige desconectar el primero — lo impone la ruta `/connect`). `refresh_token` y `sync_token`
-  tienen el SELECT **revocado** a anon/authenticated: solo `service_role` los lee. `sync_token`
-  quedó sin uso al eliminar el *pull*.
+- **`public.calendar_integrations`** (`0007`): **sólo la usa Outlook**, y en vías de desaparecer.
+  Google migró a Composio y ya no guarda nada acá: su token vive del lado de Composio y el estado se
+  le pregunta a quien lo tiene. Las filas de Google que hayan quedado son **credenciales muertas** —
+  nadie las lee. Cuando Outlook también migre, la tabla se puede borrar.
 
 ## Migraciones
 
@@ -71,16 +70,23 @@ proveedor antes de guardar un token se conserva, en el cliente y en la ruta.
   autocompleta el titular; un paciente que no es de ese titular se bloquea con una nota.
 - `src/components/settings/calendar-settings.tsx` — **conectar/desconectar** (vive en Conexiones).
 - `src/components/patient/patient-appointments.tsx` — las citas en la ficha del paciente.
-- `src/lib/google-calendar.ts` / `src/lib/microsoft-calendar.ts` (SOLO servidor) — push/delete.
-- Rutas: `src/app/api/{google,microsoft}/calendar/{connect,disconnect,push,delete}/route.ts`.
+- `src/lib/composio/calendario.ts` (SOLO servidor) — **Google, vía Composio**: conectar, estado,
+  empujar y borrar. `src/lib/microsoft-calendar.ts` — Outlook, todavía con OAuth propio.
+- Rutas: `src/app/api/composio/calendario/{connect,disconnect}` (Google) y
+  `src/app/api/{google,microsoft}/calendar/{push,delete}` — el push/delete de Google conserva su ruta
+  y por dentro llama a Composio.
 
 ## Activación (config externa, una vez)
 
-**Google** — 1) Google Cloud → OAuth client (Web) con scope
-`https://www.googleapis.com/auth/calendar.events`. 2) Supabase Auth → Google provider: **el mismo**
-Client ID/Secret (si no coinciden, el refresh falla con `invalid_client`; el mensaje de error ya lo
-dice). Redirect URL: `https://<vercel>/dashboard/conexiones?calendar=google`. 3) Vercel:
-`GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `SUPABASE_SERVICE_ROLE_KEY`.
+**Google (Composio)** — sólo dos variables: `COMPOSIO_API_KEY` (con permiso de **escritura** sobre
+`connected_accounts`) y `COMPOSIO_GOOGLECALENDAR_AUTH_CONFIG_ID`. No hay credenciales OAuth propias
+que mantener ni tokens nuestros que guardar.
+
+Con eso desaparecen tres problemas que el camino anterior tenía y que están documentados abajo por si
+alguien piensa en volver: el `invalid_client` por credenciales que no coinciden con las de Supabase
+Auth, el `invalid_grant` semanal del modo Testing, y —el peor— que
+`session.provider_refresh_token` es el token del proveedor con el que se **inició sesión**, no el del
+botón que se apretó: alguien entró con Microsoft y su token quedó guardado en la fila de Google.
 
 **Outlook** — 1) Azure → App registration con permiso delegado `Calendars.ReadWrite` +
 `offline_access` (los secrets de Azure **vencen**: agendar renovación). 2) Redirect URI:
@@ -88,9 +94,15 @@ dice). Redirect URL: `https://<vercel>/dashboard/conexiones?calendar=google`. 3)
 3) Supabase Auth → Azure provider con ese Client ID/Secret y el Tenant. 4) Vercel:
 `MICROSOFT_CLIENT_ID`, `MICROSOFT_CLIENT_SECRET`, `MICROSOFT_TENANT_ID` (default `common`).
 
-> **Modo Testing de Google.** Mientras la app no esté publicada en Google Cloud, los refresh token
-> **vencen a los 7 días** y el vet tiene que reconectar cada semana (`invalid_grant`). Publicar la
-> app lo resuelve.
+> **Modo Testing de Google** — ya no aplica a Tuvetia: la app de Google es la de Composio, no la
+> nuestra. Queda anotado porque sigue valiendo para Outlook y para cualquier vuelta atrás: mientras
+> una app propia no esté publicada, los refresh token **vencen a los 7 días**.
+
+> **Pendiente de probar con una conexión real:** de qué campo sale el id del evento creado. Composio
+> **no declara** la forma de la respuesta de `GOOGLECALENDAR_CREATE_EVENT` (su esquema de salida
+> viene vacío), así que se leen las variantes plausibles. Si ninguna aparece, `empujarCita` **falla
+> ruidosamente** en vez de guardar null: una cita sin referencia al evento haría que la próxima
+> edición creara un duplicado en el calendario en lugar de actualizar el que ya existe.
 
 ## Feed ICS — alternativa de solo lectura (sin OAuth)
 

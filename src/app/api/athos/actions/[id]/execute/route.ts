@@ -2,7 +2,7 @@ import { NextResponse } from "next/server"
 
 import { createClient } from "@/lib/supabase/server"
 import { createAdminClient } from "@/lib/supabase/admin"
-import { pushAppointment } from "@/lib/google-calendar"
+import { empujarCita } from "@/lib/composio/calendario"
 import { validarPayload } from "@/lib/athos-agent/payload-schemas"
 import { sendWhatsAppText } from "@/lib/whatsapp/send-message"
 import {
@@ -59,14 +59,15 @@ async function pushToGoogle(
   if (typeof appointmentId !== "string" || !appointmentId)
     return { googleEventId: null, aviso: null }
   try {
-    const googleEventId = await pushAppointment(appointmentId)
+    const googleEventId = await empujarCita(appointmentId)
     if (googleEventId) return { googleEventId, aviso: null }
-    // `pushAppointment` devuelve null cuando el admin no conectó Google. No es un fallo, pero
-    // el vet TIENE que enterarse: si no, la cita no aparece en Google y no hay forma de saber
-    // por qué. Pasó en producción el 30-jul y fue exactamente esa la pregunta.
+    // `empujarCita` devuelve null cuando el VETERINARIO ASIGNADO no conectó su calendario (el
+    // calendario es de cada vet desde la migración 0049, no de la clínica). No es un fallo, pero
+    // el vet TIENE que enterarse: si no, la cita no aparece en su calendario y no hay forma de
+    // saber por qué. Pasó en producción el 30-jul y fue exactamente esa la pregunta.
     return {
       googleEventId: null,
-      aviso: "La cita quedó en la agenda de la plataforma. No se copió a Google Calendar porque el administrador no lo conectó.",
+      aviso: "La cita quedó en la agenda de la plataforma. No se copió al calendario porque el veterinario asignado no conectó el suyo en Conexiones.",
     }
   } catch (e) {
     console.error("[athos/execute] no se pudo empujar la cita a Google Calendar:", e)

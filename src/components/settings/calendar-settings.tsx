@@ -12,6 +12,12 @@
 //      veterinario asignado.
 //   3. UNA SOLA VÍA. Tuvetia empuja sus citas; no lee nada del calendario. Por eso no hay botón
 //      "Sincronizar": no hay nada que traer.
+//
+// GOOGLE VA POR COMPOSIO, Outlook todavía no (se migra después). Se nota en el código: Google es un
+// POST que devuelve una URL, mientras Outlook sigue pidiendo OAuth por Supabase y capturando
+// `provider_refresh_token` al volver. Ese camino viejo tiene un problema propio que Composio elimina
+// —el token es el del proveedor de la SESIÓN, no el del botón, y por eso hay que verificarlo— así
+// que la asimetría es temporal y en una sola dirección.
 
 import { useEffect, useRef, useState } from "react"
 import { useRouter } from "next/navigation"
@@ -20,7 +26,6 @@ import { toast } from "sonner"
 
 import { createClient } from "@/lib/supabase/client"
 import { Button } from "@/components/ui/button"
-import { GOOGLE_CALENDAR_SCOPE } from "@/lib/google-calendar-scope"
 import { MICROSOFT_CALENDAR_SCOPE } from "@/lib/microsoft-calendar-scope"
 
 export type CalendarProvider = "google" | "microsoft"
@@ -42,14 +47,25 @@ export function CalendarSettings({ connected }: { connected: CalendarProvider | 
   const [busy, setBusy] = useState<CalendarProvider | "disconnect" | null>(null)
   const captured = useRef(false)
 
-  // Al volver del consentimiento (?calendar=google|microsoft), captura el refresh token y lo
+  // Volviendo de Composio (?calendario=conectado): la conexión ya está hecha del otro lado, sólo
+  // hay que refrescar para que el server component la lea.
+  useEffect(() => {
+    const url = new URL(window.location.href)
+    if (url.searchParams.get("calendario") !== "conectado") return
+    url.searchParams.delete("calendario")
+    window.history.replaceState({}, "", url.toString())
+    toast.success("Calendario conectado")
+    router.refresh()
+  }, [router])
+
+  // Volviendo del consentimiento de Outlook (?calendar=microsoft): captura el refresh token y lo
   // persiste. El parámetro dice QUÉ se estaba conectando; el token se valida contra el proveedor
   // real de la sesión antes de mandarlo (ver más abajo).
   useEffect(() => {
     if (captured.current) return
     const url = new URL(window.location.href)
     const volviendo = url.searchParams.get("calendar") as CalendarProvider | null
-    if (volviendo !== "google" && volviendo !== "microsoft") return
+    if (volviendo !== "microsoft") return
     captured.current = true
     void (async () => {
       const {
@@ -93,17 +109,29 @@ export function CalendarSettings({ connected }: { connected: CalendarProvider | 
 
   async function connect(provider: CalendarProvider) {
     setBusy(provider)
-    const scopes =
-      provider === "google" ? GOOGLE_CALENDAR_SCOPE : `email ${MICROSOFT_CALENDAR_SCOPE}`
+    if (provider === "google") {
+      try {
+        const res = await fetch("/api/composio/calendario/connect", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ proveedor: "google" }),
+        })
+        const json = (await res.json().catch(() => ({}))) as { url?: string; error?: string }
+        if (!res.ok || !json.url) throw new Error(json.error ?? `HTTP ${res.status}`)
+        window.location.assign(json.url)
+      } catch (e) {
+        toast.error(`No se pudo iniciar la conexión: ${(e as Error).message}`)
+        setBusy(null)
+      }
+      return
+    }
+
     const { error } = await supabase.auth.signInWithOAuth({
       provider: OAUTH[provider],
       options: {
-        scopes,
-        // Google necesita el par offline+consent para devolver refresh token; Azure lo resuelve con
-        // el scope offline_access que ya va en MICROSOFT_CALENDAR_SCOPE.
-        ...(provider === "google"
-          ? { queryParams: { access_type: "offline", prompt: "consent" } }
-          : {}),
+        // Azure resuelve el refresh token con el scope offline_access, que ya va en
+        // MICROSOFT_CALENDAR_SCOPE.
+        scopes: `email ${MICROSOFT_CALENDAR_SCOPE}`,
         redirectTo: `${window.location.origin}/dashboard/conexiones?calendar=${provider}`,
       },
     })
@@ -117,7 +145,12 @@ export function CalendarSettings({ connected }: { connected: CalendarProvider | 
     if (!connected) return
     setBusy("disconnect")
     try {
-      const res = await fetch(`/api/${connected}/calendar/disconnect`, { method: "POST" })
+      const res = await fetch(
+        connected === "google"
+          ? "/api/composio/calendario/disconnect"
+          : "/api/microsoft/calendar/disconnect",
+        { method: "POST" },
+      )
       const j = (await res.json().catch(() => ({}))) as { error?: string }
       if (!res.ok) throw new Error(j.error ?? `HTTP ${res.status}`)
       toast.success(`${NOMBRE[connected]} desconectado`)

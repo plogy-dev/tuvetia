@@ -16,7 +16,14 @@ import "server-only"
 // La identidad: el `userId` de Composio es NUESTRO `profiles.id`. Por eso la cuenta que conecta un
 // miembro es la que Athos usa cuando ese miembro le pide algo, sin tabla intermedia que sincronizar.
 
-import { Composio } from "@composio/core"
+import {
+  apiKey,
+  cuentasDe,
+  desconectarDe,
+  ejecutarTool,
+  enlazar,
+  type ResultadoTool,
+} from "./cliente"
 
 import {
   adaptador,
@@ -30,35 +37,9 @@ import {
 export { NOMBRE_PROVEEDOR, type CorreoNormalizado, type Proveedor } from "./proveedores"
 export { avisoDeEntrega, proveedoresDisponibles } from "./proveedores"
 
-function apiKey(): string | null {
-  return process.env.COMPOSIO_API_KEY?.trim() || null
-}
-
 /** ¿Hay al menos un proveedor de correo utilizable en este despliegue? */
 export function composioConfigurado(): boolean {
   return apiKey() !== null && proveedoresDisponibles().length > 0
-}
-
-let cliente: Composio | null = null
-
-function composio(): Composio {
-  const key = apiKey()
-  if (!key) {
-    throw new Error("Falta COMPOSIO_API_KEY en el servidor: el correo de Athos no está disponible.")
-  }
-  // Una sola instancia por proceso: el SDK mantiene su propio cliente HTTP.
-  //
-  // `toolkitVersions` NO es opcional: ejecutar una tool a mano sin declarar versión falla con
-  // ComposioToolVersionRequiredError, y tiene que ser una versión CON FECHA — el propio SDK avisa
-  // que "latest is not supported in manual execution".
-  //
-  // Quedar fijados a una versión es lo correcto igual: la forma de la respuesta puede cambiar entre
-  // versiones y con "latest" ese cambio llegaría a producción sin aviso.
-  const versiones = Object.fromEntries(
-    proveedoresDisponibles().map((p) => [adaptador(p).toolkit, adaptador(p).version]),
-  )
-  cliente ??= new Composio({ apiKey: key, toolkitVersions: versiones })
-  return cliente
 }
 
 export interface EstadoConexion {
@@ -102,10 +83,7 @@ export async function estadoConexion(userId: string): Promise<EstadoConexion> {
   const sinConexion: EstadoConexion = { conectado: false, proveedor: null, email: null }
   if (!composioConfigurado()) return sinConexion
   try {
-    const { items } = await composio().connectedAccounts.list({
-      userIds: [userId],
-      toolkitSlugs: proveedoresDisponibles().map((p) => adaptador(p).toolkit),
-    })
+    const items = await cuentasDe(userId, proveedoresDisponibles().map((p) => adaptador(p).toolkit))
     const activa = items.find((c) => c.status === "ACTIVE")
     if (!activa) return sinConexion
 
@@ -149,91 +127,29 @@ export async function iniciarConexion(
   direcciones.delete(`gmail:${userId}`)
   direcciones.delete(`outlook:${userId}`)
 
-  try {
-    const request = await composio().connectedAccounts.link(userId, auth, { callbackUrl })
-    if (!request.redirectUrl) throw new Error("Composio no devolvió una URL de autorización.")
-    return request.redirectUrl
-  } catch (e) {
-    throw new Error(explicarFalloDeConexion(e))
-  }
-}
-
-/**
- * El error REAL que devolvió Composio, que el SDK entierra en `cause`.
- *
- * Lo que llega en `Error.message` es un cartel fijo por operación —"Failed to create connected
- * account link", "Error executing the tool X"— que no distingue una causa de otra. El `slug` de acá
- * es lo único con lo que se puede ramificar; se lee defensivamente porque es estructura interna del
- * SDK y no parte de su contrato.
- */
-function detalleDelFallo(e: unknown): { slug?: string; message?: string } | null {
-  const causa = (e as { cause?: { error?: { error?: { slug?: string; message?: string } } } })?.cause
-  return causa?.error?.error ?? null
-}
-
-/**
- * Traduce el fallo de `link()` a algo accionable.
- *
- * El SDK envuelve todo en "Failed to create connected account link" y esconde la causa real en
- * `cause` — que no le dice nada a nadie. El primer intento contra la API real falló justamente por
- * una key de SOLO LECTURA, y ese mensaje genérico habría mandado a buscar el problema al código.
- */
-function explicarFalloDeConexion(e: unknown): string {
-  const detalle = detalleDelFallo(e)
-  if (detalle?.slug === "APIKey_InsufficientPermissions") {
-    return 'La API key de Composio es de solo lectura. En el dashboard de Composio dale permiso de ESCRITURA sobre "connected_accounts" (o usá una key que ya lo tenga).'
-  }
-  if (detalle?.message) return `Composio rechazó la conexión: ${detalle.message}`
-  return e instanceof Error ? e.message : "No se pudo iniciar la conexión con Composio."
+  return enlazar(userId, auth, callbackUrl)
 }
 
 /** Desconecta: borra las cuentas de correo conectadas de ese miembro. */
 export async function desconectar(userId: string): Promise<void> {
   direcciones.delete(`gmail:${userId}`)
   direcciones.delete(`outlook:${userId}`)
-  const { items } = await composio().connectedAccounts.list({
-    userIds: [userId],
-    toolkitSlugs: proveedoresDisponibles().map((p) => adaptador(p).toolkit),
-  })
-  for (const cuenta of items) {
-    await composio().connectedAccounts.delete(cuenta.id)
-  }
+  await desconectarDe(userId, proveedoresDisponibles().map((p) => adaptador(p).toolkit))
 }
 
-export type ResultadoCorreo =
-  | { ok: true; data: unknown }
-  | { ok: false; error: string; sinConectar?: boolean }
+export type ResultadoCorreo = ResultadoTool
 
-/** Ejecuta una tool con la cuenta del miembro. No lanza: el error vuelve al modelo como texto. */
+/** Ejecuta con la cuenta del miembro, traduciendo "no conectada" al idioma del correo. */
 async function ejecutar(
   userId: string,
   slug: string,
   args: Record<string, unknown>,
 ): Promise<ResultadoCorreo> {
-  if (!composioConfigurado()) {
-    return { ok: false, error: "El correo por Composio no está configurado en este servidor." }
+  const r = await ejecutarTool(userId, slug, args)
+  if (!r.ok && r.sinConectar) {
+    return { ...r, error: "No tenés tu correo conectado. Se conecta en Conexiones → Correo de Athos." }
   }
-  try {
-    const r = await composio().tools.execute(slug, { userId, arguments: args })
-    if (!r.successful) return { ok: false, error: r.error ?? "El proveedor rechazó la operación." }
-    return { ok: true, data: r.data }
-  } catch (e) {
-    const detalle = detalleDelFallo(e)
-    // El slug es la vía fiable. El `message` de la excepción es siempre el mismo cartel genérico
-    // ("Error executing the tool X"), así que buscar texto ahí no encontraba nunca la causa —
-    // verificado contra la API: la cuenta faltante llega como ActionExecute_ConnectedAccountNotFound
-    // dentro de `cause`, y el vet habría visto un error opaco en vez de la tarjeta para conectar.
-    if (detalle?.slug === "ActionExecute_ConnectedAccountNotFound") {
-      return {
-        ok: false,
-        error: "No tenés tu correo conectado. Se conecta en Conexiones → Correo de Athos.",
-        sinConectar: true,
-      }
-    }
-    const msg = detalle?.message ?? (e instanceof Error ? e.message : "Error desconocido")
-    console.error(`[composio/correo] ${slug} falló para ${userId}:`, msg)
-    return { ok: false, error: msg }
-  }
+  return r
 }
 
 /**
