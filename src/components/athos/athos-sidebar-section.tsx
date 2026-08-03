@@ -135,7 +135,7 @@ export function AthosSidebarSection() {
               render={<Link href="/dashboard/asistente" />}
             >
               <PlusIcon />
-              <span>Nuevo chat</span>
+              <span>Nuevo chat con Athos</span>
             </SidebarMenuButton>
           </SidebarMenuItem>
         </SidebarMenu>
@@ -154,13 +154,20 @@ export function AthosSidebarSection() {
           />
         </div>
 
+        {/* Los contadores salen de las listas YA cargadas, no de una consulta nueva. Van en `null`
+            mientras se cargan, así que la pestaña no parpadea de "0" a su número real. */}
         <div className="flex gap-1 border-b border-sidebar-border">
           {(
             [
-              ["consultas", "Consultas", <Stethoscope key="c" className="size-3.5" />],
-              ["chats", "Chats", <MessagesSquare key="m" className="size-3.5" />],
+              [
+                "consultas",
+                "Consultas",
+                <Stethoscope key="c" className="size-3.5" />,
+                consultas?.length,
+              ],
+              ["chats", "Chats", <MessagesSquare key="m" className="size-3.5" />, chats?.length],
             ] as const
-          ).map(([key, label, icon]) => (
+          ).map(([key, label, icon, total]) => (
             <button
               key={key}
               type="button"
@@ -174,6 +181,9 @@ export function AthosSidebarSection() {
             >
               {icon}
               {label}
+              {total !== undefined && total > 0 && (
+                <span className="text-[11px] text-muted-foreground">{total}</span>
+              )}
             </button>
           ))}
         </div>
@@ -186,7 +196,7 @@ export function AthosSidebarSection() {
               ? "Ningún paciente con ese nombre."
               : tab === "consultas"
                 ? "Todavía no hay consultas. Empieza una con «Iniciar consulta», aquí arriba."
-                : "Todavía no has hablado con Athos sobre un paciente. Abre «Nuevo chat» y elige uno."}
+                : "Todavía no has hablado con Athos sobre un paciente. Abre «Nuevo chat con Athos» y elige uno."}
           </p>
         ) : (
           <SidebarMenu>

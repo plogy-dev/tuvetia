@@ -4,6 +4,8 @@ import { createClient } from "@/lib/supabase/server"
 import { EmailSettings, type EmailIntegrationView } from "@/components/settings/email-settings"
 import { WhatsappSettings } from "@/components/settings/whatsapp-settings"
 import { CalendarSettings, type CalendarProvider } from "@/components/settings/calendar-settings"
+import { AthosEmailSettings } from "@/components/settings/athos-email-settings"
+import { composioConfigurado, estadoConexion } from "@/lib/composio/gmail"
 import { HelpTip } from "@/components/help-tip"
 import { PageHeader, PageShell } from "@/components/ui/page-shell"
 
@@ -23,7 +25,9 @@ export default async function ConexionesPage() {
     data: { user },
   } = await supabase.auth.getUser()
 
-  const [{ data: wa }, { data: emailRow }, { data: cal }, { data: myEmailRow }] = await Promise.all([
+  const composioListo = composioConfigurado()
+
+  const [{ data: wa }, { data: emailRow }, { data: cal }, correoAthos] = await Promise.all([
     supabase.from("whatsapp_integrations").select("status, phone_number, agent_mode").maybeSingle(),
     // Cuenta INSTITUCIONAL de la clínica: la que manda facturas y cobranza (user_id null).
     supabase
@@ -40,14 +44,10 @@ export default async function ConexionesPage() {
           .eq("user_id", user.id)
           .maybeSingle()
       : Promise.resolve({ data: null }),
-    // Cuenta PERSONAL del miembro: su bandeja y lo que Athos envía por él.
-    user
-      ? supabase
-          .from("email_integrations")
-          .select("status, from_email, from_name, last_error, verified_at")
-          .eq("user_id", user.id)
-          .maybeSingle()
-      : Promise.resolve({ data: null }),
+    // La cuenta de Google que este miembro conectó por Composio: la que usa Athos por él.
+    user && composioListo
+      ? estadoConexion(user.id)
+      : Promise.resolve({ conectado: false, email: null }),
   ])
 
   const waRow = wa as {
@@ -56,7 +56,6 @@ export default async function ConexionesPage() {
     agent_mode: "auto" | "review" | "paused" | "intervene"
   } | null
   const email = emailRow as EmailIntegrationView | null
-  const myEmail = myEmailRow as EmailIntegrationView | null
   const calendarConnected = ((cal as { provider: string } | null)?.provider ?? null) as
     | CalendarProvider
     | null
@@ -99,14 +98,18 @@ export default async function ConexionesPage() {
 
         <section className="rounded-lg border border-line-soft bg-card p-4 shadow-sm">
           <div className="mb-3 flex items-center gap-2 text-sm font-semibold text-fg">
-            <Mail className="size-4 text-fg-faint" aria-hidden /> Mi correo
+            <Mail className="size-4 text-fg-faint" aria-hidden /> Correo de Athos
             <HelpTip>
-              Es <b>tu</b> cuenta, no la de la clínica: acá se lee tu bandeja en Comunicaciones y de
-              acá salen los correos que <b>Athos</b> redacta para los titulares. Cada miembro conecta
-              la suya. Se usa una <b>contraseña de aplicación</b> de Gmail.
+              Es <b>tu</b> cuenta, no la de la clínica: cada miembro conecta la suya y Athos usa la
+              de quien le está pidiendo algo. Nunca escribe desde la cuenta de otro. Tuvetia no ve
+              tu contraseña — la autorización la maneja Google.
             </HelpTip>
           </div>
-          <EmailSettings integration={myEmail} scope="personal" />
+          <AthosEmailSettings
+            conectado={correoAthos.conectado}
+            email={correoAthos.email}
+            disponible={composioListo}
+          />
         </section>
 
         <section className="rounded-lg border border-line-soft bg-card p-4 shadow-sm">

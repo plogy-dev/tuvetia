@@ -245,9 +245,9 @@ export default function DemoStage() {
                   10:24
                 </span>
                 <div className="nacts">
-                  <button className="nb" id="bpause">
-                    ❚❚
-                  </button>
+                  {/* Sin botón de pausa: era el único de los cuatro sin handler en `engine.ts`
+                      (`bstop`, `bmax` y `bexp` sí lo tienen). Un botón muerto en la maqueta que
+                      vende el producto se lee como producto roto. */}
                   <button className="nb dg" id="bstop">
                     ■
                   </button>

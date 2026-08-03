@@ -39,11 +39,13 @@ const TOOL_LABELS: Record<string, { label: string; icon: typeof MessageCircle }>
  *
  * Antes esto era un booleano cableado a `send_whatsapp_message` con un único `<Textarea>` sobre
  * `payload.body`. Un correo necesita destinatario y asunto además del cuerpo, así que se declara
- * por tool. Lo que NO está acá no es editable: `reply_email` a propósito no deja tocar destinatario
- * ni asunto — los resuelve el ejecutor desde el hilo, y poder cambiarlos permitiría desviar una
- * respuesta a otra dirección o romper el hilado.
+ * por tool.
+ *
+ * En los dos correos el destinatario ES editable, y a propósito: el modelo lo saca de lo que leyó
+ * del hilo, y si se equivocó de dirección el vet tiene que poder corregirlo ANTES de aprobar — no
+ * después, cuando el correo ya salió. Lo que no está en esta lista no se puede tocar.
  */
-type CampoEditable = { campo: string; label: string; multilinea: boolean }
+type CampoEditable = { campo: string; label: string; multilinea: boolean; ayuda?: string }
 
 const CAMPOS_EDITABLES: Record<string, CampoEditable[]> = {
   send_whatsapp_message: [{ campo: "body", label: "Texto del mensaje", multilinea: true }],
@@ -52,7 +54,16 @@ const CAMPOS_EDITABLES: Record<string, CampoEditable[]> = {
     { campo: "subject", label: "Asunto", multilinea: false },
     { campo: "body", label: "Mensaje", multilinea: true },
   ],
-  reply_email: [{ campo: "body", label: "Respuesta", multilinea: true }],
+  reply_email: [
+    {
+      campo: "to_email",
+      label: "Para",
+      multilinea: false,
+      ayuda: "Tiene que ser alguien del hilo — al aprobar se verifica contra Gmail.",
+    },
+    { campo: "subject", label: "Asunto", multilinea: false },
+    { campo: "body", label: "Respuesta", multilinea: true },
+  ],
 }
 
 /** Tools cuyo efecto es mandarle algo a alguien: el botón lo dice ("Aprobar y enviar"). */
@@ -153,26 +164,32 @@ export function ActionApprovalCard({
       </p>
       {editable && !resolved && (
         <div className="mt-2 flex flex-col gap-2">
-          {campos.map((c) =>
-            c.multilinea ? (
-              <Textarea
-                key={c.campo}
-                value={valores[c.campo] ?? ""}
-                onChange={(e) => setValores((v) => ({ ...v, [c.campo]: e.target.value }))}
-                className="min-h-20 text-sm"
-                aria-label={`${c.label} (editable)`}
-              />
-            ) : (
-              <Input
-                key={c.campo}
-                value={valores[c.campo] ?? ""}
-                onChange={(e) => setValores((v) => ({ ...v, [c.campo]: e.target.value }))}
-                className="text-sm"
-                placeholder={c.label}
-                aria-label={`${c.label} (editable)`}
-              />
-            ),
-          )}
+          {/* La etiqueta va VISIBLE, no sólo de placeholder: el placeholder desaparece en cuanto el
+              campo tiene valor, y estos nacen llenos. El vet veía una caja con un correo adentro sin
+              nada que dijera que ése era el destinatario — justo el dato que más conviene que mire
+              antes de aprobar. */}
+          {campos.map((c) => (
+            <label key={c.campo} className="flex flex-col gap-1">
+              <span className="text-xs font-medium text-fg-muted">{c.label}</span>
+              {c.multilinea ? (
+                <Textarea
+                  value={valores[c.campo] ?? ""}
+                  onChange={(e) => setValores((v) => ({ ...v, [c.campo]: e.target.value }))}
+                  className="min-h-20 text-sm"
+                  aria-label={`${c.label} (editable)`}
+                />
+              ) : (
+                <Input
+                  value={valores[c.campo] ?? ""}
+                  onChange={(e) => setValores((v) => ({ ...v, [c.campo]: e.target.value }))}
+                  className="text-sm"
+                  placeholder={c.label}
+                  aria-label={`${c.label} (editable)`}
+                />
+              )}
+              {c.ayuda && <span className="text-[11px] text-fg-muted">{c.ayuda}</span>}
+            </label>
+          ))}
         </div>
       )}
       {resolved ? (

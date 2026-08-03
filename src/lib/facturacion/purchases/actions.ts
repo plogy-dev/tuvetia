@@ -294,7 +294,7 @@ export async function confirmPurchaseAction(input: {
  */
 export async function annulPurchaseAction(input: { id: string }): Promise<PurchaseResult> {
   try {
-    const { supabase, clinicId } = await requireClinic();
+    const { supabase, clinicId, userId } = await requireClinic();
     const id = z.string().uuid().parse(input.id);
 
     const { data: won, error: trErr } = await supabase
@@ -308,13 +308,14 @@ export async function annulPurchaseAction(input: { id: string }): Promise<Purcha
     if (trErr) return { ok: false, error: `No se pudo anular: ${trErr.message}` };
     if (!won) return { ok: false, error: 'Solo se anula una compra confirmada' };
 
-    const { error: movErr } = await supabase
-      .from('inventory_movements')
-      .delete()
-      .eq('clinic_id', clinicId)
-      .eq('ref_type', 'PURCHASE')
-      .eq('ref_id', id);
-    if (movErr) return { ok: false, error: `No se pudieron revertir los movimientos: ${movErr.message}` };
+    const movErrMsg = await compensarMovimientosDeCompra(
+      supabase,
+      clinicId,
+      id,
+      'Reverso por anulación de la compra',
+      userId,
+    );
+    if (movErrMsg) return { ok: false, error: movErrMsg };
 
     const { error: expErr } = await supabase
       .from('expenses')
@@ -337,7 +338,7 @@ export async function annulPurchaseAction(input: { id: string }): Promise<Purcha
  */
 export async function reopenPurchaseAction(input: { id: string }): Promise<PurchaseResult> {
   try {
-    const { supabase, clinicId } = await requireClinic();
+    const { supabase, clinicId, userId } = await requireClinic();
     const id = z.string().uuid().parse(input.id);
 
     const { data: won, error: trErr } = await supabase
@@ -351,13 +352,14 @@ export async function reopenPurchaseAction(input: { id: string }): Promise<Purch
     if (trErr) return { ok: false, error: `No se pudo reabrir: ${trErr.message}` };
     if (!won) return { ok: false, error: 'Solo se reabre una compra confirmada' };
 
-    const { error: movErr } = await supabase
-      .from('inventory_movements')
-      .delete()
-      .eq('clinic_id', clinicId)
-      .eq('ref_type', 'PURCHASE')
-      .eq('ref_id', id);
-    if (movErr) return { ok: false, error: `No se pudieron revertir los movimientos: ${movErr.message}` };
+    const movErrMsg = await compensarMovimientosDeCompra(
+      supabase,
+      clinicId,
+      id,
+      'Reverso por reapertura de la compra para editarla',
+      userId,
+    );
+    if (movErrMsg) return { ok: false, error: movErrMsg };
 
     const { error: expErr } = await supabase
       .from('expenses')
@@ -371,6 +373,77 @@ export async function reopenPurchaseAction(input: { id: string }): Promise<Purch
   } catch (e) {
     return toError(e);
   }
+}
+
+/**
+ * Revierte el stock de una compra con movimientos COMPENSATORIOS, no borrando los originales.
+ *
+ * Antes las dos rutas que revierten —anular y reabrir— hacían `DELETE` de los `inventory_movements`
+ * de la compra. En un inventario que es un libro de movimientos eso es borrar historia, y deja stock
+ * negativo trivialmente: comprar 10 → confirmar (stock 10) → facturar 8 (SALIDA_VENTA) → reabrir →
+ * desaparecen las entradas → **stock −8**, sin rastro de que existieron ni de por qué falta.
+ *
+ * Se usa `AJUSTE` porque es el único tipo que admite cualquier signo (`domain/inventory.ts`), y la
+ * nota dice de qué compra viene para que el movimiento se pueda leer en la ficha del ítem.
+ *
+ * Idempotente: si ya se compensó, no vuelve a hacerlo. Anular después de reabrir es un camino real.
+ */
+async function compensarMovimientosDeCompra(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  clinicId: string,
+  purchaseId: string,
+  motivo: string,
+  userId: string | null,
+): Promise<string | null> {
+  const { data, error } = await supabase
+    .from('inventory_movements')
+    .select('item_id, lot_id, qty, movement_type')
+    .eq('clinic_id', clinicId)
+    .eq('ref_type', 'PURCHASE')
+    .eq('ref_id', purchaseId);
+  if (error) return `No se pudieron leer los movimientos: ${error.message}`;
+
+
+  const filas = (data ?? []) as {
+    item_id: string;
+    lot_id: string | null;
+    qty: number;
+    movement_type: string;
+  }[];
+
+  // Se compensa el NETO por (ítem, lote), no cada movimiento.
+  //
+  // Compensar fila por fila parece equivalente y no lo es: reabrir una compra ya deja su reverso, y
+  // re-confirmarla agrega una entrada nueva. Si después se anula y se compensa CADA entrada, la
+  // primera —que ya estaba compensada— se resta dos veces. Con el neto eso no puede pasar, y de paso
+  // la idempotencia sale gratis: si ya está todo revertido el neto es cero y no se inserta nada.
+  const netoPorItem = new Map<string, { item_id: string; lot_id: string | null; qty: number }>();
+  for (const m of filas) {
+    const clave = `${m.item_id}·${m.lot_id ?? ''}`;
+    const acc = netoPorItem.get(clave) ?? { item_id: m.item_id, lot_id: m.lot_id, qty: 0 };
+    acc.qty += Number(m.qty);
+    netoPorItem.set(clave, acc);
+  }
+
+  const compensaciones = [...netoPorItem.values()]
+    // `inventory_movements` tiene un CHECK de qty <> 0: un neto ya saldado no se inserta.
+    .filter((m) => Math.abs(m.qty) > 1e-6)
+    .map((m) => ({
+      clinic_id: clinicId,
+      created_by: userId,
+      item_id: m.item_id,
+      lot_id: m.lot_id,
+      qty: -Math.round(m.qty * 1e6) / 1e6,
+      movement_type: 'AJUSTE',
+      ref_type: 'PURCHASE',
+      ref_id: purchaseId,
+      note: motivo,
+    }));
+  if (compensaciones.length === 0) return null;
+
+  const { error: insErr } = await supabase.from('inventory_movements').insert(compensaciones);
+  if (insErr) return `No se pudieron revertir los movimientos: ${insErr.message}`;
+  return null;
 }
 
 /** Borra un BORRADOR (las confirmadas se anulan, no se borran). */

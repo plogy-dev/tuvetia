@@ -31,6 +31,15 @@ vi.mock("@/lib/supabase/admin", () => ({
   }),
 }))
 
+// Las tools de correo consultan Composio antes de proponer (para no hacer redactar un correo que
+// después no se puede enviar). Se intercepta: `correoConectado` decide qué contesta.
+let correoConectado = true
+vi.mock("@/lib/composio/gmail", () => ({
+  estadoConexion: async () => ({ conectado: correoConectado, email: "vet@ejemplo.com" }),
+  ejecutarGmail: async () => ({ ok: true, data: {} }),
+  GMAIL_TOOLS: { enviar: "GMAIL_SEND_EMAIL", buscar: "GMAIL_FETCH_EMAILS" },
+}))
+
 const { proposeAction } = await import("../actions")
 const { buildAthosTools, localToIso } = await import("../tools")
 
@@ -44,12 +53,8 @@ const ctx = {
   model: "deepseek-v4-flash",
 }
 
-// Cliente de Supabase mínimo: las tools de lectura no se ejercitan acá (dependen de la RLS real),
-// pero buildAthosTools lo necesita para construirse.
-//
-// `maybeSingle` devuelve un hilo porque `reply_email` es la única tool de ESCRITURA que consulta
-// antes de proponer: resuelve el asunto y el titular desde el hilo en vez de confiar en el modelo.
-// Con `data: null` no llegaría a proponer y el test de "ninguna escritura ejecuta" no probaría nada.
+// Cliente de Supabase mínimo: las tools de lectura no se ejercitan acá (dependen de la RLS real,
+// y las de correo van contra Composio), pero buildAthosTools lo necesita para construirse.
 const fakeSupabase = {
   from: () => ({
     select: () => ({
@@ -64,6 +69,7 @@ const fakeSupabase = {
 beforeEach(() => {
   inserted.length = 0
   insertError = null
+  correoConectado = true
 })
 
 describe("proposeAction — invariantes que sostienen la aprobación humana", () => {
@@ -156,6 +162,25 @@ describe("inventario de tools — cobertura y separación lectura/escritura", ()
     }
   })
 
+  // Sin cuenta conectada, redactar el correo sería trabajo tirado: el vet lo aprueba y recién ahí
+  // se entera de que no se puede enviar, habiendo perdido el texto. Se avisa ANTES de proponer.
+  it("las tools de correo NO proponen si el vet no conectó su cuenta", async () => {
+    correoConectado = false
+    for (const nombre of ["send_email", "reply_email"] as const) {
+      inserted.length = 0
+      const t = tools[nombre] as unknown as { execute: (a: unknown) => Promise<unknown> }
+      const r = (await t.execute({
+        to_email: "ana@ejemplo.com",
+        subject: "Control",
+        body: "Hola",
+        thread_id: "18f9c2a4b7e1d3f0",
+      })) as Record<string, unknown>
+      expect(inserted.length, `${nombre} no debería proponer sin cuenta`).toBe(0)
+      // La marca que hace que el chat muestre la tarjeta de conectar en vez de una línea de error.
+      expect(r.needs_connection, nombre).toBe("gmail")
+    }
+  })
+
   it("NINGUNA tool de escritura ejecuta: todas terminan en una propuesta", async () => {
     for (const nombre of ESCRITURA) {
       inserted.length = 0
@@ -166,7 +191,12 @@ describe("inventario de tools — cobertura y separación lectura/escritura", ()
       const args: Record<string, unknown> = {
         send_whatsapp_message: { to_phone: "3001234567", body: "hola colega" },
         send_email: { to_email: "ana@ejemplo.com", subject: "Control de Luna", body: "Hola Ana…" },
-        reply_email: { thread_id: "2fa4dac8-2a34-4d03-85d7-f44f93780c34", body: "Perfecto." },
+        reply_email: {
+          thread_id: "18f9c2a4b7e1d3f0", // id de Gmail, no un uuid nuestro
+          to_email: "ana@ejemplo.com",
+          subject: "Re: Control de Luna",
+          body: "Perfecto.",
+        },
         create_appointment: { title: "Control", date: "2026-08-01", time: "10:00" },
         update_appointment: { appointment_id: "apt-1", change_summary: "mover" },
         create_owner: { full_name: "Ana Pérez" },

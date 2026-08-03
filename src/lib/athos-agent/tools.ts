@@ -13,60 +13,22 @@ import { z } from "zod"
 import type { SupabaseClient } from "@supabase/supabase-js"
 
 import { proposeAction, type AgentContext } from "./actions"
+import {
+  calcularCupos,
+  invalidDateError,
+  localRange,
+  localToIso,
+  localWeekday,
+  TZ_OFFSET,
+} from "./agenda"
+import { ejecutarGmail, estadoConexion, GMAIL_TOOLS } from "@/lib/composio/gmail"
 
 type SB = SupabaseClient
 
-const TZ_OFFSET = "-05:00"
-// Mismo offset en minutos, para aritmética. Colombia no tiene horario de verano, así que es fijo:
-// si algún día se soportara otra zona, estos dos tienen que moverse juntos.
-const TZ_OFFSET_MINUTES = -300
-
-export function localToIso(date: string, time: string): string {
-  return `${date}T${time}:00${TZ_OFFSET}`
-}
-
-/**
- * Rango [from, to) en ISO a partir de fecha + hora LOCAL del vet. Devuelve null si el instante no
- * existe.
- *
- * Por qué la guarda: el regex del inputSchema valida FORMATO, no calendario. `2026-02-30` y `99:99`
- * pasan `/^\d{4}-\d{2}-\d{2}$/` y `/^\d{2}:\d{2}$/` sin problema, y revientan en `new Date()` como
- * Invalid Date. Los modelos producen ese tipo de fecha con más frecuencia de la que uno espera
- * (febrero 30, mes 13). La versión anterior hacía `new Date(NaN).toISOString()` y lanzaba
- * `RangeError: Invalid time value`: el turno del agente se caía entero, sin mensaje útil para el vet.
- * Ahora el tool devuelve un error legible y el modelo puede corregir la fecha y reintentar.
- *
- * `minutes` no finito se trata como 0 en vez de propagar NaN: el schema tiene default, pero el tool
- * no debería depender de que alguien lo haya aplicado.
- */
-function localRange(
-  date: string,
-  time: string,
-  minutes: number,
-): { from: string; to: string } | null {
-  const from = localToIso(date, time)
-  const fromMs = new Date(from).getTime()
-  if (!Number.isFinite(fromMs)) return null // mes 13, hora 99:99…
-
-  // ROUND-TRIP, y es lo que de verdad importa: `2026-02-30` NO es Invalid Date. JavaScript la
-  // RUEDA en silencio a 2026-03-02, igual que `2026-02-29` (2026 no es bisiesto) → 2026-03-01.
-  // Sin esta comprobación la cita se agendaba OTRO DÍA sin que nadie se enterara — corrupción
-  // silenciosa, peor que un error. Se reconstruye la fecha local y se exige que sea la pedida.
-  const localMs = fromMs + TZ_OFFSET_MINUTES * 60_000
-  const back = new Date(localMs)
-  const ymd = `${back.getUTCFullYear()}-${String(back.getUTCMonth() + 1).padStart(2, "0")}-${String(back.getUTCDate()).padStart(2, "0")}`
-  if (ymd !== date) return null
-
-  const mins = Number.isFinite(minutes) ? minutes : 0
-  return { from, to: new Date(fromMs + mins * 60_000).toISOString() }
-}
-
-/** Mensaje único para el modelo cuando la fecha no existe (no se repite el texto en cada tool). */
-function invalidDateError(date: string, time?: string) {
-  return {
-    error: `Fecha u hora inválida: ${date}${time ? ` ${time}` : ""}. Verificá que el día exista en el calendario (por ejemplo, febrero no tiene 30) y reintentá.`,
-  }
-}
+// La hora local y el cálculo de cupos viven en `./agenda` desde que el modo auto de WhatsApp también
+// los necesita: son las mismas reglas con otro cliente de base. Se re-exporta `localToIso` porque
+// `__tests__/agent-smoke.test.ts` lo importa desde acá.
+export { localToIso, TZ_OFFSET }
 
 const digits = (s: string) => s.replace(/\D/g, "")
 
@@ -75,6 +37,27 @@ function escapeLike(q: string): string {
 }
 
 // ─── Tools ───────────────────────────────────────────────────────────────────
+
+/**
+ * ¿Falta conectar el correo? Devuelve el resultado a mostrar, o null si está todo bien.
+ *
+ * Se comprueba ANTES de proponer, no al ejecutar. Si no, Athos redactaría el correo, el vet lo
+ * aprobaría, y recién ahí se enteraría de que no tiene la cuenta conectada — habiendo perdido el
+ * texto y sin entender por qué falló.
+ */
+async function faltaCorreoConectado(
+  userId: string | null,
+): Promise<{ error: string; needs_connection?: string } | null> {
+  if (!userId) {
+    return { error: "El correo se envía con la cuenta del veterinario, y este turno no tiene una." }
+  }
+  const { conectado } = await estadoConexion(userId)
+  if (conectado) return null
+  return {
+    error: "Todavía no conectaste tu correo, así que no puedo enviarlo por vos.",
+    needs_connection: "gmail",
+  }
+}
 
 export function buildAthosTools(supabase: SB, ctx: AgentContext) {
   return {
@@ -217,7 +200,7 @@ export function buildAthosTools(supabase: SB, ctx: AgentContext) {
         // Sin la guarda, un `2026-02-30` daba weekday=NaN y una consulta con rango inválido:
         // el vet recibía "no hay horarios" en vez de saber que la fecha no existe.
         if (!day) return invalidDateError(date)
-        const weekday = new Date(`${date}T12:00:00${TZ_OFFSET}`).getUTCDay()
+        const weekday = localWeekday(date)
         const [{ data: hours, error: hErr }, apptsRes] = await Promise.all([
           supabase
             .from("clinic_hours")
@@ -238,26 +221,13 @@ export function buildAthosTools(supabase: SB, ctx: AgentContext) {
             slots: [],
             note: "La clínica no tiene horario configurado para ese día (o no cargó sus horarios en Configuración).",
           }
-        const appts = ((apptsRes.data ?? []) as { starts_at: string; ends_at: string }[]).map((a) => ({
-          from: new Date(a.starts_at).getTime(),
-          to: new Date(a.ends_at).getTime(),
-        }))
-        const slots: string[] = []
-        for (const h of hours as { opens_at: string; closes_at: string; slot_minutes: number }[]) {
-          const step = duration_min ?? h.slot_minutes
-          let cursor = new Date(`${date}T${h.opens_at.slice(0, 5)}:00${TZ_OFFSET}`).getTime()
-          const close = new Date(`${date}T${h.closes_at.slice(0, 5)}:00${TZ_OFFSET}`).getTime()
-          while (cursor + step * 60_000 <= close) {
-            const end = cursor + step * 60_000
-            const busy = appts.some((a) => cursor < a.to && end > a.from)
-            if (!busy) {
-              const d = new Date(cursor - 5 * 3600_000) // a hora local Colombia
-              slots.push(`${String(d.getUTCHours()).padStart(2, "0")}:${String(d.getUTCMinutes()).padStart(2, "0")}`)
-            }
-            cursor = end
-          }
-        }
-        return { configured: true, date, slots: slots.slice(0, 40) }
+        const slots = calcularCupos({
+          date,
+          franjas: hours as { opens_at: string; closes_at: string; slot_minutes: number }[],
+          ocupados: (apptsRes.data ?? []) as { starts_at: string; ends_at: string }[],
+          durationMin: duration_min,
+        })
+        return { configured: true, date, slots }
       },
     }),
 
@@ -286,60 +256,48 @@ export function buildAthosTools(supabase: SB, ctx: AgentContext) {
 
     search_emails: tool({
       description:
-        "Busca en el correo de la clínica por texto (asunto, cuerpo o remitente). Devuelve hilos con su último mensaje. Úsala para encontrar un correo antes de responderlo, o para responder '¿qué me escribió el laboratorio?'.",
+        "Busca en el correo del VETERINARIO por texto (usa la sintaxis de búsqueda de Gmail: 'from:ana@…', 'subject:factura', o texto suelto). Devuelve los mensajes con su id de hilo. Úsala para encontrar un correo antes de responderlo, o para contestar '¿qué me escribió el laboratorio?'.",
       inputSchema: z.object({
-        query: z.string().min(2).describe("Texto a buscar en asunto, cuerpo o remitente"),
-        owner_id: z.string().uuid().optional().describe("Acotar a los hilos de un titular"),
+        query: z
+          .string()
+          .min(2)
+          .describe("Búsqueda estilo Gmail: texto, from:correo, subject:asunto, is:unread…"),
         limit: z.number().int().min(1).max(20).optional(),
       }),
-      execute: async ({ query, owner_id, limit }) => {
-        const pattern = `%${escapeLike(query)}%`
-        let q = supabase
-          .from("email_messages")
-          .select("id, thread_id, direction, from_email, subject, snippet, created_at, read_at")
-          .or(`subject.ilike.${pattern},body_text.ilike.${pattern},from_email.ilike.${pattern}`)
-          .order("created_at", { ascending: false })
-          .limit(limit ?? 10)
-        if (owner_id) {
-          // Los hilos del titular primero: sin esto habría que filtrar en memoria.
-          const { data: hilos } = await supabase
-            .from("email_threads")
-            .select("id")
-            .eq("owner_id", owner_id)
-          const ids = ((hilos ?? []) as { id: string }[]).map((h) => h.id)
-          if (ids.length === 0) return { count: 0, messages: [] }
-          q = q.in("thread_id", ids)
+      execute: async ({ query, limit }) => {
+        if (!ctx.userId) {
+          return { error: "El correo se lee con la cuenta del veterinario, y este turno no tiene una." }
         }
-        const { data, error } = await q
-        if (error) return { error: error.message }
-        return { count: (data ?? []).length, messages: data ?? [] }
+        const r = await ejecutarGmail(ctx.userId, GMAIL_TOOLS.buscar, {
+          query,
+          max_results: limit ?? 10,
+        })
+        // `needs_connection` NO es decorativo: la UI del chat lo usa para mostrar una tarjeta con
+        // el botón de conectar, en vez de una línea de error que el vet no puede accionar.
+        if (!r.ok) return r.sinConectar ? { error: r.error, needs_connection: "gmail" } : { error: r.error }
+        return { messages: r.data }
       },
     }),
 
     read_email_thread: tool({
       description:
-        "El hilo de correo completo, en orden. Úsala DESPUÉS de search_emails para leer la conversación antes de redactar una respuesta — responder sin leer el hilo produce respuestas que no encajan.",
+        "El hilo de correo completo, en orden. Úsala DESPUÉS de search_emails con el thread_id que devolvió — responder sin leer el hilo produce respuestas que no encajan.",
       inputSchema: z.object({
-        thread_id: z.string().uuid(),
+        thread_id: z.string().describe("id del hilo de Gmail, de search_emails"),
         limit: z.number().int().min(1).max(30).optional(),
       }),
       execute: async ({ thread_id, limit }) => {
-        const { data: hilo, error: hiloErr } = await supabase
-          .from("email_threads")
-          .select("id, subject, participants, owner_id, last_message_at")
-          .eq("id", thread_id)
-          .maybeSingle()
-        if (hiloErr) return { error: hiloErr.message }
-        if (!hilo) return { error: "No existe ese hilo (o no es de tu clínica)." }
-
-        const { data, error } = await supabase
-          .from("email_messages")
-          .select("direction, from_email, to_emails, subject, body_text, created_at, attachments")
-          .eq("thread_id", thread_id)
-          .order("created_at", { ascending: true })
-          .limit(limit ?? 20)
-        if (error) return { error: error.message }
-        return { thread: hilo, count: (data ?? []).length, messages: data ?? [] }
+        if (!ctx.userId) {
+          return { error: "El correo se lee con la cuenta del veterinario, y este turno no tiene una." }
+        }
+        // Gmail no tiene "traer hilo" como tool separada: se busca por su id, que es lo que la
+        // sintaxis `thread:` hace nativamente.
+        const r = await ejecutarGmail(ctx.userId, GMAIL_TOOLS.buscar, {
+          query: `thread:${thread_id}`,
+          max_results: limit ?? 20,
+        })
+        if (!r.ok) return r.sinConectar ? { error: r.error, needs_connection: "gmail" } : { error: r.error }
+        return { thread_id, messages: r.data }
       },
     }),
 
@@ -465,41 +423,39 @@ export function buildAthosTools(supabase: SB, ctx: AgentContext) {
         body: z.string().min(1).max(5000).describe("Cuerpo en texto plano"),
         owner_id: z.string().uuid().nullable().optional(),
       }),
-      execute: async ({ to_email, subject, body, owner_id }) =>
-        proposeAction(
+      execute: async ({ to_email, subject, body, owner_id }) => {
+        const falta = await faltaCorreoConectado(ctx.userId)
+        if (falta) return falta
+        return proposeAction(
           ctx,
           "send_email",
           { to_email: to_email.trim().toLowerCase(), subject, body, owner_id: owner_id ?? null },
           `Enviar correo a ${to_email}: "${subject}"`,
           { ownerId: owner_id ?? null },
-        ),
+        )
+      },
     }),
 
     reply_email: tool({
       description:
-        "PROPONE responder DENTRO de un hilo de correo existente (el vet aprueba/edita en la tarjeta). El asunto y el hilado los arma el sistema — vos solo escribís el cuerpo. Lee el hilo con read_email_thread antes de redactar.",
+        "PROPONE responder DENTRO de un hilo de correo existente (el vet aprueba/edita en la tarjeta). Lee el hilo con read_email_thread ANTES de redactar: de ahí sacás el destinatario y el asunto, que tenés que pasar vos. `to_email` debe ser una dirección que YA participa del hilo — al aprobar se verifica contra Gmail y si no participa la respuesta no sale. Para escribirle a alguien nuevo usá send_email.",
       inputSchema: z.object({
-        thread_id: z.string().uuid().describe("id del hilo, de search_emails o read_email_thread"),
+        thread_id: z.string().describe("id del hilo de Gmail, de search_emails o read_email_thread"),
+        to_email: z.string().email().describe("A quién responde, tomado del hilo"),
+        subject: z.string().min(1).max(200).describe("Asunto del hilo (con Re: si corresponde)"),
         body: z.string().min(1).max(5000).describe("Cuerpo de la respuesta, en texto plano"),
       }),
-      execute: async ({ thread_id, body }) => {
-        // El destinatario y el asunto salen del hilo al ejecutar, no del modelo: si los inventara,
-        // la respuesta se iría a otra dirección o rompería el hilado.
-        const { data: hilo } = await supabase
-          .from("email_threads")
-          .select("subject, owner_id")
-          .eq("id", thread_id)
-          .maybeSingle()
-        if (!hilo) return { error: "No existe ese hilo (o no es de tu clínica)." }
-        const h = hilo as { subject: string | null; owner_id: string | null }
+      execute: async ({ thread_id, to_email, subject, body }) => {
+        const falta = await faltaCorreoConectado(ctx.userId)
+        if (falta) return falta
         return proposeAction(
           ctx,
           "reply_email",
-          { thread_id, body },
-          `Responder el correo "${h.subject ?? "(sin asunto)"}"`,
+          { thread_id, to_email: to_email.trim().toLowerCase(), subject, body },
+          `Responder el correo "${subject}"`,
           // La tarjeta se cuelga del HILO, no de la conversación donde se pidió: es en la bandeja
           // de correo donde el vet la va a buscar.
-          { ownerId: h.owner_id, conversationKey: thread_id },
+          { conversationKey: thread_id },
         )
       },
     }),

@@ -91,9 +91,17 @@ export async function getCatalogItems(
 // ─── Existencias (stock = Σ movimientos; sin columna editable) ───────────────
 
 /**
- * Mapa item_id → existencia actual (en use_unit). Suma en JS porque supabase-js
- * no expone GROUP BY; al volumen de una veterinaria (cientos de movimientos)
- * es más que suficiente. Si crece, se convierte en RPC SQL.
+ * Mapa item_id → existencia actual (en use_unit). Suma en JS porque supabase-js no expone GROUP BY.
+ *
+ * PAGINA a paso de 1000, que es el max-rows de PostgREST. Sin eso, una clínica con más de mil
+ * movimientos calculaba la existencia sobre mil filas ARBITRARIAS: el stock salía más bajo de lo
+ * real y no determinista, y eso no es cosmético — alimenta el bloqueo `EXISTENCIA_INSUFICIENTE` de
+ * la emisión (bloquea ventas legítimas), el aviso de "bajo mínimo" y el valor del inventario a
+ * costo. Un movimiento por venta y por compra llega a mil antes de lo que parece.
+ *
+ * Es el mismo truncamiento silencioso que ya se corrigió en `getDashboardKpis`, con la misma receta.
+ * El `.order('id')` es lo que hace que la paginación sea estable: sin un orden explícito, Postgres
+ * no garantiza que la página 2 no repita filas de la 1.
  */
 export async function getStockMap(
   supabase: SupabaseClient,
@@ -101,16 +109,23 @@ export async function getStockMap(
   itemIds?: string[],
 ): Promise<Map<string, number>> {
   if (itemIds && itemIds.length === 0) return new Map();
-  let q = supabase
-    .from('inventory_movements')
-    .select('item_id, qty')
-    .eq('clinic_id', clinicId);
-  if (itemIds) q = q.in('item_id', itemIds);
-  const { data, error } = await q;
-  if (error) throw new Error(`No se pudieron leer movimientos: ${error.message}`);
+  const PAGE = 1000;
   const map = new Map<string, number>();
-  for (const m of (data as { item_id: string; qty: number }[]) ?? []) {
-    map.set(m.item_id, (map.get(m.item_id) ?? 0) + Number(m.qty));
+  for (let from = 0; ; from += PAGE) {
+    let q = supabase
+      .from('inventory_movements')
+      .select('item_id, qty')
+      .eq('clinic_id', clinicId)
+      .order('id')
+      .range(from, from + PAGE - 1);
+    if (itemIds) q = q.in('item_id', itemIds);
+    const { data, error } = await q;
+    if (error) throw new Error(`No se pudieron leer movimientos: ${error.message}`);
+    const filas = (data as { item_id: string; qty: number }[]) ?? [];
+    for (const m of filas) {
+      map.set(m.item_id, (map.get(m.item_id) ?? 0) + Number(m.qty));
+    }
+    if (filas.length < PAGE) break;
   }
   for (const [k, v] of map) map.set(k, Math.round(v * 1e6) / 1e6);
   return map;

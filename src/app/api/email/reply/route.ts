@@ -1,13 +1,15 @@
 import { NextResponse } from "next/server"
 
 import { createClient } from "@/lib/supabase/server"
-import { sendUserEmail } from "@/lib/email/send-user-email"
+import { ejecutarGmail, GMAIL_TOOLS } from "@/lib/composio/gmail"
 
 export const runtime = "nodejs"
 
-// Responder un hilo desde la bandeja. El destinatario y el asunto NO vienen del navegador: se
-// resuelven del hilo en el servidor, que es lo que garantiza que la respuesta llegue a quien
-// escribió y quede dentro del hilo.
+// Responder desde la bandeja. Sale de la cuenta de Gmail del propio veterinario (vía Composio), no
+// de una cuenta de la clínica: el titular le responde a la persona que le escribió.
+//
+// `thread_id` es lo que hace que la respuesta quede DENTRO de la conversación en Gmail en vez de
+// abrir una nueva.
 export async function POST(req: Request) {
   const supabase = await createClient()
   const {
@@ -15,40 +17,26 @@ export async function POST(req: Request) {
   } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: "No autenticado" }, { status: 401 })
 
-  const body = (await req.json().catch(() => ({}))) as { thread_id?: string; body?: string }
-  if (!body.thread_id || !body.body?.trim()) {
-    return NextResponse.json({ error: "Falta el hilo o el cuerpo" }, { status: 400 })
+  const body = (await req.json().catch(() => ({}))) as {
+    thread_id?: string
+    to_email?: string
+    subject?: string
+    body?: string
+  }
+  if (!body.thread_id || !body.to_email || !body.body?.trim()) {
+    return NextResponse.json({ error: "Faltan datos para responder" }, { status: 400 })
   }
 
-  // La lectura va con la SESIÓN: la RLS decide si ese hilo existe para quien pregunta. Sin esto, un
-  // thread_id de otra clínica llegaría igual a `sendClinicEmail`, que corre con service_role.
-  const { data: hilo } = await supabase
-    .from("email_threads")
-    .select("id, clinic_id, participants, owner_id")
-    .eq("id", body.thread_id)
-    .maybeSingle()
-  if (!hilo) return NextResponse.json({ error: "Hilo no encontrado" }, { status: 404 })
-  const h = hilo as {
-    id: string
-    clinic_id: string
-    participants: string[] | null
-    owner_id: string | null
-  }
+  // Un solo "Re:", no una escalera — los clientes de correo la acumulan y además rompe el agrupado
+  // por asunto que algunos webmails hacen de respaldo.
+  const asunto = (body.subject ?? "").replace(/^\s*(re|rv|fwd?)\s*:\s*/i, "").trim()
 
-  const destino = (h.participants ?? [])[0]
-  if (!destino) {
-    return NextResponse.json({ error: "El hilo no tiene destinatario" }, { status: 400 })
-  }
-
-  try {
-    const r = await sendUserEmail(h.clinic_id, user.id, {
-      to: destino,
-      body: body.body.trim(),
-      threadId: h.id,
-      ownerId: h.owner_id,
-    })
-    return NextResponse.json({ ok: true, message_id: r.messageId, aviso: r.warning ?? null })
-  } catch (e) {
-    return NextResponse.json({ error: (e as Error).message }, { status: 502 })
-  }
+  const r = await ejecutarGmail(user.id, GMAIL_TOOLS.enviar, {
+    recipient_email: body.to_email.trim(),
+    subject: asunto ? `Re: ${asunto}` : "Re:",
+    body: body.body.trim(),
+    thread_id: body.thread_id,
+  })
+  if (!r.ok) return NextResponse.json({ error: r.error }, { status: 502 })
+  return NextResponse.json({ ok: true })
 }

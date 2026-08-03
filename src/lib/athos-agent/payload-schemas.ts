@@ -87,10 +87,13 @@ export const PAYLOAD_SCHEMAS = {
     body: z.string().min(1).max(5000),
     owner_id: uuid.nullable().optional(),
   }),
-  // Responder no lleva destinatario ni asunto: los resuelve el ejecutor desde el hilo. Si llegaran
-  // en el override, `z.object()` los descarta — que es justo lo que se quiere.
+  // El hilo vive en Gmail, no en nuestra base: su id es una cadena de Google, no un uuid nuestro.
+  // Destinatario y asunto viajan en el payload porque salen del hilo leído, y el vet los ve y puede
+  // corregirlos en la tarjeta antes de aprobar.
   reply_email: z.object({
-    thread_id: uuid,
+    thread_id: z.string().min(1),
+    to_email: z.string().email(),
+    subject: z.string().min(1).max(200),
     body: z.string().min(1).max(5000),
   }),
   create_appointment: CREATE_APPOINTMENT,

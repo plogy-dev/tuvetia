@@ -1,5 +1,6 @@
 import { loadPlatformUsers } from "@/lib/admin/users"
 import { platformEmailConfigurado } from "@/lib/email/platform-sender"
+import { TOPE_ENVIO_MASIVO } from "@/lib/admin/limites"
 import { ExportCsvButton } from "@/components/export-csv-button"
 import { SendEmailDialog } from "@/components/admin/send-email-dialog"
 import { BulkEmailPanel } from "@/components/admin/bulk-email-panel"
@@ -14,6 +15,13 @@ import {
 } from "@/components/ui/table"
 
 export const metadata = { title: "Admin · Usuarios" }
+
+// Las server actions de esta ruta heredan su límite de tiempo de este segmento. El envío masivo
+// recorre destinatarios en serie con pausa entre uno y otro, así que necesita más que el default;
+// mismo criterio que `api/cron/cartera`, que hace un barrido serial equivalente.
+// 👤 Verificar que el plan de Vercel admita este valor: si lo recorta, hay que bajar
+// TOPE_ENVIO_MASIVO en la misma proporción (`lib/admin/limites.ts`).
+export const maxDuration = 120
 
 const fecha = (iso: string | null) => (iso ? iso.slice(0, 10) : "—")
 
@@ -62,15 +70,14 @@ export default async function AdminUsuariosPage() {
           .filter((u) => u.email && u.isActive !== false)
           .map((u) => ({ email: u.email!, nombre: u.fullName, clinica: u.activeClinic }))}
         configurado={configurado}
-        tope={50}
+        tope={TOPE_ENVIO_MASIVO}
       />
 
       {!configurado && (
         <div className="rounded-lg border border-amber-500/40 bg-amber-500/10 p-3 text-sm">
-          <b>El envío de correos está deshabilitado.</b> Falta configurar el remitente de plataforma
-          en Vercel: <code>PLATFORM_SMTP_HOST</code>, <code>PLATFORM_SMTP_FROM_EMAIL</code> y{" "}
-          <code>PLATFORM_SMTP_PASSWORD</code>. Antes de enviar a varios destinatarios, revisá SPF y
-          DKIM del dominio.
+          <b>El envío de correos está deshabilitado.</b> Falta <code>RESEND_API_KEY</code> en Vercel.
+          Además, antes del primer envío el dominio del remitente tiene que estar verificado en
+          Resend (SPF y DKIM) — ver <code>CORREOS.md</code>.
         </div>
       )}
 
