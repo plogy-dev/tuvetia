@@ -245,10 +245,30 @@ todas. Antes de cualquier tanda grande conviene tener manejo de rebotes y enlace
 - Manual, Athos: conectar una cuenta en Conexiones → pedirle a Athos que lea el correo y que
   redacte uno → aprobar la tarjeta → confirmar que salió de **esa** cuenta.
 
-**Pendiente de probar con una cuenta real de Outlook.** Las formas de respuesta salieron de los
-esquemas de Composio, no de una llamada viva. Son tres y ninguna se parece a la de Gmail: todo va
-envuelto en `data.response_data`; `LIST_MESSAGES` devuelve la colección normal de Graph (`value`);
-y `SEARCH_MESSAGES` usa la **Search API**, que entierra los mensajes en
-`value[].hitsContainers[].hits[].resource`. Las tres están cubiertas por
-`__tests__/normalizar-outlook.test.ts`, así que si la real difiere se ve dónde. Gmail sí está
-verificado punta a punta contra la API.
+### Outlook: qué se puede buscar y qué no
+
+No se usa `OUTLOOK_OUTLOOK_SEARCH_MESSAGES`, y no es preferencia: esa tool va contra la Microsoft
+**Search API**, que no existe para cuentas personales. Con una cuenta `outlook.com`, toda búsqueda
+respondía:
+
+> This API is not supported for MSA accounts
+
+Todo va por `LIST_MESSAGES` (`/me/messages`), que funciona con los dos tipos de cuenta. No se
+ramifica por tipo porque no tenemos cómo saber cuál conectó el veterinario, y elegir mal significa
+que la bandeja no carga. Lo que se pierde, y conviene tener presente:
+
+- **no se busca en el cuerpo**, sólo remitente y asunto (Gmail sí busca en el cuerpo);
+- Graph aplica esos filtros **sobre lo ya traído**, no en el servidor, así que la búsqueda mira los
+  mensajes recientes y no el buzón entero — por eso al filtrar se pide un lote grande;
+- se mira la **bandeja de entrada**: *"¿qué le escribí a X?"* no lo encuentra.
+
+**Dos ids, no uno.** En Gmail responder y leer el hilo usan el mismo identificador; en Outlook no —
+se responde al **mensaje** (`REPLY_EMAIL` toma `message_id`) y se lee la conversación por
+`conversationId`. Por eso cada correo normalizado lleva `refRespuesta` y `refConversacion`, y las
+tools de Athos devuelven las dos (`reply_ref` y `thread_ref`). Que en Gmail coincidan es justo lo
+que permite verificar el destinatario con lo que trae el payload, y hay un test que lo fija.
+
+Los campos de la respuesta están **verificados contra una cuenta real**, no inferidos del esquema.
+El enlace "ver en Outlook" sale de `webLink`, que Graph da por mensaje: una cuenta personal vive en
+`outlook.live.com` y una de trabajo en `outlook.office.com`, así que una URL fija llevaría al lugar
+equivocado a la mitad de la gente.
