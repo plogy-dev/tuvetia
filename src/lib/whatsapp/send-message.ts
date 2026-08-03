@@ -4,6 +4,7 @@
 
 import { createAdminClient } from "@/lib/supabase/admin"
 import { ErrorQueElVetPuedeResolver } from "./error-de-envio"
+import { normalizarTelefono } from "./telefono"
 import { providerFor, type WhatsAppIntegrationRow } from "./provider"
 
 export type SendWhatsAppOptions = {
@@ -42,7 +43,9 @@ export async function sendWhatsAppText(
     throw new Error("WhatsApp no está conectado. Verificá la conexión en Configuración → WhatsApp.")
   }
 
-  const destino = to.replace(/\D/g, "")
+  // Normalizado ACÁ y no en cada llamador: este es el único camino de salida, así que arreglarlo
+  // acá cubre la bandeja, las acciones de Athos, el modo auto y la cobranza de una sola vez.
+  const destino = normalizarTelefono(to)
 
   // Mandarse un mensaje al propio número de la clínica no funciona y NUNCA va a funcionar: el chat
   // "mensajes contigo" de WhatsApp es un caso especial y no se direcciona como un contacto normal
@@ -69,7 +72,7 @@ export async function sendWhatsAppText(
     owner_id: opts.ownerId ?? null,
     wa_message_id: waMessageId,
     wa_phone_from: integ.phone_number ?? "",
-    wa_phone_to: to,
+    wa_phone_to: destino,
     direction: "outbound" as const,
     body,
     sent_by: opts.sentBy ?? null,

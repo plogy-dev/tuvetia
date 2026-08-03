@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest"
 
 import { clasificarFalloDeEnvio, ErrorQueElVetPuedeResolver } from "../error-de-envio"
 import { EvolutionError } from "../evolution"
+import { normalizarTelefono } from "../telefono"
 
 describe("clasificarFalloDeEnvio", () => {
   it("el número desvinculado conserva su mensaje y su 409", () => {
@@ -67,5 +68,28 @@ describe("ErrorQueElVetPuedeResolver", () => {
     const f = clasificarFalloDeEnvio(new ErrorQueElVetPuedeResolver("una frase que nadie previó"))
     expect(f.texto).toBe("una frase que nadie previó")
     expect(f.status).toBe(409)
+  })
+})
+
+describe("normalizarTelefono", () => {
+  it("le pone el indicativo a un móvil colombiano de 10 dígitos", () => {
+    // El fallo real: Athos propuso "3244669300" y WhatsApp respondió `exists:false`.
+    expect(normalizarTelefono("3244669300")).toBe("573244669300")
+    expect(normalizarTelefono("324 466 9300")).toBe("573244669300")
+  })
+
+  it("un fijo de 10 dígitos también lo lleva", () => {
+    expect(normalizarTelefono("6012345678")).toBe("576012345678")
+  })
+
+  it("no toca el que ya viene completo", () => {
+    expect(normalizarTelefono("573244669300")).toBe("573244669300")
+    expect(normalizarTelefono("+57 324 466 9300")).toBe("573244669300")
+  })
+
+  it("NO asume Colombia para longitudes que no son la nacional", () => {
+    // Un internacional destrozado por asumir el 57 es peor que uno sin tocar.
+    expect(normalizarTelefono("+1 415 555 0123")).toBe("14155550123")
+    expect(normalizarTelefono("+34 600 123 456")).toBe("34600123456")
   })
 })
