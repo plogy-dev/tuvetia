@@ -113,7 +113,12 @@ export async function applyCarteraInbound(
     .eq('wa_message_id', waMessageId)
     .maybeSingle<{ media_url: string | null; media_type: string | null }>();
   const trimmed = text.trim();
-  const hasMedia = !!msg?.media_url;
+  // Se detecta por `media_type`, no por `media_url`: el tipo lo escribe el webhook en el mismo
+  // insert, mientras que la ruta la escribe la descarga posterior. Mirando sólo la ruta —que es lo
+  // que se hacía— una foto cuya descarga falló dejaba de contar como adjunto y el titular que mandó
+  // el comprobante no recibía nada. (Y antes de la 0056 la ruta no se escribía NUNCA, así que este
+  // camino entero estaba muerto.)
+  const hasMedia = !!msg?.media_type || !!msg?.media_url;
   if (!trimmed && !hasMedia) return { handled: false };
 
   const classification = await classifyCarteraIntent(
