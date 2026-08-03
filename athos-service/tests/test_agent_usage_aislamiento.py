@@ -70,16 +70,29 @@ def test_uso_del_agente_aislado_por_clinica(seeded_tenants):
     assert de_b in ids_b and de_b not in ids_a
 
 
-def test_la_policy_de_select_acota_por_clinica(require_db):
-    """Sin esto, publicar la tabla dejaría el consumo de una clínica visible para las demás."""
+def test_el_consumo_no_se_lee_desde_la_app(require_db):
+    """
+    `athos_agent_usage` tiene RLS y CERO policies: nadie la lee por PostgREST.
+
+    Este test decía lo contrario —esperaba exactamente una policy de SELECT acotada por clínica— y
+    llevaba fallando en CADA PR desde el 2026-08-02, cuando la migración 0052 borró esa policy a
+    propósito. El consumo se mira desde `/admin`, con service_role; una policy de SELECT por clínica
+    sólo servía para que el propio agente pudiera leer su gasto, que no le hace falta y es superficie
+    de más.
+
+    Una tabla con RLS y sin policies es DENY para todos salvo service_role: la ausencia es la
+    protección, así que se afirma la ausencia.
+    """
     policies = fetch_all(
         "select policyname, cmd, qual from pg_policies "
         "where schemaname = 'public' and tablename = 'athos_agent_usage'"
     )
-    assert len(policies) == 1, "se esperaba exactamente la policy de SELECT"
-    (policy,) = policies
-    assert policy["cmd"] == "SELECT"
-    assert "my_clinic_id" in (policy["qual"] or "")
+    assert policies == [], f"no debería haber ninguna policy; hay {[p['policyname'] for p in policies]}"
+
+    rls = fetch_all(
+        "select relrowsecurity from pg_class where oid = 'public.athos_agent_usage'::regclass"
+    )
+    assert rls and rls[0]["relrowsecurity"] is True, "RLS tiene que seguir habilitada"
 
 
 def test_borrar_la_clinica_se_lleva_su_consumo(seeded_tenants):
