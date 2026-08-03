@@ -3,6 +3,7 @@
 // y el modo auto. SOLO servidor (usa service_role).
 
 import { createAdminClient } from "@/lib/supabase/admin"
+import { ErrorQueElVetPuedeResolver } from "./error-de-envio"
 import { providerFor, type WhatsAppIntegrationRow } from "./provider"
 
 export type SendWhatsAppOptions = {
@@ -41,7 +42,24 @@ export async function sendWhatsAppText(
     throw new Error("WhatsApp no está conectado. Verificá la conexión en Configuración → WhatsApp.")
   }
 
-  const { waMessageId } = await providerFor(integ).sendText(integ, to.replace(/\D/g, ""), body)
+  const destino = to.replace(/\D/g, "")
+
+  // Mandarse un mensaje al propio número de la clínica no funciona y NUNCA va a funcionar: el chat
+  // "mensajes contigo" de WhatsApp es un caso especial y no se direcciona como un contacto normal
+  // por la API. El proveedor devuelve un 400 seco, que traducido a la UI queda como "revisá que el
+  // número esté bien" — un consejo inútil, porque el número está perfecto.
+  //
+  // No es rebuscado: es lo primero que hace cualquiera para probar, y basta con que el vet se cargue
+  // a sí mismo como titular para que le pase sin darse cuenta. Medido en vivo el 2026-08-03.
+  const propio = (integ.phone_number ?? "").replace(/\D/g, "")
+  if (propio && destino === propio) {
+    throw new ErrorQueElVetPuedeResolver(
+      "No se puede enviar un WhatsApp al número de la propia clínica. Para probar, usá otro teléfono.",
+      400,
+    )
+  }
+
+  const { waMessageId } = await providerFor(integ).sendText(integ, destino, body)
 
   // Registrar el saliente y devolver la fila real (id + created_at de la BD) — el front la usa
   // para no duplicar el hilo. Un retry único: si falla dos veces, el mensaje salió pero no quedó
