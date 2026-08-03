@@ -13,61 +13,22 @@ import { z } from "zod"
 import type { SupabaseClient } from "@supabase/supabase-js"
 
 import { proposeAction, type AgentContext } from "./actions"
+import {
+  calcularCupos,
+  invalidDateError,
+  localRange,
+  localToIso,
+  localWeekday,
+  TZ_OFFSET,
+} from "./agenda"
 import { ejecutarGmail, estadoConexion, GMAIL_TOOLS } from "@/lib/composio/gmail"
 
 type SB = SupabaseClient
 
-const TZ_OFFSET = "-05:00"
-// Mismo offset en minutos, para aritmética. Colombia no tiene horario de verano, así que es fijo:
-// si algún día se soportara otra zona, estos dos tienen que moverse juntos.
-const TZ_OFFSET_MINUTES = -300
-
-export function localToIso(date: string, time: string): string {
-  return `${date}T${time}:00${TZ_OFFSET}`
-}
-
-/**
- * Rango [from, to) en ISO a partir de fecha + hora LOCAL del vet. Devuelve null si el instante no
- * existe.
- *
- * Por qué la guarda: el regex del inputSchema valida FORMATO, no calendario. `2026-02-30` y `99:99`
- * pasan `/^\d{4}-\d{2}-\d{2}$/` y `/^\d{2}:\d{2}$/` sin problema, y revientan en `new Date()` como
- * Invalid Date. Los modelos producen ese tipo de fecha con más frecuencia de la que uno espera
- * (febrero 30, mes 13). La versión anterior hacía `new Date(NaN).toISOString()` y lanzaba
- * `RangeError: Invalid time value`: el turno del agente se caía entero, sin mensaje útil para el vet.
- * Ahora el tool devuelve un error legible y el modelo puede corregir la fecha y reintentar.
- *
- * `minutes` no finito se trata como 0 en vez de propagar NaN: el schema tiene default, pero el tool
- * no debería depender de que alguien lo haya aplicado.
- */
-function localRange(
-  date: string,
-  time: string,
-  minutes: number,
-): { from: string; to: string } | null {
-  const from = localToIso(date, time)
-  const fromMs = new Date(from).getTime()
-  if (!Number.isFinite(fromMs)) return null // mes 13, hora 99:99…
-
-  // ROUND-TRIP, y es lo que de verdad importa: `2026-02-30` NO es Invalid Date. JavaScript la
-  // RUEDA en silencio a 2026-03-02, igual que `2026-02-29` (2026 no es bisiesto) → 2026-03-01.
-  // Sin esta comprobación la cita se agendaba OTRO DÍA sin que nadie se enterara — corrupción
-  // silenciosa, peor que un error. Se reconstruye la fecha local y se exige que sea la pedida.
-  const localMs = fromMs + TZ_OFFSET_MINUTES * 60_000
-  const back = new Date(localMs)
-  const ymd = `${back.getUTCFullYear()}-${String(back.getUTCMonth() + 1).padStart(2, "0")}-${String(back.getUTCDate()).padStart(2, "0")}`
-  if (ymd !== date) return null
-
-  const mins = Number.isFinite(minutes) ? minutes : 0
-  return { from, to: new Date(fromMs + mins * 60_000).toISOString() }
-}
-
-/** Mensaje único para el modelo cuando la fecha no existe (no se repite el texto en cada tool). */
-function invalidDateError(date: string, time?: string) {
-  return {
-    error: `Fecha u hora inválida: ${date}${time ? ` ${time}` : ""}. Verificá que el día exista en el calendario (por ejemplo, febrero no tiene 30) y reintentá.`,
-  }
-}
+// La hora local y el cálculo de cupos viven en `./agenda` desde que el modo auto de WhatsApp también
+// los necesita: son las mismas reglas con otro cliente de base. Se re-exporta `localToIso` porque
+// `__tests__/agent-smoke.test.ts` lo importa desde acá.
+export { localToIso, TZ_OFFSET }
 
 const digits = (s: string) => s.replace(/\D/g, "")
 
@@ -239,7 +200,7 @@ export function buildAthosTools(supabase: SB, ctx: AgentContext) {
         // Sin la guarda, un `2026-02-30` daba weekday=NaN y una consulta con rango inválido:
         // el vet recibía "no hay horarios" en vez de saber que la fecha no existe.
         if (!day) return invalidDateError(date)
-        const weekday = new Date(`${date}T12:00:00${TZ_OFFSET}`).getUTCDay()
+        const weekday = localWeekday(date)
         const [{ data: hours, error: hErr }, apptsRes] = await Promise.all([
           supabase
             .from("clinic_hours")
@@ -260,26 +221,13 @@ export function buildAthosTools(supabase: SB, ctx: AgentContext) {
             slots: [],
             note: "La clínica no tiene horario configurado para ese día (o no cargó sus horarios en Configuración).",
           }
-        const appts = ((apptsRes.data ?? []) as { starts_at: string; ends_at: string }[]).map((a) => ({
-          from: new Date(a.starts_at).getTime(),
-          to: new Date(a.ends_at).getTime(),
-        }))
-        const slots: string[] = []
-        for (const h of hours as { opens_at: string; closes_at: string; slot_minutes: number }[]) {
-          const step = duration_min ?? h.slot_minutes
-          let cursor = new Date(`${date}T${h.opens_at.slice(0, 5)}:00${TZ_OFFSET}`).getTime()
-          const close = new Date(`${date}T${h.closes_at.slice(0, 5)}:00${TZ_OFFSET}`).getTime()
-          while (cursor + step * 60_000 <= close) {
-            const end = cursor + step * 60_000
-            const busy = appts.some((a) => cursor < a.to && end > a.from)
-            if (!busy) {
-              const d = new Date(cursor - 5 * 3600_000) // a hora local Colombia
-              slots.push(`${String(d.getUTCHours()).padStart(2, "0")}:${String(d.getUTCMinutes()).padStart(2, "0")}`)
-            }
-            cursor = end
-          }
-        }
-        return { configured: true, date, slots: slots.slice(0, 40) }
+        const slots = calcularCupos({
+          date,
+          franjas: hours as { opens_at: string; closes_at: string; slot_minutes: number }[],
+          ocupados: (apptsRes.data ?? []) as { starts_at: string; ends_at: string }[],
+          durationMin: duration_min,
+        })
+        return { configured: true, date, slots }
       },
     }),
 
