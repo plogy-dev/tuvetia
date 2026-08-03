@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest"
 
-import { clasificarFalloDeEnvio } from "../error-de-envio"
+import { clasificarFalloDeEnvio, ErrorQueElVetPuedeResolver } from "../error-de-envio"
 import { EvolutionError } from "../evolution"
 
 describe("clasificarFalloDeEnvio", () => {
@@ -46,5 +46,26 @@ describe("clasificarFalloDeEnvio", () => {
     expect(f.status).toBe(502)
     expect(f.texto).toContain("inesperado")
     expect(f.texto).not.toContain("rarísimo")
+  })
+})
+
+describe("ErrorQueElVetPuedeResolver", () => {
+  it("su mensaje llega TAL CUAL a la UI, con su propio status", () => {
+    const f = clasificarFalloDeEnvio(
+      new ErrorQueElVetPuedeResolver(
+        "No se puede enviar un WhatsApp al número de la propia clínica. Para probar, usá otro teléfono.",
+        400,
+      ),
+    )
+    expect(f.status).toBe(400)
+    expect(f.texto).toContain("otro teléfono")
+  })
+
+  it("no depende del texto — que es lo que se rompía", () => {
+    // El caso del número propio caía al genérico "error inesperado" mientras la clasificación se
+    // hacía por `includes`. Cualquier frase nueva tiene que llegar entera sin tocar el clasificador.
+    const f = clasificarFalloDeEnvio(new ErrorQueElVetPuedeResolver("una frase que nadie previó"))
+    expect(f.texto).toBe("una frase que nadie previó")
+    expect(f.status).toBe(409)
   })
 })

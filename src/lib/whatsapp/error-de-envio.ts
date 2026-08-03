@@ -13,12 +13,36 @@
 
 export type FalloDeEnvio = { texto: string; status: number }
 
+/**
+ * Fallo que el vet PUEDE resolver por su cuenta: su mensaje se le muestra tal cual.
+ *
+ * Es una clase y no un texto a propósito. Antes esto se decidía con `msg.includes("no está
+ * conectado")`, y eso se rompe en silencio con sólo reformular una frase o agregar un caso nuevo
+ * —pasó apenas se agregó el del número propio, que caía al genérico— dejando al vet con "error
+ * inesperado" delante de algo que sabía resolver. Mismo criterio que en facturación, donde se dejó
+ * de leer el texto del error para preguntarle a la base.
+ */
+export class ErrorQueElVetPuedeResolver extends Error {
+  constructor(
+    message: string,
+    readonly status: number = 409,
+  ) {
+    super(message)
+    this.name = "ErrorQueElVetPuedeResolver"
+  }
+}
+
 const contiene = (e: unknown, aguja: string) =>
   e instanceof Error && e.message.toLowerCase().includes(aguja)
 
 export function clasificarFalloDeEnvio(e: unknown): FalloDeEnvio {
-  // 1. El número no está vinculado. Es el único caso con una acción clara y propia del vet, y ya se
-  //    trataba aparte: reconectar en Configuración.
+  // 1. Lo que el vet puede resolver: su mensaje ya está escrito para él.
+  if (e instanceof ErrorQueElVetPuedeResolver) {
+    return { texto: e.message, status: e.status }
+  }
+
+  // Los mismos casos expresados como texto. Quedan por compatibilidad con lo que todavía lanza
+  // `Error` pelado desde otras capas; los nuevos deben usar la clase de arriba.
   if (contiene(e, "no está conectado") || contiene(e, "no tiene instancia") || contiene(e, "no tiene número")) {
     return { texto: (e as Error).message, status: 409 }
   }
