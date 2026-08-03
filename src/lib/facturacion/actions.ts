@@ -8,6 +8,7 @@
 import { z } from 'zod';
 import { revalidatePath } from 'next/cache';
 import { createClient } from '@/lib/supabase/server';
+import { requireClinicAdmin } from '@/lib/clinic-role';
 import {
   CATALOG_KINDS,
   DOC_KINDS,
@@ -82,7 +83,10 @@ export async function saveBillingSettings(
   input: SaveSettingsInput,
 ): Promise<Result<{ settings: BillingSettingsRow }>> {
   try {
-    const { supabase, clinicId, userId } = await requireClinic();
+    // SOLO ADMIN: acá se define NIT, régimen y dirección del emisor, o sea con qué identidad se
+    // emiten los documentos ante la DIAN. Emitir una factura sigue siendo de cualquier miembro —
+    // cambiar quién la emite, no. Es el único sitio de todo el módulo con este gate.
+    const { supabase, clinicId, userId } = await requireClinicAdmin();
     const parsed = SettingsSchema.safeParse(input);
     if (!parsed.success) {
       return { ok: false, error: parsed.error.issues[0]?.message ?? 'Datos inválidos' };

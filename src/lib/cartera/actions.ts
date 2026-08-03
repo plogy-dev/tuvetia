@@ -13,6 +13,7 @@ import { getBillingSettings } from '@/lib/facturacion/queries';
 import { runCarteraSweepForClinic } from './scheduler';
 import { resolveHumanTask } from './tasks';
 import { grantAuthorization, revokeAuthorization } from './authorizations';
+import { requireClinicAdmin } from '@/lib/clinic-role';
 
 type Err = { ok: false; error: string };
 export type Result<P = unknown> = ({ ok: true } & P) | Err;
@@ -178,12 +179,21 @@ export async function resolveHumanTaskAction(
   }
 }
 
-/** Barrido manual desde el panel ("Ejecutar seguimiento ahora"). */
+/**
+ * Barrido manual desde el panel ("Ejecutar seguimiento ahora").
+ *
+ * SOLO ADMIN, y es la acción con más alcance hacia afuera de todo el producto: manda WhatsApp y
+ * correo de cobro REALES a todos los deudores de la clínica, de una, sin nadie en el medio.
+ *
+ * La ruta cron que hace exactamente lo mismo (`api/cron/cartera/route.ts`) está protegida con
+ * `CRON_SECRET` y su comentario dice que es *porque manda mensajes reales a titulares*. Esta server
+ * action corría con el mismo `requireClinic()` que ver una factura.
+ */
 export async function runSweepNowAction(): Promise<
   Result<{ planned: number; sent: number; rescheduled: number; skipped: number }>
 > {
   try {
-    const { supabase, clinicId } = await requireClinic();
+    const { supabase, clinicId } = await requireClinicAdmin();
     const settings = await getBillingSettings(supabase, clinicId);
     if (!settings) return { ok: false, error: 'Módulo de facturación no configurado' };
     const r = await runCarteraSweepForClinic(supabase, clinicId, settings, new Date());

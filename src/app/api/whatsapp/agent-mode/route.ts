@@ -3,6 +3,7 @@ import { z } from "zod"
 
 import { createClient } from "@/lib/supabase/server"
 import { createAdminClient } from "@/lib/supabase/admin"
+import { requireClinicAdmin } from "@/lib/clinic-role"
 
 // Cambia el modo del agente de WhatsApp de la clínica (review = Athos solo sugiere; auto = Athos
 // responde solo entrantes NO clínicos). Escritura con service_role tras validar la sesión —
@@ -19,13 +20,18 @@ export async function POST(req: Request) {
     .safeParse(await req.json().catch(() => null))
   if (!parsed.success) return NextResponse.json({ error: "Bad request" }, { status: 400 })
 
-  const { data: prof } = await supabase
-    .from("profiles")
-    .select("clinic_id")
-    .eq("id", user.id)
-    .maybeSingle()
-  const clinicId = (prof as { clinic_id: string | null } | null)?.clinic_id
-  if (!clinicId) return NextResponse.json({ error: "El usuario no tiene clínica" }, { status: 400 })
+  // SOLO ADMIN. `agent_mode='auto'` es el ÚNICO interruptor de autorización de las dos rutas que le
+  // hablan solas a los titulares (`whatsapp/auto-reply.ts` y `cartera/wa-router.ts`). Todo lo demás
+  // en esa cadena —debounce de 5 s, reserva atómica del entrante, rampa de calentamiento, 8/hora,
+  // límite diario— son frenos de VOLUMEN, no de permiso: ninguno pregunta quién lo encendió.
+  //
+  // El `audit_logs` de más abajo deja rastro DESPUÉS del hecho; esto es lo que lo previene.
+  let clinicId: string
+  try {
+    ;({ clinicId } = await requireClinicAdmin())
+  } catch (e) {
+    return NextResponse.json({ error: (e as Error).message }, { status: 403 })
+  }
 
   const admin = createAdminClient()
   const { error } = await admin
