@@ -15,6 +15,7 @@ import { toast } from "sonner"
 import { renderInline, splitBlocks } from "@/components/athos/rich-text"
 import { ActionApprovalCard } from "@/components/athos/action-approval-card"
 import { ConnectEmailCard } from "@/components/athos/connect-email-card"
+import { PendingActions } from "@/components/athos/pending-actions"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
@@ -398,6 +399,10 @@ export function Assistant({
             No se pudo consultar a Athos: {error.message}
           </div>
         )}
+
+        {/* Lo que quedó esperando aprobación, leído de athos_actions. Las tarjetas del streaming
+            se pierden al recargar (solo se persiste el texto del turno); esto no. */}
+        <PendingActions recargarToken={messages.length} />
       </div>
 
       {/* Composer */}
