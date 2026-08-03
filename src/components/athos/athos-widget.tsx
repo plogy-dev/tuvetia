@@ -71,7 +71,7 @@ export function AthosWidget() {
     const t = texto.trim()
     if (!t || busy) return
     setInput("")
-    void sendMessage({ text: t }, { body: { patientId: ctx!.patientId, source: "chat" } })
+    void sendMessage({ text: t }, { body: { patientId: ctx!.patientId, source: "widget" } })
   }
 
   if (!abierto) {

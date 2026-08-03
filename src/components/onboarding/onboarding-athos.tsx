@@ -52,9 +52,10 @@ export function OnboardingAthos({ clinicName }: { clinicName: string }) {
     const t = texto.trim()
     if (!t || busy) return
     setInput("")
-    // `source: "chat"` a propósito: `athos_actions` tiene un CHECK que sólo admite
-    // chat|inbox|auto, así que un "onboarding" exigiría migración sin aportar nada hoy.
-    void sendMessage({ text: t }, { body: { patientId: null, source: "chat" } })
+    // Ya no miente: la 0057 amplió el CHECK de `athos_actions.source`. Antes mandaba "chat" porque
+    // sólo se admitía chat|inbox|auto, y con dos superficies mintiendo (ésta y el widget) "chat"
+    // dejaba de significar nada.
+    void sendMessage({ text: t }, { body: { patientId: null, source: "onboarding" } })
   }
 
   return (
