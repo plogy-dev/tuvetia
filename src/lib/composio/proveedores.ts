@@ -37,6 +37,14 @@ export interface Adaptador {
   version: string
   /** Variable de entorno con el auth config de Composio. */
   envAuthConfig: string
+  /**
+   * ¿El destinatario de una respuesta lo fija el proveedor?
+   *
+   * Cuando es `true`, responder no acepta destinatario: lo resuelve el proveedor a partir del
+   * mensaje original. Eso cierra por construcción la vía de inyección que hay cuando la dirección
+   * viaja en el payload — ver `verificarDestinatarioDeRespuesta` en correo.ts.
+   */
+  respuestaFijaDestinatario: boolean
   buscar(query: string, limite: number): { slug: string; args: Record<string, unknown> }
   enviar(a: string, asunto: string, cuerpo: string): { slug: string; args: Record<string, unknown> }
   responder(input: {
@@ -45,6 +53,8 @@ export interface Adaptador {
     asunto: string
     cuerpo: string
   }): { slug: string; args: Record<string, unknown> }
+  /** Trae la conversación a la que apunta `ref`, para verificar quién participa de ella. */
+  buscarHilo(ref: string): { slug: string; args: Record<string, unknown> }
   normalizar(data: unknown, correoPropio: string | null): CorreoNormalizado[]
 }
 
@@ -69,6 +79,14 @@ const GMAIL: Adaptador = {
   // de la definición de la tool.
   version: process.env.COMPOSIO_GMAIL_TOOLKIT_VERSION?.trim() || "20260721_00",
   envAuthConfig: "COMPOSIO_GMAIL_AUTH_CONFIG_ID",
+  // Gmail responde con un envío normal, así que el destinatario lo elegimos nosotros — y por eso
+  // hay que verificarlo contra el hilo antes de mandarlo.
+  respuestaFijaDestinatario: false,
+
+  buscarHilo: (ref) => ({
+    slug: "GMAIL_FETCH_EMAILS",
+    args: { query: `thread:${ref}`, max_results: 30 },
+  }),
 
   buscar: (query, limite) => ({
     slug: "GMAIL_FETCH_EMAILS",
@@ -109,9 +127,7 @@ const GMAIL: Adaptador = {
 
 // ─── Outlook ──────────────────────────────────────────────────────────────────
 
-// Microsoft Graph devuelve los mensajes con esta forma. Se lee defensivamente porque Composio no
-// documenta si los pasa tal cual o los envuelve — y una bandeja que revienta por un campo que
-// cambió de nombre es peor que una que muestra "(sin asunto)".
+// Microsoft Graph devuelve los mensajes con esta forma.
 type MensajeOutlook = {
   id?: string
   conversationId?: string
@@ -132,34 +148,72 @@ function direccionOutlook(e?: { emailAddress?: { address?: string; name?: string
   return a.name ? `${a.name} <${a.address}>` : a.address
 }
 
+/**
+ * Saca la lista de mensajes de una respuesta de Outlook.
+ *
+ * Hay tres formas que atender, y no es defensa preventiva sino lo que devuelven de verdad las tools
+ * (verificado contra los esquemas de Composio el 2026-08-03):
+ *
+ * 1. Todo viene envuelto en `data.response_data` — adentro está el JSON crudo de Graph.
+ * 2. `LIST_MESSAGES` devuelve la colección normal de Graph: `{ value: [...] }`.
+ * 3. `SEARCH_MESSAGES` NO usa ese endpoint sino la Search API, que anida los resultados en
+ *    `value[].hitsContainers[].hits[].resource`. Un normalizador que solo leyera `value` devolvería
+ *    la bandeja vacía cada vez que el vet busca algo — sin error, que es lo peor que puede pasar.
+ */
+function mensajesDeOutlook(data: unknown): MensajeOutlook[] {
+  const raiz = (data as { response_data?: unknown })?.response_data ?? data
+  if (Array.isArray(raiz)) return raiz as MensajeOutlook[]
+
+  const valor = (raiz as { value?: unknown; messages?: unknown })?.value
+  const mensajes = (raiz as { messages?: unknown })?.messages
+  if (Array.isArray(mensajes)) return mensajes as MensajeOutlook[]
+  if (!Array.isArray(valor)) return []
+
+  // Search API: los mensajes están dentro de los "hits". Si el primer elemento trae contenedores,
+  // es esa forma; si no, es la colección normal.
+  type Contenedor = { hitsContainers?: { hits?: { resource?: MensajeOutlook }[] }[] }
+  const hits = (valor as Contenedor[]).flatMap(
+    (v) => v?.hitsContainers?.flatMap((c) => c.hits ?? []) ?? [],
+  )
+  if (hits.length > 0) return hits.map((h) => h.resource ?? {})
+  return valor as MensajeOutlook[]
+}
+
 const OUTLOOK: Adaptador = {
   toolkit: "outlook",
   // El toolkit de Outlook expone una sola versión.
   version: process.env.COMPOSIO_OUTLOOK_TOOLKIT_VERSION?.trim() || "00000000_00",
   envAuthConfig: "COMPOSIO_OUTLOOK_AUTH_CONFIG_ID",
+  // OUTLOOK_OUTLOOK_REPLY_EMAIL NO acepta destinatario: Graph lo saca del mensaje original. La
+  // dirección no viaja en la llamada, así que no hay nada que redirigir.
+  respuestaFijaDestinatario: true,
 
-  buscar: (query, limite) => ({
-    slug: "OUTLOOK_OUTLOOK_SEARCH_MESSAGES",
-    // `query` es obligatorio acá (a diferencia de Gmail, que lista sin filtro): sin texto se pide
-    // lo recibido, que es lo más parecido a "mostrame la bandeja".
-    args: { query: query || "isRead:false OR isRead:true", size: limite },
-  }),
+  // Listar y buscar son dos tools distintas a propósito. `SEARCH_MESSAGES` exige texto, así que
+  // usarla para "mostrame la bandeja" obligaba a inventar una consulta; `LIST_MESSAGES` ordena por
+  // fecha sin filtro, que es exactamente lo que se quiere al abrir la página.
+  buscar: (query, limite) =>
+    query
+      ? { slug: "OUTLOOK_OUTLOOK_SEARCH_MESSAGES", args: { query, size: limite } }
+      : {
+          slug: "OUTLOOK_OUTLOOK_LIST_MESSAGES",
+          args: { top: limite, orderby: "receivedDateTime desc" },
+        },
   enviar: (a, asunto, cuerpo) => ({
     slug: "OUTLOOK_OUTLOOK_SEND_EMAIL",
     args: { to_email: a, subject: asunto, body: cuerpo },
   }),
   // Outlook SÍ tiene tool de respuesta, y toma el id del MENSAJE (no del hilo) y el texto en
-  // `comment`. El asunto y el destinatario los resuelve Graph desde el mensaje original.
+  // `comment`. El asunto y el destinatario los resuelve Graph desde el mensaje original, así que
+  // `a` y `asunto` se ignoran acá — no es un olvido: no hay dónde ponerlos.
   responder: ({ ref, cuerpo }) => ({
     slug: "OUTLOOK_OUTLOOK_REPLY_EMAIL",
     args: { message_id: ref, comment: cuerpo },
   }),
+  buscarHilo: (ref) => ({ slug: "OUTLOOK_OUTLOOK_GET_MESSAGE", args: { message_id: ref } }),
 
   normalizar: (data, correoPropio) => {
-    const d = data as { messages?: MensajeOutlook[]; value?: MensajeOutlook[] } | MensajeOutlook[] | undefined
-    const msgs: MensajeOutlook[] = Array.isArray(d) ? d : (d?.messages ?? d?.value ?? [])
     const propio = (correoPropio ?? "").toLowerCase()
-    return msgs.map((m) => {
+    return mensajesDeOutlook(data).map((m) => {
       const de = direccionOutlook(m.from ?? m.sender)
       return {
         id: m.id ?? "",
@@ -177,6 +231,54 @@ const OUTLOOK: Adaptador = {
       }
     })
   },
+}
+
+// ─── Quién participa de un hilo ───────────────────────────────────────────────
+
+// Claves de cabecera de las que SÍ se leen direcciones. Es una lista blanca a propósito, y es lo
+// único que hace útil a `participantesDelHilo`: si en vez de esto se recolectara cualquier correo
+// que aparezca en la respuesta, el CUERPO de un mensaje entraría en la cuenta — y entonces un correo
+// entrante que diga "escribe a atacante@ejemplo.com" se auto-autorizaría como destinatario válido,
+// que es exactamente el ataque del que la verificación protege.
+//
+// Están los nombres de los dos proveedores: Gmail manda `to`/`from`, Graph `toRecipients`/`from`.
+// Una vez adentro de una de estas claves la marca sigue hacia abajo, así que `emailAddress.address`
+// (el anidado de Graph) queda cubierto sin nombrarlo.
+const CLAVES_DE_PARTICIPANTE =
+  /^(from|to|cc|bcc|sender|recipient|recipients|reply_?to|delivered_?to|(to|cc|bcc|reply)Recipients)$/i
+const CORREO = /[\w.+-]+@[\w-]+\.[\w.-]+/g
+
+/**
+ * Las direcciones que PARTICIPAN de un hilo, sacadas de la respuesta cruda del proveedor. Función
+ * pura: se le pasa el `data` tal cual y devuelve correos en minúscula.
+ *
+ * Camina la estructura sin asumir su forma exacta —Composio la puede cambiar entre versiones, y
+ * Gmail y Graph no se parecen— pero sólo "se arma" al entrar en una clave de cabecera. Una vez
+ * dentro sigue armada hacia abajo, para cubrir tanto `to: "a@x.com"` como `to: [{ email: "a@x.com" }]`.
+ */
+export function participantesDelHilo(data: unknown): string[] {
+  const encontrados = new Set<string>()
+  const visitar = (nodo: unknown, armado: boolean): void => {
+    if (nodo == null) return
+    if (typeof nodo === "string") {
+      if (armado) for (const m of nodo.matchAll(CORREO)) encontrados.add(m[0].toLowerCase())
+      return
+    }
+    if (Array.isArray(nodo)) {
+      for (const x of nodo) visitar(x, armado)
+      return
+    }
+    if (typeof nodo === "object") {
+      for (const [k, v] of Object.entries(nodo)) visitar(v, armado || CLAVES_DE_PARTICIPANTE.test(k))
+    }
+  }
+  visitar(data, false)
+  return [...encontrados]
+}
+
+/** ¿Esa dirección aparece como participante del hilo? */
+export function destinatarioEnHilo(email: string, data: unknown): boolean {
+  return participantesDelHilo(data).includes(email.trim().toLowerCase())
 }
 
 const ADAPTADORES: Record<Proveedor, Adaptador> = { gmail: GMAIL, outlook: OUTLOOK }

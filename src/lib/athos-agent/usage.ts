@@ -41,7 +41,12 @@ export async function registrarUso(entrada: {
   const { clinicId, userId, surface, elegido, usage } = entrada
   try {
     const cayoAlRespaldo = elegido.modelId !== elegido.modeloPrimario
-    await createAdminClient()
+    // OJO: `.insert()` de supabase-js NO rechaza la promesa ante un error de la base — resuelve con
+    // `{ data, error }`. Sin leer `error`, un rechazo de RLS, una violación del check de `surface` o
+    // la tabla sin migrar se tragan enteros: el `await` pasa limpio, el catch no se entera y no
+    // queda ni una línea de log. Es exactamente el fallo silencioso que este registro existe para
+    // eliminar, y lo tenía adentro.
+    const { error } = await createAdminClient()
       .from("athos_agent_usage")
       .insert({
         clinic_id: clinicId,
@@ -55,7 +60,13 @@ export async function registrarUso(entrada: {
         tokens_in: usage?.inputTokens ?? null,
         tokens_out: usage?.outputTokens ?? null,
       })
+    if (error) {
+      console.error(`[athos/usage] la base rechazó el consumo de ${surface}:`, error.message)
+    }
   } catch (e) {
+    // Sólo llega acá lo que SÍ lanza: `createAdminClient()` sin variables de entorno, o un fallo de
+    // red. Se sigue tragando a propósito — un fallo del registro no puede tumbar una respuesta que
+    // el veterinario ya está leyendo.
     console.error(`[athos/usage] no se pudo registrar el consumo de ${surface}:`, e)
   }
 }

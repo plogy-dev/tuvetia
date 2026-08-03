@@ -92,7 +92,12 @@ function outputError(output: unknown): string | null {
  * dijo— pero no son contenido para el veterinario. Ver `turnoAGuardar` en conversacion.ts.
  */
 function sinMarcas(texto: string): string {
-  return texto.replace(/\s*\[\[propuesto:[a-z_,]+\]\]/g, "").trim()
+  return texto
+    .replace(/\s*\[\[propuesto:[a-z_,]+\]\]/g, "")
+    // `sanearHistorial` agrega esta segunda marca a los turnos VIEJOS que afirmaban una propuesta
+    // sin haberla registrado. Igual que la otra: contexto para el modelo, invisible para el vet.
+    .replace(/\s*\[\[sin-propuesta:[^\]]*\]\]/g, "")
+    .trim()
 }
 
 function TextBlocks({ text, kp }: { text: string; kp: string }) {

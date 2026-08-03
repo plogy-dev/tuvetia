@@ -580,7 +580,8 @@ export function initLanding(): () => void {
       setFull(false);
       return;
     }
-    S.running ? stop() : start();
+    if (S.running) stop();
+    else start();
   };
   $("lt-close").onclick = () => {
     stop();
@@ -627,34 +628,11 @@ export function initLanding(): () => void {
      transparente y se cruzan. 64px << los ~100px en que el hero toca la banda. */
   const NAV_AT = 64;
 
-  /* selector de idioma */
-  {
-    const l = $("lang"),
-      b = $("langbtn");
-    b.onclick = (e) => {
-      e.stopPropagation();
-      const o = l.classList.toggle("open");
-      b.setAttribute("aria-expanded", String(o));
-    };
-    on(document, "click", () => {
-      l.classList.remove("open");
-      b.setAttribute("aria-expanded", "false");
-    });
-    $("langmenu").onclick = (e) => e.stopPropagation();
-    document.querySelectorAll<HTMLElement>(".lang-i").forEach(
-      (i) =>
-        (i.onclick = () => {
-          document.querySelectorAll(".lang-i").forEach((x) => x.classList.remove("on"));
-          i.classList.add("on");
-          document.documentElement.lang = i.dataset.l!;
-          l.classList.remove("open");
-          b.setAttribute("aria-expanded", "false");
-        }),
-    );
-    on(window, "keydown", (e) => {
-      if ((e as KeyboardEvent).key === "Escape") l.classList.remove("open");
-    });
-  }
+  /* El selector de idioma se quitó junto con su markup en `components/landing/Nav.tsx` — no había
+     i18n detrás. Y había que quitar LAS DOS COSAS: `$()` devuelve null cuando el id no existe y lo
+     tapa con un `as HTMLElement`, así que dejar este bloque sin su markup tiraba un TypeError acá y
+     todo lo que se inicializa DESPUÉS —hamburguesa, calculadora, acordeón del FAQ— se quedaba
+     muerto. `lib/landing/subpage.ts` no tiene el problema: ahí el bloque va tras un `if (l && b)`. */
 
   /* menú hamburguesa — solo móvil */
   {
@@ -769,7 +747,7 @@ export function initLanding(): () => void {
 
   /* ══════ CALCULADORA DE IMPACTO ══════ */
   function tvLift(hex: string): string {
-    let r = parseInt(hex.slice(1, 3), 16) / 255,
+    const r = parseInt(hex.slice(1, 3), 16) / 255,
       g = parseInt(hex.slice(3, 5), 16) / 255,
       b = parseInt(hex.slice(5, 7), 16) / 255;
     const mx = Math.max(r, g, b),

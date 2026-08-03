@@ -51,6 +51,12 @@ export async function GET(req: Request) {
   // que no tenerlo, porque suma una llamada perdida y la falsa tranquilidad de creerlo cubierto.
   //
   // Se recorren las tres cadenas y se junta la credencial que cada entrada necesita.
+  //
+  // El `?? "anthropic"` NO es decorativo: `leerCadena` (athos-agent/cascada.ts) resuelve una entrada
+  // sin `@proveedor` como Anthropic. Si acá se descartaran esas entradas, una cadena escrita
+  // "claude-sonnet-5,deepseek-v4@deepseek" pasaría el chequeo sin haber verificado nunca la
+  // credencial que su primer modelo necesita. Dos lugares que interpretan el mismo string tienen
+  // que interpretarlo igual, o el health miente sobre la configuración que valida.
   const proveedoresDeCascada = new Set(
     [
       process.env.ATHOS_AGENT_CASCADE,
@@ -59,13 +65,29 @@ export async function GET(req: Request) {
     ].flatMap((cadena) =>
       (cadena ?? "")
         .split(",")
-        .map((par) => par.split("@")[1]?.trim())
-        .filter((p): p is string => Boolean(p)),
+        .map((par) => par.trim())
+        .filter(Boolean)
+        .map((par) => par.split("@")[1]?.trim() || "anthropic"),
     ),
   )
-  const cascadaConCredenciales = [...proveedoresDeCascada].every((p) =>
-    p === "deepseek" ? set("DEEPSEEK_API_KEY") : set("ANTHROPIC_API_KEY"),
-  )
+  // La credencial que necesita cada proveedor. Antes esto era `p === "deepseek" ? DEEPSEEK : ANTHROPIC`,
+  // o sea que TODO lo que no fuera DeepSeek se validaba contra la key de Anthropic — incluido Gemini,
+  // que entró a las tres cadenas el 02-ago. Con la cascada apuntando a `@google` y sin
+  // `GEMINI_API_KEY`, este chequeo respondía `true`: exactamente el fallo que el comentario de arriba
+  // dice haber cerrado, reintroducido al sumar el tercer proveedor.
+  //
+  // Un proveedor DESCONOCIDO ahora falla en vez de pasar como Anthropic: un typo en la cadena
+  // (`@gemini` en vez de `@google`) es un respaldo que no existe, y el endpoint tiene que decirlo.
+  const CREDENCIAL_POR_PROVEEDOR: Record<string, string> = {
+    anthropic: "ANTHROPIC_API_KEY",
+    deepseek: "DEEPSEEK_API_KEY",
+    google: "GEMINI_API_KEY", // el nombre lo fija `athos-agent/model.ts`: misma cuenta que el backend
+  }
+  const credencialDe = (p: string): boolean => {
+    const env = CREDENCIAL_POR_PROVEEDOR[p]
+    return env ? set(env) : false
+  }
+  const cascadaConCredenciales = [...proveedoresDeCascada].every(credencialDe)
 
   // Proveedor de WhatsApp que la UI va a OFRECER, que no es lo mismo que "hay alguno cableado".
   // `whatsapp-settings.tsx:22,247` elige evolution -> meta -> kapso por precedencia, así que sin
@@ -81,8 +103,7 @@ export async function GET(req: Request) {
     // por eso hace falta chequearlo acá: un grep del repo no lo encuentra y pasa desapercibido.
     anthropic_key: set("ANTHROPIC_API_KEY"),
     // La credencial del proveedor que el agente USA de verdad (puede no ser Anthropic).
-    agent_provider_key:
-      agentProvider === "deepseek" ? set("DEEPSEEK_API_KEY") : set("ANTHROPIC_API_KEY"),
+    agent_provider_key: credencialDe(agentProvider),
     // Todos los proveedores nombrados en las cadenas de cascada tienen su key. Sin cascada
     // configurada el conjunto está vacío y esto da true, que es lo correcto: no hay nada que cubrir.
     cascada_con_credenciales: cascadaConCredenciales,

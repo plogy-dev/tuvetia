@@ -38,6 +38,10 @@ export function PendingActions({ recargarToken }: { recargarToken?: number }) {
     return () => {
       vivo = false
     }
+    // Sin `void cargar()` en un useCallback: así el setState queda visiblemente detrás del `.then`
+    // y el compilador de React no lo marca. La alternativa que había —silenciar la regla con un
+    // eslint-disable— dejaba en pie el otro problema: pintar la respuesta de una consulta que
+    // quedó en el aire después de desmontar, que es lo que evita `vivo`.
   }, [supabase, recargarToken])
 
   if (acciones.length === 0) return null

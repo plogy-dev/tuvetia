@@ -30,7 +30,9 @@ type PatientHit = {
   owner: { full_name: string } | null;
 };
 
-type OwnerHit = { id: string; full_name: string; id_doc: string | null; phone: string | null };
+// `document_id`, no `id_doc`: ése es el nombre de la columna en NUESTRO esquema. `id_doc` es como
+// lo llamaba el repo del cliente (está anotado en `lib/supabase/types.ts`), y se coló acá.
+type OwnerHit = { id: string; full_name: string; document_id: string | null; phone: string | null };
 
 export default async function NuevaFacturaPage({ searchParams }: { searchParams: SearchParams }) {
   const sp = await searchParams;
@@ -98,30 +100,37 @@ export default async function NuevaFacturaPage({ searchParams }: { searchParams:
   let patients: PatientHit[] = [];
   let owners: OwnerHit[] = [];
   if (active && q) {
+    // Ni `owners` ni `patients` tienen `deleted_at` — no hay borrado suave en el esquema. Con ese
+    // filtro puesto, PostgREST respondía 42703 y las DOS búsquedas devolvían cero resultados
+    // SIEMPRE: el vet no podía vincular a nadie y la factura caía en "consumidor final", o sea sin
+    // pagador real, fuera de cartera y sin correo. Verificado contra el principal.
     const [pRes, oRes] = await Promise.all([
       supabase
         .from('patients')
         .select('id, name, species, owner_id, owner:owners(full_name)')
         .eq('clinic_id', clinicId)
-        .is('deleted_at', null)
         .ilike('name', `%${q}%`)
         .limit(8),
       supabase
         .from('owners')
-        .select('id, full_name, id_doc, phone')
+        .select('id, full_name, document_id, phone')
         .eq('clinic_id', clinicId)
-        .is('deleted_at', null)
         // El argumento de .or() es GRAMÁTICA de filtros PostgREST, no un valor: una coma o un
         // paréntesis en `q` inyectaría condiciones arbitrarias (la tenancy no se escapa — el
         // .eq(clinic_id) es un AND aparte — pero sí la semántica de la búsqueda). Se quitan los
         // metacaracteres; para nombres/cédulas/teléfonos no son entrada legítima.
         .or(
-          ['full_name', 'id_doc', 'phone']
+          ['full_name', 'document_id', 'phone']
             .map((col) => `${col}.ilike.%${q.replace(/[,()"\\]/g, ' ')}%`)
             .join(','),
         )
         .limit(8),
     ]);
+    // Leer `error` es lo que más importa de este arreglo. El `?? []` de abajo convierte cualquier
+    // fallo en "no hay resultados", que es indistinguible de la verdad — por eso una columna
+    // inexistente pudo pasar desapercibida. Es el tercer caso de este mismo patrón esta semana.
+    if (pRes.error) console.error('nueva factura · búsqueda de pacientes:', pRes.error);
+    if (oRes.error) console.error('nueva factura · búsqueda de titulares:', oRes.error);
     patients = (pRes.data as unknown as PatientHit[]) ?? [];
     owners = (oRes.data as OwnerHit[]) ?? [];
   }
@@ -284,7 +293,7 @@ export default async function NuevaFacturaPage({ searchParams }: { searchParams:
                         className="flex items-center justify-between px-4 py-3 text-sm hover:bg-surface-2 transition"
                       >
                         <span className="font-medium text-fg">{o.full_name}</span>
-                        <span className="text-fg-muted">{o.id_doc ?? o.phone ?? ''}</span>
+                        <span className="text-fg-muted">{o.document_id ?? o.phone ?? ''}</span>
                       </Link>
                     </li>
                   ))}

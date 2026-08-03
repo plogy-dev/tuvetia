@@ -165,44 +165,10 @@ export function AppointmentCalendar({
     )
   }, [])
 
-  // Al borrar la cita, la fila ya no existe: quién era el dueño del calendario y los ids del evento
-  // vienen capturados de antes (ver handleDelete del drawer).
-  const borrarDelCalendario = useCallback(
-    async (
-      googleEventId: string | null,
-      microsoftEventId: string | null,
-      calendarOwnerId: string | null,
-    ) => {
-      if (!calendarOwnerId) return // la cita nunca llegó a un calendario
-      const borrados: Promise<unknown>[] = []
-      if (googleEventId) {
-        borrados.push(
-          fetch("/api/google/calendar/delete", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              google_event_id: googleEventId,
-              calendar_owner_id: calendarOwnerId,
-            }),
-          }),
-        )
-      }
-      if (microsoftEventId) {
-        borrados.push(
-          fetch("/api/microsoft/calendar/delete", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              microsoft_event_id: microsoftEventId,
-              calendar_owner_id: calendarOwnerId,
-            }),
-          }),
-        )
-      }
-      await Promise.allSettled(borrados)
-    },
-    [],
-  )
+  // El borrado del evento externo ya NO vive acá: se hace en el drawer, antes de borrar la fila, con
+  // `lib/calendar-remote.ts`. Mientras la cita existe, el servidor puede leer de ella en qué
+  // calendario está y de quién es; hacerlo después obligaba a que el navegador mandara esos ids, y
+  // nada los ataba a esta cita. Ver el encabezado de `api/google/calendar/delete/route.ts`.
 
   const handleRangeChange = useCallback(
     (r: Date[] | { start: Date; end: Date }) => {
@@ -273,17 +239,9 @@ export function AppointmentCalendar({
     [loadRange, range, pushAlCalendario],
   )
 
-  const handleDeleted = useCallback(
-    (
-      googleEventId: string | null,
-      microsoftEventId: string | null,
-      calendarOwnerId: string | null,
-    ) => {
-      void loadRange(range.start, range.end)
-      void borrarDelCalendario(googleEventId, microsoftEventId, calendarOwnerId)
-    },
-    [loadRange, range, borrarDelCalendario],
-  )
+  const handleDeleted = useCallback(() => {
+    void loadRange(range.start, range.end)
+  }, [loadRange, range])
 
   function newAppointment() {
     const start = new Date()

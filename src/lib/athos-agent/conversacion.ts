@@ -182,6 +182,46 @@ function toolsQuePropusieron(respuesta: UIMessage | undefined): string[] {
   return [...new Set(nombres)]
 }
 
+/**
+ * Frases con las que Athos manda a aprobar algo. Si aparecen SIN `[[propuesto:…]]`, ese turno
+ * afirma una acción que no se registró.
+ */
+const AFIRMA_PROPUESTA =
+  /\b(te dej[ée]|dej[ée]|te propuse|propuse|dej[ao] propuest|qued[óo] propuest)\b|\baprob[áa]l[oa] en la tarjeta\b|\ben la tarjeta\b/i
+
+/**
+ * Desactiva las afirmaciones de propuesta que NO tienen su marca.
+ *
+ * PARA QUÉ. `MARCA_PROPUESTA` arregla los turnos NUEVOS, pero los que ya están guardados no la
+ * llevan — al 2026-08-03 hay 16 así en producción. El modelo los sigue recibiendo al recargar un
+ * hilo viejo, y son justamente los que le enseñaron el patrón: "decí que dejaste la propuesta, sin
+ * llamar la tool". Arreglar el guardado no desarma lo ya guardado.
+ *
+ * Se hace al LEER y no reescribiendo `athos_messages` a propósito: esa tabla es historial clínico
+ * y no se toca para arreglar un defecto nuestro. Además cubre cualquier fila vieja, incluidas las
+ * de hilos que nadie abrió todavía.
+ *
+ * No borra el turno ni lo reescribe: le agrega una nota que el modelo lee como "acá NO hubo
+ * acción". Así el ejemplo deja de ser imitable — que es todo lo que se necesita.
+ */
+export function sanearHistorial(mensajes: UIMessage[]): UIMessage[] {
+  return mensajes.map((m) => {
+    if (m.role !== "assistant") return m
+    const texto = textoDe(m)
+    if (!texto || MARCA_PROPUESTA.test(texto) || !AFIRMA_PROPUESTA.test(texto)) return m
+    return {
+      ...m,
+      parts: [
+        ...(m.parts ?? []),
+        {
+          type: "text",
+          text: "\n\n[[sin-propuesta: este turno NO registró ninguna acción; no lo imites]]",
+        },
+      ],
+    } as UIMessage
+  })
+}
+
 export function turnoAGuardar(
   entrantes: UIMessage[],
   respuesta: UIMessage | undefined,

@@ -4,6 +4,7 @@ import { z } from "zod"
 import { createClient } from "@/lib/supabase/server"
 import {
   densidadClinica,
+  sanearHistorial,
   esConsultaClinica,
   preguntasDuplicadas,
   textoDe,
@@ -122,7 +123,9 @@ export async function POST(req: Request) {
   const result = streamText({
     model: elegido.model,
     system,
-    messages: await convertToModelMessages(messages as UIMessage[]),
+    // `sanearHistorial` desactiva los turnos VIEJOS que dicen haber propuesto algo sin haberlo
+    // hecho: son los que le enseñaron el patrón al modelo, y siguen en la base.
+    messages: await convertToModelMessages(sanearHistorial(messages as UIMessage[])),
     maxOutputTokens: 2000,
     tools: buildAthosTools(supabase, ctx),
     stopWhen: stepCountIs(8),

@@ -45,7 +45,7 @@ const TOOL_LABELS: Record<string, { label: string; icon: typeof MessageCircle }>
  * del hilo, y si se equivocó de dirección el vet tiene que poder corregirlo ANTES de aprobar — no
  * después, cuando el correo ya salió. Lo que no está en esta lista no se puede tocar.
  */
-type CampoEditable = { campo: string; label: string; multilinea: boolean }
+type CampoEditable = { campo: string; label: string; multilinea: boolean; ayuda?: string }
 
 const CAMPOS_EDITABLES: Record<string, CampoEditable[]> = {
   send_whatsapp_message: [{ campo: "body", label: "Texto del mensaje", multilinea: true }],
@@ -55,7 +55,12 @@ const CAMPOS_EDITABLES: Record<string, CampoEditable[]> = {
     { campo: "body", label: "Mensaje", multilinea: true },
   ],
   reply_email: [
-    { campo: "to_email", label: "Para", multilinea: false },
+    {
+      campo: "to_email",
+      label: "Para",
+      multilinea: false,
+      ayuda: "Tiene que ser alguien del hilo — al aprobar se verifica contra Gmail.",
+    },
     { campo: "subject", label: "Asunto", multilinea: false },
     { campo: "body", label: "Respuesta", multilinea: true },
   ],
@@ -159,26 +164,32 @@ export function ActionApprovalCard({
       </p>
       {editable && !resolved && (
         <div className="mt-2 flex flex-col gap-2">
-          {campos.map((c) =>
-            c.multilinea ? (
-              <Textarea
-                key={c.campo}
-                value={valores[c.campo] ?? ""}
-                onChange={(e) => setValores((v) => ({ ...v, [c.campo]: e.target.value }))}
-                className="min-h-20 text-sm"
-                aria-label={`${c.label} (editable)`}
-              />
-            ) : (
-              <Input
-                key={c.campo}
-                value={valores[c.campo] ?? ""}
-                onChange={(e) => setValores((v) => ({ ...v, [c.campo]: e.target.value }))}
-                className="text-sm"
-                placeholder={c.label}
-                aria-label={`${c.label} (editable)`}
-              />
-            ),
-          )}
+          {/* La etiqueta va VISIBLE, no sólo de placeholder: el placeholder desaparece en cuanto el
+              campo tiene valor, y estos nacen llenos. El vet veía una caja con un correo adentro sin
+              nada que dijera que ése era el destinatario — justo el dato que más conviene que mire
+              antes de aprobar. */}
+          {campos.map((c) => (
+            <label key={c.campo} className="flex flex-col gap-1">
+              <span className="text-xs font-medium text-fg-muted">{c.label}</span>
+              {c.multilinea ? (
+                <Textarea
+                  value={valores[c.campo] ?? ""}
+                  onChange={(e) => setValores((v) => ({ ...v, [c.campo]: e.target.value }))}
+                  className="min-h-20 text-sm"
+                  aria-label={`${c.label} (editable)`}
+                />
+              ) : (
+                <Input
+                  value={valores[c.campo] ?? ""}
+                  onChange={(e) => setValores((v) => ({ ...v, [c.campo]: e.target.value }))}
+                  className="text-sm"
+                  placeholder={c.label}
+                  aria-label={`${c.label} (editable)`}
+                />
+              )}
+              {c.ayuda && <span className="text-[11px] text-fg-muted">{c.ayuda}</span>}
+            </label>
+          ))}
         </div>
       )}
       {resolved ? (

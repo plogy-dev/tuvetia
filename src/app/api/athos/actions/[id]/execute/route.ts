@@ -5,7 +5,11 @@ import { createAdminClient } from "@/lib/supabase/admin"
 import { pushAppointment } from "@/lib/google-calendar"
 import { validarPayload } from "@/lib/athos-agent/payload-schemas"
 import { sendWhatsAppText } from "@/lib/whatsapp/send-message"
-import { enviarCorreo, responderCorreo } from "@/lib/composio/correo"
+import {
+  enviarCorreo,
+  responderCorreo,
+  verificarDestinatarioDeRespuesta,
+} from "@/lib/composio/correo"
 
 export const runtime = "nodejs"
 
@@ -162,16 +166,28 @@ async function dispatch(
     }
 
     case "reply_email": {
+const threadId = String(p.thread_id ?? "")
+      const destinatario = String(p.to_email ?? "")
+
+      // EL DESTINATARIO SE VERIFICA CONTRA EL HILO, ANTES DE ENVIAR.
+      //
+      // El modelo propone `to_email` y la tarjeta deja editarlo, así que un correo entrante con
+      // instrucciones inyectadas podría lograr que la respuesta salga a otra dirección. Ver el
+      // detalle en `verificarDestinatarioDeRespuesta`, que además sabe cuándo NO hace falta: con
+      // Outlook el destinatario lo fija el proveedor y no hay nada que redirigir.
+      const permitido = await verificarDestinatarioDeRespuesta(userId, threadId, destinatario)
+      if (!permitido.ok) throw new Error(permitido.error)
+
       // La referencia es lo que hace que la respuesta quede DENTRO de la conversación: el hilo en
       // Gmail, el mensaje en Outlook. `responderCorreo` elige la tool según el proveedor conectado.
       const r = await responderCorreo(userId, {
-        ref: String(p.thread_id ?? ""),
-        a: String(p.to_email ?? ""),
+        ref: threadId,
+        a: destinatario,
         asunto: String(p.subject ?? ""),
         cuerpo: String(p.body ?? ""),
       })
       if (!r.ok) throw new Error(r.error)
-      return { enviado: true, thread_id: p.thread_id as string, proveedor: r.data }
+      return { enviado: true, thread_id: threadId, proveedor: r.data }
     }
 
     case "create_appointment": {

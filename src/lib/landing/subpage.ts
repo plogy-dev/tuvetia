@@ -61,36 +61,9 @@ export function initSubpage(): () => void {
   on(window, "load", frame);
   on(window, "pageshow", frame);
 
-  /* selector de idioma */
-  {
-    const l = $("lang"),
-      b = $("langbtn"),
-      m = $("langmenu");
-    if (l && b && m) {
-      b.onclick = (e) => {
-        e.stopPropagation();
-        const o = l.classList.toggle("open");
-        b.setAttribute("aria-expanded", String(o));
-      };
-      on(document, "click", () => {
-        l.classList.remove("open");
-        b.setAttribute("aria-expanded", "false");
-      });
-      m.onclick = (e) => e.stopPropagation();
-      document.querySelectorAll<HTMLElement>(".lang-i").forEach(
-        (i) =>
-          (i.onclick = () => {
-            document.querySelectorAll(".lang-i").forEach((x) => x.classList.remove("on"));
-            i.classList.add("on");
-            document.documentElement.lang = i.dataset.l!;
-            l.classList.remove("open");
-          }),
-      );
-      on(window, "keydown", (e) => {
-        if ((e as KeyboardEvent).key === "Escape") l.classList.remove("open");
-      });
-    }
-  }
+  /* El selector de idioma se fue con su markup (`components/landing/Nav.tsx`): no había i18n
+     detrás. Acá el bloque era inofensivo —iba tras un `if (l && b && m)`— pero código muerto que
+     apunta a un id que ya no existe sólo confunde al que lo lea después. */
 
   /* menú hamburguesa — solo móvil */
   {

@@ -56,6 +56,24 @@ export function bogotaDateOnly(fecha: string): string {
   }).format(new Date(Date.UTC(y, m - 1, d)));
 }
 
+/**
+ * El instante en que una fecha DATE deja de ser "hoy" en Bogotá — o sea, cuándo se vence de verdad.
+ *
+ * Una factura con `due_date = '2026-08-15'` está al día TODO el 15. `new Date('2026-08-15')` es
+ * medianoche **UTC**, que en Bogotá son las 19:00 del 14: comparando contra eso, la factura se
+ * marcaba VENCIDA 29 horas antes de tiempo, y el motor de cartera la trataba como cobrable. Y no lo
+ * salvaba anclar la zona del proceso: la forma ISO sólo-fecha se parsea siempre en UTC, por spec.
+ *
+ * Devuelve el arranque del día SIGUIENTE en hora de Bogotá. `Date.UTC` se encarga del desborde de
+ * mes (día 32 rueda solo).
+ */
+export function finDelDiaBogota(fecha: string): Date | null {
+  const [y, m, d] = fecha.slice(0, 10).split('-').map(Number);
+  if (!y || !m || !d) return null;
+  // +1 día para llegar al corte, +5 h porque Bogotá es UTC-5 (sin horario de verano).
+  return new Date(Date.UTC(y, m - 1, d + 1) + 5 * 3600_000);
+}
+
 /** "01 ago 2026, 19:30" — fecha y hora de un instante ISO, vistas desde Bogotá. */
 export function bogotaDateTime(iso: string): string {
   return new Intl.DateTimeFormat('es-CO', {

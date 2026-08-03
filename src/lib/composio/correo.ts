@@ -20,6 +20,7 @@ import { Composio } from "@composio/core"
 
 import {
   adaptador,
+  destinatarioEnHilo,
   proveedoresDisponibles,
   type CorreoNormalizado,
   type Proveedor,
@@ -247,4 +248,42 @@ export async function responderCorreo(
   if (!quien.ok) return quien
   const { slug, args } = adaptador(quien.proveedor).responder(input)
   return ejecutar(userId, slug, args)
+}
+
+/**
+ * ¿La dirección a la que se va a responder participa REALMENTE de esa conversación?
+ *
+ * POR QUÉ EXISTE. Al pasar el correo a Composio, `to_email` dejó de resolverlo el ejecutor desde
+ * nuestra tabla de hilos y pasó a viajar en el payload: lo propone el MODELO y la tarjeta deja
+ * editarlo. Eso abre una vía concreta — un correo entrante con instrucciones inyectadas puede lograr
+ * que Athos proponga responder a otra dirección, y un vet apurado aprueba sin leerla. Resaltarla en
+ * la tarjeta ayuda, pero apoyar la defensa en que alguien lea bien es no tener defensa.
+ *
+ * Con Outlook el problema no existe: su tool de respuesta no acepta destinatario, lo resuelve Graph
+ * desde el mensaje original. Ahí no hay nada que verificar porque no hay nada que redirigir — y
+ * pedirle el hilo igual sería una llamada de red para confirmar algo que la API ya garantiza.
+ */
+export async function verificarDestinatarioDeRespuesta(
+  userId: string,
+  ref: string,
+  email: string,
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  const quien = await conProveedor(userId)
+  if (!quien.ok) return { ok: false, error: quien.error }
+
+  const a = adaptador(quien.proveedor)
+  if (a.respuestaFijaDestinatario) return { ok: true }
+
+  const { slug, args } = a.buscarHilo(ref)
+  const hilo = await ejecutar(userId, slug, args)
+  if (!hilo.ok) {
+    return { ok: false, error: `No se pudo verificar el hilo antes de responder: ${hilo.error}` }
+  }
+  if (!destinatarioEnHilo(email, hilo.data)) {
+    return {
+      ok: false,
+      error: `${email} no participa de este hilo, así que la respuesta no se envió. Si querés escribirle, usá un correo nuevo en vez de una respuesta.`,
+    }
+  }
+  return { ok: true }
 }
