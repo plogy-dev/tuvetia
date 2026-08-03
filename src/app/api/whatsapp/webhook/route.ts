@@ -3,6 +3,8 @@ import { NextResponse, after } from "next/server"
 import { createAdminClient } from "@/lib/supabase/admin"
 import { verifyMetaSignature, verifySharedSecret } from "@/lib/whatsapp/verify"
 import { routeInbound } from "@/lib/whatsapp/inbound-router"
+import { capturarMediaMeta } from "@/lib/whatsapp/media"
+import { horaDelProveedor } from "@/lib/whatsapp/hora-del-proveedor"
 
 export const maxDuration = 60 // after(): debounce de 5 s + modelo liviano del modo auto
 
@@ -19,13 +21,32 @@ export const maxDuration = 60 // after(): debounce de 5 s + modelo liviano del m
 // (status=connected); fallback por display_phone_number exacto. Sin heurísticas de "única clínica".
 // Todo con service_role — la RLS del cliente queda intacta.
 
+// Las media de Meta llegan SIEMPRE como un id, nunca como bytes ni como URL descargable: hay que
+// resolverlo contra la Graph API con el token del tenant (lib/whatsapp/media.ts).
+type MetaMedia = { id?: string; mime_type?: string; caption?: string; filename?: string }
 type MetaMessage = {
   id: string
   from: string
   timestamp?: string
   type?: string
   text?: { body?: string }
+  image?: MetaMedia
+  video?: MetaMedia
+  audio?: MetaMedia
+  document?: MetaMedia
+  sticker?: MetaMedia
 }
+
+// El pie de foto vive dentro del objeto de la media, no en `text`. Leyendo sólo `text.body` —que es
+// lo que se hacía— una foto con texto perdía el texto además de la foto.
+function mediaDe(m: MetaMessage): MetaMedia | null {
+  return m.image ?? m.video ?? m.audio ?? m.document ?? m.sticker ?? null
+}
+
+function cuerpoDe(m: MetaMessage): string | null {
+  return m.text?.body ?? mediaDe(m)?.caption ?? null
+}
+
 type MetaStatus = {
   id: string
   status?: string
@@ -167,8 +188,10 @@ export async function POST(req: Request) {
               wa_phone_from: m.from,
               wa_phone_to: value.metadata?.display_phone_number ?? "",
               direction: "inbound",
-              body: m.text?.body ?? null,
+              body: cuerpoDe(m),
               media_type: m.type && m.type !== "text" ? m.type : null,
+              // Omitir (undefined) deja que el default now() ponga la hora de llegada.
+              provider_timestamp: horaDelProveedor(m.timestamp) ?? undefined,
             },
             { onConflict: "wa_message_id", ignoreDuplicates: true },
           )
@@ -181,14 +204,20 @@ export async function POST(req: Request) {
           // primero cartera (intents de cobranza), luego el modo auto general — con todas sus
           // salvaguardas (opt-in, debounce, idempotencia, límites, "nada clínico").
           if (isNew) {
-            after(() =>
-              routeInbound({
+            // Los bytes de la media, también fuera de la respuesta: Meta reintenta el webhook si
+            // tardamos, y así es como se duplican los mensajes. Se bajan ANTES de enrutar y en el
+            // MISMO `after`, porque cartera lee `media_url` para reconocer un comprobante de pago
+            // (`lib/cartera/wa-router.ts`) — en dos `after` separados sería una carrera.
+            const mediaId = mediaDe(m)?.id
+            after(async () => {
+              if (mediaId) await capturarMediaMeta(admin, { clinicId, waMessageId: m.id, mediaId })
+              await routeInbound({
                 clinicId,
                 waMessageId: m.id,
                 fromPhone: m.from,
-                text: m.text?.body ?? null,
-              }),
-            )
+                text: cuerpoDe(m),
+              })
+            })
           }
         }
       }

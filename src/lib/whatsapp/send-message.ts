@@ -57,10 +57,18 @@ export async function sendWhatsAppText(
     sent_by: opts.sentBy ?? null,
     ...(opts.agentMode ? { agent_mode: opts.agentMode } : {}),
   }
-  let message: { id: string; created_at: string } | null = null
+  // `provider_timestamp` se devuelve porque es la clave con la que la bandeja ORDENA el hilo: sin
+  // ella la fila recién enviada entra al estado sin criterio de orden y se va al principio.
+  // Para un saliente propio no hace falta escribirla — el default `now()` es la hora de envío, que
+  // aquí ES la del proveedor.
+  let message: { id: string; created_at: string; provider_timestamp: string } | null = null
   for (let attempt = 1; attempt <= 2 && !message; attempt += 1) {
-    const { data, error } = await admin.from("whatsapp_messages").insert(row).select("id, created_at").single()
-    if (!error) message = data as { id: string; created_at: string }
+    const { data, error } = await admin
+      .from("whatsapp_messages")
+      .insert(row)
+      .select("id, created_at, provider_timestamp")
+      .single()
+    if (!error) message = data as { id: string; created_at: string; provider_timestamp: string }
     else if (attempt === 2) console.error("No se pudo registrar el mensaje saliente:", error)
   }
   return { waMessageId, message }

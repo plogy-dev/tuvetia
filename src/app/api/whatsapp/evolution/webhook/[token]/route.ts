@@ -3,6 +3,8 @@ import { NextResponse, after } from "next/server"
 import { createAdminClient } from "@/lib/supabase/admin"
 import { verifySharedSecret } from "@/lib/whatsapp/verify"
 import { getOwnerPhone } from "@/lib/whatsapp/evolution"
+import { capturarMediaEvolution } from "@/lib/whatsapp/media"
+import { horaDelProveedor } from "@/lib/whatsapp/hora-del-proveedor"
 import { routeInbound } from "@/lib/whatsapp/inbound-router"
 
 export const runtime = "nodejs"
@@ -142,6 +144,9 @@ export async function POST(req: Request, { params }: { params: Promise<{ token: 
             direction: fromMe ? "outbound" : "inbound",
             body,
             media_type: media,
+            // `?? undefined` y no `?? null`: la columna es not null con default now(), así que
+            // omitirla es lo que deja entrar la hora de llegada como respaldo.
+            provider_timestamp: horaDelProveedor(m.messageTimestamp) ?? undefined,
           },
           { onConflict: "wa_message_id", ignoreDuplicates: true },
         )
@@ -152,12 +157,30 @@ export async function POST(req: Request, { params }: { params: Promise<{ token: 
       }
       const isNew = (upserted ?? []).length > 0
       if (isNew) inserted += 1
-      // Entrantes NUEVOS (fromMe jamás): primero cartera, luego modo auto (inbound-router).
-      if (isNew && !fromMe) {
-        after(() =>
-          routeInbound({ clinicId, waMessageId, fromPhone: contactPhone, text: body }),
-        )
+      if (!isNew) continue
+
+      // Los bytes se bajan FUERA de la respuesta del webhook: son megas y Evolution reintenta si
+      // tardamos. Va también para los salientes (fromMe): la foto que el vet manda desde su propio
+      // teléfono tiene que verse en la bandeja igual que la que manda el titular.
+      const bajarMedia = media
+        ? () => capturarMediaEvolution(admin, { clinicId, instancia: instance, waMessageId, mensajeCrudo: m })
+        : null
+
+      if (fromMe) {
+        if (bajarMedia) after(bajarMedia)
+        continue
       }
+
+      // Entrantes: primero cartera (intents de cobranza), luego modo auto (inbound-router).
+      //
+      // La media se baja ANTES y en el MISMO `after`, no en uno aparte, porque cartera lee
+      // `media_url` para reconocer un comprobante de pago (`lib/cartera/wa-router.ts`). En dos
+      // `after` separados eso es una carrera, y la que pierde es la del titular que mandó la foto
+      // del pago y no recibe respuesta.
+      after(async () => {
+        if (bajarMedia) await bajarMedia()
+        await routeInbound({ clinicId, waMessageId, fromPhone: contactPhone, text: body })
+      })
     }
     return NextResponse.json({ ok: true, inserted })
   }
