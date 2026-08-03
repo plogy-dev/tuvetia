@@ -6,6 +6,8 @@ import { SiteHeader } from "@/components/site-header"
 import { OnboardingTour } from "@/components/onboarding-tour"
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar"
 import { createClient } from "@/lib/supabase/server"
+import { AthosProvider } from "@/components/athos/athos-provider"
+import { AthosDock } from "@/components/athos/athos-dock"
 
 export default async function DashboardLayout({
   children,
@@ -72,16 +74,24 @@ export default async function DashboardLayout({
         } as React.CSSProperties
       }
     >
-      <AppSidebar variant="inset" user={sidebarUser} clinic={sidebarClinic} />
-      <OnboardingTour onboarded={Boolean((profile as { onboarded_at?: string | null } | null)?.onboarded_at)} />
-      <SidebarInset>
-        <SiteHeader />
-        <div className="flex flex-1 flex-col">
-          <div className="@container/main flex flex-1 flex-col gap-2">
-            {children}
+      {/* `AthosProvider` envuelve el panel entero porque el widget necesita saber en qué pantalla
+          está el vet. Sólo expone lo que se deriva de la RUTA, que cambia cuando el árbol se
+          re-renderiza igual — nada mutable vive acá. El estado del widget vive en `AthosDock`, que
+          es HERMANO de `{children}` y por eso abrirlo no re-renderiza ninguna pantalla.
+          `clinic_id` y el nombre ya están resueltos arriba: el widget arranca sin una sola query. */}
+      <AthosProvider clinicId={p?.clinic_id ?? null} clinicName={sidebarClinic.name}>
+        <AppSidebar variant="inset" user={sidebarUser} clinic={sidebarClinic} />
+        <OnboardingTour onboarded={Boolean((profile as { onboarded_at?: string | null } | null)?.onboarded_at)} />
+        <SidebarInset>
+          <SiteHeader />
+          <div className="flex flex-1 flex-col">
+            <div className="@container/main flex flex-1 flex-col gap-2">
+              {children}
+            </div>
           </div>
-        </div>
-      </SidebarInset>
+        </SidebarInset>
+        <AthosDock />
+      </AthosProvider>
     </SidebarProvider>
   )
 }
