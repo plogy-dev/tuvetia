@@ -40,7 +40,10 @@ type Note = {
   plan: string | null
   allergy_gate_triggered: boolean
   citations: Citation[] | null
-  ai_model: string | null
+  // `ai_model` (el id crudo del modelo) NO se trae a propósito: hacia el vet la nota la redacta
+  // Athos, sin nombrar el motor. La columna se sigue escribiendo — es rastro de auditoría — pero
+  // sólo la lee /admin con service_role. Dejarla fuera del tipo hace que volver a pintarla no
+  // compile, que es más fiable que acordarse de la regla.
   ai_generated_at: string | null
 }
 
@@ -116,7 +119,7 @@ export default function NotaConsultaPage({ params }: { params: Promise<{ id: str
     const { data: n } = await supabase
       .from("clinical_notes")
       .select(
-        "id, status, subjective, objective, assessment, plan, allergy_gate_triggered, citations, ai_model, ai_generated_at, alerts",
+        "id, status, subjective, objective, assessment, plan, allergy_gate_triggered, citations, ai_generated_at, alerts",
       )
       .eq("consultation_id", id)
       .order("created_at", { ascending: false })
@@ -302,9 +305,9 @@ export default function NotaConsultaPage({ params }: { params: Promise<{ id: str
             <span className={`size-1.5 rounded-full ${approved ? "bg-foreground" : "bg-muted-foreground"}`} />
             {note ? (approved ? "Aprobada" : "Borrador — requiere aprobación") : "Sin nota"}
           </span>
-          {note?.ai_model && (
+          {note?.ai_generated_at && (
             <span className="inline-flex items-center gap-1.5 rounded-md border bg-secondary px-2.5 py-1 text-xs text-muted-foreground">
-              Motor IA <span className="font-mono text-foreground">{note.ai_model}</span>
+              Redactada por <span className="text-foreground">Athos</span>
             </span>
           )}
           {note && (
@@ -546,10 +549,8 @@ export default function NotaConsultaPage({ params }: { params: Promise<{ id: str
                 )}
                 {approved ? "Nota aprobada" : "Revisar y aprobar"}
               </Button>
-              {note.ai_model && (
-                <span className="ml-auto text-xs text-muted-foreground">
-                  Redactada por {note.ai_model}
-                </span>
+              {note.ai_generated_at && (
+                <span className="ml-auto text-xs text-muted-foreground">Redactada por Athos</span>
               )}
             </div>
           </div>
