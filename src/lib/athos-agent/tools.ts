@@ -464,7 +464,7 @@ export function buildAthosTools(supabase: SB, ctx: AgentContext) {
 
     reply_email: tool({
       description:
-        "PROPONE responder DENTRO de un hilo de correo existente (el vet aprueba/edita en la tarjeta). Lee el hilo con read_email_thread antes de redactar. El destinatario y el asunto los resuelve Gmail a partir del hilo.",
+        "PROPONE responder DENTRO de un hilo de correo existente (el vet aprueba/edita en la tarjeta). Lee el hilo con read_email_thread ANTES de redactar: de ahí sacás el destinatario y el asunto, que tenés que pasar vos. `to_email` debe ser una dirección que YA participa del hilo — al aprobar se verifica contra Gmail y si no participa la respuesta no sale. Para escribirle a alguien nuevo usá send_email.",
       inputSchema: z.object({
         thread_id: z.string().describe("id del hilo de Gmail, de search_emails o read_email_thread"),
         to_email: z.string().email().describe("A quién responde, tomado del hilo"),
