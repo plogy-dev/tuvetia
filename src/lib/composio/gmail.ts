@@ -157,6 +157,47 @@ export async function desconectar(userId: string): Promise<void> {
   }
 }
 
+// Claves de cabecera de las que SÍ se leen direcciones. Es una lista blanca a propósito, y es lo
+// único que hace útil a `participantesDelHilo`: si en vez de esto se recolectara cualquier correo
+// que aparezca en la respuesta, el CUERPO de un mensaje entraría en la cuenta — y entonces un correo
+// entrante que diga "escribe a atacante@ejemplo.com" se auto-autorizaría como destinatario válido,
+// que es exactamente el ataque del que la verificación protege.
+const CLAVES_DE_PARTICIPANTE = /^(from|to|cc|bcc|sender|recipient|recipients|reply_?to|delivered_?to)$/i
+const CORREO = /[\w.+-]+@[\w-]+\.[\w.-]+/g
+
+/**
+ * Las direcciones que PARTICIPAN de un hilo de Gmail, sacadas de la respuesta de
+ * `GMAIL_FETCH_EMAILS`. Función pura: se le pasa el `data` crudo y devuelve correos en minúscula.
+ *
+ * Camina la estructura sin asumir su forma exacta —Composio la puede cambiar entre versiones— pero
+ * sólo "se arma" al entrar en una clave de cabecera. Una vez dentro sigue armada hacia abajo, para
+ * cubrir tanto `to: "a@x.com"` como `to: [{ email: "a@x.com" }]`.
+ */
+export function participantesDelHilo(data: unknown): string[] {
+  const encontrados = new Set<string>()
+  const visitar = (nodo: unknown, armado: boolean): void => {
+    if (nodo == null) return
+    if (typeof nodo === "string") {
+      if (armado) for (const m of nodo.matchAll(CORREO)) encontrados.add(m[0].toLowerCase())
+      return
+    }
+    if (Array.isArray(nodo)) {
+      for (const x of nodo) visitar(x, armado)
+      return
+    }
+    if (typeof nodo === "object") {
+      for (const [k, v] of Object.entries(nodo)) visitar(v, armado || CLAVES_DE_PARTICIPANTE.test(k))
+    }
+  }
+  visitar(data, false)
+  return [...encontrados]
+}
+
+/** ¿Esa dirección aparece como participante del hilo? */
+export function destinatarioEnHilo(email: string, data: unknown): boolean {
+  return participantesDelHilo(data).includes(email.trim().toLowerCase())
+}
+
 export type ResultadoTool =
   | { ok: true; data: unknown }
   | { ok: false; error: string; sinConectar?: boolean }

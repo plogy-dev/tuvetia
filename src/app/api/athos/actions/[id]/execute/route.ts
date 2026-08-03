@@ -5,7 +5,7 @@ import { createAdminClient } from "@/lib/supabase/admin"
 import { pushAppointment } from "@/lib/google-calendar"
 import { validarPayload } from "@/lib/athos-agent/payload-schemas"
 import { sendWhatsAppText } from "@/lib/whatsapp/send-message"
-import { ejecutarGmail, GMAIL_TOOLS } from "@/lib/composio/gmail"
+import { destinatarioEnHilo, ejecutarGmail, GMAIL_TOOLS } from "@/lib/composio/gmail"
 
 export const runtime = "nodejs"
 
@@ -162,16 +162,39 @@ async function dispatch(
     }
 
     case "reply_email": {
+      const threadId = String(p.thread_id ?? "")
+      const destinatario = String(p.to_email ?? "")
+
+      // EL DESTINATARIO SE VERIFICA CONTRA EL HILO, ACÁ.
+      //
+      // Al pasar el correo a Composio, `to_email` dejó de resolverlo el ejecutor desde nuestra tabla
+      // de hilos y pasó a viajar en el payload: lo propone el MODELO y la tarjeta deja editarlo. Eso
+      // abre una vía concreta — un correo entrante con instrucciones inyectadas puede lograr que
+      // Athos proponga responder a otra dirección, y un vet apurado aprueba sin leerla.
+      //
+      // Resaltarla en la tarjeta ayuda, pero apoyar la defensa en que alguien lea bien es no tener
+      // defensa. Se trae el hilo real y se exige que la dirección participe de él.
+      const hilo = await ejecutarGmail(userId, GMAIL_TOOLS.buscar, {
+        query: `thread:${threadId}`,
+        max_results: 30,
+      })
+      if (!hilo.ok) throw new Error(`No se pudo verificar el hilo antes de responder: ${hilo.error}`)
+      if (!destinatarioEnHilo(destinatario, hilo.data)) {
+        throw new Error(
+          `${destinatario} no participa de este hilo, así que la respuesta no se envió. Si querés escribirle, usá un correo nuevo en vez de una respuesta.`,
+        )
+      }
+
       // `thread_id` es el hilo de Gmail: pasárselo es lo que hace que la respuesta quede DENTRO de
       // la conversación en vez de abrir una nueva.
       const r = await ejecutarGmail(userId, GMAIL_TOOLS.enviar, {
-        recipient_email: String(p.to_email ?? ""),
+        recipient_email: destinatario,
         subject: String(p.subject ?? ""),
         body: String(p.body ?? ""),
-        thread_id: String(p.thread_id ?? ""),
+        thread_id: threadId,
       })
       if (!r.ok) throw new Error(r.error)
-      return { enviado: true, thread_id: p.thread_id as string, gmail: r.data }
+      return { enviado: true, thread_id: threadId, gmail: r.data }
     }
 
     case "create_appointment": {
