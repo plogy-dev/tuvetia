@@ -33,6 +33,11 @@ export function PendingActions({ recargarToken }: { recargarToken?: number }) {
   }, [supabase])
 
   useEffect(() => {
+    // `cargar()` es async: su `setAcciones` ocurre después de un await, nunca síncrono dentro del
+    // effect. El compilador de React no traza a través del async y lo marca igual — falso positivo,
+    // el mismo que ya está anotado en `dashboard/consultas/[id]/page.tsx`. Se silencia acá porque
+    // era el único error de lint del repo y dejaba el CI en rojo para todos.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     void cargar()
   }, [cargar, recargarToken])
 
