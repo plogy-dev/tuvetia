@@ -68,9 +68,9 @@ async function pushToGoogle(
     return {
       googleEventId: null,
       aviso:
-        motivo === "sin-veterinario"
-          ? "La cita quedó en la agenda de la plataforma. No se copió a ningún calendario porque no tiene veterinario asignado."
-          : "La cita quedó en la agenda de la plataforma. No se copió al calendario porque el veterinario asignado no conectó el suyo en Conexiones.",
+        motivo === "sin-administrador"
+          ? "La cita quedó en la agenda de la plataforma. No se copió a ningún calendario porque la clínica no tiene administrador asignado."
+          : "La cita quedó en la agenda de la plataforma. No se copió al calendario porque el administrador de la clínica no conectó el suyo en Conexiones.",
     }
   } catch (e) {
     console.error("[athos/execute] no se pudo empujar la cita a Google Calendar:", e)

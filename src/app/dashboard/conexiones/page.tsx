@@ -33,7 +33,7 @@ export default async function ConexionesPage() {
 
   const composioListo = composioConfigurado()
 
-  const [{ data: wa }, { data: emailRow }, { data: cal }, correoAthos, calendarioAthos] =
+  const [{ data: wa }, { data: emailRow }, { data: cal }, correoAthos, calendarioAthos, { data: clinica }] =
     await Promise.all([
     supabase.from("whatsapp_integrations").select("status, phone_number, agent_mode").maybeSingle(),
     // Cuenta INSTITUCIONAL de la clínica: la que manda facturas y cobranza (user_id null).
@@ -61,6 +61,9 @@ export default async function ConexionesPage() {
     user
       ? estadoCalendario(user.id)
       : Promise.resolve({ conectado: false, proveedor: null as "google" | null }),
+    // ¿Quien mira es el administrador de la clínica? De eso depende que su calendario sea el que
+    // recibe las citas — o que conectarlo no sirva de nada, que es peor no decirlo.
+    user ? supabase.from("clinics").select("owner_id").maybeSingle() : Promise.resolve({ data: null }),
   ])
 
   const waRow = wa as {
@@ -71,6 +74,8 @@ export default async function ConexionesPage() {
   const email = emailRow as EmailIntegrationView | null
   // Un usuario tiene UN calendario. Google manda porque es el camino nuevo: si alguien quedó con
   // una fila vieja de Outlook y además conectó Google, lo que va a recibir las citas es Google.
+  const esAdministrador =
+    Boolean(user) && (clinica as { owner_id: string | null } | null)?.owner_id === user!.id
   const calendarConnected: CalendarProvider | null = calendarioAthos.conectado
     ? "google"
     : (((cal as { provider: string } | null)?.provider ?? null) as CalendarProvider | null)
@@ -135,17 +140,19 @@ export default async function ConexionesPage() {
           <div className="mb-3 flex items-center gap-2 text-sm font-semibold text-fg">
             <CalendarDays className="size-4 text-fg-faint" aria-hidden /> Calendario
             <HelpTip>
-              Es <b>tu</b> calendario, no el de la clínica: las citas donde figures como veterinario
-              se crean ahí, invitando al titular. Elegí <b>Google</b> u <b>Outlook</b> — uno de los
-              dos. Tuvetia solo <b>escribe</b> en tu calendario; nunca lee tus eventos.
+              Las citas de la clínica se crean en el calendario del <b>administrador</b>, y el
+              titular y el veterinario asignado quedan <b>invitados</b> — como cuando te llega una
+              invitación a una reunión. Tuvetia solo <b>escribe</b>; nunca lee tus eventos.
             </HelpTip>
           </div>
           <p className="mb-3 text-sm text-fg-muted">
-            {calendarConnected
-              ? "Las citas que tengas asignadas aparecen en tu calendario, con el titular invitado."
-              : "Conectá tu calendario para que las citas que tengas asignadas aparezcan ahí, con el titular invitado."}
+            {esAdministrador
+              ? calendarConnected
+                ? "Las citas de la clínica se crean en tu calendario, con el titular y el veterinario invitados."
+                : "Sos el administrador: conectá tu calendario para que las citas de la clínica se creen ahí, invitando al titular y al veterinario asignado."
+              : "Las citas de la clínica se crean en el calendario del administrador. Cuando te asignen una, te llega la invitación por correo — no hace falta que conectes el tuyo."}
           </p>
-          <CalendarSettings connected={calendarConnected} />
+          {esAdministrador && <CalendarSettings connected={calendarConnected} />}
         </section>
       </div>
     </PageShell>

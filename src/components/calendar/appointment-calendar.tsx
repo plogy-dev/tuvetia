@@ -188,13 +188,13 @@ export function AppointmentCalendar({
     const resultados = await Promise.all([pedir("google"), pedir("microsoft")])
     if (resultados.some((r) => r.creado)) return
 
-    if (resultados.some((r) => r.motivo === "sin-veterinario")) {
-      toast.info("La cita se guardó. No se copió a ningún calendario porque no tiene veterinario asignado.")
+    if (resultados.some((r) => r.motivo === "sin-administrador")) {
+      toast.info("La cita se guardó. No se copió a ningún calendario porque la clínica no tiene administrador asignado.")
       return
     }
     if (resultados.some((r) => r.motivo === "sin-calendario")) {
       toast.info(
-        "La cita se guardó, pero no se copió a ningún calendario: el veterinario asignado no conectó el suyo en Conexiones.",
+        "La cita se guardó, pero no se copió al calendario: el administrador de la clínica no conectó el suyo en Conexiones.",
       )
       return
     }

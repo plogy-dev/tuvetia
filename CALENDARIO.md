@@ -2,16 +2,16 @@
 
 Agenda de citas de la clínica. UI con **react-big-calendar** (semana/agenda, drag&drop), datos en
 `public.appointments` (aislada por clínica vía RLS), y **sincronización opcional de una sola vía
-hacia el calendario personal de cada veterinario** (Google u Outlook, a elección).
+hacia el calendario del administrador de la clínica** (Google por Composio; Outlook pendiente).
 
-## El modelo, en tres reglas (v3 — migración `0049`)
+## El modelo, en tres reglas (v4)
 
-1. **Nada se conecta solo.** Cada usuario conecta su calendario a mano desde **Conexiones**,
-   eligiendo Google **o** Outlook (uno de los dos; para cambiar, se desconecta primero). El login
-   ya no pide permisos de calendario.
-2. **El calendario es de cada usuario, no de la clínica.** Una cita se crea en el calendario del
-   **veterinario asignado** (`appointments.vet_id`), e invita por correo al **titular** y al propio
-   vet. Si ese vet no conectó nada, la cita vive igual en Tuvetia y no pasa nada más.
+1. **Nada se conecta solo.** El calendario se conecta a mano desde **Conexiones**. El login ya no
+   pide permisos de calendario.
+2. **Un calendario por clínica: el del administrador.** La cita se crea en el calendario de
+   `clinics.owner_id` (con respaldo al primer perfil `admin`), e **invita** al **titular** y al
+   **veterinario asignado** — como cuando llega una invitación a una reunión. Elegir veterinario no
+   cambia a qué calendario va el evento; determina a quién se invita.
 3. **Una sola vía: Tuvetia escribe, nunca lee.** No existe *pull*. `public.appointments` es la
    única fuente de verdad de la agenda.
 
@@ -27,9 +27,20 @@ hacia el calendario personal de cada veterinario** (Google u Outlook, a elecció
   Un token de Microsoft quedó guardado en la fila de Google (medido: ambas filas con prefijo `M.C`
   y largo 417 idéntico) y Google lo rechazaba con `invalid_grant` días después, sin señalar la causa.
 
-v3 no parchea ninguno de los dos: **elimina los canales que los hacían posibles**. Sin lectura no
-puede entrar basura; sin vinculación automática nadie queda conectado sin saberlo. El chequeo de
-proveedor antes de guardar un token se conserva, en el cliente y en la ruta.
+- **v3 — por veterinario.** Sonaba bien y en la práctica no lo era: el evento aparecía en el
+  calendario del vet asignado y el **administrador** —que es quien agenda y quien mira la agenda de
+  la clínica— no lo veía en ningún lado. Se reportó como "no crea nada" cuando sí creaba, en un
+  calendario que la persona que agendó no tenía a la vista. Y si el vet nunca conectaba el suyo, la
+  cita no llegaba a ningún calendario.
+
+v4 conserva de v3 lo que resolvió de verdad —sin *pull* y sin vinculación automática— y devuelve el
+calendario a la clínica, que es donde el administrador puede verlo. El veterinario sigue enterándose:
+por la invitación, que le llega al correo aunque no haya conectado nada.
+
+> **La basura de v1 se limpió el 2026-08-03**: 19.649 filas ("Trabajo", "Comer", "Dormir", reuniones)
+> contra 21 citas reales. Se identificaron por lo que la app no puede producir desde `0048` —sin
+> paciente, sin titular, sin veterinario y sin autor, pero con id de evento de Google— y quedaron
+> respaldadas en `appointments_importadas_respaldo`, que se puede borrar cuando ya no haga falta.
 
 ## Modelo de datos
 

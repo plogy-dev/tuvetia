@@ -14,8 +14,18 @@ import "server-only"
 //      trajo el calendario personal de un vet (11.695 "Comer"/"Trabajo"/"Dormir") a la agenda de la
 //      clínica. Sin lectura ese problema no puede repetirse: no es un filtro mejor, es que el canal
 //      no existe. Por eso acá sólo hay crear, actualizar y borrar.
-//   2. EL EVENTO ES DEL VETERINARIO ASIGNADO. Se usa la conexión de `appointments.vet_id`, no la de
-//      quien apretó el botón ni la de un calendario de clínica. La agenda de trabajo es de cada vet.
+//   2. EL EVENTO VIVE EN EL CALENDARIO DEL ADMINISTRADOR DE LA CLÍNICA, y el veterinario asignado
+//      va INVITADO, igual que el titular — como cuando a uno le llega una invitación a una reunión.
+//
+//      Esto reemplaza a "el evento es del veterinario asignado", que se veía razonable y en la
+//      práctica no lo era: el evento aparecía en el calendario del vet asignado y el administrador
+//      —que es quien agenda y quien mira la agenda de la clínica— no lo veía en ningún lado. Se
+//      reportó como "no crea ni mierda" cuando en realidad sí creaba, en un calendario que la
+//      persona que agendó no tenía a la vista.
+//
+//      Un solo calendario por clínica también resuelve el caso del vet que nunca conectó el suyo:
+//      antes eso significaba que la cita no llegaba a ningún calendario. Ahora igual queda en el
+//      del administrador y al vet le llega la invitación a su correo.
 //
 // Por ahora sólo Google. Outlook Calendar entra agregando un adaptador y su auth config, sin tocar
 // nada de lo de abajo.
@@ -172,6 +182,7 @@ type AdminClient = ReturnType<typeof createAdminClient>
 
 type CitaParaSincronizar = {
   id: string
+  clinic_id: string
   title: string
   reason: string | null
   notes: string | null
@@ -181,6 +192,35 @@ type CitaParaSincronizar = {
   vet_id: string | null
   google_event_id: string | null
   calendar_owner_id: string | null
+}
+
+/**
+ * De quién es el calendario de una clínica: su administrador.
+ *
+ * `clinics.owner_id` (migración 0048) es quien creó la clínica. Se cae a cualquier perfil con rol
+ * `admin` porque las clínicas creadas antes de esa migración no tienen `owner_id`, y sin este
+ * respaldo sus citas no llegarían a ningún calendario sin ningún motivo visible.
+ */
+async function calendarioDeLaClinica(
+  admin: AdminClient,
+  clinicId: string,
+): Promise<string | null> {
+  const { data: clinica } = await admin
+    .from("clinics")
+    .select("owner_id")
+    .eq("id", clinicId)
+    .maybeSingle()
+  const owner = (clinica as { owner_id: string | null } | null)?.owner_id
+  if (owner) return owner
+
+  const { data: perfil } = await admin
+    .from("profiles")
+    .select("id")
+    .eq("clinic_id", clinicId)
+    .eq("role", "admin")
+    .limit(1)
+    .maybeSingle()
+  return (perfil as { id: string } | null)?.id ?? null
 }
 
 /**
@@ -232,47 +272,46 @@ async function limpiarEventoDe(userId: string, eventId: string): Promise<void> {
  * Por qué una cita NO llegó a ningún calendario. `null` = sí llegó.
  *
  * Existe porque "no pasó nada" era indistinguible de "salió bien": el push es best-effort y el
- * front se lo tragaba entero. Un veterinario creó una cita dos minutos antes de conectar su
- * calendario, no apareció, y no hubo forma de saber por qué. Estos motivos son ACCIONABLES —
- * conectar el calendario, asignar un veterinario— así que tienen que llegar a la pantalla.
+ * front se lo tragaba entero. Estos motivos son ACCIONABLES —conectar el calendario de la clínica,
+ * o asignarle un administrador— así que tienen que llegar a la pantalla.
  */
-export type MotivoSinEvento = "sin-veterinario" | "sin-calendario"
+export type MotivoSinEvento = "sin-administrador" | "sin-calendario"
 
 export type ResultadoEmpuje = { eventId: string | null; motivo: MotivoSinEvento | null }
 
 /**
- * Crea o actualiza el evento en el calendario del VETERINARIO ASIGNADO, con el titular y el propio
- * vet invitados.
- *
- * Si la cita cambió de veterinario, el evento se borra del calendario del anterior antes de crearse
- * en el del nuevo: sin eso queda un fantasma en la agenda de alguien que ya no atiende esa cita.
+ * Crea o actualiza el evento en el calendario del ADMINISTRADOR de la clínica, invitando al titular
+ * y al veterinario asignado.
  */
 export async function empujarCita(appointmentId: string): Promise<ResultadoEmpuje> {
   const admin = createAdminClient()
   const { data } = await admin
     .from("appointments")
     .select(
-      "id, title, reason, notes, starts_at, ends_at, owner_id, vet_id, google_event_id, calendar_owner_id",
+      "id, clinic_id, title, reason, notes, starts_at, ends_at, owner_id, vet_id, google_event_id, calendar_owner_id",
     )
     .eq("id", appointmentId)
     .maybeSingle()
   if (!data) return { eventId: null, motivo: null }
   const a = data as CitaParaSincronizar
-  // Sin veterinario no hay calendario destino: no es un fallo, pero tampoco es un éxito.
-  if (!a.vet_id) return { eventId: null, motivo: "sin-veterinario" }
 
-  // Cambió el vet asignado: el evento viejo vive en OTRO calendario y hay que sacarlo de ahí.
+  const adminDeLaClinica = await calendarioDeLaClinica(admin, a.clinic_id)
+  if (!adminDeLaClinica) return { eventId: null, motivo: "sin-administrador" }
+
+  // Cambió el administrador (o la cita venía del modelo anterior, con el evento en el calendario de
+  // un veterinario): el evento viejo vive en OTRO calendario y hay que sacarlo de ahí, o queda de
+  // fantasma en la agenda de alguien que ya no tiene nada que ver con esta cita.
   const cambioDeCalendario = Boolean(
-    a.google_event_id && a.calendar_owner_id && a.calendar_owner_id !== a.vet_id,
+    a.google_event_id && a.calendar_owner_id && a.calendar_owner_id !== adminDeLaClinica,
   )
   if (cambioDeCalendario) {
     await limpiarEventoDe(a.calendar_owner_id as string, a.google_event_id as string)
   }
 
-  const { proveedor } = await estadoCalendario(a.vet_id)
+  const { proveedor } = await estadoCalendario(adminDeLaClinica)
   if (!proveedor) {
-    // Ese vet no conectó calendario. Si veníamos de otro, allá ya se limpió: se olvida el id para
-    // no dejar la fila apuntando a un evento que ya no existe.
+    // El administrador no conectó calendario. Si veníamos de otro, allá ya se limpió: se olvida el
+    // id para no dejar la fila apuntando a un evento que ya no existe.
     if (cambioDeCalendario) {
       await admin
         .from("appointments")
@@ -283,14 +322,14 @@ export async function empujarCita(appointmentId: string): Promise<ResultadoEmpuj
   }
 
   const evento = eventoDe(a, await invitados(admin, a.owner_id, a.vet_id))
-  // Tras un cambio de calendario el evento se CREA: el id viejo era de la agenda del otro vet.
+  // Tras un cambio de calendario el evento se CREA: el id viejo era de la agenda del otro.
   const idVigente = cambioDeCalendario ? null : a.google_event_id
   const adaptador = ADAPTADORES[proveedor]
   const { slug, args } = idVigente
     ? adaptador.actualizar(idVigente, evento)
     : adaptador.crear(evento)
 
-  const r = await ejecutarTool(a.vet_id, slug, args)
+  const r = await ejecutarTool(adminDeLaClinica, slug, args)
   if (!r.ok) throw new Error(r.error)
 
   // Al crear, un id ilegible es un FALLO, no un detalle: sin él la fila queda sin referencia al
@@ -303,10 +342,10 @@ export async function empujarCita(appointmentId: string): Promise<ResultadoEmpuj
     )
   }
 
-  if (nuevoId !== a.google_event_id || a.calendar_owner_id !== a.vet_id) {
+  if (nuevoId !== a.google_event_id || a.calendar_owner_id !== adminDeLaClinica) {
     await admin
       .from("appointments")
-      .update({ google_event_id: nuevoId, calendar_owner_id: a.vet_id })
+      .update({ google_event_id: nuevoId, calendar_owner_id: adminDeLaClinica })
       .eq("id", a.id)
   }
   return { eventId: nuevoId, motivo: null }
