@@ -91,6 +91,12 @@ export default async function InvitarPage({ params }: { params: Promise<{ token:
 
   // La invitación es nominal: si la sesión activa es de OTRO email, no ofrecer aceptar
   // (aceptar movería la cuenta equivocada a la clínica).
+  //
+  // Esto es CORTESÍA, no la defensa. Hasta la migración 0053 era lo único que comprobaba a quién iba
+  // dirigida la invitación — y `accept_invitation` se puede llamar desde la consola del navegador,
+  // así que quien tuviera un token ajeno entraba igual. Hoy la RPC compara contra el email del JWT y
+  // rechaza; lo de acá existe para que quien se equivocó de cuenta lo entienda y pueda cambiarla, en
+  // vez de chocarse con "Invitación inválida o expirada".
   if (invitedEmail && user.email?.toLowerCase() !== invitedEmail.toLowerCase()) {
     const next = encodeURIComponent(`/invitar/${token}`)
     return shell(
