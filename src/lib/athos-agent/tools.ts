@@ -13,7 +13,8 @@ import { z } from "zod"
 import type { SupabaseClient } from "@supabase/supabase-js"
 
 import { proposeAction, type AgentContext } from "./actions"
-import { ejecutarGmail, estadoConexion, GMAIL_TOOLS } from "@/lib/composio/gmail"
+import { CONEXION_CORREO } from "./conversacion"
+import { buscarCorreos, estadoConexion } from "@/lib/composio/correo"
 
 type SB = SupabaseClient
 
@@ -94,7 +95,7 @@ async function faltaCorreoConectado(
   if (conectado) return null
   return {
     error: "Todavía no conectaste tu correo, así que no puedo enviarlo por vos.",
-    needs_connection: "gmail",
+    needs_connection: CONEXION_CORREO,
   }
 }
 
@@ -308,7 +309,7 @@ export function buildAthosTools(supabase: SB, ctx: AgentContext) {
 
     search_emails: tool({
       description:
-        "Busca en el correo del VETERINARIO por texto (usa la sintaxis de búsqueda de Gmail: 'from:ana@…', 'subject:factura', o texto suelto). Devuelve los mensajes con su id de hilo. Úsala para encontrar un correo antes de responderlo, o para contestar '¿qué me escribió el laboratorio?'.",
+        "Busca en el correo del VETERINARIO por texto (nombre, dirección, asunto o palabras del cuerpo). Devuelve los mensajes con su `reply_ref`, que es lo que necesita reply_email. Úsala para encontrar un correo antes de responderlo, o para contestar '¿qué me escribió el laboratorio?'.",
       inputSchema: z.object({
         query: z
           .string()
@@ -320,36 +321,44 @@ export function buildAthosTools(supabase: SB, ctx: AgentContext) {
         if (!ctx.userId) {
           return { error: "El correo se lee con la cuenta del veterinario, y este turno no tiene una." }
         }
-        const r = await ejecutarGmail(ctx.userId, GMAIL_TOOLS.buscar, {
-          query,
-          max_results: limit ?? 10,
-        })
+        const r = await buscarCorreos(ctx.userId, { query, limite: limit ?? 10 })
         // `needs_connection` NO es decorativo: la UI del chat lo usa para mostrar una tarjeta con
         // el botón de conectar, en vez de una línea de error que el vet no puede accionar.
-        if (!r.ok) return r.sinConectar ? { error: r.error, needs_connection: "gmail" } : { error: r.error }
-        return { messages: r.data }
+        if (!r.ok) return r.sinConectar ? { error: r.error, needs_connection: CONEXION_CORREO } : { error: r.error }
+        // `reply_ref` es lo que hay que pasarle a reply_email: el hilo en Gmail, el mensaje en
+        // Outlook. El modelo no tiene que saber cuál es — solo devolverlo tal cual.
+        return {
+          count: r.correos.length,
+          messages: r.correos.map((c) => ({
+            reply_ref: c.refRespuesta,
+            de: c.de,
+            para: c.para,
+            asunto: c.asunto,
+            preview: c.preview,
+            fecha: c.fecha,
+            leido: c.leido,
+            es_propio: c.esPropio,
+          })),
+        }
       },
     }),
 
     read_email_thread: tool({
       description:
-        "El hilo de correo completo, en orden. Úsala DESPUÉS de search_emails con el thread_id que devolvió — responder sin leer el hilo produce respuestas que no encajan.",
+        "La conversación de correo completa. Úsala DESPUÉS de search_emails con el reply_ref que devolvió — responder sin leer el hilo produce respuestas que no encajan.",
       inputSchema: z.object({
-        thread_id: z.string().describe("id del hilo de Gmail, de search_emails"),
+        thread_id: z.string().describe("reply_ref que devolvió search_emails"),
         limit: z.number().int().min(1).max(30).optional(),
       }),
       execute: async ({ thread_id, limit }) => {
         if (!ctx.userId) {
           return { error: "El correo se lee con la cuenta del veterinario, y este turno no tiene una." }
         }
-        // Gmail no tiene "traer hilo" como tool separada: se busca por su id, que es lo que la
-        // sintaxis `thread:` hace nativamente.
-        const r = await ejecutarGmail(ctx.userId, GMAIL_TOOLS.buscar, {
-          query: `thread:${thread_id}`,
-          max_results: limit ?? 20,
-        })
-        if (!r.ok) return r.sinConectar ? { error: r.error, needs_connection: "gmail" } : { error: r.error }
-        return { thread_id, messages: r.data }
+        // No hay tool de "traer conversación" en ninguno de los dos proveedores: se busca por el
+        // identificador, que es lo que la sintaxis de búsqueda de ambos entiende.
+        const r = await buscarCorreos(ctx.userId, { query: thread_id, limite: limit ?? 20 })
+        if (!r.ok) return r.sinConectar ? { error: r.error, needs_connection: CONEXION_CORREO } : { error: r.error }
+        return { thread_id, count: r.correos.length, messages: r.correos }
       },
     }),
 
@@ -492,7 +501,7 @@ export function buildAthosTools(supabase: SB, ctx: AgentContext) {
       description:
         "PROPONE responder DENTRO de un hilo de correo existente (el vet aprueba/edita en la tarjeta). Lee el hilo con read_email_thread antes de redactar. El destinatario y el asunto los resuelve Gmail a partir del hilo.",
       inputSchema: z.object({
-        thread_id: z.string().describe("id del hilo de Gmail, de search_emails o read_email_thread"),
+        thread_id: z.string().describe("reply_ref que devolvió search_emails — identifica la conversación"),
         to_email: z.string().email().describe("A quién responde, tomado del hilo"),
         subject: z.string().min(1).max(200).describe("Asunto del hilo (con Re: si corresponde)"),
         body: z.string().min(1).max(5000).describe("Cuerpo de la respuesta, en texto plano"),

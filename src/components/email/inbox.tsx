@@ -1,9 +1,9 @@
 "use client"
 
-// Bandeja de correo del veterinario — maestro-detalle, con los correos que vienen de Gmail vía
-// Composio (los trae el server component, ver la página).
+// Bandeja de correo del veterinario — maestro-detalle, con los correos que vienen de su cuenta
+// (Gmail u Outlook) vía Composio; los trae el server component, ver la página.
 //
-// No hay realtime ni estado sincronizado: lo que se ve es lo que Gmail devolvió al cargar. Para
+// No hay realtime ni estado sincronizado: lo que se ve es lo que el proveedor devolvió al cargar. Para
 // refrescar se recarga. Es un intercambio deliberado — mantener una copia viva del buzón costaba
 // un barrido, deduplicación, hilado y guardar el correo de la clínica en nuestra base.
 
@@ -15,7 +15,7 @@ import { toast } from "sonner"
 import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
 import { EmptyState } from "@/components/ui/empty-state"
-import type { CorreoBandeja } from "@/lib/composio/gmail"
+import type { CorreoNormalizado } from "@/lib/composio/correo"
 
 function fmtFecha(iso: string): string {
   const d = new Date(iso)
@@ -37,7 +37,13 @@ function correoDe(direccion: string): string {
   return direccion.match(/<([^>]+)>/)?.[1] ?? direccion.trim()
 }
 
-export function EmailInbox({ correos }: { correos: CorreoBandeja[] }) {
+export function EmailInbox({
+  correos,
+  proveedor,
+}: {
+  correos: CorreoNormalizado[]
+  proveedor: "gmail" | "outlook" | null
+}) {
   const router = useRouter()
   const [selId, setSelId] = useState<string | null>(correos[0]?.id ?? null)
   const [draft, setDraft] = useState("")
@@ -45,6 +51,13 @@ export function EmailInbox({ correos }: { correos: CorreoBandeja[] }) {
   const [refrescando, setRefrescando] = useState(false)
 
   const sel = useMemo(() => correos.find((c) => c.id === selId) ?? null, [correos, selId])
+
+  // Abrir el correo en su proveedor. Se muestra solo el comienzo acá, así que el enlace es la vía
+  // para leerlo entero.
+  const enlaceExterno =
+    proveedor === "outlook"
+      ? "https://outlook.office.com/mail/"
+      : `https://mail.google.com/mail/u/0/#all/${sel?.refRespuesta ?? ""}`
 
   async function responder() {
     if (!sel || !draft.trim()) return
@@ -54,7 +67,7 @@ export function EmailInbox({ correos }: { correos: CorreoBandeja[] }) {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          thread_id: sel.threadId,
+          thread_id: sel.refRespuesta,
           to_email: correoDe(sel.de),
           subject: sel.asunto,
           body: draft.trim(),
@@ -77,7 +90,7 @@ export function EmailInbox({ correos }: { correos: CorreoBandeja[] }) {
       <div className="px-4 py-10 lg:px-6">
         <EmptyState
           title="No hay correos para mostrar"
-          description="Cuando llegue algo a tu bandeja de Gmail, va a aparecer acá."
+          description="Cuando llegue algo a tu bandeja, va a aparecer acá."
         />
       </div>
     )
@@ -141,19 +154,19 @@ export function EmailInbox({ correos }: { correos: CorreoBandeja[] }) {
                 </div>
               </div>
               <a
-                href={`https://mail.google.com/mail/u/0/#all/${sel.threadId}`}
+                href={enlaceExterno}
                 target="_blank"
                 rel="noreferrer"
                 className="inline-flex items-center gap-1 text-xs text-primary hover:underline"
               >
-                Ver en Gmail <ExternalLink className="size-3" />
+                {proveedor === "outlook" ? "Ver en Outlook" : "Ver en Gmail"} <ExternalLink className="size-3" />
               </a>
             </div>
 
             <div className="min-h-0 flex-1 overflow-y-auto p-4">
               <p className="text-sm whitespace-pre-wrap">{sel.preview}</p>
               <p className="mt-3 text-xs text-muted-foreground">
-                Se muestra el comienzo del correo. Para leerlo completo, abrilo en Gmail.
+                Se muestra el comienzo del correo. Para leerlo completo, abrilo en tu correo.
               </p>
             </div>
 

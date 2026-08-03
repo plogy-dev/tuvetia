@@ -11,7 +11,7 @@
 // Esto lo lee de la fuente de verdad (la tabla), así que sobrevive a recargas, a cerrar el chat y a
 // cambiar de conversación.
 
-import { useCallback, useEffect, useState } from "react"
+import { useEffect, useState } from "react"
 
 import { createClient } from "@/lib/supabase/client"
 import { ActionApprovalCard, type ProposedAction } from "@/components/athos/action-approval-card"
@@ -20,21 +20,25 @@ export function PendingActions({ recargarToken }: { recargarToken?: number }) {
   const [supabase] = useState(() => createClient())
   const [acciones, setAcciones] = useState<ProposedAction[]>([])
 
-  const cargar = useCallback(async () => {
+  useEffect(() => {
+    // `vivo` evita pintar la respuesta de una consulta que quedó en el aire después de desmontar —
+    // pasa al cambiar de conversación mientras la anterior todavía cargaba.
+    let vivo = true
     // Sin filtro por conversación a propósito: una propuesta que quedó colgada de otro hilo (o de
     // la bandeja) igual es algo que el vet tiene pendiente, y esconderla es cómo se pierde.
-    const { data } = await supabase
+    supabase
       .from("athos_actions")
       .select("id, tool_name, summary, payload, status, created_at")
       .eq("status", "proposed")
       .order("created_at", { ascending: false })
       .limit(5)
-    setAcciones((data ?? []) as unknown as ProposedAction[])
-  }, [supabase])
-
-  useEffect(() => {
-    void cargar()
-  }, [cargar, recargarToken])
+      .then(({ data }) => {
+        if (vivo) setAcciones((data ?? []) as unknown as ProposedAction[])
+      })
+    return () => {
+      vivo = false
+    }
+  }, [supabase, recargarToken])
 
   if (acciones.length === 0) return null
 

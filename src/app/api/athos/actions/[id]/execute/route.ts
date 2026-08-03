@@ -5,7 +5,7 @@ import { createAdminClient } from "@/lib/supabase/admin"
 import { pushAppointment } from "@/lib/google-calendar"
 import { validarPayload } from "@/lib/athos-agent/payload-schemas"
 import { sendWhatsAppText } from "@/lib/whatsapp/send-message"
-import { ejecutarGmail, GMAIL_TOOLS } from "@/lib/composio/gmail"
+import { enviarCorreo, responderCorreo } from "@/lib/composio/correo"
 
 export const runtime = "nodejs"
 
@@ -152,26 +152,26 @@ async function dispatch(
     case "send_email": {
       // Sale de la cuenta del vet que APRUEBA: el correo lo firma una persona y el titular tiene
       // que poder responderle a ella. Athos nunca escribe desde la cuenta de otro.
-      const r = await ejecutarGmail(userId, GMAIL_TOOLS.enviar, {
-        recipient_email: String(p.to_email ?? ""),
-        subject: String(p.subject ?? ""),
-        body: String(p.body ?? ""),
+      const r = await enviarCorreo(userId, {
+        a: String(p.to_email ?? ""),
+        asunto: String(p.subject ?? ""),
+        cuerpo: String(p.body ?? ""),
       })
       if (!r.ok) throw new Error(r.error)
-      return { enviado: true, gmail: r.data }
+      return { enviado: true, proveedor: r.data }
     }
 
     case "reply_email": {
-      // `thread_id` es el hilo de Gmail: pasárselo es lo que hace que la respuesta quede DENTRO de
-      // la conversación en vez de abrir una nueva.
-      const r = await ejecutarGmail(userId, GMAIL_TOOLS.enviar, {
-        recipient_email: String(p.to_email ?? ""),
-        subject: String(p.subject ?? ""),
-        body: String(p.body ?? ""),
-        thread_id: String(p.thread_id ?? ""),
+      // La referencia es lo que hace que la respuesta quede DENTRO de la conversación: el hilo en
+      // Gmail, el mensaje en Outlook. `responderCorreo` elige la tool según el proveedor conectado.
+      const r = await responderCorreo(userId, {
+        ref: String(p.thread_id ?? ""),
+        a: String(p.to_email ?? ""),
+        asunto: String(p.subject ?? ""),
+        cuerpo: String(p.body ?? ""),
       })
       if (!r.ok) throw new Error(r.error)
-      return { enviado: true, thread_id: p.thread_id as string, gmail: r.data }
+      return { enviado: true, thread_id: p.thread_id as string, proveedor: r.data }
     }
 
     case "create_appointment": {

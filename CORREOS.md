@@ -83,7 +83,7 @@ quien le escribe es Tuvetia. Por eso es un módulo aparte y no un parámetro de
 
 ## 2. De Athos — la cuenta de cada miembro, vía Composio
 
-Cada miembro conecta **su** cuenta de Google en Conexiones (Microsoft queda para después). Esa
+Cada miembro conecta **su** cuenta en Conexiones — **Gmail u Outlook**, uno de los dos. Esa
 conexión es **por miembro**, y es la que Athos usa cuando ese miembro le pide algo:
 
 - *"¿qué me escribió la dueña de Luna?"* → Athos lee **su** buzón;
@@ -94,10 +94,17 @@ ni cae a la cuenta de otro.
 
 Cómo está armado:
 
-- [`src/lib/composio/gmail.ts`](src/lib/composio/gmail.ts) — conectar, estado, y ejecutar las tools
-  de Gmail con la cuenta de un miembro. El `userId` de Composio **es nuestro `profiles.id`**: por eso
-  la cuenta que conecta una persona es exactamente la que Athos usa cuando esa persona le pide algo,
-  sin ninguna tabla intermedia que mantener sincronizada.
+- [`src/lib/composio/correo.ts`](src/lib/composio/correo.ts) — conectar, estado, y ejecutar
+  operaciones con la cuenta de un miembro, **sin saber de qué proveedor es**. El `userId` de Composio
+  **es nuestro `profiles.id`**: por eso la cuenta que conecta una persona es exactamente la que Athos
+  usa cuando esa persona le pide algo, sin ninguna tabla intermedia que mantener sincronizada.
+- [`src/lib/composio/proveedores.ts`](src/lib/composio/proveedores.ts) — lo único que sabe que Gmail
+  y Outlook existen. Está separado porque **las tools no son intercambiables**: Gmail manda
+  `recipient_email` y Outlook `to_email`; y responder es directamente otra operación — Gmail reusa el
+  envío pasándole `thread_id` (el hilo), mientras Outlook tiene `OUTLOOK_OUTLOOK_REPLY_EMAIL`, que
+  toma el id del **mensaje** y el texto en `comment`. Cada adaptador también **normaliza** la
+  respuesta a una forma común (`CorreoNormalizado`), así la bandeja y las tools de Athos no cambian
+  según quién esté conectado.
 - Tools de Athos: `search_emails` y `read_email_thread` (lectura directa), `send_email` y
   `reply_email` (**propuesta** — el vet aprueba en la tarjeta, donde puede corregir destinatario,
   asunto y cuerpo antes de que salga).
@@ -108,6 +115,10 @@ Cómo está armado:
 REST — la ejecución de tools no tiene endpoint publicado. Adivinar rutas contra una API sin
 documentar es peor que una dependencia, y además el SDK trae los tipos, así que un cambio de forma
 lo caza `tsc` en vez del primer clic de un veterinario.
+
+**Un proveedor por persona, no los dos.** Athos escribe desde *una* dirección; con dos conectadas
+habría que preguntar cuál en cada envío, o elegir por él y equivocarse. Conectar el segundo exige
+desconectar el primero.
 
 **Por qué Composio y no App Password:** leer Gmail exige scopes **restringidos**
 (`gmail.readonly`/`gmail.modify`), que para una app propia significan verificación de Google más una
@@ -169,19 +180,24 @@ RESEND_API_KEY=            # API key de Resend (server, nunca NEXT_PUBLIC_)
 TRANSACTIONAL_FROM_EMAIL=vet@tuvetia.com
 
 # Correo de Athos (Composio)
-COMPOSIO_API_KEY=          # necesita permiso de ESCRITURA sobre connected_accounts
-COMPOSIO_GMAIL_AUTH_CONFIG_ID=   # ac_... del Auth Config de Gmail
+COMPOSIO_API_KEY=                 # necesita permiso de ESCRITURA sobre connected_accounts
+COMPOSIO_GMAIL_AUTH_CONFIG_ID=    # ac_... del Auth Config de Gmail
+COMPOSIO_OUTLOOK_AUTH_CONFIG_ID=  # ac_... del Auth Config de Outlook
 ```
+
+Los dos auth configs son **opcionales por separado**: se ofrece en Conexiones solo el proveedor cuyo
+`ac_...` esté definido. Así se puede habilitar Outlook cuando esté listo sin tocar código.
 
 Dos cosas que costaron un rato descubrir, ambas verificadas contra la API real:
 
 - La API key necesita **escritura** sobre `connected_accounts`. Con una de solo lectura se pueden
   listar cuentas pero no crear ninguna, y el error del SDK ("Failed to create connected account
   link") no lo dice — ya viene traducido en
-  [`composio/gmail.ts`](src/lib/composio/gmail.ts).
+  [`composio/correo.ts`](src/lib/composio/correo.ts).
 - Ejecutar una tool exige declarar la **versión del toolkit, con fecha**: `"latest"` no sirve para
-  ejecución manual. Está fijada en el código y se puede pisar con
-  `COMPOSIO_GMAIL_TOOLKIT_VERSION` para probar una nueva sin desplegar.
+  ejecución manual. Están fijadas en el código y se pueden pisar con
+  `COMPOSIO_GMAIL_TOOLKIT_VERSION` / `COMPOSIO_OUTLOOK_TOOLKIT_VERSION` para probar una nueva sin
+  desplegar.
 
 **Antes del primer envío hay que verificar el dominio en Resend** (registros SPF y DKIM de
 `tuvetia.com`). Sin eso Resend rechaza con *"domain is not verified"* — el error ya viene traducido a
@@ -198,3 +214,11 @@ todas. Antes de cualquier tanda grande conviene tener manejo de rebotes y enlace
 - Manual: emitir una factura y enviarla por correo → confirmar que llega **desde
   `vet@tuvetia.com`**, que el remitente muestra el **nombre de la clínica**, y que al responder el
   destinatario es el **admin**.
+- Manual, Athos: conectar una cuenta en Conexiones → pedirle a Athos que lea el correo y que
+  redacte uno → aprobar la tarjeta → confirmar que salió de **esa** cuenta.
+
+**Pendiente de verificar con una cuenta real de Outlook:** la forma exacta de la respuesta de
+`OUTLOOK_OUTLOOK_SEARCH_MESSAGES`. El normalizador está escrito contra la forma de Microsoft Graph y
+lee cada campo defensivamente (una bandeja que muestra "(sin asunto)" es mejor que una que revienta),
+pero hasta que alguien conecte Outlook de verdad no está confirmado que Composio pase los mensajes
+tal cual. Gmail sí está verificado punta a punta.

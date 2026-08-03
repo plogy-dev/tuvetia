@@ -158,6 +158,16 @@ export type TurnoAGuardar = { role: "user" | "assistant"; content: string }
  */
 export const MARCA_PROPUESTA = /\[\[propuesto:([a-z_,]+)\]\]/
 
+/**
+ * Valor de `needs_connection` con el que una tool de correo pide que el chat muestre la tarjeta de
+ * conectar la cuenta.
+ *
+ * Es una constante y no el literal suelto porque ya se rompió una vez: decía "gmail" en los dos
+ * lados, y al pasar a dos proveedores solo cambió uno. La comparación quedó en falso y la tarjeta
+ * dejó de aparecer — sin error, sin nada: el vet pedía un correo y no pasaba nada.
+ */
+export const CONEXION_CORREO = "correo"
+
 /** Nombres de las tools de ESCRITURA que dejaron una propuesta registrada en este turno. */
 function toolsQuePropusieron(respuesta: UIMessage | undefined): string[] {
   const nombres: string[] = []

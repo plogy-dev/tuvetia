@@ -28,6 +28,7 @@ import {
 } from "@/components/ui/select"
 
 import type { StoredThreads } from "@/lib/athos-history"
+import { CONEXION_CORREO } from "@/lib/athos-agent/conversacion"
 
 export type AssistantPatient = { id: string; name: string; species: string }
 
@@ -61,7 +62,7 @@ const READ_TOOL_LABELS: Record<string, string> = {
  */
 function necesitaConexion(output: unknown): boolean {
   if (!output || typeof output !== "object") return false
-  return (output as { needs_connection?: unknown }).needs_connection === "gmail"
+  return (output as { needs_connection?: unknown }).needs_connection === CONEXION_CORREO
 }
 
 // Salida de una tool de ESCRITURA: la acción quedó registrada como PROPUESTA (ver

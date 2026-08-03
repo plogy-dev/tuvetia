@@ -34,14 +34,20 @@ vi.mock("@/lib/supabase/admin", () => ({
 // Las tools de correo consultan Composio antes de proponer (para no hacer redactar un correo que
 // después no se puede enviar). Se intercepta: `correoConectado` decide qué contesta.
 let correoConectado = true
-vi.mock("@/lib/composio/gmail", () => ({
-  estadoConexion: async () => ({ conectado: correoConectado, email: "vet@ejemplo.com" }),
-  ejecutarGmail: async () => ({ ok: true, data: {} }),
-  GMAIL_TOOLS: { enviar: "GMAIL_SEND_EMAIL", buscar: "GMAIL_FETCH_EMAILS" },
+vi.mock("@/lib/composio/correo", () => ({
+  estadoConexion: async () => ({
+    conectado: correoConectado,
+    proveedor: correoConectado ? "gmail" : null,
+    email: "vet@ejemplo.com",
+  }),
+  buscarCorreos: async () => ({ ok: true, correos: [] }),
+  enviarCorreo: async () => ({ ok: true, data: {} }),
+  responderCorreo: async () => ({ ok: true, data: {} }),
 }))
 
 const { proposeAction } = await import("../actions")
 const { buildAthosTools, localToIso } = await import("../tools")
+const { CONEXION_CORREO } = await import("../conversacion")
 
 const ctx = {
   userId: "vet-1",
@@ -177,7 +183,7 @@ describe("inventario de tools — cobertura y separación lectura/escritura", ()
       })) as Record<string, unknown>
       expect(inserted.length, `${nombre} no debería proponer sin cuenta`).toBe(0)
       // La marca que hace que el chat muestre la tarjeta de conectar en vez de una línea de error.
-      expect(r.needs_connection, nombre).toBe("gmail")
+      expect(r.needs_connection, nombre).toBe(CONEXION_CORREO)
     }
   })
 

@@ -5,7 +5,7 @@ import { EmailSettings, type EmailIntegrationView } from "@/components/settings/
 import { WhatsappSettings } from "@/components/settings/whatsapp-settings"
 import { CalendarSettings, type CalendarProvider } from "@/components/settings/calendar-settings"
 import { AthosEmailSettings } from "@/components/settings/athos-email-settings"
-import { composioConfigurado, estadoConexion } from "@/lib/composio/gmail"
+import { composioConfigurado, estadoConexion, proveedoresDisponibles } from "@/lib/composio/correo"
 import { HelpTip } from "@/components/help-tip"
 import { PageHeader, PageShell } from "@/components/ui/page-shell"
 
@@ -44,10 +44,10 @@ export default async function ConexionesPage() {
           .eq("user_id", user.id)
           .maybeSingle()
       : Promise.resolve({ data: null }),
-    // La cuenta de Google que este miembro conectó por Composio: la que usa Athos por él.
+    // La cuenta de correo que este miembro conectó por Composio: la que usa Athos por él.
     user && composioListo
       ? estadoConexion(user.id)
-      : Promise.resolve({ conectado: false, email: null }),
+      : Promise.resolve({ conectado: false, proveedor: null, email: null }),
   ])
 
   const waRow = wa as {
@@ -100,15 +100,16 @@ export default async function ConexionesPage() {
           <div className="mb-3 flex items-center gap-2 text-sm font-semibold text-fg">
             <Mail className="size-4 text-fg-faint" aria-hidden /> Correo de Athos
             <HelpTip>
-              Es <b>tu</b> cuenta, no la de la clínica: cada miembro conecta la suya y Athos usa la
-              de quien le está pidiendo algo. Nunca escribe desde la cuenta de otro. Tuvetia no ve
-              tu contraseña — la autorización la maneja Google.
+              Es <b>tu</b> cuenta, no la de la clínica: cada miembro conecta la suya —<b>Gmail</b> u{" "}
+              <b>Outlook</b>— y Athos usa la de quien le está pidiendo algo. Nunca escribe desde la
+              cuenta de otro. Tuvetia no ve tu contraseña: la autorización la maneja el proveedor.
             </HelpTip>
           </div>
           <AthosEmailSettings
             conectado={correoAthos.conectado}
+            proveedor={correoAthos.proveedor}
             email={correoAthos.email}
-            disponible={composioListo}
+            disponibles={composioListo ? proveedoresDisponibles() : []}
           />
         </section>
 

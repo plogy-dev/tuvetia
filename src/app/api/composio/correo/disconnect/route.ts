@@ -1,12 +1,13 @@
 import { NextResponse } from "next/server"
 
 import { createClient } from "@/lib/supabase/server"
-import { desconectar } from "@/lib/composio/gmail"
+import { desconectar } from "@/lib/composio/correo"
 
 export const runtime = "nodejs"
 
-// Desconecta el Gmail del miembro que lo pide. Borra la cuenta del lado de Composio: a partir de
-// ahí Athos deja de poder leer o escribir por él. Los correos ya enviados quedan donde están.
+// Desconecta el correo del miembro que lo pide, sea Gmail u Outlook. Borra la cuenta del lado de
+// Composio: a partir de ahí Athos deja de poder leer o escribir por él. Lo ya enviado queda donde
+// está.
 export async function POST() {
   const supabase = await createClient()
   const {

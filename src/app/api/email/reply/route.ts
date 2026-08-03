@@ -1,15 +1,15 @@
 import { NextResponse } from "next/server"
 
 import { createClient } from "@/lib/supabase/server"
-import { ejecutarGmail, GMAIL_TOOLS } from "@/lib/composio/gmail"
+import { responderCorreo } from "@/lib/composio/correo"
 
 export const runtime = "nodejs"
 
-// Responder desde la bandeja. Sale de la cuenta de Gmail del propio veterinario (vía Composio), no
-// de una cuenta de la clínica: el titular le responde a la persona que le escribió.
+// Responder desde la bandeja. Sale de la cuenta del propio veterinario (vía Composio), no de una
+// cuenta de la clínica: el titular le responde a la persona que le escribió.
 //
-// `thread_id` es lo que hace que la respuesta quede DENTRO de la conversación en Gmail en vez de
-// abrir una nueva.
+// `thread_id` es la referencia de la conversación que devolvió la búsqueda (el hilo en Gmail, el
+// mensaje en Outlook): es lo que hace que la respuesta quede DENTRO en vez de abrir una nueva.
 export async function POST(req: Request) {
   const supabase = await createClient()
   const {
@@ -31,11 +31,11 @@ export async function POST(req: Request) {
   // por asunto que algunos webmails hacen de respaldo.
   const asunto = (body.subject ?? "").replace(/^\s*(re|rv|fwd?)\s*:\s*/i, "").trim()
 
-  const r = await ejecutarGmail(user.id, GMAIL_TOOLS.enviar, {
-    recipient_email: body.to_email.trim(),
-    subject: asunto ? `Re: ${asunto}` : "Re:",
-    body: body.body.trim(),
-    thread_id: body.thread_id,
+  const r = await responderCorreo(user.id, {
+    ref: body.thread_id,
+    a: body.to_email.trim(),
+    asunto: asunto ? `Re: ${asunto}` : "Re:",
+    cuerpo: body.body.trim(),
   })
   if (!r.ok) return NextResponse.json({ error: r.error }, { status: 502 })
   return NextResponse.json({ ok: true })
