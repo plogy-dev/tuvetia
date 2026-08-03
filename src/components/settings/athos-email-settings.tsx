@@ -11,7 +11,7 @@
 
 import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
-import { CheckCircle2, Loader2, Mail } from "lucide-react"
+import { CheckCircle2, Loader2, Mail, TriangleAlert } from "lucide-react"
 import { toast } from "sonner"
 
 import { Button } from "@/components/ui/button"
@@ -22,12 +22,15 @@ export function AthosEmailSettings({
   proveedor,
   email,
   disponibles,
+  aviso,
 }: {
   conectado: boolean
   proveedor: Proveedor | null
   email: string | null
   /** Proveedores configurados en el servidor. Vacío = falta configurar Composio. */
   disponibles: Proveedor[]
+  /** Motivo por el que los correos de esta cuenta podrían no entregarse, si lo hay. */
+  aviso: string | null
 }) {
   const router = useRouter()
   const [busy, setBusy] = useState<Proveedor | "desconectar" | null>(null)
@@ -86,21 +89,36 @@ export function AthosEmailSettings({
 
   if (conectado) {
     return (
-      <div className="flex flex-wrap items-center gap-3">
-        <span className="inline-flex items-center gap-1.5 text-sm text-fg-muted">
-          <CheckCircle2 className="size-4 text-green-600" aria-hidden />
-          {proveedor ? `${NOMBRE_PROVEEDOR[proveedor]} conectado` : "Correo conectado"}
-          {email && (
-            <>
-              {" · "}
-              <b className="font-medium text-fg">{email}</b>
-            </>
-          )}
-        </span>
-        <Button variant="outline" size="sm" onClick={desconectar} disabled={busy !== null}>
-          {busy === "desconectar" && <Loader2 className="size-4 animate-spin" />}
-          Desconectar
-        </Button>
+      <div className="flex flex-col gap-3">
+        <div className="flex flex-wrap items-center gap-3">
+          <span className="inline-flex items-center gap-1.5 text-sm text-fg-muted">
+            <CheckCircle2 className="size-4 text-green-600" aria-hidden />
+            {proveedor ? `${NOMBRE_PROVEEDOR[proveedor]} conectado` : "Correo conectado"}
+            {/* La dirección NO es decorativa: es desde dónde va a salir el correo, y verla es lo
+                que permite darse cuenta de que se conectó la cuenta equivocada. */}
+            {email ? (
+              <>
+                {" · envía como "}
+                <b className="font-medium text-fg">{email}</b>
+              </>
+            ) : (
+              " · no se pudo leer la dirección de la cuenta"
+            )}
+          </span>
+          <Button variant="outline" size="sm" onClick={desconectar} disabled={busy !== null}>
+            {busy === "desconectar" && <Loader2 className="size-4 animate-spin" />}
+            Desconectar
+          </Button>
+        </div>
+        {aviso && (
+          <p
+            role="alert"
+            className="flex items-start gap-2 rounded-lg border border-amber-500/40 bg-amber-500/10 p-3 text-sm text-fg"
+          >
+            <TriangleAlert className="mt-0.5 size-4 shrink-0 text-amber-600" aria-hidden />
+            <span>{aviso}</span>
+          </p>
+        )}
       </div>
     )
   }

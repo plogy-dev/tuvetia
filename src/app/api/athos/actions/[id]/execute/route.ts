@@ -6,12 +6,29 @@ import { pushAppointment } from "@/lib/google-calendar"
 import { validarPayload } from "@/lib/athos-agent/payload-schemas"
 import { sendWhatsAppText } from "@/lib/whatsapp/send-message"
 import {
+  avisoDeEntrega,
   enviarCorreo,
+  estadoConexion,
   responderCorreo,
   verificarDestinatarioDeRespuesta,
 } from "@/lib/composio/correo"
 
 export const runtime = "nodejs"
+
+/**
+ * Desde qué dirección salió el correo, y si esa dirección puede entregar.
+ *
+ * "Enviado" a secas no alcanzaba: el proveedor acepta el envío, lo guarda en Enviados y responde
+ * éxito aunque la dirección no pueda autenticarse y el correo termine descartado. Pasó de verdad —
+ * una cuenta de Microsoft registrada con un correo `@gmail.com`— y desde el chat era indistinguible
+ * de un envío que llegó. Dejar constancia del remitente hace que quede rastro de qué salió y de
+ * dónde, en vez de un "listo" que no se puede verificar.
+ */
+async function desdeDonde(userId: string): Promise<{ remitente: string | null; aviso?: string }> {
+  const { proveedor, email } = await estadoConexion(userId)
+  const aviso = proveedor ? avisoDeEntrega(proveedor, email) : null
+  return { remitente: email, ...(aviso ? { aviso } : {}) }
+}
 
 // Ejecuta una acción propuesta por Athos, BAJO LA SESIÓN DEL VET que aprueba: las RPCs
 // SECURITY DEFINER ven auth.uid() real y la RLS aplica — sin impersonación. El vet puede editar
@@ -162,7 +179,7 @@ async function dispatch(
         cuerpo: String(p.body ?? ""),
       })
       if (!r.ok) throw new Error(r.error)
-      return { enviado: true, proveedor: r.data }
+      return { enviado: true, ...(await desdeDonde(userId)) }
     }
 
     case "reply_email": {
@@ -187,7 +204,7 @@ const threadId = String(p.thread_id ?? "")
         cuerpo: String(p.body ?? ""),
       })
       if (!r.ok) throw new Error(r.error)
-      return { enviado: true, thread_id: threadId, proveedor: r.data }
+      return { enviado: true, thread_id: threadId, ...(await desdeDonde(userId)) }
     }
 
     case "create_appointment": {

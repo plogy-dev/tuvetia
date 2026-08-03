@@ -245,6 +245,41 @@ todas. Antes de cualquier tanda grande conviene tener manejo de rebotes y enlace
 - Manual, Athos: conectar una cuenta en Conexiones → pedirle a Athos que lea el correo y que
   redacte uno → aprobar la tarjeta → confirmar que salió de **esa** cuenta.
 
+### "Enviado" no quiere decir "llegó"
+
+El proveedor acepta el envío, lo guarda en Enviados y responde éxito **aunque el correo después se
+descarte**. Pasó de verdad, y desde el chat era indistinguible de un envío que llegó: se conectó una
+cuenta de Microsoft cuya dirección es `@gmail.com` —se puede, una cuenta Microsoft se registra con
+cualquier correo—, y ninguno de esos correos llegó nunca.
+
+El motivo no viene en ninguna respuesta de la API: el SPF de `gmail.com` es
+`v=spf1 redirect=_spf.google.com`, o sea sólo Google puede enviar por ese dominio. Un correo que sale
+de Microsoft diciendo ser de `@gmail.com` falla SPF y DKIM, y el que lo recibe lo manda a spam o lo
+descarta en silencio.
+
+Qué se hace al respecto:
+
+- **Conexiones muestra la dirección desde la que se envía** (`envía como ana@…`). Antes no mostraba
+  ninguna: se intentaba leer del dato de la cuenta conectada, donde **ningún proveedor la pone** —
+  siempre daba null. Ahora sale del perfil (`GMAIL_GET_PROFILE` / `OUTLOOK_OUTLOOK_GET_PROFILE`),
+  cacheada por proceso porque no cambia.
+- **Se avisa cuando el dominio no puede autenticar al proveedor**, con la dirección concreta. El
+  aviso salta sólo en casos donde la respuesta es segura (dominios de consumo de otro proveedor):
+  un dominio propio puede estar bien configurado, y avisar de más entrena a la gente a ignorar los
+  avisos.
+- **El ejecutor devuelve el remitente**, así que queda constancia de qué salió y desde dónde en vez
+  de un "listo" que no se puede verificar.
+
+No se bloquea el envío: la política DMARC de `gmail.com` es `p=none`, así que algunos receptores lo
+aceptan igual, y un dominio propio con Microsoft en su SPF funciona perfectamente.
+
+### Sólo una cuenta conectada por persona
+
+`estadoConexion` toma la primera cuenta **ACTIVA** que encuentra, así que con Gmail y Outlook
+conectados a la vez el correo saldría de una u otra sin que nadie lo haya decidido. Estaba escrito
+como "uno de los dos" pero nada lo obligaba: ahora conectar es también *cambiar* — se desconecta lo
+anterior antes de vincular.
+
 ### Outlook: qué se puede buscar y qué no
 
 No se usa `OUTLOOK_OUTLOOK_SEARCH_MESSAGES`, y no es preferencia: esa tool va contra la Microsoft

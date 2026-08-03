@@ -5,7 +5,12 @@ import { EmailSettings, type EmailIntegrationView } from "@/components/settings/
 import { WhatsappSettings } from "@/components/settings/whatsapp-settings"
 import { CalendarSettings, type CalendarProvider } from "@/components/settings/calendar-settings"
 import { AthosEmailSettings } from "@/components/settings/athos-email-settings"
-import { composioConfigurado, estadoConexion, proveedoresDisponibles } from "@/lib/composio/correo"
+import {
+  avisoDeEntrega,
+  composioConfigurado,
+  estadoConexion,
+  proveedoresDisponibles,
+} from "@/lib/composio/correo"
 import { HelpTip } from "@/components/help-tip"
 import { PageHeader, PageShell } from "@/components/ui/page-shell"
 
@@ -110,6 +115,9 @@ export default async function ConexionesPage() {
             proveedor={correoAthos.proveedor}
             email={correoAthos.email}
             disponibles={composioListo ? proveedoresDisponibles() : []}
+            aviso={
+              correoAthos.proveedor ? avisoDeEntrega(correoAthos.proveedor, correoAthos.email) : null
+            }
           />
         </section>
 

@@ -59,6 +59,14 @@ export interface Adaptador {
   }): { slug: string; args: Record<string, unknown> }
   /** Trae la conversación entera. `ref` es un `refConversacion`, no un `refRespuesta`. */
   buscarConversacion(ref: string): { slug: string; args: Record<string, unknown> }
+  /**
+   * Trae el perfil de la cuenta conectada — de acá sale la dirección desde la que se envía.
+   *
+   * Hace falta una llamada aparte porque NINGUNO de los dos proveedores incluye el correo en los
+   * datos de la cuenta conectada (verificado: sólo tokens y scopes). Antes se intentaba leerlo de
+   * ahí y siempre salía null, así que Conexiones no mostraba ninguna dirección.
+   */
+  perfil(): { slug: string; args: Record<string, unknown> }
   normalizar(data: unknown, correoPropio: string | null): CorreoNormalizado[]
 }
 
@@ -94,6 +102,8 @@ const GMAIL: Adaptador = {
     slug: "GMAIL_FETCH_EMAILS",
     args: { query: `thread:${ref}`, max_results: 30 },
   }),
+
+  perfil: () => ({ slug: "GMAIL_GET_PROFILE", args: {} }),
 
   buscar: (query, limite) => ({
     slug: "GMAIL_FETCH_EMAILS",
@@ -221,6 +231,8 @@ const OUTLOOK: Adaptador = {
 
   // Listar y buscar son la MISMA tool acá: ver `filtrosOutlook` para por qué no se usa la de
   // búsqueda.
+  perfil: () => ({ slug: "OUTLOOK_OUTLOOK_GET_PROFILE", args: {} }),
+
   buscar: (query, limite) => ({
     slug: "OUTLOOK_OUTLOOK_LIST_MESSAGES",
     args: filtrosOutlook(query, limite),
@@ -331,4 +343,67 @@ export function proveedoresDisponibles(): Proveedor[] {
   return (Object.keys(ADAPTADORES) as Proveedor[]).filter(
     (p) => (process.env[ADAPTADORES[p].envAuthConfig] ?? "").trim() !== "",
   )
+}
+
+// ─── La dirección desde la que se envía, y si de verdad puede enviar ──────────
+
+/**
+ * La dirección de la cuenta conectada, sacada de la respuesta del perfil.
+ *
+ * Cada proveedor la llama distinto (Gmail `emailAddress`, Graph `mail` o `userPrincipalName`) y
+ * Composio a veces envuelve en `response_data`. Se prueban todas las variantes en vez de ramificar:
+ * es un dato chico y no vale un `if` por proveedor.
+ */
+export function direccionDelPerfil(data: unknown): string | null {
+  const raiz = (data as { response_data?: unknown })?.response_data ?? data
+  const d = (raiz ?? {}) as Record<string, unknown>
+  for (const k of ["emailAddress", "email", "mail", "userPrincipalName"]) {
+    const v = d[k]
+    if (typeof v === "string" && v.includes("@")) return v
+  }
+  return null
+}
+
+// Dominios de correo de consumo que administra OTRO proveedor. Si una cuenta de Microsoft tiene su
+// dirección en uno de estos, Microsoft no puede autenticarla y el correo no se entrega.
+//
+// La lista es corta a propósito: sólo casos donde la respuesta es SEGURA. Un dominio propio
+// (clinica.com) puede estar perfectamente configurado para que Microsoft envíe por él, así que
+// callarse ahí es lo correcto — avisar de más entrena a la gente a ignorar los avisos.
+const DOMINIOS_DE_OTRO_PROVEEDOR = new Set([
+  "gmail.com",
+  "googlemail.com",
+  "yahoo.com",
+  "yahoo.es",
+  "yahoo.com.mx",
+  "yahoo.com.ar",
+  "icloud.com",
+  "me.com",
+  "aol.com",
+  "proton.me",
+  "protonmail.com",
+  "gmx.com",
+  "yandex.com",
+  "zoho.com",
+])
+
+/**
+ * ¿Los correos de esta cuenta van a llegar?
+ *
+ * Devuelve el aviso a mostrar, o null si no hay motivo para sospechar.
+ *
+ * EL CASO REAL: se conectó una cuenta de Microsoft cuya dirección es `@gmail.com` — se puede, una
+ * cuenta Microsoft se registra con cualquier correo. Los envíos salían bien (quedaban en Enviados,
+ * la API decía éxito) y NO LLEGABAN a ningún lado, porque el SPF de gmail.com sólo autoriza a
+ * Google: un correo que sale de Microsoft diciendo ser de gmail.com falla la autenticación y el que
+ * lo recibe lo manda a spam o lo descarta. Como Athos mostraba "Ejecutada", el veterinario quedaba
+ * convencido de haber contactado al titular.
+ *
+ * Con Gmail no pasa: la dirección de la cuenta siempre es de Google, que es quien envía.
+ */
+export function avisoDeEntrega(proveedor: Proveedor, email: string | null): string | null {
+  if (proveedor !== "outlook" || !email) return null
+  const dominio = email.split("@")[1]?.toLowerCase()
+  if (!dominio || !DOMINIOS_DE_OTRO_PROVEEDOR.has(dominio)) return null
+  return `Los correos saldrían como ${email}, pero ${dominio} no autoriza a los servidores de Microsoft a enviar por él: van a caer en spam o directamente no van a llegar, aunque acá figuren como enviados. Conectá una cuenta de Microsoft cuya dirección sea de Microsoft o del dominio de la clínica — o conectá ${email} por Gmail, que sí puede enviar por ese dominio.`
 }

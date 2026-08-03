@@ -21,13 +21,14 @@ import { Composio } from "@composio/core"
 import {
   adaptador,
   destinatarioEnHilo,
+  direccionDelPerfil,
   proveedoresDisponibles,
   type CorreoNormalizado,
   type Proveedor,
 } from "./proveedores"
 
 export { NOMBRE_PROVEEDOR, type CorreoNormalizado, type Proveedor } from "./proveedores"
-export { proveedoresDisponibles } from "./proveedores"
+export { avisoDeEntrega, proveedoresDisponibles } from "./proveedores"
 
 function apiKey(): string | null {
   return process.env.COMPOSIO_API_KEY?.trim() || null
@@ -64,8 +65,30 @@ export interface EstadoConexion {
   conectado: boolean
   /** Con cuál de los dos, si hay alguno. */
   proveedor: Proveedor | null
-  /** Correo de la cuenta conectada, para mostrarlo en Conexiones. */
+  /** Dirección desde la que se envía. Null si el perfil no se pudo consultar. */
   email: string | null
+}
+
+/**
+ * La dirección de cada miembro, cacheada por proceso.
+ *
+ * Sacarla cuesta una llamada al proveedor (ningún dato de la cuenta conectada la trae), y
+ * `estadoConexion` se llama en cada carga de página y antes de cada propuesta de correo. La
+ * dirección de una cuenta no cambia, así que preguntarla una vez por instancia alcanza.
+ */
+const direcciones = new Map<string, string | null>()
+
+async function direccionDe(userId: string, proveedor: Proveedor): Promise<string | null> {
+  const clave = `${proveedor}:${userId}`
+  const cacheada = direcciones.get(clave)
+  if (cacheada !== undefined) return cacheada
+
+  const { slug, args } = adaptador(proveedor).perfil()
+  const r = await ejecutar(userId, slug, args)
+  const email = r.ok ? direccionDelPerfil(r.data) : null
+  // Un fallo NO se cachea: puede ser transitorio y dejaría la dirección en null para siempre.
+  if (email) direcciones.set(clave, email)
+  return email
 }
 
 /**
@@ -88,16 +111,13 @@ export async function estadoConexion(userId: string): Promise<EstadoConexion> {
 
     const slug = activa.toolkit?.slug
     const proveedor = proveedoresDisponibles().find((p) => adaptador(p).toolkit === slug) ?? null
+    if (!proveedor) return sinConexion
 
-    // El correo de la cuenta viene en los datos del proveedor y su forma depende del toolkit: Google
-    // lo llama `email`, Microsoft Graph `mail` o `userPrincipalName`. Se prueban todos en vez de
-    // ramificar por proveedor — es un dato decorativo y no vale romper la página por un nombre.
-    const datos = (activa.data ?? {}) as Record<string, unknown>
-    const email =
-      ["email", "user_email", "mail", "userPrincipalName"]
-        .map((k) => datos[k])
-        .find((v): v is string => typeof v === "string" && v.includes("@")) ?? null
-    return { conectado: true, proveedor, email }
+    // La dirección NO es un dato decorativo: es desde dónde sale el correo. Antes se intentaba leer
+    // de los datos de la cuenta conectada, donde ningún proveedor la pone — siempre daba null, así
+    // que Conexiones no mostraba nada y nadie podía notar que la cuenta enviaba desde una dirección
+    // que no puede entregar.
+    return { conectado: true, proveedor, email: await direccionDe(userId, proveedor) }
   } catch (e) {
     console.error(`[composio/correo] no se pudo consultar la conexión de ${userId}:`, e)
     return sinConexion
@@ -120,6 +140,15 @@ export async function iniciarConexion(
   if (!auth) {
     throw new Error(`Falta ${a.envAuthConfig} en el servidor.`)
   }
+  // Uno de los dos, no los dos. `estadoConexion` toma la primera cuenta ACTIVA que encuentra, así
+  // que con Gmail y Outlook conectados a la vez el correo saldría de una u otra sin que nadie lo
+  // haya decidido. Conectar es entonces también cambiar: se limpia lo anterior primero.
+  await desconectar(userId).catch((e) => {
+    console.error(`[composio/correo] no se pudo limpiar la conexión previa de ${userId}:`, e)
+  })
+  direcciones.delete(`gmail:${userId}`)
+  direcciones.delete(`outlook:${userId}`)
+
   try {
     const request = await composio().connectedAccounts.link(userId, auth, { callbackUrl })
     if (!request.redirectUrl) throw new Error("Composio no devolvió una URL de autorización.")
@@ -160,6 +189,8 @@ function explicarFalloDeConexion(e: unknown): string {
 
 /** Desconecta: borra las cuentas de correo conectadas de ese miembro. */
 export async function desconectar(userId: string): Promise<void> {
+  direcciones.delete(`gmail:${userId}`)
+  direcciones.delete(`outlook:${userId}`)
   const { items } = await composio().connectedAccounts.list({
     userIds: [userId],
     toolkitSlugs: proveedoresDisponibles().map((p) => adaptador(p).toolkit),
