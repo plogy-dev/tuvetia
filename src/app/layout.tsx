@@ -10,6 +10,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { Toaster } from "@/components/ui/sonner";
 import { ThemeProvider } from "@/components/theme-provider";
 import "./globals.css";
+import { getAppBaseUrl } from "@/lib/base-url";
 import { cn } from "@/lib/utils";
 
 const interTight = Inter_Tight({
@@ -61,6 +62,10 @@ const instrumentSerif = Instrument_Serif({
 });
 
 export const metadata: Metadata = {
+  // Sin `metadataBase`, toda URL relativa de Open Graph (la imagen incluida) se resuelve mal en
+  // producción y la preview del enlace sale vacía. `getAppBaseUrl()` ya resuelve el origen —
+  // NEXT_PUBLIC_APP_URL, y si no la URL que Vercel provee sola.
+  metadataBase: new URL(getAppBaseUrl()),
   title: "Tuvetia",
   description: "Inteligencia artificial para veterinarias",
 };

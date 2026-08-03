@@ -34,31 +34,10 @@ export default function Nav({
                 </a>
               </>
             )}
-            <div className="lang" id="lang">
-              <button
-                className="navb navb-3"
-                id="langbtn"
-                aria-haspopup="true"
-                aria-expanded="false"
-                aria-label="Idioma"
-              >
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
-                  <circle cx="12" cy="12" r="9" />
-                  <path d="M3 12h18M12 3a15 15 0 0 1 0 18a15 15 0 0 1 0-18" />
-                </svg>
-                <svg className="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2">
-                  <path d="m6 9 6 6 6-6" />
-                </svg>
-              </button>
-              <div className="lang-menu" id="langmenu">
-                <button className="lang-i on" data-l="es">
-                  Español
-                </button>
-                <button className="lang-i" data-l="en">
-                  English
-                </button>
-              </div>
-            </div>
+            {/* El selector de idioma se quitó: su única acción era `document.documentElement.lang
+                = "en"`. No hay i18n — el sitio no traducía ni una palabra, así que ofrecerlo era
+                prometer un idioma que no existe. Si vuelve, va con traducciones, y hay que reponer
+                el bloque `selector de idioma` de `lib/landing/engine.ts`. */}
             <button className="navb navb-3 nav-burger" id="burgerbtn" aria-label="Menú" aria-expanded="false">
               <span className="burger-lines">
                 <i />

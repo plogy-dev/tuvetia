@@ -10,7 +10,6 @@ import DemoStage from "./DemoStage";
 import MediaBand from "./MediaBand";
 import Criterio from "./Criterio";
 import Conversacion from "./Conversacion";
-import Producto from "./Producto";
 import Salida from "./Salida";
 import Cuenta from "./Cuenta";
 import Seguridad from "./Seguridad";
@@ -22,8 +21,6 @@ import SiteFooter from "./SiteFooter";
 import CalcModal from "./CalcModal";
 import hero from "@/public/media/hero.png";
 import bandaConsulta from "@/public/media/banda-consulta.png";
-import bandaWhatsapp from "@/public/media/banda-whatsapp.png";
-import bandaProducto from "@/public/media/banda-producto.png";
 
 export default function Landing() {
   useEffect(() => initLanding(), []);
@@ -44,22 +41,14 @@ export default function Landing() {
           alt="Veterinario examinando a un perro sobre la mesa de consulta, con su dueña al frente"
         />
         <Criterio />
-        {/* Oculta por pedido: banda del slot 4 (teléfono a las 10 de la noche).
-        <MediaBand
-          src={bandaWhatsapp}
-          caption="La conversación"
-          alt="Veterinario mirando el teléfono en el sofá, de noche"
-        />
-        */}
+        {/* Oculta por pedido: banda del slot 4 (teléfono a las 10 de la noche), con
+            `banda-whatsapp.png` y el alt "Veterinario mirando el teléfono en el sofá, de noche". */}
         <Conversacion />
-        {/* Oculto por ahora: subsección "Adentro del producto" y su banda.
-        <MediaBand
-          src={bandaProducto}
-          caption="Adentro"
-          alt="Consultorio veterinario en calma, un gato sobre la mesa de acero"
-        />
-        <Producto />
-        */}
+        {/* Oculto por ahora: la subsección "Adentro del producto" (`./Producto`) y su banda
+            (`banda-producto.png`, "Consultorio veterinario en calma, un gato sobre la mesa de
+            acero"). Los imports se quitaron —eran 3 de los 12 warnings de lint y las dos imágenes
+            se cargaban para nada—, así que reponer cualquiera de las dos secciones es reponer
+            también su import. El markup exacto está en el historial de este archivo. */}
         <Salida />
         <Cuenta />
         <Seguridad />

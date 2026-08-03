@@ -1,6 +1,11 @@
 "use client";
 
 import { useEffect, type CSSProperties } from "react";
+import Image from "next/image";
+// Ver la nota de `DemoPage.tsx`: imports estáticos sin `fill` porque el CSS ya dimensiona el <img>.
+import seg1 from "@/public/media/seg-1.png";
+import seg2 from "@/public/media/seg-2.png";
+import segCierre from "@/public/media/seg-cierre.png";
 import { initSubpage } from "@/lib/landing/subpage";
 import { v } from "@/lib/landing/vars";
 import Background from "@/components/landing/Background";
@@ -90,7 +95,7 @@ export default function SeguridadPage() {
           </header>
 
           <figure className="sg-band">
-            <img src="/media/seg-1.png" alt="" loading="lazy" />
+            <Image src={seg1} alt="" sizes="100vw" placeholder="blur" />
             <figcaption>Tu consulta, tu dato</figcaption>
           </figure>
 
@@ -271,7 +276,7 @@ export default function SeguridadPage() {
               </div>
             </div>
             <figure className="sg-pic">
-              <img src="/media/seg-2.png" alt="" loading="lazy" />
+              <Image src={seg2} alt="" sizes="(max-width: 900px) 100vw, 560px" placeholder="blur" />
             </figure>
           </section>
 
@@ -298,7 +303,7 @@ export default function SeguridadPage() {
 
           <section className="sclose" data-io>
             <div className="sclose-bg">
-              <img src="/media/seg-cierre.png" alt="" loading="lazy" />
+              <Image src={segCierre} alt="" sizes="100vw" placeholder="blur" />
             </div>
             <div className="sclose-in">
               <h2 className="st" style={v({ i: 0, y: "18px" })}>

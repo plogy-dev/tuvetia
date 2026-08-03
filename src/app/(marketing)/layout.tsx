@@ -10,10 +10,35 @@ import { LandingBodyClass } from '@/components/landing/LandingBodyClass';
  * Serif, JetBrains como --font-mono) viven en el root layout para que las
  * variables resuelvan a nivel <body>, que es donde landing.css las usa.
  */
+const TITULO = 'Tuvetia · software clínico para veterinarios';
+const DESCRIPCION =
+  'Athos escucha tu consulta y escribe la historia clínica mientras atiendes. Tú revisas y firmas.';
+
 export const metadata: Metadata = {
-  title: 'Tuvetia · software clínico para veterinarios',
-  description:
-    'Athos escucha tu consulta y escribe la historia clínica mientras atiendes. Tú revisas y firmas.',
+  title: TITULO,
+  description: DESCRIPCION,
+  // El enlace de esta landing se reparte por WhatsApp, que es donde terminan TODOS sus formularios.
+  // Sin estas dos secciones se compartía como texto pelado, sin título ni imagen — justo en el
+  // único canal que importa. El origen sale de `metadataBase` (root layout).
+  //
+  // La imagen es la del hero, que es lo que hay: 1448×1086, o sea 4:3. Las medidas declaradas son
+  // las REALES, no las canónicas — un OG de 1.91:1 querría 1200×630, así que WhatsApp y X van a
+  // recortarla por arriba y por abajo. Se ve bien igual, pero una imagen hecha a medida para
+  // compartir es una mejora pendiente, no algo que ya esté resuelto.
+  openGraph: {
+    type: 'website',
+    siteName: 'Tuvetia',
+    locale: 'es_CO',
+    title: TITULO,
+    description: DESCRIPCION,
+    images: [{ url: '/media/hero.png', width: 1448, height: 1086, alt: 'Tuvetia' }],
+  },
+  twitter: {
+    card: 'summary_large_image',
+    title: TITULO,
+    description: DESCRIPCION,
+    images: ['/media/hero.png'],
+  },
 };
 
 export default function MarketingLayout({
