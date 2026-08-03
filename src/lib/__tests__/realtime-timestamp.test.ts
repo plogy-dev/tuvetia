@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest"
 
-import { normalizarTimestamp } from "@/lib/realtime-timestamp"
+import { normalizarFilaRealtime, normalizarTimestamp } from "@/lib/realtime-timestamp"
 
 // Los dos valores de referencia salen de una medición real contra el proyecto principal
 // (`select now()::text, to_json(now())::text`), no de una suposición sobre el formato.
@@ -40,6 +40,24 @@ describe("normalizarTimestamp", () => {
   it("acepta segundos sin parte fraccionaria", () => {
     // Postgres recorta los ceros finales: un instante exacto llega sin decimales.
     expect(normalizarTimestamp("2026-08-01 19:19:20+00")).toBe("2026-08-01T19:19:20+00:00")
+  })
+
+  it("normaliza sólo los campos indicados de una fila, y no rompe los nulls", () => {
+    // El helper de fila existe porque la regla ya se olvidó una vez: la bandeja de correo, escrita
+    // en paralelo al arreglo de la de WhatsApp, nació con el mismo defecto.
+    const fila = {
+      id: "abc",
+      created_at: DEL_WAL,
+      read_at: null,
+      body: "un texto con espacios que no es fecha",
+    }
+    const salida = normalizarFilaRealtime(fila, ["created_at", "read_at"])
+
+    expect(salida.created_at).toBe(DE_POSTGREST)
+    expect(salida.read_at).toBe(null)
+    expect(salida.body).toBe(fila.body) // no se tocan campos fuera de la lista
+    expect(salida.id).toBe("abc")
+    expect(fila.created_at).toBe(DEL_WAL) // no muta la fila original
   })
 
   it("deja pasar null, undefined y cualquier cosa que no reconozca", () => {

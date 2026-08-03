@@ -31,3 +31,25 @@ export function normalizarTimestamp<T extends string | null | undefined>(valor: 
   const [, fecha, hora, offsetHoras, offsetMinutos] = m
   return `${fecha}T${hora}${offsetHoras}:${offsetMinutos ?? "00"}` as T
 }
+
+/**
+ * Normaliza los campos de fecha de una fila que llega por Realtime. **Toda suscripción nueva tiene
+ * que pasar su `payload.new` por acá antes de tocar el estado.**
+ *
+ * Existe como helper compartido y no como función local de cada bandeja porque ya pasó dos veces: se
+ * arregló en la de WhatsApp el 01-ago y la de correo, escrita en paralelo, nació con el mismo
+ * defecto. Una regla que hay que recordar se olvida; una función que se importa, no.
+ */
+export function normalizarFilaRealtime<T extends Record<string, unknown>>(
+  fila: T,
+  campos: readonly (keyof T)[],
+): T {
+  const salida = { ...fila }
+  for (const campo of campos) {
+    const valor = salida[campo]
+    if (typeof valor === "string") {
+      salida[campo] = normalizarTimestamp(valor) as T[keyof T]
+    }
+  }
+  return salida
+}
