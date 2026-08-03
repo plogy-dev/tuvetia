@@ -11,8 +11,8 @@ decisión de arquitectura, no un detalle de implementación.
 **La regla en una línea:** si el correo lo manda *el sistema*, va por Resend; si lo manda *una
 persona* (o Athos por ella), va por Composio con la cuenta de esa persona.
 
-> **Estado:** los dos caminos están en pie y verificados contra las APIs reales. El de SMTP/IMAP por
-> cuenta se retiró por completo.
+> **Estado (2026-08-03):** los dos caminos están en pie y verificados contra las APIs reales. El de
+> SMTP/IMAP se retiró de verdad — archivos, UI, cron y dependencias. Ver «Lo que se retiró».
 
 ---
 
@@ -58,17 +58,28 @@ Era así hasta ahora, y tenía dos problemas:
 El Reply-To es lo que evita el efecto secundario obvio: el cliente responde y le llega a **su**
 veterinaria, no a Tuvetia.
 
-### Consecuencia a tener presente
+### Cómo vuelven las respuestas
 
-Las respuestas de los clientes ahora caen en el buzón del **administrador**. El motor de cobranza
-lee respuestas por IMAP desde la **cuenta institucional conectada en Conexiones**
-([`sync.ts`](src/lib/email/sync.ts) → `invoice_email_threads`). Si el correo del admin **no** es esa
-cuenta, esas respuestas no se procesan: las promesas de pago y los comprobantes que el cliente mande
-por correo no llegan al motor.
+Las respuestas de los clientes caen en el buzón del **administrador**, porque es a él a quien apunta
+el Reply-To. Y ahí mismo las lee el motor de cobranza: el barrido diario
+([`cartera/respuestas-correo.ts`](src/lib/cartera/respuestas-correo.ts)) abre ese buzón **por
+Composio** —la misma conexión que el admin ya hizo para que Athos escriba por él— y no pide ninguna
+credencial nueva. La arquitectura se cierra sola: el correo sale por un lado y vuelve por el otro,
+sin una tercera cuenta en el medio.
 
-No es un fallo silencioso nuevo —hoy no hay ninguna cuenta conectada, así que ese circuito nunca
-corrió—, pero es lo que hay que mirar antes de encender la cobranza por correo. La forma de cerrarlo
-es que el admin conecte **ese mismo** buzón en Conexiones → *Correo de la clínica*.
+**Requisito, y es el único:** el administrador tiene que haber conectado su correo en
+Conexiones → *Correo de Athos*. Si no lo hizo, las respuestas quedan en su bandeja y él las lee a
+mano, como cualquier persona — no se rompe nada, sólo no hay automatismo.
+
+**Se atribuyen por ASUNTO, no por cabeceras.** La API del proveedor no entrega
+`References`/`In-Reply-To` (el circuito IMAP viejo sí los tenía), así que se compara `asuntoBase()`
+contra `invoice_email_threads.subject`. Alcanza porque el asunto lleva el número de factura, que es
+único por clínica.
+
+**Lo que este camino no puede hacer:** la API entrega la *cantidad* de adjuntos, no los bytes. Un
+comprobante de pago se detecta y se escala a una persona con su enlace al correo original, pero no
+se guarda como archivo en el bucket. Los que llegan por **WhatsApp** sí se descargan enteros — ese
+canal tiene su propio webhook y su propia media.
 
 ---
 
@@ -177,22 +188,33 @@ Gmail al abrir; a cambio desaparece todo ese aparato.
 
 Se muestra el comienzo de cada correo, con enlace para abrirlo completo en Gmail.
 
-## Lo que ya se retiró
+## Lo que se retiró (2026-08-03, de verdad esta vez)
 
-`src/lib/email/{imap,inbox,send-user-email,sync}.ts`, la ruta `/api/email/sync` y los barridos IMAP
-del cron. La conexión por App Password dejó de usarse para el correo del miembro.
+Este documento afirmó durante días que SMTP/IMAP "se retiró por completo", y era **falso**: los
+archivos seguían en el repo, el cron seguía barriendo por IMAP y Conexiones seguía pidiéndole al vet
+una contraseña de aplicación de Gmail. Sólo no rompía nada porque no había ninguna cuenta conectada
+— un no-op *por datos*, no por código. Ahora sí:
 
-**Se perdió una cosa, a propósito:** la lectura automática de respuestas a facturas. Clasificaba la
-intención del cliente, guardaba el comprobante adjunto y creaba la tarea de verificación. Las
-facturas ahora salen con Reply-To al administrador y **él lee las respuestas en su correo, como
-cualquier persona**. Los comprobantes que llegan por **WhatsApp** se siguen capturando solos.
+- **Borrados:** `src/lib/email/{imap,smtp,sync,integrations,actions}.ts`,
+  `src/components/settings/email-settings.tsx`, y las dependencias `imapflow`, `mailparser` y
+  `nodemailer`.
+- **Fuera de la UI:** la tarjeta "Correo de la clínica" de Conexiones, que además mostraba
+  `Envío (SMTP) smtp.gmail.com · verificado` cuando las facturas ya salían por Resend.
+- **Fuera del cron:** el barrido IMAP, reemplazado por la lectura vía Composio.
 
-**Se pierde una cosa, y es a propósito:** la lectura automática de respuestas a facturas. Hoy
-`sync.ts` lee el buzón institucional, clasifica la intención del cliente (promesa de pago, disputa),
-guarda el comprobante adjunto y crea la tarea de verificación. Al desaparecer el buzón institucional
-eso deja de existir: las facturas salen con Reply-To al administrador y **él lee las respuestas en
-su correo, como cualquier persona**. Los comprobantes que llegan por **WhatsApp** se siguen
-capturando solos — ese canal tiene su propio webhook.
+**Nada se perdió en el camino.** Las dos versiones anteriores de esta sección —una en pasado y otra
+en presente, con conclusiones opuestas— daban por perdida la lectura automática de respuestas. No lo
+está: vive en `cartera/respuestas-correo.ts` y lee el buzón del administrador por Composio. Lo único
+que se perdió es la **descarga de adjuntos**, explicada arriba.
+
+## El tercer camino, que no es de nadie
+
+Hay correos que no salen ni por Resend ni por Composio: los de **Supabase Auth** — invitaciones de
+equipo (`api/team/invite-email`), magic links y OTP de login y signup. Los manda el SMTP configurado
+en Supabase, con sus propias plantillas, y no pasan por ninguna de las dos capas de este documento.
+
+No es un error, pero conviene saberlo: si un vet dice que no le llegó la invitación, el problema no
+está en nada de lo que se describe acá.
 
 ## Configuración
 

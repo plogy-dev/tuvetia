@@ -13,6 +13,7 @@ import {
   parseMessageIds,
   replyHeaders,
   replySubject,
+  asuntoBase,
 } from "../threading"
 
 const ROOT = "<factura.abc-123.1@suclinica.com>"
@@ -138,5 +139,34 @@ describe("replySubject", () => {
   it("sin asunto no produce 'Re: undefined'", () => {
     expect(replySubject(null)).toBe("Re:")
     expect(replySubject("")).toBe("Re:")
+  })
+})
+
+describe("asuntoBase", () => {
+  it("es la MISMA clave con y sin prefijos de respuesta", () => {
+    // Es de lo que depende atribuir una respuesta a su factura cuando la fuente es la API del
+    // proveedor: ahí no llegan References/In-Reply-To y el asunto es lo único que queda.
+    const esperado = "factura fe-123"
+    for (const s of ["Factura FE-123", "Re: Factura FE-123", "RE: Re: Factura FE-123", "Rv: FACTURA FE-123", "Fwd: Factura FE-123"]) {
+      expect(asuntoBase(s)).toBe(esperado)
+    }
+  })
+
+  it("normaliza los espacios de más", () => {
+    expect(asuntoBase("Re:   Factura   FE-123  ")).toBe("factura fe-123")
+  })
+
+  it("no se cuelga con un asunto que es sólo prefijos", () => {
+    expect(asuntoBase("Re: Re: Re: Re: Re: Re: Re: Re:")).toBe("")
+  })
+
+  it("vacío y nulo dan la misma clave, que nunca debe emparejar", () => {
+    expect(asuntoBase(null)).toBe("")
+    expect(asuntoBase(undefined)).toBe("")
+  })
+
+  it("replySubject conserva las mayúsculas — es lo que ve el titular", () => {
+    // Unificar las dos funciones lowercaseaba el asunto de cada respuesta que sale.
+    expect(replySubject("Re: Factura FE-123")).toBe("Re: Factura FE-123")
   })
 })

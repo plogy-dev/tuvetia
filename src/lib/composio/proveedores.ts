@@ -26,7 +26,19 @@ export interface CorreoNormalizado {
   de: string
   para: string
   asunto: string
+  /** Las primeras líneas, para la bandeja. Recortado a 200 — no sirve para procesar. */
   preview: string
+  /**
+   * El cuerpo COMPLETO, sin recortar.
+   *
+   * Existe porque `preview` está pensado para una lista que el humano mira antes de abrir el correo
+   * en Gmail, y con 200 caracteres no se puede clasificar la intención de una respuesta de cobranza
+   * ("le transferí ayer, adjunto el soporte, ¿me confirman?" ya no entra). El dato siempre estuvo en
+   * el payload del proveedor; lo recortábamos nosotros.
+   *
+   * Puede venir vacío: Graph a veces sólo entrega `bodyPreview` en un listado.
+   */
+  cuerpo: string
   fecha: string
   esPropio: boolean
   leido: boolean
@@ -128,6 +140,9 @@ const GMAIL: Adaptador = {
         para: m.to ?? "",
         asunto: m.subject ?? "(sin asunto)",
         preview: (m.preview?.body ?? m.messageText ?? "").slice(0, 200),
+        // `messageText` primero acá: para el cuerpo entero es la fuente buena, mientras que para el
+        // vistazo de la bandeja `preview.body` viene mejor recortado por Gmail.
+        cuerpo: m.messageText ?? m.preview?.body ?? "",
         fecha: m.messageTimestamp ?? new Date().toISOString(),
         // La etiqueta SENT es más fiable que comparar direcciones: el vet puede tener alias, y
         // `sender` viene como "Nombre <correo>".
@@ -148,6 +163,8 @@ type MensajeOutlook = {
   conversationId?: string
   subject?: string
   bodyPreview?: string
+  /** Graph lo entrega cuando se pide el mensaje entero; en un listado suele faltar. */
+  body?: { content?: string; contentType?: string }
   receivedDateTime?: string
   sentDateTime?: string
   isRead?: boolean
@@ -262,6 +279,9 @@ const OUTLOOK: Adaptador = {
         para: (m.toRecipients ?? []).map(direccionOutlook).filter(Boolean).join(", "),
         asunto: m.subject ?? "(sin asunto)",
         preview: (m.bodyPreview ?? "").slice(0, 200),
+        // Graph entrega `body.content` cuando se lo pide; en un listado a veces sólo hay
+        // `bodyPreview`, y entonces esto es lo mismo que el preview. Mejor eso que vacío.
+        cuerpo: m.body?.content ?? m.bodyPreview ?? "",
         fecha: m.receivedDateTime ?? m.sentDateTime ?? new Date().toISOString(),
         // Graph no trae una etiqueta como SENT: se compara el remitente con la cuenta conectada.
         esPropio: Boolean(propio) && de.toLowerCase().includes(propio),

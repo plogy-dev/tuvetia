@@ -109,7 +109,7 @@ export async function enviarCorreoPlataforma(input: {
 // action, o sea una función serverless con límite de tiempo, y hace tres cosas que suman:
 //
 //   · una pausa de MS_ENTRE_ENVIOS entre destinatarios,
-//   · un envío SMTP que `email/smtp.ts` deja llegar hasta 20 s antes de rendirse,
+//   · un envío que puede tardar hasta 20 s antes de rendirse,
 //   · y un reintento con pausa doble cuando el fallo es transitorio.
 //
 // Con el tope anterior de 50 el peor caso pasaba de dos minutos y el mejor rondaba el minuto: la
