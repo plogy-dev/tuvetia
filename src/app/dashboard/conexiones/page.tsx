@@ -11,7 +11,7 @@ import {
   estadoConexion,
   proveedoresDisponibles,
 } from "@/lib/composio/correo"
-import { estadoCalendario } from "@/lib/composio/calendario"
+import { estadoCalendario, type EstadoCalendario } from "@/lib/composio/calendario"
 import { HelpTip } from "@/components/help-tip"
 import { PageHeader, PageShell } from "@/components/ui/page-shell"
 
@@ -33,8 +33,7 @@ export default async function ConexionesPage() {
 
   const composioListo = composioConfigurado()
 
-  const [{ data: wa }, { data: emailRow }, { data: cal }, correoAthos, { data: clinica }] =
-    await Promise.all([
+  const [{ data: wa }, { data: emailRow }, correoAthos, { data: clinica }] = await Promise.all([
     supabase.from("whatsapp_integrations").select("status, phone_number, agent_mode").maybeSingle(),
     // Cuenta INSTITUCIONAL de la clínica: la que manda facturas y cobranza (user_id null).
     supabase
@@ -42,17 +41,6 @@ export default async function ConexionesPage() {
       .select("status, from_email, from_name, last_error, verified_at")
       .is("user_id", null)
       .maybeSingle(),
-    // Outlook Calendar todavía guarda su credencial acá. Google ya no: pasó a Composio, así que su
-    // estado se le pregunta a quien tiene el token (ver abajo). Cuando Outlook también migre, esta
-    // consulta y la tabla dejan de hacer falta.
-    user
-      ? supabase
-          .from("calendar_integrations")
-          .select("provider")
-          .eq("user_id", user.id)
-          .eq("provider", "microsoft")
-          .maybeSingle()
-      : Promise.resolve({ data: null }),
     // La cuenta de correo que este miembro conectó por Composio: la que usa Athos por él.
     user && composioListo
       ? estadoConexion(user.id)
@@ -68,9 +56,9 @@ export default async function ConexionesPage() {
   // El estado que importa es el del calendario DE LA CLÍNICA —el del administrador—, no el de quien
   // está mirando. Un veterinario que abre esta página necesita saber si las citas están llegando a
   // algún lado; su propia conexión no cambia nada desde que el evento vive en el del administrador.
-  const calendarioClinica = administrador
+  const calendarioClinica: EstadoCalendario = administrador
     ? await estadoCalendario(administrador)
-    : { conectado: false, proveedor: null as "google" | null }
+    : { conectado: false, proveedor: null, compartidoConElCorreo: false }
 
   const waRow = wa as {
     status: "pending" | "connected" | "disconnected"
@@ -78,11 +66,7 @@ export default async function ConexionesPage() {
     agent_mode: "auto" | "review" | "paused" | "intervene"
   } | null
   const email = emailRow as EmailIntegrationView | null
-  // Google manda porque es el camino nuevo: si alguien quedó con una fila vieja de Outlook y además
-  // conectó Google, lo que va a recibir las citas es Google.
-  const calendarConnected: CalendarProvider | null = calendarioClinica.conectado
-    ? "google"
-    : (((cal as { provider: string } | null)?.provider ?? null) as CalendarProvider | null)
+  const calendarConnected: CalendarProvider | null = calendarioClinica.proveedor
 
   return (
     <PageShell width="narrow">
@@ -158,7 +142,12 @@ export default async function ConexionesPage() {
                 ? "Las citas de la clínica se crean en el calendario del administrador. Cuando te asignen una, te llega la invitación por correo — no hace falta que conectes el tuyo."
                 : "El administrador todavía no conectó el calendario de la clínica, así que las citas quedan sólo en Tuvetia y nadie recibe invitación. Pedile que lo conecte desde esta misma pantalla."}
           </p>
-          {esAdministrador && <CalendarSettings connected={calendarConnected} />}
+          {esAdministrador && (
+            <CalendarSettings
+              connected={calendarConnected}
+              compartidoConElCorreo={calendarioClinica.compartidoConElCorreo}
+            />
+          )}
         </section>
       </div>
     </PageShell>

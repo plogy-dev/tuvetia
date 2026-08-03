@@ -10,6 +10,7 @@ import { describe, expect, it } from "vitest"
 import { adaptadorCalendario } from "@/lib/composio/calendario"
 
 const google = adaptadorCalendario("google")
+const outlook = adaptadorCalendario("outlook")
 
 const CITA = {
   titulo: "Control de Pequitas",
@@ -87,5 +88,66 @@ describe("leer el id del evento creado", () => {
     for (const raro of [null, undefined, {}, { response_data: {} }, "texto", { id: 42 }]) {
       expect(google.idDelEvento(raro)).toBeNull()
     }
+  })
+})
+
+// ─── Outlook ──────────────────────────────────────────────────────────────────
+//
+// Crear y actualizar NO comparten forma, aunque sean el mismo proveedor. Es la asimetría más fácil
+// de romper sin darse cuenta, porque los dos "funcionan" y sólo se nota en que los invitados
+// desaparecen.
+describe("Outlook: crear un evento", () => {
+  it("los invitados van en `attendees_info`, con el correo suelto", () => {
+    const { slug, args } = outlook.crear(CITA)
+    expect(slug).toBe("OUTLOOK_OUTLOOK_CALENDAR_CREATE_EVENT")
+    expect(args.attendees_info).toEqual([
+      { email: "titular@ejemplo.com", type: "required" },
+      { email: "vet@clinica.co", type: "required" },
+    ])
+  })
+
+  it("manda la fecha en UTC, igual que Google", () => {
+    const { args } = outlook.crear(CITA)
+    expect(args.start_datetime).toBe("2026-08-10T14:00:00")
+    expect(args.end_datetime).toBe("2026-08-10T14:30:00")
+    expect(args.time_zone).toBe("UTC")
+  })
+
+  it("nunca manda el cuerpo vacío, porque es obligatorio", () => {
+    // Graph rechaza la cita si `body` viene vacío. Sin motivo ni notas se cae al título, que es
+    // información real — mejor que un espacio para conformar a la API.
+    const { args } = outlook.crear({ ...CITA, descripcion: undefined })
+    expect(args.body).toBe(CITA.titulo)
+  })
+})
+
+describe("Outlook: actualizar un evento", () => {
+  it("los invitados cambian de forma respecto de crear", () => {
+    // `attendees` con `emailAddress.address` anidado, NO `attendees_info` con el correo suelto.
+    const { slug, args } = outlook.actualizar("ev-1", CITA)
+    expect(slug).toBe("OUTLOOK_OUTLOOK_UPDATE_CALENDAR_EVENT")
+    expect(args.attendees).toEqual([
+      { emailAddress: { address: "titular@ejemplo.com" }, type: "required" },
+      { emailAddress: { address: "vet@clinica.co" }, type: "required" },
+    ])
+  })
+
+  it("manda SIEMPRE la lista entera de invitados", () => {
+    // La lista reemplaza a la existente: mandar sólo los nuevos borraría a los demás del evento.
+    const { args } = outlook.actualizar("ev-1", { ...CITA, invitados: [] })
+    expect(args.attendees).toEqual([])
+  })
+
+  it("el cuerpo es un objeto al actualizar, no una cadena", () => {
+    const { args } = outlook.actualizar("ev-1", CITA)
+    expect(args.body).toEqual({ contentType: "Text", content: "Vacuna anual" })
+  })
+})
+
+describe("Outlook: borrar", () => {
+  it("avisa a los invitados de la cancelación", () => {
+    const { slug, args } = outlook.borrar("ev-1")
+    expect(slug).toBe("OUTLOOK_OUTLOOK_DELETE_EVENT")
+    expect(args).toEqual({ event_id: "ev-1", send_notifications: true })
   })
 })

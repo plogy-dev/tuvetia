@@ -21,10 +21,8 @@ vi.mock("@/lib/supabase/server", () => ({
   }),
 }))
 vi.mock("@/lib/composio/calendario", () => ({ iniciarConexionCalendario: vi.fn() }))
-vi.mock("@/lib/microsoft-calendar", () => ({ upsertMicrosoftIntegration: vi.fn() }))
 
 import { iniciarConexionCalendario } from "@/lib/composio/calendario"
-import { upsertMicrosoftIntegration } from "@/lib/microsoft-calendar"
 import { GET } from "@/app/auth/callback/route"
 
 const USUARIO = { id: "u-1" }
@@ -114,7 +112,6 @@ describe("el login no vincula ningún calendario", () => {
     })
     const res = await pedir("?code=abc123")
     expect(iniciarConexionCalendario).not.toHaveBeenCalled()
-    expect(upsertMicrosoftIntegration).not.toHaveBeenCalled()
     expect(res.headers.get("location")).toBe("https://app.tuvetia.com/dashboard")
   })
 
@@ -127,7 +124,6 @@ describe("el login no vincula ningún calendario", () => {
       error: null,
     })
     const res = await pedir("?code=abc123&next=%2Fdashboard%2Fcalendario")
-    expect(upsertMicrosoftIntegration).not.toHaveBeenCalled()
     expect(iniciarConexionCalendario).not.toHaveBeenCalled()
     expect(res.headers.get("location")).toBe("https://app.tuvetia.com/dashboard/calendario")
   })

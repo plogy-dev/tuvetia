@@ -1,4 +1,4 @@
-// Borrado del evento en el calendario externo (Google / Outlook) al eliminar una cita.
+// Borrado del evento en el calendario externo (Google Calendar u Outlook) al eliminar una cita.
 //
 // EL ORDEN IMPORTA Y ES EL PUNTO DE TODO ESTE MÓDULO: esto se llama **antes** de borrar la fila de
 // `appointments`. Antes se hacía al revés —primero se borraba la fila, después se avisaba a los
@@ -29,14 +29,11 @@ async function pedirBorrado(url: string, appointmentId: string): Promise<string 
 }
 
 /**
- * Pide el borrado en los dos proveedores. Cada ruta es un no-op si la cita no tiene evento en ese
- * calendario, así que no hace falta saber de antemano cuál se usó.
+ * Pide el borrado del evento. Una sola ruta para los dos proveedores: cuál usar lo resuelve el
+ * servidor mirando en qué columna quedó el id del evento. Es un no-op si la cita nunca llegó a un
+ * calendario.
  */
 export async function borrarEventosRemotos(appointmentId: string): Promise<ResultadoBorradoRemoto> {
-  const [google, microsoft] = await Promise.all([
-    pedirBorrado("/api/google/calendar/delete", appointmentId),
-    pedirBorrado("/api/microsoft/calendar/delete", appointmentId),
-  ])
-  const errores = [google, microsoft].filter((e): e is string => e !== null)
-  return { ok: errores.length === 0, errores }
+  const error = await pedirBorrado("/api/calendario/delete", appointmentId)
+  return { ok: error === null, errores: error ? [error] : [] }
 }

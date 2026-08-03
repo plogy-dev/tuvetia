@@ -147,59 +147,43 @@ export function AppointmentCalendar({
     setDrawerOpen(true)
   }, [])
 
-  // Push al calendario del VETERINARIO ASIGNADO. Se llama a los dos proveedores sin preguntar cuál
-  // usa: el cliente no sabe —ni tiene por qué— si ese vet conectó Google, Outlook o nada. El
-  // servidor resuelve su conexión y no hace nada si no tiene ninguna.
+  // Push al calendario del ADMINISTRADOR de la clínica, con el titular y el veterinario asignado
+  // invitados. Una sola llamada: qué proveedor recibe el evento lo resuelve el servidor.
   //
   // Sigue siendo best-effort para la CITA: `appointments` es la fuente de verdad y si el proveedor
   // falla, la cita local queda igual. Lo que ya no es best-effort es el SILENCIO.
   //
-  // Antes esto era un `Promise.allSettled` que descartaba todo, con el argumento de que el vet no
-  // podía hacer nada con esos errores. Era falso: el motivo más común —no tener el calendario
-  // conectado— se arregla con un clic, y mientras tanto la cita simplemente no aparecía y no había
-  // forma de saber por qué. Pasó de verdad: se creó una cita dos minutos antes de conectar el
-  // calendario. Se avisa sólo cuando NINGÚN proveedor creó el evento, para no molestar a quien tiene
-  // Outlook con un "Google no está conectado" que le da igual.
+  // Antes esto descartaba todos los resultados, con el argumento de que el vet no podía hacer nada
+  // con esos errores. Era falso: el motivo más común —que el administrador no conectó el calendario
+  // de la clínica— se arregla con un clic, y mientras tanto la cita simplemente no aparecía en
+  // ningún lado y no había forma de saber por qué.
   const pushAlCalendario = useCallback(async (appointmentId: string) => {
-    const pedir = async (proveedor: string) => {
-      try {
-        const res = await fetch(`/api/${proveedor}/calendar/push`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ appointment_id: appointmentId }),
-        })
-        const j = (await res.json().catch(() => ({}))) as {
-          google_event_id?: string | null
-          microsoft_event_id?: string | null
-          motivo?: string | null
-          error?: string
-        }
-        if (!res.ok) return { creado: false, error: j.error ?? `HTTP ${res.status}`, motivo: null }
-        return {
-          creado: Boolean(j.google_event_id ?? j.microsoft_event_id),
-          error: null,
-          motivo: j.motivo ?? null,
-        }
-      } catch (e) {
-        return { creado: false, error: (e as Error).message, motivo: null }
+    try {
+      const res = await fetch("/api/calendario/push", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ appointment_id: appointmentId }),
+      })
+      const j = (await res.json().catch(() => ({}))) as {
+        event_id?: string | null
+        motivo?: string | null
+        error?: string
       }
+      if (!res.ok) {
+        toast.error(`La cita se guardó, pero no se pudo copiar al calendario: ${j.error ?? res.status}`)
+        return
+      }
+      if (j.event_id) return // llegó al calendario: sin ruido
+      if (j.motivo === "sin-administrador") {
+        toast.info("La cita se guardó. No se copió a ningún calendario porque la clínica no tiene administrador asignado.")
+      } else if (j.motivo === "sin-calendario") {
+        toast.info(
+          "La cita se guardó, pero no se copió al calendario: el administrador de la clínica no conectó el suyo en Conexiones.",
+        )
+      }
+    } catch (e) {
+      toast.error(`La cita se guardó, pero no se pudo copiar al calendario: ${(e as Error).message}`)
     }
-
-    const resultados = await Promise.all([pedir("google"), pedir("microsoft")])
-    if (resultados.some((r) => r.creado)) return
-
-    if (resultados.some((r) => r.motivo === "sin-administrador")) {
-      toast.info("La cita se guardó. No se copió a ningún calendario porque la clínica no tiene administrador asignado.")
-      return
-    }
-    if (resultados.some((r) => r.motivo === "sin-calendario")) {
-      toast.info(
-        "La cita se guardó, pero no se copió al calendario: el administrador de la clínica no conectó el suyo en Conexiones.",
-      )
-      return
-    }
-    const error = resultados.find((r) => r.error)?.error
-    if (error) toast.error(`La cita se guardó, pero no se pudo copiar al calendario: ${error}`)
   }, [])
 
   // El borrado del evento externo ya NO vive acá: se hace en el drawer, antes de borrar la fila, con

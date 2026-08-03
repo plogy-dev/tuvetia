@@ -3,14 +3,16 @@ import { NextResponse } from "next/server"
 import { createClient } from "@/lib/supabase/server"
 import { borrarEventoRemoto } from "@/lib/composio/calendario"
 
-// Borra el evento remoto al eliminar una cita. El evento vive en el calendario del veterinario que
-// la atendía, así que se borra con LAS CREDENCIALES DE ESE VET — no con las de quien aprieta el botón.
+export const runtime = "nodejs"
+
+// Borra el evento remoto al eliminar una cita. El evento vive en el calendario del administrador de
+// la clínica, así que se borra con LA CONEXIÓN DE ESA PERSONA — no con la de quien aprieta el botón.
 //
-// Por eso esta ruta recibe el `appointment_id` y NO el id del evento. Antes recibía
-// `google_event_id` + `calendar_owner_id` del navegador y sólo verificaba que el dueño fuera de la
-// misma clínica; nada ataba ese evento a ninguna cita. O sea que cualquier miembro autenticado podía
-// mandar el id de un evento cualquiera del calendario PERSONAL de un colega y Tuvetia se lo borraba,
-// con `sendUpdates=all`. Validar el dueño no alcanzaba: el agujero estaba en el otro campo.
+// Por eso esta ruta recibe el `appointment_id` y NO el id del evento. Antes recibía el id del evento
+// y el dueño desde el navegador, y sólo verificaba que el dueño fuera de la misma clínica; nada
+// ataba ese evento a ninguna cita. O sea que cualquier miembro autenticado podía mandar el id de un
+// evento cualquiera del calendario PERSONAL de un colega y Tuvetia se lo borraba, notificando a los
+// invitados. Validar el dueño no alcanzaba: el agujero estaba en el otro campo.
 //
 // Ahora los dos ids salen de la FILA, leída con la sesión del llamador: la policy
 // `appointments_select` (`clinic_id = private.my_clinic_id()`) hace que una cita de otra clínica
@@ -32,7 +34,7 @@ export async function POST(req: Request) {
 
   const { data: cita } = await supabase
     .from("appointments")
-    .select("google_event_id, calendar_owner_id")
+    .select("google_event_id, microsoft_event_id, calendar_owner_id")
     .eq("id", body.appointment_id)
     .maybeSingle()
 
@@ -40,15 +42,24 @@ export async function POST(req: Request) {
   // distinguirlos confirmaría que esa cita existe en algún lado.
   if (!cita) return NextResponse.json({ error: "La cita no existe" }, { status: 404 })
 
-  const { google_event_id: eventId, calendar_owner_id: ownerId } = cita as {
+  const fila = cita as {
     google_event_id: string | null
+    microsoft_event_id: string | null
     calendar_owner_id: string | null
   }
-  // La cita nunca llegó a un calendario de Google: no hay nada que borrar.
-  if (!eventId || !ownerId) return NextResponse.json({ ok: true })
+  // De qué proveedor es el evento sale de QUÉ COLUMNA tiene el id, no de lo que esté conectado hoy:
+  // la conexión pudo cambiar desde que se creó y el evento sigue donde quedó.
+  const evento = fila.google_event_id
+    ? { id: fila.google_event_id, proveedor: "google" as const }
+    : fila.microsoft_event_id
+      ? { id: fila.microsoft_event_id, proveedor: "outlook" as const }
+      : null
+
+  // La cita nunca llegó a un calendario: no hay nada que borrar.
+  if (!evento || !fila.calendar_owner_id) return NextResponse.json({ ok: true })
 
   try {
-    await borrarEventoRemoto(ownerId, eventId)
+    await borrarEventoRemoto(fila.calendar_owner_id, evento.id, evento.proveedor)
     return NextResponse.json({ ok: true })
   } catch (e) {
     return NextResponse.json({ error: (e as Error).message }, { status: 502 })

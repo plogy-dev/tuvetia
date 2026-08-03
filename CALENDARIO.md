@@ -1,8 +1,9 @@
-# Calendario interno + Google (Composio) / Outlook Calendar
+# Calendario interno + Google Calendar / Outlook Calendar (los dos por Composio)
 
 Agenda de citas de la clínica. UI con **react-big-calendar** (semana/agenda, drag&drop), datos en
 `public.appointments` (aislada por clínica vía RLS), y **sincronización opcional de una sola vía
-hacia el calendario del administrador de la clínica** (Google por Composio; Outlook pendiente).
+hacia el calendario del administrador de la clínica** (Google Calendar u Outlook, los dos por
+Composio).
 
 ## El modelo, en tres reglas (v4)
 
@@ -81,29 +82,34 @@ por la invitación, que le llega al correo aunque no haya conectado nada.
   autocompleta el titular; un paciente que no es de ese titular se bloquea con una nota.
 - `src/components/settings/calendar-settings.tsx` — **conectar/desconectar** (vive en Conexiones).
 - `src/components/patient/patient-appointments.tsx` — las citas en la ficha del paciente.
-- `src/lib/composio/calendario.ts` (SOLO servidor) — **Google, vía Composio**: conectar, estado,
-  empujar y borrar. `src/lib/microsoft-calendar.ts` — Outlook, todavía con OAuth propio.
-- Rutas: `src/app/api/composio/calendario/{connect,disconnect}` (Google) y
-  `src/app/api/{google,microsoft}/calendar/{push,delete}` — el push/delete de Google conserva su ruta
-  y por dentro llama a Composio.
+- `src/lib/composio/calendario.ts` (SOLO servidor) — conectar, estado, empujar y borrar, para los
+  dos proveedores. Los adaptadores traducen a las tools de cada uno.
+- Rutas: `src/app/api/composio/calendario/{connect,disconnect}` y
+  `src/app/api/calendario/{push,delete}`. **Una sola ruta de push/delete**: qué proveedor recibe el
+  evento lo resuelve el servidor. Antes había una por proveedor y el navegador llamaba a las dos sin
+  saber cuál servía.
 
 ## Activación (config externa, una vez)
 
-**Google (Composio)** — sólo dos variables: `COMPOSIO_API_KEY` (con permiso de **escritura** sobre
-`connected_accounts`) y `COMPOSIO_GOOGLECALENDAR_AUTH_CONFIG_ID`. No hay credenciales OAuth propias
-que mantener ni tokens nuestros que guardar.
+**Composio** — `COMPOSIO_API_KEY` (con permiso de **escritura** sobre `connected_accounts`) y el
+auth config de cada proveedor: `COMPOSIO_GOOGLECALENDAR_AUTH_CONFIG_ID` para Google y
+`COMPOSIO_OUTLOOK_AUTH_CONFIG_ID` para Outlook. No hay credenciales OAuth propias que mantener ni
+tokens nuestros que guardar.
+
+**Outlook Calendar y el correo de Outlook son el MISMO toolkit y la misma cuenta conectada.** Una
+conexión sirve para los dos, y desconectar una cosa desconecta la otra — la pantalla lo advierte
+antes de que alguien lo descubra por las malas. Por eso tampoco hay un auth config aparte para el
+calendario de Outlook.
+
+Si alguien tiene los dos calendarios conectados, **manda Google**: conectarlo es un acto explícito
+para el calendario, mientras que la cuenta de Outlook puede existir sólo porque se conectó el correo,
+y mandarle las citas ahí sería elegir un calendario que nadie pidió.
 
 Con eso desaparecen tres problemas que el camino anterior tenía y que están documentados abajo por si
 alguien piensa en volver: el `invalid_client` por credenciales que no coinciden con las de Supabase
 Auth, el `invalid_grant` semanal del modo Testing, y —el peor— que
 `session.provider_refresh_token` es el token del proveedor con el que se **inició sesión**, no el del
 botón que se apretó: alguien entró con Microsoft y su token quedó guardado en la fila de Google.
-
-**Outlook** — 1) Azure → App registration con permiso delegado `Calendars.ReadWrite` +
-`offline_access` (los secrets de Azure **vencen**: agendar renovación). 2) Redirect URI:
-`https://<proyecto>.supabase.co/auth/v1/callback` (el de **Supabase**, no el de la app).
-3) Supabase Auth → Azure provider con ese Client ID/Secret y el Tenant. 4) Vercel:
-`MICROSOFT_CLIENT_ID`, `MICROSOFT_CLIENT_SECRET`, `MICROSOFT_TENANT_ID` (default `common`).
 
 > **Modo Testing de Google** — ya no aplica a Tuvetia: la app de Google es la de Composio, no la
 > nuestra. Queda anotado porque sigue valiendo para Outlook y para cualquier vuelta atrás: mientras
