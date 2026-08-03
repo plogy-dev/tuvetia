@@ -95,6 +95,39 @@ export function replyHeaders(
  * algunos webmails como respaldo del hilado.
  */
 export function replySubject(subject: string | null | undefined): string {
-  const base = (subject ?? "").replace(/^\s*(re|rv|fwd?)\s*:\s*/i, "").trim()
+  const base = quitarPrefijos(subject)
   return base ? `Re: ${base}` : "Re:"
+}
+
+/**
+ * El asunto sin la escalera de "Re: RE: Rv: Fwd:", CON su capitalización original.
+ *
+ * Separado de `asuntoBase` porque son dos usos incompatibles: esto se le MUESTRA al titular (y un
+ * "Re: factura fv-100" en minúsculas se ve mal), mientras que aquello se COMPARA. Unificarlos
+ * lowercaseaba el asunto de cada respuesta que sale — lo agarraron los tests de `replySubject`.
+ */
+function quitarPrefijos(subject: string | null | undefined): string {
+  let s = (subject ?? "").trim()
+  // Tope por si alguien manda un asunto que es sólo prefijos: no debe poder colgar el barrido.
+  for (let i = 0; i < 20; i += 1) {
+    const sin = s.replace(/^\s*(re|rv|fw|fwd)\s*:\s*/i, "")
+    if (sin === s) break
+    s = sin
+  }
+  return s.trim()
+}
+
+/**
+ * El asunto sin ningún prefijo de respuesta ni reenvío, normalizado para comparar.
+ *
+ * Se usa para atribuir una respuesta a su factura cuando la fuente es la API del proveedor de correo
+ * y no IMAP: ahí no llegan las cabeceras `References`/`In-Reply-To`, así que el asunto es lo único
+ * que queda para emparejar. La escalera "Re: RE: Rv:" que acumulan los clientes se saca ENTERA —
+ * `replySubject` quitaba un solo nivel porque sólo tenía que evitar generarla.
+ *
+ * Comparar con esto y no con el asunto crudo importa: `Factura FE-123` y `RE: Re: Factura FE-123`
+ * son el mismo hilo, y un `full_number` es único por clínica, así que la colisión es improbable.
+ */
+export function asuntoBase(subject: string | null | undefined): string {
+  return quitarPrefijos(subject).replace(/\s+/g, " ").toLowerCase()
 }

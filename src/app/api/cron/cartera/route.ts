@@ -1,5 +1,5 @@
 import { runCarteraForAllClinics } from "@/lib/cartera/run-all"
-import { syncEmailRepliesForAllClinics } from "@/lib/email/sync"
+import { leerRespuestasDeCorreo } from "@/lib/cartera/respuestas-correo"
 
 // Barrido de cartera: recorre las clínicas con recordatorios activos, programa los pasos que
 // falten y despacha los vencidos. El motor ya existía y estaba cubierto por tests, pero no tenía
@@ -40,9 +40,13 @@ export async function GET(req: Request) {
     // permite 2 crons y los 2 cupos están usados (este y purge-audio). El correo no tiene webhook
     // (a diferencia de WhatsApp), así que este barrido es su única vía de entrada. Si falla, no
     // tumba el resultado de cartera: se reporta aparte.
-    let email: Awaited<ReturnType<typeof syncEmailRepliesForAllClinics>> | { error: string }
+    //
+    // Desde el 2026-08-03 lee por Composio el buzón de los administradores —que es donde aterrizan
+    // las respuestas, porque el transaccional les pone el Reply-To— en vez de abrir por IMAP la
+    // cuenta institucional de la clínica, que ya no existe.
+    let email: Awaited<ReturnType<typeof leerRespuestasDeCorreo>> | { error: string }
     try {
-      email = await syncEmailRepliesForAllClinics()
+      email = await leerRespuestasDeCorreo()
     } catch (e) {
       email = { error: e instanceof Error ? e.message : "barrido de correo fallido" }
       console.error("cron/cartera email-sync:", email.error)

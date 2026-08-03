@@ -9,7 +9,7 @@
  * Destinatarios por tanda del envío masivo.
  *
  * Lo determina el reloj de la función serverless, no una preferencia: el bucle pausa entre envíos y
- * cada SMTP puede tardar hasta 20 s (`email/smtp.ts`). Ver el comentario extenso en
+ * cada envío puede tardar hasta 20 s. Ver el comentario extenso en
  * `admin/usuarios/actions.ts`. Para tandas mayores hace falta una cola, no un número más grande.
  */
 export const TOPE_ENVIO_MASIVO = 12

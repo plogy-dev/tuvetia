@@ -9,9 +9,10 @@ import 'server-only';
 //     SIN plantillas Meta: el texto del recordatorio llega ya redactado en
 //     msg.body. El saliente queda registrado en whatsapp_messages por el
 //     propio sendWhatsAppText (agent_mode 'auto', sent_by null = sistema).
-//   · Email → sendEmail de @/lib/email/smtp con las credenciales cifradas de la
-//     clínica. connectedChannels lo reporta sólo si la integración está en
-//     'connected'; si no, el scheduler salta el canal con log, como antes.
+//   · Email → sendTransactionalEmail (Resend, desde el correo de Tuvetia con el
+//     nombre de la clínica). connectedChannels lo reporta si hay RESEND_API_KEY;
+//     si no, el scheduler salta el canal con log, como antes. Antes salía por el
+//     SMTP de la clínica con su contraseña de aplicación: esa cuenta se retiró.
 //
 // Nunca decide A QUIÉN ni CUÁNDO contactar (eso es del gate Ley 2300 en el
 // dominio): solo materializa el envío que el despachador ya autorizó.

@@ -187,8 +187,8 @@ documentados en su propio `README.md`.
 | Conexión oficial de Meta (embebida) | `/api/whatsapp/exchange` | ⏳ **Bloqueado** — trámite de App Review de Meta, 2 a 6 semanas |
 | Conexión vía Kapso | `/api/whatsapp/connect` | ⚠️ Parcial — **redirige fuera de la plataforma** |
 | Invitaciones de equipo | `/api/team/invite-email`, `/invitar/[token]` | ⚠️ Parcial — código corregido el 29-jul; falta ajustar la plantilla de correo en Supabase |
-| **Correo electrónico — envío por SMTP** | `src/lib/email/smtp.ts`, `integrations.ts`, credenciales cifradas en `crypto.ts` | ✅ Operando *(30-jul; era un stub)* |
-| **Correo electrónico — lectura de respuestas por IMAP** | `src/lib/email/imap.ts`, `sync.ts`, `threading.ts` | ✅ Operando *(30-jul)* |
+| **Correo electrónico — envío transaccional** | `src/lib/email/transactional.ts` + `resend.ts` — sale de `vet@tuvetia.com` con el nombre de la clínica y Reply-To al admin | ✅ Operando *(SMTP por clínica retirado el 03-ago)* |
+| **Correo electrónico — lectura de respuestas** | `src/lib/cartera/respuestas-correo.ts` — buzón del admin por Composio, atribución por asunto | ✅ Operando *(IMAP reemplazado el 03-ago)* |
 | **Conexión de correo desde la aplicación** | `/dashboard/settings` → `src/components/settings/email-settings.tsx` | ✅ Operando *(30-jul)* |
 | Envío de facturas por correo | `src/lib/facturacion/email.ts` | ✅ Operando *(30-jul)* |
 | Recordatorios de cobranza por correo | `src/lib/cartera/channels.ts` | ⚠️ Parcial — **el canal de salida sigue devolviendo `email_no_configurado`**: la cobranza sale sólo por WhatsApp aunque el correo ya funcione |
