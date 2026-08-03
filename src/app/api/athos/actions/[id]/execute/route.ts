@@ -5,6 +5,7 @@ import { createAdminClient } from "@/lib/supabase/admin"
 import { empujarCita } from "@/lib/composio/calendario"
 import { validarPayload } from "@/lib/athos-agent/payload-schemas"
 import { sendWhatsAppText } from "@/lib/whatsapp/send-message"
+import { clasificarFalloDeEnvio } from "@/lib/whatsapp/error-de-envio"
 import {
   avisoDeEntrega,
   enviarCorreo,
@@ -145,6 +146,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     await audit(action, user.id, "athos_action.executed", { tool_name: action.tool_name, result })
     return NextResponse.json({ ok: true, result })
   } catch (e) {
+    // El detalle CRUDO se guarda y se audita: es lo que hace depurable una propuesta fallida.
     const msg = (e as Error).message
     await markAction(action.id, {
       status: "failed",
@@ -153,7 +155,13 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
       error: msg,
     })
     await audit(action, user.id, "athos_action.failed", { tool_name: action.tool_name, error: msg })
-    return NextResponse.json({ error: msg }, { status: 502 })
+
+    // Al vet, en cambio, la CLASE del fallo. Antes se le devolvía `msg` tal cual, y el 2026-08-03 eso
+    // le puso en pantalla la respuesta entera del proveedor —ruta interna y nombre de la instancia,
+    // que es el id de la clínica— dentro de un toast. La bandeja ya no lo hacía; este camino sí,
+    // porque el clasificador se agregó sólo en /api/whatsapp/send.
+    const fallo = clasificarFalloDeEnvio(e)
+    return NextResponse.json({ error: fallo.texto }, { status: fallo.status })
   }
 }
 
