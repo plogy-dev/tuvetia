@@ -99,6 +99,10 @@ const nombreMedia = (t: string | null) => (t && NOMBRE_MEDIA[t]) ?? "Adjunto"
 function MediaAdjunta({ path, tipo }: { path: string; tipo: string | null }) {
   const [supabase] = useState(() => createClient())
   const [url, setUrl] = useState<string | null>(null)
+  // Se distingue "todavía no llegó la firma" de "la firma falló": sin esta bandera, una imagen que
+  // no se puede firmar no pinta NADA y tampoco cae en la etiqueta de respaldo (que se salta porque
+  // sí hay `media_url`). Quedaba un hueco mudo en el hilo, sin forma de saber que algo llegó.
+  const [sinFirma, setSinFirma] = useState(false)
   const [abriendo, setAbriendo] = useState(false)
   const esImagen = tipo === "image" || tipo === "sticker"
 
@@ -108,8 +112,13 @@ function MediaAdjunta({ path, tipo }: { path: string; tipo: string | null }) {
     void supabase.storage
       .from(MEDIA_BUCKET)
       .createSignedUrl(path, SIGNED_URL_TTL)
-      .then(({ data }) => {
-        if (vivo && data?.signedUrl) setUrl(data.signedUrl)
+      .then(({ data, error }) => {
+        if (!vivo) return
+        if (data?.signedUrl) setUrl(data.signedUrl)
+        else {
+          console.warn(`whatsapp/media: no se pudo firmar ${path}`, error?.message)
+          setSinFirma(true)
+        }
       })
     return () => {
       vivo = false
@@ -129,7 +138,10 @@ function MediaAdjunta({ path, tipo }: { path: string; tipo: string | null }) {
     window.open(data.signedUrl, "_blank", "noopener,noreferrer")
   }
 
-  if (esImagen) {
+  // Mientras la firma viaja no se pinta nada (es un instante y un esqueleto parpadearía). Si falló,
+  // se cae al mismo botón que el resto de adjuntos: al menos se ve QUE llegó una foto y se puede
+  // reintentar tocándola.
+  if (esImagen && !sinFirma) {
     if (!url) return null
     return (
       <button type="button" onClick={abrir} className="block cursor-zoom-in">
