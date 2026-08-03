@@ -53,11 +53,9 @@ export function EmailInbox({
   const sel = useMemo(() => correos.find((c) => c.id === selId) ?? null, [correos, selId])
 
   // Abrir el correo en su proveedor. Se muestra solo el comienzo acá, así que el enlace es la vía
-  // para leerlo entero.
-  const enlaceExterno =
-    proveedor === "outlook"
-      ? "https://outlook.office.com/mail/"
-      : `https://mail.google.com/mail/u/0/#all/${sel?.refRespuesta ?? ""}`
+  // para leerlo entero. Lo arma el adaptador, no este componente: el de Outlook sale de `webLink`,
+  // porque una cuenta personal vive en outlook.live.com y una de trabajo en outlook.office.com.
+  const enlaceExterno = sel?.enlace ?? ""
 
   async function responder() {
     if (!sel || !draft.trim()) return

@@ -22,7 +22,7 @@ import {
   TZ_OFFSET,
 } from "./agenda"
 import { CONEXION_CORREO } from "./conversacion"
-import { buscarCorreos, estadoConexion } from "@/lib/composio/correo"
+import { buscarCorreos, estadoConexion, leerConversacion } from "@/lib/composio/correo"
 
 type SB = SupabaseClient
 
@@ -257,12 +257,14 @@ export function buildAthosTools(supabase: SB, ctx: AgentContext) {
 
     search_emails: tool({
       description:
-        "Busca en el correo del VETERINARIO por texto (nombre, dirección, asunto o palabras del cuerpo). Devuelve los mensajes con su `reply_ref`, que es lo que necesita reply_email. Úsala para encontrar un correo antes de responderlo, o para contestar '¿qué me escribió el laboratorio?'.",
+        "Busca en el correo del VETERINARIO. Devuelve cada mensaje con dos referencias: `reply_ref` (para reply_email) y `thread_ref` (para read_email_thread). Úsala para encontrar un correo antes de responderlo, o para contestar '¿qué me escribió el laboratorio?'. Si no encontrás nada, probá con menos palabras o con la dirección de correo sola: en Outlook la búsqueda sólo mira remitente y asunto de los mensajes recientes, no el cuerpo.",
       inputSchema: z.object({
         query: z
           .string()
           .min(2)
-          .describe("Búsqueda estilo Gmail: texto, from:correo, subject:asunto, is:unread…"),
+          .describe(
+            "Texto a buscar. Una dirección de correo sola busca por remitente; con Gmail además funciona su sintaxis (from:, subject:, is:unread).",
+          ),
         limit: z.number().int().min(1).max(20).optional(),
       }),
       execute: async ({ query, limit }) => {
@@ -273,12 +275,14 @@ export function buildAthosTools(supabase: SB, ctx: AgentContext) {
         // `needs_connection` NO es decorativo: la UI del chat lo usa para mostrar una tarjeta con
         // el botón de conectar, en vez de una línea de error que el vet no puede accionar.
         if (!r.ok) return r.sinConectar ? { error: r.error, needs_connection: CONEXION_CORREO } : { error: r.error }
-        // `reply_ref` es lo que hay que pasarle a reply_email: el hilo en Gmail, el mensaje en
-        // Outlook. El modelo no tiene que saber cuál es — solo devolverlo tal cual.
+        // Dos referencias y no una: en Outlook responder y leer el hilo usan ids DISTINTOS (el del
+        // mensaje y el de la conversación). En Gmail son el mismo. El modelo no tiene que saber cuál
+        // es cuál — solo devolver cada una donde corresponde.
         return {
           count: r.correos.length,
           messages: r.correos.map((c) => ({
             reply_ref: c.refRespuesta,
+            thread_ref: c.refConversacion,
             de: c.de,
             para: c.para,
             asunto: c.asunto,
@@ -293,18 +297,15 @@ export function buildAthosTools(supabase: SB, ctx: AgentContext) {
 
     read_email_thread: tool({
       description:
-        "La conversación de correo completa. Úsala DESPUÉS de search_emails con el reply_ref que devolvió — responder sin leer el hilo produce respuestas que no encajan.",
+        "La conversación de correo completa. Úsala DESPUÉS de search_emails con el `thread_ref` que devolvió (NO el reply_ref: en Outlook son ids distintos) — responder sin leer el hilo produce respuestas que no encajan.",
       inputSchema: z.object({
-        thread_id: z.string().describe("reply_ref que devolvió search_emails"),
-        limit: z.number().int().min(1).max(30).optional(),
+        thread_id: z.string().describe("thread_ref que devolvió search_emails"),
       }),
-      execute: async ({ thread_id, limit }) => {
+      execute: async ({ thread_id }) => {
         if (!ctx.userId) {
           return { error: "El correo se lee con la cuenta del veterinario, y este turno no tiene una." }
         }
-        // No hay tool de "traer conversación" en ninguno de los dos proveedores: se busca por el
-        // identificador, que es lo que la sintaxis de búsqueda de ambos entiende.
-        const r = await buscarCorreos(ctx.userId, { query: thread_id, limite: limit ?? 20 })
+        const r = await leerConversacion(ctx.userId, thread_id)
         if (!r.ok) return r.sinConectar ? { error: r.error, needs_connection: CONEXION_CORREO } : { error: r.error }
         return { thread_id, count: r.correos.length, messages: r.correos }
       },

@@ -240,6 +240,25 @@ export async function buscarCorreos(
   return { ok: true, correos: a.normalizar(r.data, quien.email) }
 }
 
+/**
+ * Trae una conversación entera, ya normalizada.
+ *
+ * `ref` es un `refConversacion` (lo que devuelve la búsqueda), NO el id con el que se responde: en
+ * Outlook son ids distintos y pedir el hilo con el del mensaje no devuelve nada.
+ */
+export async function leerConversacion(
+  userId: string,
+  ref: string,
+): Promise<{ ok: true; correos: CorreoNormalizado[] } | { ok: false; error: string; sinConectar?: boolean }> {
+  const quien = await conProveedor(userId)
+  if (!quien.ok) return quien
+  const a = adaptador(quien.proveedor)
+  const { slug, args } = a.buscarConversacion(ref)
+  const r = await ejecutar(userId, slug, args)
+  if (!r.ok) return r
+  return { ok: true, correos: a.normalizar(r.data, quien.email) }
+}
+
 /** Envía un correo NUEVO desde la cuenta del miembro. */
 export async function enviarCorreo(
   userId: string,
@@ -291,7 +310,7 @@ export async function verificarDestinatarioDeRespuesta(
   const a = adaptador(quien.proveedor)
   if (a.respuestaFijaDestinatario) return { ok: true }
 
-  const { slug, args } = a.buscarHilo(ref)
+  const { slug, args } = a.buscarConversacion(ref)
   const hilo = await ejecutar(userId, slug, args)
   if (!hilo.ok) {
     return { ok: false, error: `No se pudo verificar el hilo antes de responder: ${hilo.error}` }

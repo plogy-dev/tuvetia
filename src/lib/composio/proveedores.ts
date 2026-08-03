@@ -19,8 +19,10 @@ import type { Proveedor } from "./proveedores-nombres"
 /** Un correo, ya normalizado — misma forma venga de donde venga. */
 export interface CorreoNormalizado {
   id: string
-  /** Con qué id se responde: el hilo en Gmail, el mensaje en Outlook. */
+  /** Con qué id se responde: el hilo en Gmail, el MENSAJE en Outlook. */
   refRespuesta: string
+  /** Con qué id se pide la conversación entera: el hilo en Gmail, el `conversationId` en Outlook. */
+  refConversacion: string
   de: string
   para: string
   asunto: string
@@ -29,6 +31,8 @@ export interface CorreoNormalizado {
   esPropio: boolean
   leido: boolean
   adjuntos: number
+  /** A dónde ir para leerlo entero en el webmail del proveedor. */
+  enlace: string
 }
 
 export interface Adaptador {
@@ -53,8 +57,8 @@ export interface Adaptador {
     asunto: string
     cuerpo: string
   }): { slug: string; args: Record<string, unknown> }
-  /** Trae la conversación a la que apunta `ref`, para verificar quién participa de ella. */
-  buscarHilo(ref: string): { slug: string; args: Record<string, unknown> }
+  /** Trae la conversación entera. `ref` es un `refConversacion`, no un `refRespuesta`. */
+  buscarConversacion(ref: string): { slug: string; args: Record<string, unknown> }
   normalizar(data: unknown, correoPropio: string | null): CorreoNormalizado[]
 }
 
@@ -83,7 +87,10 @@ const GMAIL: Adaptador = {
   // hay que verificarlo contra el hilo antes de mandarlo.
   respuestaFijaDestinatario: false,
 
-  buscarHilo: (ref) => ({
+  // En Gmail `refRespuesta` y `refConversacion` son el MISMO id (el del hilo), y de eso depende que
+  // la verificación de destinatario pueda pedir la conversación con lo que trae el payload. Hay un
+  // test que lo fija.
+  buscarConversacion: (ref) => ({
     slug: "GMAIL_FETCH_EMAILS",
     args: { query: `thread:${ref}`, max_results: 30 },
   }),
@@ -110,6 +117,7 @@ const GMAIL: Adaptador = {
       return {
         id: m.messageId ?? "",
         refRespuesta: m.threadId ?? m.messageId ?? "",
+        refConversacion: m.threadId ?? m.messageId ?? "",
         de: m.sender ?? "(desconocido)",
         para: m.to ?? "",
         asunto: m.subject ?? "(sin asunto)",
@@ -120,6 +128,7 @@ const GMAIL: Adaptador = {
         esPropio: labels.includes("SENT"),
         leido: !labels.includes("UNREAD"),
         adjuntos: (m.attachmentList ?? []).length,
+        enlace: `https://mail.google.com/mail/u/0/#all/${m.threadId ?? m.messageId ?? ""}`,
       }
     })
   },
@@ -137,6 +146,7 @@ type MensajeOutlook = {
   sentDateTime?: string
   isRead?: boolean
   hasAttachments?: boolean
+  webLink?: string
   from?: { emailAddress?: { address?: string; name?: string } }
   sender?: { emailAddress?: { address?: string; name?: string } }
   toRecipients?: { emailAddress?: { address?: string; name?: string } }[]
@@ -151,32 +161,51 @@ function direccionOutlook(e?: { emailAddress?: { address?: string; name?: string
 /**
  * Saca la lista de mensajes de una respuesta de Outlook.
  *
- * Hay tres formas que atender, y no es defensa preventiva sino lo que devuelven de verdad las tools
- * (verificado contra los esquemas de Composio el 2026-08-03):
- *
- * 1. Todo viene envuelto en `data.response_data` — adentro está el JSON crudo de Graph.
- * 2. `LIST_MESSAGES` devuelve la colección normal de Graph: `{ value: [...] }`.
- * 3. `SEARCH_MESSAGES` NO usa ese endpoint sino la Search API, que anida los resultados en
- *    `value[].hitsContainers[].hits[].resource`. Un normalizador que solo leyera `value` devolvería
- *    la bandeja vacía cada vez que el vet busca algo — sin error, que es lo peor que puede pasar.
+ * Composio envuelve el JSON crudo de Graph en `data.response_data`, y Graph devuelve las colecciones
+ * en `value`. Se aceptan además las dos variantes sueltas (un array pelado, o `messages`) porque no
+ * cuesta nada y evita que un cambio de envoltorio deje la bandeja muda.
  */
 function mensajesDeOutlook(data: unknown): MensajeOutlook[] {
   const raiz = (data as { response_data?: unknown })?.response_data ?? data
   if (Array.isArray(raiz)) return raiz as MensajeOutlook[]
+  const r = raiz as { value?: unknown; messages?: unknown } | null | undefined
+  if (Array.isArray(r?.messages)) return r.messages as MensajeOutlook[]
+  if (Array.isArray(r?.value)) return r.value as MensajeOutlook[]
+  return []
+}
 
-  const valor = (raiz as { value?: unknown; messages?: unknown })?.value
-  const mensajes = (raiz as { messages?: unknown })?.messages
-  if (Array.isArray(mensajes)) return mensajes as MensajeOutlook[]
-  if (!Array.isArray(valor)) return []
+const PARECE_CORREO = /^[\w.+-]+@[\w-]+\.[\w.-]+$/
 
-  // Search API: los mensajes están dentro de los "hits". Si el primer elemento trae contenedores,
-  // es esa forma; si no, es la colección normal.
-  type Contenedor = { hitsContainers?: { hits?: { resource?: MensajeOutlook }[] }[] }
-  const hits = (valor as Contenedor[]).flatMap(
-    (v) => v?.hitsContainers?.flatMap((c) => c.hits ?? []) ?? [],
-  )
-  if (hits.length > 0) return hits.map((h) => h.resource ?? {})
-  return valor as MensajeOutlook[]
+/**
+ * Traduce una búsqueda libre a los filtros de LIST_MESSAGES.
+ *
+ * NO se usa OUTLOOK_OUTLOOK_SEARCH_MESSAGES, y esto no es preferencia: esa tool va contra la
+ * Microsoft Search API, que **no existe para cuentas personales** de Microsoft. Con una cuenta
+ * outlook.com toda búsqueda respondía
+ *
+ *     "This API is not supported for MSA accounts"
+ *
+ * `/me/messages` —lo que usa LIST_MESSAGES— funciona con los dos tipos de cuenta, así que se usa
+ * siempre y no se ramifica por tipo de cuenta: no tenemos cómo saber cuál conectó el vet, y elegir
+ * mal significaría que la bandeja no carga.
+ *
+ * Lo que se pierde: Graph aplica estos filtros SOBRE LO YA TRAÍDO, no en el servidor, y sólo miran
+ * asunto y remitente — no el cuerpo. Por eso al filtrar se pide un lote grande: buscar mira los
+ * mensajes recientes, no el buzón entero.
+ */
+function filtrosOutlook(query: string, limite: number): Record<string, unknown> {
+  // `folder` explícito: sin él la tool ya devuelve la bandeja de entrada (verificado contra una
+  // cuenta real — sin folder y con `inbox` dan lo mismo, y `sentitems` da otra cosa), pero dejarlo
+  // escrito evita que un cambio de default lo mueva sin que nadie se entere.
+  //
+  // Consecuencia a tener presente: la búsqueda mira lo RECIBIDO. "¿Qué le escribí a X?" no lo
+  // encuentra. En Gmail sí, porque su búsqueda abarca todo el buzón.
+  const orden = { folder: "inbox", orderby: ["receivedDateTime desc"] }
+  if (!query) return { top: limite, ...orden }
+  const filtro = PARECE_CORREO.test(query.trim())
+    ? { from_address: query.trim() }
+    : { subject_contains: query.trim() }
+  return { top: Math.max(limite, 100), ...orden, ...filtro }
 }
 
 const OUTLOOK: Adaptador = {
@@ -190,16 +219,12 @@ const OUTLOOK: Adaptador = {
   // dirección no viaja en la llamada, así que no hay nada que redirigir.
   respuestaFijaDestinatario: true,
 
-  // Listar y buscar son dos tools distintas a propósito. `SEARCH_MESSAGES` exige texto, así que
-  // usarla para "mostrame la bandeja" obligaba a inventar una consulta; `LIST_MESSAGES` ordena por
-  // fecha sin filtro, que es exactamente lo que se quiere al abrir la página.
-  buscar: (query, limite) =>
-    query
-      ? { slug: "OUTLOOK_OUTLOOK_SEARCH_MESSAGES", args: { query, size: limite } }
-      : {
-          slug: "OUTLOOK_OUTLOOK_LIST_MESSAGES",
-          args: { top: limite, orderby: "receivedDateTime desc" },
-        },
+  // Listar y buscar son la MISMA tool acá: ver `filtrosOutlook` para por qué no se usa la de
+  // búsqueda.
+  buscar: (query, limite) => ({
+    slug: "OUTLOOK_OUTLOOK_LIST_MESSAGES",
+    args: filtrosOutlook(query, limite),
+  }),
   enviar: (a, asunto, cuerpo) => ({
     slug: "OUTLOOK_OUTLOOK_SEND_EMAIL",
     args: { to_email: a, subject: asunto, body: cuerpo },
@@ -211,7 +236,13 @@ const OUTLOOK: Adaptador = {
     slug: "OUTLOOK_OUTLOOK_REPLY_EMAIL",
     args: { message_id: ref, comment: cuerpo },
   }),
-  buscarHilo: (ref) => ({ slug: "OUTLOOK_OUTLOOK_GET_MESSAGE", args: { message_id: ref } }),
+  // La conversación se pide por `conversationId`, que es lo que agrupa el hilo en Graph. GET_MESSAGE
+  // traería UN mensaje: alcanzaría para ver quién participa, pero no para leer el hilo antes de
+  // responder, que es para lo que Athos lo usa.
+  buscarConversacion: (ref) => ({
+    slug: "OUTLOOK_OUTLOOK_LIST_MESSAGES",
+    args: { conversationId: ref, top: 30, orderby: ["receivedDateTime desc"] },
+  }),
 
   normalizar: (data, correoPropio) => {
     const propio = (correoPropio ?? "").toLowerCase()
@@ -219,8 +250,10 @@ const OUTLOOK: Adaptador = {
       const de = direccionOutlook(m.from ?? m.sender)
       return {
         id: m.id ?? "",
-        // Se responde al MENSAJE, no al hilo.
+        // Se responde al MENSAJE (REPLY_EMAIL toma `message_id`), pero el hilo se pide por
+        // `conversationId`: en Outlook no son el mismo id, a diferencia de Gmail.
         refRespuesta: m.id ?? "",
+        refConversacion: m.conversationId ?? m.id ?? "",
         de: de || "(desconocido)",
         para: (m.toRecipients ?? []).map(direccionOutlook).filter(Boolean).join(", "),
         asunto: m.subject ?? "(sin asunto)",
@@ -230,6 +263,10 @@ const OUTLOOK: Adaptador = {
         esPropio: Boolean(propio) && de.toLowerCase().includes(propio),
         leido: m.isRead !== false,
         adjuntos: m.hasAttachments ? 1 : 0,
+        // `webLink` lo da Graph por mensaje. Es lo único correcto: una cuenta personal abre en
+        // outlook.live.com y una de trabajo en outlook.office.com, así que un enlace fijo lleva al
+        // lugar equivocado a la mitad de la gente.
+        enlace: m.webLink ?? "https://outlook.live.com/mail/",
       }
     })
   },

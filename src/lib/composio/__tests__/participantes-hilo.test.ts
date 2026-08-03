@@ -11,7 +11,7 @@
  */
 import { describe, expect, it } from "vitest"
 
-import { destinatarioEnHilo, participantesDelHilo } from "@/lib/composio/proveedores"
+import { adaptador, destinatarioEnHilo, participantesDelHilo } from "@/lib/composio/proveedores"
 
 describe("participantesDelHilo", () => {
   it("saca las direcciones de las cabeceras, en minúscula y sin repetir", () => {
@@ -98,5 +98,30 @@ describe("destinatarioEnHilo", () => {
     // acá el costo de equivocarse es mandarle datos de un paciente a un desconocido.
     expect(destinatarioEnHilo("ana@lab.com", {})).toBe(false)
     expect(destinatarioEnHilo("ana@lab.com", null)).toBe(false)
+  })
+})
+
+describe("la invariante de la que depende la verificación", () => {
+  it("en Gmail, responder y leer el hilo usan el MISMO id", () => {
+    // `verificarDestinatarioDeRespuesta` recibe el `thread_id` del payload —que es un refRespuesta—
+    // y con eso pide la conversación. Eso sólo es correcto porque en Gmail los dos ids coinciden.
+    // Si algún día dejaran de coincidir, la verificación pediría un hilo inexistente, no encontraría
+    // participantes y —al fallar cerrado— ninguna respuesta saldría. Este test es el aviso.
+    const [correo] = adaptador("gmail").normalizar(
+      { messages: [{ messageId: "msg-1", threadId: "hilo-1" }] },
+      null,
+    )
+    expect(correo.refRespuesta).toBe(correo.refConversacion)
+    expect(correo.refConversacion).toBe("hilo-1")
+  })
+
+  it("en Outlook NO coinciden, y por eso la respuesta no necesita verificación", () => {
+    const [correo] = adaptador("outlook").normalizar(
+      { response_data: { value: [{ id: "msg-1", conversationId: "conv-1" }] } },
+      null,
+    )
+    expect(correo.refRespuesta).toBe("msg-1")
+    expect(correo.refConversacion).toBe("conv-1")
+    expect(adaptador("outlook").respuestaFijaDestinatario).toBe(true)
   })
 })
