@@ -7,6 +7,11 @@
 // ANTHROPIC_API_KEY el agente de 17 tools no responde. Nada de eso da un error visible en la UI: el
 // vet ve una función que "no hace nada".
 //
+// El bloque de correo se sumó el 2026-08-03 y es el mejor ejemplo de por qué existe esto: el
+// endpoint tenía trece chequeos y NINGUNO de correo, así que respondía `ok: true` con
+// `RESEND_API_KEY` ausente — o sea con las facturas sin salir y el canal de cobranza por correo
+// apagado en silencio.
+//
 // Protegido con CRON_SECRET, el mismo secreto que ya guarda los crons: saber qué integraciones
 // tiene una clínica es información útil para un atacante. Y solo devuelve BOOLEANOS — jamás el
 // valor, ni un prefijo, ni la longitud (salvo donde la longitud ES el requisito, ver más abajo).
@@ -95,6 +100,14 @@ export async function GET(req: Request) {
   // plataforma. Se declara acá para poder contrastar lo que la UI ofrece con lo que hay configurado.
   const waDeclarado = process.env.NEXT_PUBLIC_WA_PROVIDER?.trim() || null
 
+  // Correo de Athos: la API key SOLA no alcanza. `proveedoresDisponibles()` (composio/proveedores.ts)
+  // habilita Gmail y Outlook por separado, cada uno con su auth-config; con `COMPOSIO_API_KEY` puesta
+  // y ningún auth-config, la tarjeta de Conexiones no ofrece NINGÚN botón y el correo del agente está
+  // muerto. Es el mismo tipo de verde engañoso que ya se cerró con `whatsapp_provider_coherente`.
+  const composioCorreo =
+    set("COMPOSIO_API_KEY") &&
+    (set("COMPOSIO_GMAIL_AUTH_CONFIG_ID") || set("COMPOSIO_OUTLOOK_AUTH_CONFIG_ID"))
+
   const checks = {
     // Sin esto no hay escrituras del agente, ni webhooks, ni crons, ni feed ICS.
     supabase_service_role: set("SUPABASE_SERVICE_ROLE_KEY"),
@@ -125,6 +138,19 @@ export async function GET(req: Request) {
       waDeclarado === null
         ? Object.values(whatsappProviders).some(Boolean) // sin declarar: basta con que haya alguno
         : whatsappProviders[waDeclarado as keyof typeof whatsappProviders] === true,
+    // ── Correo ──────────────────────────────────────────────────────────────────────────────────
+    // Este bloque no existía, y era el hueco más grande del endpoint: sin `RESEND_API_KEY` las
+    // facturas no salen y el canal EMAIL de cobranza queda apagado (`cartera/channels.ts:47` lo
+    // desactiva en silencio, sin error visible), mientras acá se respondía `ok: true`. O sea el
+    // fallo silencioso exacto que este archivo declara existir para atrapar.
+    //
+    // NO se chequea `TRANSACTIONAL_FROM_EMAIL` a propósito: tiene default `vet@tuvetia.com`
+    // (`transactional.ts:29`), así que su ausencia es una configuración VÁLIDA. Un rojo ahí sería
+    // ruido, y el ruido es cómo un endpoint de salud deja de mirarse.
+    correo_transaccional: set("RESEND_API_KEY"),
+    // Athos leyendo y escribiendo correo por Composio. Ver la nota de `composioCorreo` arriba:
+    // exige la key Y al menos un proveedor habilitado, porque uno sin el otro no sirve para nada.
+    correo_de_athos: composioCorreo,
     // Origin canónico para los redirects de OAuth y los links de cartera.
     site_url: set("NEXT_PUBLIC_SITE_URL"),
     // Sin esta allowlist NADIE entra a /admin (falla cerrado, que es lo correcto, pero conviene

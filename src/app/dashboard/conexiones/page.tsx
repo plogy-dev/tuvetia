@@ -1,7 +1,6 @@
 import { CalendarDays, Mail, MessageCircle } from "lucide-react"
 
 import { createClient } from "@/lib/supabase/server"
-import { EmailSettings, type EmailIntegrationView } from "@/components/settings/email-settings"
 import { WhatsappSettings } from "@/components/settings/whatsapp-settings"
 import { CalendarSettings, type CalendarProvider } from "@/components/settings/calendar-settings"
 import { AthosEmailSettings } from "@/components/settings/athos-email-settings"
@@ -33,14 +32,8 @@ export default async function ConexionesPage() {
 
   const composioListo = composioConfigurado()
 
-  const [{ data: wa }, { data: emailRow }, correoAthos, { data: clinica }] = await Promise.all([
+  const [{ data: wa }, correoAthos, { data: clinica }] = await Promise.all([
     supabase.from("whatsapp_integrations").select("status, phone_number, agent_mode").maybeSingle(),
-    // Cuenta INSTITUCIONAL de la clínica: la que manda facturas y cobranza (user_id null).
-    supabase
-      .from("email_integrations")
-      .select("status, from_email, from_name, last_error, verified_at")
-      .is("user_id", null)
-      .maybeSingle(),
     // La cuenta de correo que este miembro conectó por Composio: la que usa Athos por él.
     user && composioListo
       ? estadoConexion(user.id)
@@ -65,7 +58,6 @@ export default async function ConexionesPage() {
     phone_number: string | null
     agent_mode: "auto" | "review" | "paused" | "intervene"
   } | null
-  const email = emailRow as EmailIntegrationView | null
   const calendarConnected: CalendarProvider | null = calendarioClinica.proveedor
 
   return (
@@ -92,16 +84,22 @@ export default async function ConexionesPage() {
           />
         </section>
 
+        {/* Acá vivía "Correo de la clínica", que pedía una contraseña de aplicación de Gmail para
+            mandar por SMTP. Se quitó porque describía algo que ya no era cierto: las facturas y la
+            cobranza salen por el correo de Tuvetia desde hace semanas (`lib/email/transactional.ts`),
+            con el nombre de la clínica como remitente. La tarjeta seguía diciendo "Envío (SMTP)
+            smtp.gmail.com · verificado", que era falso, y pedía una credencial que no se usaba para
+            nada. En su lugar va una nota: no hay nada que conectar, y conviene decir por qué. */}
         <section className="rounded-lg border border-line-soft bg-card p-4 shadow-sm">
-          <div className="mb-3 flex items-center gap-2 text-sm font-semibold text-fg">
-            <Mail className="size-4 text-fg-faint" aria-hidden /> Correo de la clínica
-            <HelpTip>
-              La cuenta <b>institucional</b>: de acá salen las <b>facturas</b> con su enlace de pago
-              y los recordatorios de cobranza. Una factura no sale a nombre de una persona. Se usa
-              una <b>contraseña de aplicación</b> de Gmail, nunca la contraseña de la cuenta.
-            </HelpTip>
+          <div className="mb-2 flex items-center gap-2 text-sm font-semibold text-fg">
+            <Mail className="size-4 text-fg-faint" aria-hidden /> Facturas y cobranza
           </div>
-          <EmailSettings integration={email} />
+          <p className="text-sm text-fg-muted">
+            No hay nada que conectar. Las facturas y los recordatorios de pago salen por el correo de
+            Tuvetia, <b>a nombre de tu clínica</b>, y si el titular responde, la respuesta le llega al
+            administrador. Lo de abajo es distinto: es tu cuenta personal, para que Athos escriba
+            <i> por vos</i>.
+          </p>
         </section>
 
         <section className="rounded-lg border border-line-soft bg-card p-4 shadow-sm">
