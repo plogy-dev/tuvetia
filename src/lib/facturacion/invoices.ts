@@ -20,6 +20,7 @@ import {
   type LineInput,
   type ValidationIssue,
 } from '@/lib/facturacion/domain/invoice';
+import { finDelDiaBogota } from '@/lib/date-utils';
 import { computeInvoiceTotals } from '@/lib/facturacion/domain/money';
 import {
   deriveFollowupStatus,
@@ -284,7 +285,9 @@ export async function refreshInvoiceStatus(
   const derived = deriveStatus(events, {
     now,
     totalCents: detail.invoice.total_cents,
-    dueDate: detail.invoice.due_date ? new Date(detail.invoice.due_date) : null,
+    // `due_date` es una columna DATE: `new Date('2026-08-15')` daba medianoche UTC = 19:00 del 14 en
+    // Bogotá, y la factura se marcaba VENCIDA 29 horas antes. Vence al TERMINAR el día 15.
+    dueDate: detail.invoice.due_date ? finDelDiaBogota(detail.invoice.due_date) : null,
   });
   // 4ª dimensión: el seguimiento se deriva del recaudo + los insumos del motor
   // de cartera: tarea humana abierta, canales revocados y envíos hechos.
