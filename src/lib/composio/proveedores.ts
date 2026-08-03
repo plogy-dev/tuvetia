@@ -181,8 +181,10 @@ function mensajesDeOutlook(data: unknown): MensajeOutlook[] {
 
 const OUTLOOK: Adaptador = {
   toolkit: "outlook",
-  // El toolkit de Outlook expone una sola versión.
-  version: process.env.COMPOSIO_OUTLOOK_TOOLKIT_VERSION?.trim() || "00000000_00",
+  // Verificada contra la API el 2026-08-03, igual que la de Gmail. La default del toolkit es
+  // `00000000_00`, que NO se usa a propósito: es la que se mueve sola, y entonces un cambio en la
+  // forma de la respuesta llegaría a producción sin aviso. Se fija la última con fecha.
+  version: process.env.COMPOSIO_OUTLOOK_TOOLKIT_VERSION?.trim() || "20251016_01",
   envAuthConfig: "COMPOSIO_OUTLOOK_AUTH_CONFIG_ID",
   // OUTLOOK_OUTLOOK_REPLY_EMAIL NO acepta destinatario: Graph lo saca del mensaje original. La
   // dirección no viaja en la llamada, así que no hay nada que redirigir.

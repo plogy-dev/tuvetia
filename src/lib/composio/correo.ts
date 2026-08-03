@@ -130,6 +130,19 @@ export async function iniciarConexion(
 }
 
 /**
+ * El error REAL que devolvió Composio, que el SDK entierra en `cause`.
+ *
+ * Lo que llega en `Error.message` es un cartel fijo por operación —"Failed to create connected
+ * account link", "Error executing the tool X"— que no distingue una causa de otra. El `slug` de acá
+ * es lo único con lo que se puede ramificar; se lee defensivamente porque es estructura interna del
+ * SDK y no parte de su contrato.
+ */
+function detalleDelFallo(e: unknown): { slug?: string; message?: string } | null {
+  const causa = (e as { cause?: { error?: { error?: { slug?: string; message?: string } } } })?.cause
+  return causa?.error?.error ?? null
+}
+
+/**
  * Traduce el fallo de `link()` a algo accionable.
  *
  * El SDK envuelve todo en "Failed to create connected account link" y esconde la causa real en
@@ -137,8 +150,7 @@ export async function iniciarConexion(
  * una key de SOLO LECTURA, y ese mensaje genérico habría mandado a buscar el problema al código.
  */
 function explicarFalloDeConexion(e: unknown): string {
-  const causa = (e as { cause?: { error?: { error?: { slug?: string; message?: string } } } })?.cause
-  const detalle = causa?.error?.error
+  const detalle = detalleDelFallo(e)
   if (detalle?.slug === "APIKey_InsufficientPermissions") {
     return 'La API key de Composio es de solo lectura. En el dashboard de Composio dale permiso de ESCRITURA sobre "connected_accounts" (o usá una key que ya lo tenga).'
   }
@@ -175,14 +187,19 @@ async function ejecutar(
     if (!r.successful) return { ok: false, error: r.error ?? "El proveedor rechazó la operación." }
     return { ok: true, data: r.data }
   } catch (e) {
-    const msg = e instanceof Error ? e.message : "Error desconocido"
-    if (/no connected account|not connected|connected account not found/i.test(msg)) {
+    const detalle = detalleDelFallo(e)
+    // El slug es la vía fiable. El `message` de la excepción es siempre el mismo cartel genérico
+    // ("Error executing the tool X"), así que buscar texto ahí no encontraba nunca la causa —
+    // verificado contra la API: la cuenta faltante llega como ActionExecute_ConnectedAccountNotFound
+    // dentro de `cause`, y el vet habría visto un error opaco en vez de la tarjeta para conectar.
+    if (detalle?.slug === "ActionExecute_ConnectedAccountNotFound") {
       return {
         ok: false,
         error: "No tenés tu correo conectado. Se conecta en Conexiones → Correo de Athos.",
         sinConectar: true,
       }
     }
+    const msg = detalle?.message ?? (e instanceof Error ? e.message : "Error desconocido")
     console.error(`[composio/correo] ${slug} falló para ${userId}:`, msg)
     return { ok: false, error: msg }
   }

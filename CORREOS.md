@@ -217,9 +217,15 @@ Dos cosas que costaron un rato descubrir, ambas verificadas contra la API real:
   link") no lo dice — ya viene traducido en
   [`composio/correo.ts`](src/lib/composio/correo.ts).
 - Ejecutar una tool exige declarar la **versión del toolkit, con fecha**: `"latest"` no sirve para
-  ejecución manual. Están fijadas en el código y se pueden pisar con
+  ejecución manual, y la versión *default* de un toolkit (`00000000_00` en Outlook) tampoco se usa
+  a propósito — es la que se mueve sola, así que un cambio en la forma de la respuesta llegaría a
+  producción sin aviso. Están fijadas en el código y se pueden pisar con
   `COMPOSIO_GMAIL_TOOLKIT_VERSION` / `COMPOSIO_OUTLOOK_TOOLKIT_VERSION` para probar una nueva sin
   desplegar.
+- El `message` de los errores del SDK es un cartel fijo por operación ("Error executing the tool
+  X"): la causa real viene en `cause.error.error.slug`. Buscar texto en el mensaje no encuentra
+  nada — es lo que hacía que una cuenta desconectada se viera como un error opaco en vez de la
+  tarjeta para conectarla.
 
 **Antes del primer envío hay que verificar el dominio en Resend** (registros SPF y DKIM de
 `tuvetia.com`). Sin eso Resend rechaza con *"domain is not verified"* — el error ya viene traducido a
