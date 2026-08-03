@@ -14,9 +14,10 @@
 // Contexto 100% ensamblado acá con service_role + clinic_id EXPLÍCITO — nunca se le pasan tools
 // al modelo en este camino (con service_role, las tools RLS-dependientes verían otras clínicas).
 
-import { generateText } from "ai"
+import { generateText, stepCountIs } from "ai"
 
 import { createAdminClient } from "@/lib/supabase/admin"
+import { buildAutoReplyTools } from "@/lib/athos-agent/auto-tools"
 import { autoModel } from "@/lib/athos-agent/model"
 import { registrarUso } from "@/lib/athos-agent/usage"
 import { sendWhatsAppText } from "./send-message"
@@ -156,21 +157,43 @@ export async function maybeAutoReply(input: {
   // ESE — antes se leía de una segunda función que ignoraba la cascada.
   const elegido = autoModel()
 
+  // Tools acotadas por clínica Y por el titular de este número (ver `athos-agent/auto-tools.ts`).
+  // Sin titular reconocido el juego se reduce a consultar cupos: un número desconocido no puede
+  // enumerar mascotas ni proponer nada.
+  const tools = buildAutoReplyTools(admin, {
+    clinicId,
+    ownerId: owner?.id ?? null,
+    conversationKey,
+    model: elegido.modelId,
+  })
+
   try {
     const result = await generateText({
       model: elegido.model,
-      maxOutputTokens: 250,
+      // Sube de 250 porque ahora hay pasos de tool antes del texto final; el mensaje al titular sigue
+      // siendo de 1-3 frases.
+      maxOutputTokens: 500,
+      tools,
+      // Esto corre dentro del `after()` de un webhook: una cadena larga de tools acá es latencia y
+      // gasto sin nadie mirando. Tres pasos alcanzan para "cupos → proponer → contestar".
+      stopWhen: stepCountIs(3),
       system: `Eres el asistente de WhatsApp de la clínica veterinaria "${(clinic as { name: string } | null)?.name ?? "la clínica"}" (Colombia, tuteo).
 
 Decide si el ÚLTIMO mensaje del titular es respondible automáticamente y, si lo es, responde.
 
-RESPONDIBLE (responde tú): saludos, horarios de atención, ubicación/cómo agendar, pedir cita (indica que un humano confirmará el horario), agradecimientos.
+RESPONDIBLE (responde tú): saludos, horarios de atención, ubicación/cómo agendar, pedir o reprogramar cita, agradecimientos.
 NO RESPONDIBLE (guarda silencio): CUALQUIER cosa clínica (síntomas, medicamentos, dosis, urgencias), precios, quejas, pagos, o cualquier duda — ante la mínima duda, silencio.
 
 Si NO es respondible, responde EXACTAMENTE: NO_REPLY
 Si es respondible: SOLO el texto del mensaje (1-3 frases, cálido, sin markdown, sin firmar).
 Reglas duras: nunca inventes horarios/precios/direcciones. Horarios reales de la clínica: ${hoursText || "NO CONFIGURADOS (no menciones horarios)"}.
-Si el titular pide cita: dile que con gusto, que un miembro del equipo le confirma el horario en breve.`,
+
+CITAS — tienes herramientas, úsalas en vez de prometer de memoria:
+- Consulta list_available_slots antes de nombrar CUALQUIER horario. Nunca inventes disponibilidad.
+- Para proponer, primero list_my_patients (necesitas el patient_id de la mascota) y después propose_appointment.
+- propose_appointment NO agenda: deja la cita pendiente de que el equipo la confirme. Dile al titular que se la confirman en breve — JAMÁS que ya quedó agendada.
+- Si las herramientas de mascotas no están disponibles, es que no reconocemos este número: ofrécele los horarios y dile que el equipo lo contacta.
+- Nunca menciones citas, mascotas ni datos de OTRAS personas. Sólo lo que devuelvan tus herramientas.`,
       messages: [
         {
           role: "user",
@@ -180,16 +203,29 @@ Si el titular pide cita: dile que con gusto, que un miembro del equipo le confir
     })
     // Se registra ANTES de decidir si se responde: el NO_REPLY también costó tokens, y no contarlo
     // subestimaría el gasto del modo auto justo en el caso más frecuente.
+    //
+    // `totalUsage` y no `usage`: con tools esto son VARIOS pasos, y `usage` es sólo el último. Antes
+    // daban lo mismo porque había un solo paso — al meter tools dejaron de darlo, y `usage` habría
+    // facturado la última llamada como si fuera todo el turno. Es lo mismo que usa el chat del vet.
     void registrarUso({
       clinicId,
       userId: null, // modo auto: no hay vet detrás
       surface: "auto_reply",
       elegido,
-      usage: result.usage,
+      usage: result.totalUsage,
     })
 
     const text = result.text.trim()
-    if (!text || text === "NO_REPLY" || text.includes("NO_REPLY")) return
+    if (!text || text === "NO_REPLY" || text.includes("NO_REPLY")) {
+      // Con tools aparece un caso que antes no existía: que se agoten los 3 pasos llamando
+      // herramientas y no quede texto final. Se sigue callando —mandar medio mensaje al titular es
+      // peor que no mandar ninguno— pero se loguea, porque si pasa seguido es que `stepCountIs(3)`
+      // quedó corto. Si además se propuso una cita, la tarjeta ya está en la app y el vet la ve.
+      if (!text && result.steps.some((s) => s.toolCalls.length > 0)) {
+        console.warn("whatsapp/auto-reply: se llamaron tools y no quedó texto para el titular")
+      }
+      return
+    }
 
     const { waMessageId: sentId, message } = await sendWhatsAppText(clinicId, fromPhone, text, {
       ownerId: owner?.id ?? null,
