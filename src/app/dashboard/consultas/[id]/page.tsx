@@ -180,6 +180,10 @@ export default function NotaConsultaPage({ params }: { params: Promise<{ id: str
   async function approve() {
     if (!note) return
     // Gate de alergia severa: bloqueante. No se aprueba hasta que el vet confirme que revisó el plan.
+    //
+    // Este `if` es la cortesía, no la barrera. Desde la migración 0054 quien decide es un trigger:
+    // pasar de borrador a aprobada con el gate disparado y sin `allergy_acknowledged_at` lo rechaza
+    // Postgres. Antes esto era lo ÚNICO que lo impedía, y un update desde la consola lo saltaba.
     if (note.allergy_gate_triggered && !gateAck) {
       toast.error("Confirma que revisaste la alergia severa antes de aprobar la nota.")
       return
@@ -195,6 +199,9 @@ export default function NotaConsultaPage({ params }: { params: Promise<{ id: str
         status: "approved",
         approved_by: user?.id,
         approved_at: new Date().toISOString(),
+        // La constancia de que se revisó la alergia va en la MISMA escritura que la aprobación: si
+        // fueran dos, entre una y otra habría un instante con la nota firmada y sin constancia.
+        ...(note.allergy_gate_triggered ? { allergy_acknowledged_at: new Date().toISOString() } : {}),
       })
       .eq("id", note.id)
     if (error) {
