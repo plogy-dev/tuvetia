@@ -32,6 +32,16 @@ function authConfigId(): string | null {
   return process.env.COMPOSIO_GMAIL_AUTH_CONFIG_ID?.trim() || null
 }
 
+/**
+ * Versión del toolkit de Gmail contra la que corren las tools.
+ *
+ * Fijada a propósito (ver el comentario en `composio()`). Las versiones disponibles se consultan
+ * con `tools.getRawComposioToolBySlug("GMAIL_FETCH_EMAILS").availableVersions`.
+ */
+function gmailToolkitVersion(): string {
+  return process.env.COMPOSIO_GMAIL_TOOLKIT_VERSION?.trim() || "20260721_00"
+}
+
 /** ¿Está Composio configurado en este despliegue? La UI lo usa para explicar en vez de fallar. */
 export function composioConfigurado(): boolean {
   return apiKey() !== null && authConfigId() !== null
@@ -45,7 +55,16 @@ function composio(): Composio {
     throw new Error("Falta COMPOSIO_API_KEY en el servidor: el correo de Athos no está disponible.")
   }
   // Una sola instancia por proceso: el SDK mantiene su propio cliente HTTP.
-  cliente ??= new Composio({ apiKey: key })
+  //
+  // `toolkitVersions` NO es opcional acá: ejecutar una tool a mano sin declarar versión falla con
+  // ComposioToolVersionRequiredError. Y tiene que ser una versión CON FECHA — el propio SDK avisa
+  // que "latest is not supported in manual execution", así que apuntar a la última no es opción.
+  //
+  // Quedar fijados a una fecha es lo correcto igual: la forma de la respuesta de una tool puede
+  // cambiar entre versiones, y con "latest" ese cambio llegaría sin aviso a producción. Para
+  // moverla se prueba la nueva y se actualiza acá (o se pisa con COMPOSIO_GMAIL_TOOLKIT_VERSION
+  // para verificarla sin desplegar).
+  cliente ??= new Composio({ apiKey: key, toolkitVersions: { [GMAIL_TOOLKIT]: gmailToolkitVersion() } })
   return cliente
 }
 
