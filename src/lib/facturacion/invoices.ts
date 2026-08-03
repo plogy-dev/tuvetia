@@ -967,6 +967,38 @@ export async function markInvoiceSent(
   await refreshInvoiceStatus(supabase, clinicId, invoiceId);
 }
 
+/**
+ * Marca que el envío al cliente NO salió.
+ *
+ * Existe porque el fallo no se registraba en ningún lado: `facturacion/email.ts` devolvía el error a
+ * la UI y ahí moría — ni una fila, ni un `console.error`. Un correo que no sale es indistinguible de
+ * uno que salió y el cliente no leyó, y esa diferencia decide si hay que reenviar o llamar por
+ * teléfono.
+ *
+ * `DELIVERY_FAILED` ya existía en el CHECK de `invoice_events` y el reductor ya lo traduce a
+ * `delivery = 'FALLIDA'` (`domain/invoice-status.ts:124`, con tests), y el detalle lo pinta como
+ * "Falló la entrega". O sea que esto no agrega concepto: usa el que ya estaba y nadie emitía.
+ *
+ * NUNCA lanza: el llamador está en su camino de error y una excepción acá enmascararía la causa
+ * original, que es la que el vet necesita ver.
+ */
+export async function markInvoiceDeliveryFailed(
+  supabase: SupabaseClient,
+  clinicId: string,
+  invoiceId: string,
+  payload: { channel: 'EMAIL' | 'WHATSAPP'; to: string; error: string },
+): Promise<void> {
+  try {
+    await appendEvent(supabase, invoiceId, 'DELIVERY_FAILED', payload);
+    await refreshInvoiceStatus(supabase, clinicId, invoiceId);
+  } catch (e) {
+    console.error(
+      `[facturacion] envío fallido de ${invoiceId} y tampoco se pudo registrar:`,
+      (e as Error).message,
+    );
+  }
+}
+
 // ─── Descartar borrador (lo ÚNICO que se puede "borrar") ─────────────────────
 
 export async function discardDraft(

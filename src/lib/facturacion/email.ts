@@ -14,7 +14,7 @@ import { getAppBaseUrl } from '@/lib/base-url';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { buildMessageId } from '@/lib/email/threading';
 import { loadClinicSender, sendTransactionalEmail, transactionalFrom } from '@/lib/email/transactional';
-import { markInvoiceSent } from './invoices';
+import { markInvoiceDeliveryFailed, markInvoiceSent } from './invoices';
 
 export interface SendInvoiceEmailInput {
   invoiceId: string;
@@ -97,6 +97,17 @@ export async function sendInvoiceByEmail(
   if (!result.ok) {
     // Ya no se marca `email_integrations` en error: el fallo es de Resend o del dominio de Tuvetia,
     // no de la credencial de la clínica — culparla ahí mandaría al vet a arreglar lo que no está roto.
+    //
+    // Pero SÍ queda registrado en la factura. Hasta hoy este camino no dejaba rastro de ninguna
+    // clase —ni una fila, ni un `console.error`—, así que un correo que nunca salió se veía igual
+    // que uno que salió y el cliente no leyó. El evento aparece en la línea de tiempo de la factura
+    // como "Falló la entrega" y deja el estado de entrega en FALLIDA.
+    console.error(`[facturacion/email] no se pudo enviar la factura ${invoice.id}:`, result.error);
+    await markInvoiceDeliveryFailed(supabase, clinicId, invoice.id, {
+      channel: 'EMAIL',
+      to,
+      error: result.error ?? 'error desconocido',
+    });
     return { ok: false, reason: 'envio_fallido', error: result.error };
   }
 

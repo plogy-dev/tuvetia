@@ -10,6 +10,7 @@ import {
   type PendingInvitation,
   type TeamMember,
 } from "@/components/settings/team-settings"
+import { composioConfigurado, estadoConexion } from "@/lib/composio/correo"
 import { HelpTip } from "@/components/help-tip"
 import { PageHeader, PageShell } from "@/components/ui/page-shell"
 
@@ -44,12 +45,18 @@ export default async function SettingsPage() {
   // Sólo el estado, para el resumen: los formularios de conexión viven en /dashboard/conexiones.
   // (RLS: cada SELECT trae únicamente la fila de la clínica, y las credenciales están revocadas
   // para PostgREST.)
-  const [{ data: wa }, { data: emailRow }] = await Promise.all([
+  //
+  // El correo se lee de Composio y no de `email_integrations`: esa tabla era de la cuenta SMTP
+  // institucional, que se retiró — las facturas salen por el correo de Tuvetia y no hay nada que
+  // conectar. Lo único conectable hoy es la cuenta personal desde la que Athos escribe, y es
+  // por persona, así que el resumen habla de la de QUIEN MIRA, no de la clínica.
+  const [{ data: wa }, correoAthos] = await Promise.all([
     supabase.from("whatsapp_integrations").select("status").maybeSingle(),
-    supabase.from("email_integrations").select("status").is("user_id", null).maybeSingle(),
+    user && composioConfigurado()
+      ? estadoConexion(user.id)
+      : Promise.resolve({ conectado: false, proveedor: null, email: null }),
   ])
   const waConnected = (wa as { status?: string } | null)?.status === "connected"
-  const emailConnected = (emailRow as { status?: string } | null)?.status === "connected"
 
   // Horarios de atención (RLS de la clínica) — los usa Athos para citas y respuestas automáticas.
   const { data: hoursRows } = await supabase
@@ -118,8 +125,8 @@ export default async function SettingsPage() {
           <Plug className="size-4 text-muted-foreground" /> Conexiones
         </div>
         <p className="mb-3 text-sm text-muted-foreground">
-          WhatsApp {waConnected ? "conectado" : "sin conectar"} · Correo{" "}
-          {emailConnected ? "conectado" : "sin conectar"}.
+          WhatsApp {waConnected ? "conectado" : "sin conectar"} · Correo de Athos{" "}
+          {correoAthos.conectado ? "conectado" : "sin conectar"}.
         </p>
         <Button variant="outline" render={<Link href="/dashboard/conexiones" />}>
           <Plug className="size-4" /> Ir a Conexiones
