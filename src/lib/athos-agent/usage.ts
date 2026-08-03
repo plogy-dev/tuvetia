@@ -11,9 +11,16 @@ import "server-only"
 import { createAdminClient } from "@/lib/supabase/admin"
 import type { ModeloElegido } from "@/lib/athos-agent/model"
 
-/** Las seis superficies de Next que gastan IA. Debe coincidir con el `check` de la 0046. */
+/**
+ * Las superficies de Next que gastan IA. Debe coincidir con el `check` (0046, ampliado por la 0057).
+ *
+ * `widget` se mide aparte de `agent` a propósito: es la única forma de responder cuánto cuesta que
+ * Athos esté presente en toda la app. Mezclarlos hace la pregunta incontestable incluso a posteriori,
+ * porque los datos ya quedaron sumados.
+ */
 export type SuperficieDeUso =
   | "agent"
+  | "widget"
   | "suggest_reply"
   | "auto_reply"
   | "cartera_inbound"

@@ -5,7 +5,10 @@
 
 import { createAdminClient } from "@/lib/supabase/admin"
 
-export type AgentSource = "chat" | "inbox" | "auto"
+// Desde dónde se PROPUSO la acción. `widget` es la burbuja que vive en todas las pantallas, y se
+// distingue de `chat` porque "el vet dice que Athos le agendó algo, ¿desde dónde lo pidió?" es la
+// primera pregunta de soporte y esta tabla es el expediente. Debe coincidir con el check de la 0057.
+export type AgentSource = "chat" | "inbox" | "auto" | "widget" | "onboarding"
 
 export type AgentContext = {
   userId: string | null // null en modo auto

@@ -29,7 +29,10 @@ export const maxDuration = 60
 const BodySchema = z.object({
   messages: z.array(z.any()),
   patientId: z.string().uuid().nullable().optional(),
-  source: z.enum(["chat", "inbox"]).default("chat"),
+  // `auto` no está y es correcto: el modo automático no pasa por esta ruta (usa auto-tools con
+  // service_role). Lo que sí faltaba era `widget` y `onboarding`, que hasta la 0057 mandaban
+  // "chat" mintiendo.
+  source: z.enum(["chat", "inbox", "widget", "onboarding"]).default("chat"),
   conversationKey: z.string().nullable().optional(),
 })
 
@@ -136,7 +139,10 @@ export async function POST(req: Request) {
       void registrarUso({
         clinicId,
         userId: user.id,
-        surface: "agent",
+        // Derivado de `source` y no fijo en "agent": esta ruta la usan ahora la pantalla del
+        // asistente, la burbuja global, la bandeja de WhatsApp y el onboarding, y sumarlas todas
+        // bajo una etiqueta hace incontestable la pregunta de cuánto cuesta cada superficie.
+        surface: source === "widget" ? "widget" : "agent",
         elegido,
         usage: totalUsage,
       })
