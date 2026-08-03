@@ -147,22 +147,59 @@ export function AppointmentCalendar({
     setDrawerOpen(true)
   }, [])
 
-  // Push/delete al calendario del VETERINARIO ASIGNADO. Se llama a los dos proveedores sin
-  // preguntar cuál usa: el cliente no sabe —ni tiene por qué— si ese vet conectó Google, Outlook o
-  // nada. El servidor resuelve su integración y no hace nada si no tiene ninguna.
+  // Push al calendario del VETERINARIO ASIGNADO. Se llama a los dos proveedores sin preguntar cuál
+  // usa: el cliente no sabe —ni tiene por qué— si ese vet conectó Google, Outlook o nada. El
+  // servidor resuelve su conexión y no hace nada si no tiene ninguna.
   //
-  // Todo best-effort: `appointments` es la fuente de verdad, así que si el proveedor falla la cita
-  // local queda igual. Por eso no se avisa de estos errores — el vet no puede hacer nada con ellos.
+  // Sigue siendo best-effort para la CITA: `appointments` es la fuente de verdad y si el proveedor
+  // falla, la cita local queda igual. Lo que ya no es best-effort es el SILENCIO.
+  //
+  // Antes esto era un `Promise.allSettled` que descartaba todo, con el argumento de que el vet no
+  // podía hacer nada con esos errores. Era falso: el motivo más común —no tener el calendario
+  // conectado— se arregla con un clic, y mientras tanto la cita simplemente no aparecía y no había
+  // forma de saber por qué. Pasó de verdad: se creó una cita dos minutos antes de conectar el
+  // calendario. Se avisa sólo cuando NINGÚN proveedor creó el evento, para no molestar a quien tiene
+  // Outlook con un "Google no está conectado" que le da igual.
   const pushAlCalendario = useCallback(async (appointmentId: string) => {
-    await Promise.allSettled(
-      ["google", "microsoft"].map((p) =>
-        fetch(`/api/${p}/calendar/push`, {
+    const pedir = async (proveedor: string) => {
+      try {
+        const res = await fetch(`/api/${proveedor}/calendar/push`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ appointment_id: appointmentId }),
-        }),
-      ),
-    )
+        })
+        const j = (await res.json().catch(() => ({}))) as {
+          google_event_id?: string | null
+          microsoft_event_id?: string | null
+          motivo?: string | null
+          error?: string
+        }
+        if (!res.ok) return { creado: false, error: j.error ?? `HTTP ${res.status}`, motivo: null }
+        return {
+          creado: Boolean(j.google_event_id ?? j.microsoft_event_id),
+          error: null,
+          motivo: j.motivo ?? null,
+        }
+      } catch (e) {
+        return { creado: false, error: (e as Error).message, motivo: null }
+      }
+    }
+
+    const resultados = await Promise.all([pedir("google"), pedir("microsoft")])
+    if (resultados.some((r) => r.creado)) return
+
+    if (resultados.some((r) => r.motivo === "sin-veterinario")) {
+      toast.info("La cita se guardó. No se copió a ningún calendario porque no tiene veterinario asignado.")
+      return
+    }
+    if (resultados.some((r) => r.motivo === "sin-calendario")) {
+      toast.info(
+        "La cita se guardó, pero no se copió a ningún calendario: el veterinario asignado no conectó el suyo en Conexiones.",
+      )
+      return
+    }
+    const error = resultados.find((r) => r.error)?.error
+    if (error) toast.error(`La cita se guardó, pero no se pudo copiar al calendario: ${error}`)
   }, [])
 
   // El borrado del evento externo ya NO vive acá: se hace en el drawer, antes de borrar la fila, con

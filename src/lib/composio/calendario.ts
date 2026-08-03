@@ -229,13 +229,25 @@ async function limpiarEventoDe(userId: string, eventId: string): Promise<void> {
 }
 
 /**
+ * Por qué una cita NO llegó a ningún calendario. `null` = sí llegó.
+ *
+ * Existe porque "no pasó nada" era indistinguible de "salió bien": el push es best-effort y el
+ * front se lo tragaba entero. Un veterinario creó una cita dos minutos antes de conectar su
+ * calendario, no apareció, y no hubo forma de saber por qué. Estos motivos son ACCIONABLES —
+ * conectar el calendario, asignar un veterinario— así que tienen que llegar a la pantalla.
+ */
+export type MotivoSinEvento = "sin-veterinario" | "sin-calendario"
+
+export type ResultadoEmpuje = { eventId: string | null; motivo: MotivoSinEvento | null }
+
+/**
  * Crea o actualiza el evento en el calendario del VETERINARIO ASIGNADO, con el titular y el propio
- * vet invitados. Devuelve el id del evento, o null si ese vet no conectó calendario.
+ * vet invitados.
  *
  * Si la cita cambió de veterinario, el evento se borra del calendario del anterior antes de crearse
  * en el del nuevo: sin eso queda un fantasma en la agenda de alguien que ya no atiende esa cita.
  */
-export async function empujarCita(appointmentId: string): Promise<string | null> {
+export async function empujarCita(appointmentId: string): Promise<ResultadoEmpuje> {
   const admin = createAdminClient()
   const { data } = await admin
     .from("appointments")
@@ -244,9 +256,10 @@ export async function empujarCita(appointmentId: string): Promise<string | null>
     )
     .eq("id", appointmentId)
     .maybeSingle()
-  if (!data) return null
+  if (!data) return { eventId: null, motivo: null }
   const a = data as CitaParaSincronizar
-  if (!a.vet_id) return null // sin veterinario no hay calendario destino
+  // Sin veterinario no hay calendario destino: no es un fallo, pero tampoco es un éxito.
+  if (!a.vet_id) return { eventId: null, motivo: "sin-veterinario" }
 
   // Cambió el vet asignado: el evento viejo vive en OTRO calendario y hay que sacarlo de ahí.
   const cambioDeCalendario = Boolean(
@@ -266,7 +279,7 @@ export async function empujarCita(appointmentId: string): Promise<string | null>
         .update({ google_event_id: null, calendar_owner_id: null })
         .eq("id", a.id)
     }
-    return null
+    return { eventId: null, motivo: "sin-calendario" }
   }
 
   const evento = eventoDe(a, await invitados(admin, a.owner_id, a.vet_id))
@@ -296,7 +309,7 @@ export async function empujarCita(appointmentId: string): Promise<string | null>
       .update({ google_event_id: nuevoId, calendar_owner_id: a.vet_id })
       .eq("id", a.id)
   }
-  return nuevoId
+  return { eventId: nuevoId, motivo: null }
 }
 
 /** Borra el evento remoto del calendario de quien lo tenía. */

@@ -28,8 +28,10 @@ export async function POST(req: Request) {
   if (!cita) return NextResponse.json({ error: "Cita no encontrada" }, { status: 404 })
 
   try {
-    const googleEventId = await empujarCita(body.appointment_id)
-    return NextResponse.json({ google_event_id: googleEventId })
+    const { eventId, motivo } = await empujarCita(body.appointment_id)
+    // `motivo` viaja al front para que pueda decir POR QUÉ la cita no llegó al calendario. Antes
+    // esta ruta sólo devolvía el id y un null era mudo.
+    return NextResponse.json({ google_event_id: eventId, motivo })
   } catch (e) {
     return NextResponse.json({ error: (e as Error).message }, { status: 502 })
   }

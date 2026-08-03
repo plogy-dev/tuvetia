@@ -59,15 +59,18 @@ async function pushToGoogle(
   if (typeof appointmentId !== "string" || !appointmentId)
     return { googleEventId: null, aviso: null }
   try {
-    const googleEventId = await empujarCita(appointmentId)
-    if (googleEventId) return { googleEventId, aviso: null }
+    const { eventId, motivo } = await empujarCita(appointmentId)
+    if (eventId) return { googleEventId: eventId, aviso: null }
     // `empujarCita` devuelve null cuando el VETERINARIO ASIGNADO no conectó su calendario (el
     // calendario es de cada vet desde la migración 0049, no de la clínica). No es un fallo, pero
     // el vet TIENE que enterarse: si no, la cita no aparece en su calendario y no hay forma de
     // saber por qué. Pasó en producción el 30-jul y fue exactamente esa la pregunta.
     return {
       googleEventId: null,
-      aviso: "La cita quedó en la agenda de la plataforma. No se copió al calendario porque el veterinario asignado no conectó el suyo en Conexiones.",
+      aviso:
+        motivo === "sin-veterinario"
+          ? "La cita quedó en la agenda de la plataforma. No se copió a ningún calendario porque no tiene veterinario asignado."
+          : "La cita quedó en la agenda de la plataforma. No se copió al calendario porque el veterinario asignado no conectó el suyo en Conexiones.",
     }
   } catch (e) {
     console.error("[athos/execute] no se pudo empujar la cita a Google Calendar:", e)
