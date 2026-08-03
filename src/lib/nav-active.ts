@@ -1,8 +1,10 @@
 // ¿Este ítem del sidebar corresponde a la ruta que se está viendo?
 //
-// Vivía duplicado y en desacuerdo: `nav-documents.tsx` comparaba por prefijo, `nav-main.tsx` sólo
-// por igualdad exacta —y por eso las DIECISÉIS páginas de facturación y las fichas
-// `/patients/[id]` no encendían su sección— y `nav-secondary.tsx` no comparaba nada.
+// Vivía duplicado y en desacuerdo entre tres componentes: uno comparaba por prefijo, `nav-main.tsx`
+// sólo por igualdad exacta —y por eso las DIECISÉIS páginas de facturación y las fichas
+// `/patients/[id]` no encendían su sección— y `nav-secondary.tsx` no comparaba nada. Hoy quedan dos
+// consumidores (`nav-main.tsx` y `nav-secondary.tsx`): el tercero, `nav-documents.tsx`, se borró al
+// unificar el sidebar en una sola lista.
 //
 // `/dashboard` es la excepción y va por igualdad: es prefijo de todas las demás rutas del panel, y
 // por prefijo se quedaría encendido en las 30+ pantallas a la vez.
