@@ -10,6 +10,7 @@ import {
   preguntasDuplicadas,
   textoDe,
   turnoAGuardar,
+  sanearHistorial,
 } from "@/lib/athos-agent/conversacion"
 
 const msg = (role: "user" | "assistant", ...textos: string[]): UIMessage =>
@@ -168,5 +169,39 @@ describe("turnoAGuardar — sólo el turno nuevo", () => {
 
   it("sin mensajes del vet no guarda nada del vet", () => {
     expect(turnoAGuardar([msg("assistant", "hola")], undefined)).toEqual([])
+  })
+})
+
+describe("sanearHistorial — desactiva las afirmaciones de propuesta sin respaldo", () => {
+  const turno = (role: "user" | "assistant", text: string) =>
+    ({ id: "x", role, parts: [{ type: "text", text }] }) as unknown as UIMessage
+
+  it("un turno que dice haber propuesto SIN marca queda desactivado", () => {
+    // Los 16 que ya están en producción: el modelo los recibía como ejemplo imitable.
+    const r = sanearHistorial([turno("assistant", "Te dejé propuesto el correo — aprobálo en la tarjeta.")])
+    expect(textoDe(r[0])).toContain("[[sin-propuesta:")
+  })
+
+  it("un turno CON marca se deja intacto: ahí sí hubo acción", () => {
+    const original = "Te dejé propuesta la cita.\n\n[[propuesto:create_appointment]]"
+    const r = sanearHistorial([turno("assistant", original)])
+    expect(textoDe(r[0])).toBe(original)
+    expect(textoDe(r[0])).not.toContain("sin-propuesta")
+  })
+
+  it("un turno normal no se toca", () => {
+    const original = "Luna pesa 12,4 kg y su última consulta fue el 28 de julio."
+    const r = sanearHistorial([turno("assistant", original)])
+    expect(textoDe(r[0])).toBe(original)
+  })
+
+  it("los turnos del VETERINARIO nunca se tocan, aunque nombren la tarjeta", () => {
+    const original = "aprobálo en la tarjeta por favor"
+    const r = sanearHistorial([turno("user", original)])
+    expect(textoDe(r[0])).toBe(original)
+  })
+
+  it("no rompe un historial vacío", () => {
+    expect(sanearHistorial([])).toEqual([])
   })
 })
