@@ -305,19 +305,49 @@ export const consultaViva = {
     const p = params
     if (!p) return
 
-    // Se cortan micrófono y cronómetro ANTES de nada: pase lo que pase después, el micrófono ya no
-    // está abierto.
     if (cronometro) clearInterval(cronometro)
     cronometro = null
-    grabador?.stop()
+
+    const duracion = snapshot.segundos
+    // La fase cambia ANTES de tocar el micrófono. `track.onended` (más arriba) sólo actúa mientras
+    // la fase es "grabando": adelantar esto vuelve IMPOSIBLE que el corte de los tracks se reentre
+    // como una pérdida de micrófono, en vez de sólo improbable por lo que dice la spec.
+    emitir({ fase: "subiendo" })
+
+    // EL ÚLTIMO TROZO NO LLEGA SOLO.
+    //
+    // `MediaRecorder.stop()` no entrega lo que tiene en el buffer en el acto: encola una TAREA que
+    // dispara `dataavailable` y después `stop`. Armar el blob sin esperar esa tarea corta hasta un
+    // segundo del final de la consulta — el tramo donde está el plan, que es justo lo que no se
+    // puede perder.
+    //
+    // Con la transcripción en vivo ACTIVA el defecto no se veía: `live.detener()` espera un mensaje
+    // del socket, y esa espera le daba tiempo al trozo de llegar. Pero en el camino de fallback
+    // (sin key, timeout o 429) `LiveTranscription.detener()` es `if (!this.activa) return` — resuelve
+    // en una microtarea, y las microtareas corren ANTES que la tarea del `dataavailable`.
+    const rec = grabador
+    await new Promise<void>((resolve) => {
+      if (!rec) return resolve()
+      // El handler se engancha antes del `stop()`: al revés, la tarea podría ya estar encolada.
+      rec.onstop = () => resolve()
+      // Un navegador que no dispare `stop` no puede dejar la consulta colgada ni el micrófono
+      // abierto para siempre. Se sube lo que haya: es la espera acotada, no indefinida.
+      setTimeout(resolve, 3000)
+      try {
+        rec.stop()
+      } catch {
+        // Ya estaba detenido: no va a haber `onstop` que esperar.
+        resolve()
+      }
+    })
+
+    // Recién ahora se suelta el micrófono. Es lo único que esta reordenación demora —como mucho lo
+    // que tarde el flush, y con techo de 3 s— y a cambio el audio llega entero.
     stream?.getTracks().forEach((t) => t.stop())
     stream = null
     grabador = null
     desengancharSalida()
     borrarMigaja()
-
-    const duracion = snapshot.segundos
-    emitir({ fase: "subiendo" })
 
     const live = vivoRef
     try {

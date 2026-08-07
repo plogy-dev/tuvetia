@@ -17,7 +17,12 @@ vi.mock("@/lib/athos-live", () => ({
 vi.mock("@/lib/athos", () => ({ athosTranscribe: vi.fn(async () => ({})) }))
 vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn(), warning: vi.fn() } }))
 
-const upload = vi.fn(async () => ({ error: null }))
+// Tipada con los argumentos porque los tests del flush inspeccionan QUÉ blob se subió, no sólo que
+// se haya subido.
+const upload = vi.fn(async (_path: string, _blob: unknown) => ({ error: null }))
+/** Los trozos que terminaron dentro del blob que se subió. */
+const trozosSubidos = () =>
+  (upload.mock.calls[0]?.[1] as { partes?: unknown[] } | undefined)?.partes ?? []
 const insert = vi.fn(async () => ({ error: null }))
 vi.mock("@/lib/supabase/client", () => ({
   createClient: () => ({
@@ -29,6 +34,7 @@ vi.mock("@/lib/supabase/client", () => ({
 class FakeRecorder {
   static ultima: FakeRecorder | null = null
   ondataavailable: ((e: { data: Blob }) => void) | null = null
+  onstop: (() => void) | null = null
   estado = "inactive"
   constructor() {
     FakeRecorder.ultima = this
@@ -36,9 +42,35 @@ class FakeRecorder {
   start() {
     this.estado = "recording"
   }
+  /**
+   * El flush final va en una TAREA, no síncrono — que es lo que hace un navegador de verdad:
+   * `stop()` encola una tarea que dispara `dataavailable` y después `stop`.
+   *
+   * El `setTimeout` es el punto del fake, no un detalle. Antes este `stop()` era un no-op que no
+   * entregaba NINGÚN trozo final, así que ningún test podía ver que el blob se armaba sin él. Si
+   * acá se disparara síncrono, el test volvería a pasar con el defecto puesto.
+   */
   stop() {
     this.estado = "inactive"
+    setTimeout(() => {
+      this.ondataavailable?.({ data: TROZO_FINAL as unknown as Blob })
+      this.onstop?.()
+    }, 0)
   }
+}
+
+/** Lleva `size` porque `sesion.ts` descarta los trozos vacíos con `if (e.data.size > 0)`. */
+const TROZO_FINAL = { size: 7, marca: "trozo-final" }
+
+/**
+ * `detener()` espera el flush del grabador, y el fake lo entrega en una tarea. Con `useFakeTimers`
+ * hay que avanzar el reloj MIENTRAS se espera la promesa — no antes (la tarea todavía no está
+ * encolada) ni después (nunca llega a encolarse y el await no vuelve).
+ */
+async function detenerYEsperar(sesion: { detener: (m?: "normal" | "perdida") => Promise<void> }) {
+  const fin = sesion.detener()
+  await vi.advanceTimersByTimeAsync(10)
+  await fin
 }
 
 function fakeStream() {
@@ -142,10 +174,50 @@ describe("consultaViva", () => {
   it("detener corta el vivo ANTES de subir — el final de la consulta es donde está el plan", async () => {
     const { consultaViva } = await import("../consulta-viva/sesion")
     await consultaViva.iniciar(params)
-    await consultaViva.detener()
+    await detenerYEsperar(consultaViva)
     expect(detener).toHaveBeenCalled()
     expect(upload).toHaveBeenCalled()
     expect(detener.mock.invocationCallOrder[0]).toBeLessThan(upload.mock.invocationCallOrder[0])
+  })
+
+  it("el último trozo del grabador entra en el audio que se sube", async () => {
+    const { consultaViva } = await import("../consulta-viva/sesion")
+    await consultaViva.iniciar(params)
+    await detenerYEsperar(consultaViva)
+    expect(trozosSubidos()).toContainEqual(TROZO_FINAL)
+  })
+
+  it("el último trozo entra TAMBIÉN con la transcripción en vivo caída", async () => {
+    // Este es el caso que se rompía, y el único: `LiveTranscription.detener()` arranca con
+    // `if (!this.activa) return`, así que sin vivo resuelve en una microtarea. El blob se armaba en
+    // esa microtarea — o sea ANTES de la tarea que entrega el `dataavailable` final — y se perdía
+    // hasta un segundo del cierre de la consulta, que es donde el vet dicta el plan.
+    //
+    // Con el vivo ACTIVO el defecto quedaba tapado: ahí `detener()` espera un mensaje del socket, y
+    // esa espera alcanzaba para que el trozo llegara. Por eso hay que forzar `activa: false`.
+    const { LiveTranscription } = await import("@/lib/athos-live")
+    vi.mocked(LiveTranscription.open).mockImplementationOnce(
+      async () => ({ activa: false, detener, finalizar, cerrar, enviarAudio }) as never,
+    )
+    const { consultaViva } = await import("../consulta-viva/sesion")
+    await consultaViva.iniciar(params)
+    expect(consultaViva.leer().vivo).toBe(false)
+    await detenerYEsperar(consultaViva)
+    expect(trozosSubidos()).toContainEqual(TROZO_FINAL)
+  })
+
+  it("el micrófono se suelta DESPUÉS del flush, no antes", async () => {
+    // Cortar los tracks antes de que el grabador vacíe su buffer es la otra mitad del mismo
+    // defecto. Y adelantar la fase a "subiendo" es lo que impide que ese corte se reentre por
+    // `track.onended` como si fuera una pérdida de micrófono.
+    const { consultaViva } = await import("../consulta-viva/sesion")
+    await consultaViva.iniciar(params)
+    const fin = consultaViva.detener()
+    expect(consultaViva.leer().fase).toBe("subiendo")
+    expect(pista.track.stop).not.toHaveBeenCalled()
+    await vi.advanceTimersByTimeAsync(10)
+    await fin
+    expect(pista.track.stop).toHaveBeenCalled()
   })
 
   it("detener suelta el micrófono aunque la subida falle", async () => {
@@ -153,7 +225,7 @@ describe("consultaViva", () => {
     upload.mockImplementationOnce(async () => ({ error: { message: "sin red" } }) as never)
     const { consultaViva } = await import("../consulta-viva/sesion")
     await consultaViva.iniciar(params)
-    await consultaViva.detener()
+    await detenerYEsperar(consultaViva)
     expect(pista.track.stop).toHaveBeenCalled()
     expect(consultaViva.leer().fase).toBe("perdida")
   })
@@ -161,7 +233,7 @@ describe("consultaViva", () => {
   it("la migaja se deja al grabar y se borra al detener", async () => {
     const { consultaViva, migajaDeGrabacionPerdida } = await import("../consulta-viva/sesion")
     await consultaViva.iniciar(params)
-    await consultaViva.detener()
+    await detenerYEsperar(consultaViva)
     expect(migajaDeGrabacionPerdida()).toBeNull()
   })
 
