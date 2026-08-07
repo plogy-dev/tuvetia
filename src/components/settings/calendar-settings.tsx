@@ -119,7 +119,7 @@ export function CalendarSettings({
       <div className="flex flex-col gap-3">
         <div className="flex flex-wrap items-center gap-3">
           <span className="inline-flex items-center gap-1.5 text-sm text-fg-muted">
-            <CalendarCheck className="size-4 text-green-600" aria-hidden />
+            <CalendarCheck className="size-4 text-ok" aria-hidden />
             {NOMBRE[connected]} conectado
           </span>
           <Button variant="outline" size="sm" onClick={disconnect} disabled={busy !== null}>
@@ -128,8 +128,8 @@ export function CalendarSettings({
           </Button>
         </div>
         {compartidoConElCorreo && (
-          <p className="flex items-start gap-2 rounded-lg border border-amber-500/40 bg-amber-500/10 p-3 text-sm text-fg">
-            <TriangleAlert className="mt-0.5 size-4 shrink-0 text-amber-600" aria-hidden />
+          <p className="flex items-start gap-2 rounded-lg border border-warn/40 bg-warn/10 p-3 text-sm text-fg">
+            <TriangleAlert className="mt-0.5 size-4 shrink-0 text-warn" aria-hidden />
             <span>
               El calendario y el correo de Microsoft son <b>la misma cuenta</b>: desconectar acá
               también le saca a Athos el acceso a tu correo.

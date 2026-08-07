@@ -196,7 +196,7 @@ export function ActionApprovalCard({
         <>
           <p className="mt-2 text-xs font-medium text-fg-muted">{RESOLVED_LABELS[resolved] ?? RESOLVED_LABELS.failed}</p>
           {aviso && (
-            <p className="mt-1 text-xs text-amber-700 dark:text-amber-500">
+            <p className="mt-1 text-xs text-warn dark:text-warn">
               {aviso.texto}{" "}
               {aviso.enlace && (
                 <Link href={aviso.enlace} className="font-medium underline underline-offset-2">

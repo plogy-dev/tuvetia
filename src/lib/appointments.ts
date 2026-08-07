@@ -10,13 +10,18 @@ export type AppointmentStatus =
   | "no_show"
 
 // Etiqueta (ES) + color del bloque en el calendario, por estado.
+//
+// Los colores son TOKENS, no literales. Se consumen sólo como `backgroundColor`
+// en estilos inline (`appointment-calendar.tsx:321`, `calendar-chrome.tsx:125`),
+// donde una `var()` resuelve igual que un hex — y de paso el calendario sigue al
+// contexto: sobre la superficie grafito los seis se aclaran solos.
 export const APPOINTMENT_STATUS: Record<AppointmentStatus, { label: string; color: string }> = {
-  scheduled: { label: "Agendada", color: "#6366f1" },
-  confirmed: { label: "Confirmada", color: "#0ea5e9" },
-  in_progress: { label: "En curso", color: "#f59e0b" },
-  completed: { label: "Completada", color: "#22c55e" },
-  canceled: { label: "Cancelada", color: "#94a3b8" },
-  no_show: { label: "No asistió", color: "#ef4444" },
+  scheduled: { label: "Agendada", color: "var(--status-scheduled)" },
+  confirmed: { label: "Confirmada", color: "var(--status-confirmed)" },
+  in_progress: { label: "En curso", color: "var(--status-in-progress)" },
+  completed: { label: "Completada", color: "var(--status-completed)" },
+  canceled: { label: "Cancelada", color: "var(--status-canceled)" },
+  no_show: { label: "No asistió", color: "var(--status-no-show)" },
 }
 
 export const APPOINTMENT_STATUS_ORDER: AppointmentStatus[] = [

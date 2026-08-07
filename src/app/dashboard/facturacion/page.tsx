@@ -75,7 +75,7 @@ export default async function FacturacionPage() {
     return (
       <PageShell width="narrow">
           <PageHeader
-            title="Facturación"
+            title="Ventas"
             description="Factura tus consultas y productos sin salir de Tuvetia."
           />
 
@@ -134,7 +134,7 @@ export default async function FacturacionPage() {
   return (
     <PageShell>
         <PageHeader
-          title="Facturación"
+          title="Ventas"
           description={`Factura electrónica DIAN · ${monthLabel}`}
           actions={
             <>

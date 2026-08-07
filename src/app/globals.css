@@ -7,10 +7,10 @@
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-inter-tight), "Inter Tight", system-ui, sans-serif;
-  --font-mono: var(--font-jetbrains), "JetBrains Mono", monospace;
-  --font-heading: var(--font-bricolage), "Bricolage Grotesque", system-ui, sans-serif;
-  --font-display: var(--font-bricolage), "Bricolage Grotesque", system-ui, sans-serif;
+  --font-sans: var(--font-geist), "Geist", "Segoe UI", system-ui, sans-serif;
+  --font-mono: var(--font-geist-mono), "Geist Mono", ui-monospace, Consolas, monospace;
+  --font-heading: var(--font-newsreader), "Newsreader", Georgia, "Times New Roman", serif;
+  --font-display: var(--font-newsreader), "Newsreader", Georgia, "Times New Roman", serif;
   --color-sidebar-ring: var(--sidebar-ring);
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
@@ -44,13 +44,15 @@
   --color-popover: var(--popover);
   --color-card-foreground: var(--card-foreground);
   --color-card: var(--card);
-  --radius-sm: calc(var(--radius) * 0.6);
-  --radius-md: calc(var(--radius) * 0.8);
+  /* `--radius` es 8px = la forma de los CONTROLES. `rounded-xl` es la de las
+     CARDS y tiene que dar 12px, por eso el factor pasa de 1.4 a 1.5. */
+  --radius-sm: calc(var(--radius) * 0.5);
+  --radius-md: calc(var(--radius) * 0.75);
   --radius-lg: var(--radius);
-  --radius-xl: calc(var(--radius) * 1.4);
-  --radius-2xl: calc(var(--radius) * 1.8);
-  --radius-3xl: calc(var(--radius) * 2.2);
-  --radius-4xl: calc(var(--radius) * 2.6);
+  --radius-xl: calc(var(--radius) * 1.5);
+  --radius-2xl: calc(var(--radius) * 2);
+  --radius-3xl: calc(var(--radius) * 2.5);
+  --radius-4xl: calc(var(--radius) * 3);
 
   /* ── Tokens de marca Tuvetia (traducción del tailwind.config.ts del cliente) ── */
   /* legacy (compat) */
@@ -67,221 +69,279 @@
   --color-fg-faint: var(--muted);
   --color-line: var(--border);
   --color-line-soft: var(--border-soft);
+  /* Borde de campo: sobre blanco puro el borde suave desaparece. */
+  --color-line-strong: var(--border-strong);
   --color-brand: var(--accent);
   --color-brand-deep: var(--brand-deep);
   --color-on-brand: var(--on-brand);
+  /* `brand-text` es el menta OSCURO, para TEXTO en menta: el menta 500 sobre
+     blanco no llega a AA en 13px/400. `brand-soft` es el relleno de chips y
+     estados activos. */
+  --color-brand-text: var(--accent-text);
+  --color-brand-soft: var(--accent-soft);
   --color-danger: var(--danger);
   --color-danger-soft: var(--danger-soft);
   --color-ok: var(--ok);
   --color-warn: var(--warn);
   --color-info: var(--info);
-  --color-type-consulta: var(--type-consulta);
-  --color-type-control: var(--type-control);
-  --color-type-vacunacion: var(--type-vacunacion);
-  --color-type-cirugia: var(--type-cirugia);
-  --color-type-urgencia: var(--type-urgencia);
-  --color-type-otro: var(--type-otro);
+  --color-status-scheduled: var(--status-scheduled);
+  --color-status-confirmed: var(--status-confirmed);
+  --color-status-in-progress: var(--status-in-progress);
+  --color-status-completed: var(--status-completed);
+  --color-status-canceled: var(--status-canceled);
+  --color-status-no-show: var(--status-no-show);
 }
 
 :root {
-  /* ─────────────────────────────────────────────────────────────────────────
-     Paleta de marca "Brasa sobre neutro" — claro/crema primario (del cliente).
-     Nombres heredados del tema oscuro; los valores son el palette de marca.
-     ───────────────────────────────────────────────────────────────────────── */
-  --ink: #f5f2eb;        /* fondo papel (crema) */
-  --ink-2: #efeadf;      /* bandas / announce */
-  --surface: #fbf9f3;    /* cards */
-  --surface-2: #f1ece1;  /* elevado */
-  --border: #dad4c7;     /* arena */
-  --border-soft: #e7e2d6;
-  --muted: #9a9486;
-  --text-2: #6e6a60;     /* texto secundario */
-  --text: #16140f;       /* tinta (texto principal) */
+  /* ═════════════════════════════════════════════════════════════════════════
+     Sistema de diseño Tuvetia — blanco y menta.
+
+     Del mockup "Tuvetia App v2" del cliente, que vino con los tokens ya
+     escritos. Su regla: el BLANCO es el fondo y el centro; el menta se reserva
+     para ACCIÓN y estado activo — no se usa para decorar superficies.
+
+     Dos contextos, una capa de variables:
+       · Clínica (por defecto)  — superficie blanca, acento menta 500
+       · Consulta (`.consulta`) — superficie grafito, acento menta 300
+     `.consulta` y `.dark` reasignan las MISMAS variables; los componentes
+     heredan el contexto sin saber en cuál están.
+
+     Los NOMBRES de token no cambian respecto de la paleta brasa anterior, sólo
+     los valores: por eso todo lo que ya consume `bg-brand`, `border-line` o
+     `text-fg-muted` se repinta solo, sin tocar los componentes.
+     ═════════════════════════════════════════════════════════════════════════ */
+
+  /* ── Primitivos — nunca se reasignan ── */
+  --tv-white: #ffffff;
+  --tv-snow: #f5f8f7;
+  --tv-graphite: #0c1613;
+  --tv-mint-100: #e6f2ee;
+  --tv-mint-200: #c2e2d8;
+  --tv-mint-300: #7ed0ba;
+  --tv-mint-500: #12856a;
+  --tv-mint-600: #0f6e58;
+  --tv-mint-700: #0b5847;
+  --tv-mint-900: #07332a;
+  --tv-red-100: #fae9e7;
+  --tv-red-500: #c03a2e;
+  --tv-red-600: #a83226;
+  --tv-red-700: #93291f;
+  --tv-amber-100: #f8efdc;
+  --tv-amber-700: #8a5a0b;
+
+  /* ── Superficie y tinta ── */
+  --ink: var(--tv-white);       /* fondo de página */
+  --ink-2: var(--tv-snow);      /* bandas / announce */
+  --surface: var(--tv-white);   /* cards */
+  --surface-2: var(--tv-snow);  /* elevado */
+  --border: #e2e9e5;
+  --border-soft: #edf2f0;
+  /* `--border-strong` es para bordes de INPUT: un campo tiene que verse como un
+     campo sobre blanco puro, donde el borde suave desaparece. */
+  --border-strong: #7a8a82;
+  --muted: #8a9a93;
+  --text-2: #5c6d66;            /* texto secundario */
+  --text: var(--tv-graphite);   /* tinta */
   --white: #ffffff;
-  --accent: #e8643c;     /* brasa */
-  --accent-bright: #e8643c;
-  --sky: #3f6670;        /* info */
-  --emerald: #4f7a5b;    /* ok */
-  --violet: #8a6bbf;
-  --amber: #c8922e;      /* warn */
-  --red: #c0452e;        /* err */
+
+  /* ── Acción ── */
+  --accent: var(--tv-mint-500);
+  --accent-bright: var(--tv-mint-600);
+  --brand-deep: var(--tv-mint-700);
+  --on-brand: var(--tv-white);
+  /* Menta 500 sobre blanco da ~4.7:1 — pasa AA para texto normal, pero NO para
+     13px en peso 400, que es media app. El menta oscuro es el que va en TEXTO. */
+  --accent-text: var(--tv-mint-700);
+  --accent-soft: var(--tv-mint-100);
+
+  --sky: #3f6670;
+  --emerald: var(--tv-mint-500);
+  --violet: #6b6bbf;
+  --amber: var(--tv-amber-700);
+  --red: var(--tv-red-500);
   --maxw: 1320px;
   --pad: clamp(1.1rem, 4vw, 2.75rem);
-  --ease: cubic-bezier(0.16, 0.84, 0.3, 1);
-  --font-display: var(--font-bricolage), "Bricolage Grotesque", system-ui, sans-serif;
+  --ease: cubic-bezier(0.2, 0, 0, 1);
+  --font-display: var(--font-newsreader), "Newsreader", Georgia, serif;
 
-  /* Tokens semánticos extra para la app (modo claro) */
-  --on-brand: #16140f;
-  --brand-deep: #b5421f;
-  --danger: #c0452e;
-  --danger-soft: rgba(192, 69, 46, 0.1);
-  --ok: #4f7a5b;
-  --warn: #c8922e;
+  /* ── Estados ── */
+  --danger: var(--tv-red-500);
+  --danger-soft: rgba(192, 58, 46, 0.1);
+  --ok: var(--tv-mint-500);
+  --warn: var(--tv-amber-700);
   --info: #3f6670;
-  --type-consulta: #3f6670;
-  --type-control: #4f7a5b;
-  --type-vacunacion: #2e8b82;
-  --type-cirugia: #8a6bbf;
-  --type-urgencia: #c0452e;
-  --type-otro: #9a9486;
+  /* Estados de cita — el bloque de color en el calendario.
+     Reemplazan a los viejos `--type-*`, que no los usaba NADIE: los colores de
+     estado vivían crudos en `lib/appointments.ts` y los tokens quedaron
+     huérfanos. Estos son los seis estados que el código sí tiene.
+     Tienen que distinguirse entre sí a un vistazo, así que no pueden ser todos
+     menta; se los baja en saturación para que ninguno compita con el acento. */
+  --status-scheduled: #6b6bbf;
+  --status-confirmed: var(--tv-mint-500);
+  --status-in-progress: var(--tv-amber-700);
+  --status-completed: #2e7d8b;
+  --status-canceled: #8a9a93;
+  --status-no-show: var(--tv-red-500);
 
-  /* ── Tokens shadcn/ui — valores del cliente (papel crema / arena / tinta +
-     primario azul profundo #0f3557), adaptados de HSL-triplets al formato de
-     este repo (color completo en la variable). Los que chocaban con la marca
-     van prefijados --ui-*. ── */
-  --background: hsl(42 33% 94%); /* #f5f2eb papel crema */
-  --foreground: hsl(43 19% 7%); /* #16140f tinta */
-  --card: hsl(45 50% 97%); /* #fbf9f3 */
-  --card-foreground: hsl(43 19% 7%);
-  --popover: hsl(43 100% 99%); /* #fffdf8 */
-  --popover-foreground: hsl(43 19% 7%);
-  --primary: hsl(208 71% 20%); /* #0f3557 azul profundo */
-  --primary-foreground: hsl(210 57% 97%); /* #f4f8fc */
-  --secondary: hsl(41 31% 88%); /* #eae4d7 arena */
-  --secondary-foreground: hsl(44 10% 22%); /* #3d3a32 */
-  --ui-muted: hsl(41 33% 91%); /* #efeadf bandas suaves */
-  --ui-muted-foreground: hsl(42 8% 51%); /* #8b8577 */
-  --ui-accent: hsl(41 37% 90%); /* #efe9dc hover sutil */
-  --ui-accent-foreground: hsl(43 19% 7%);
-  --destructive: hsl(9 61% 47%); /* #c0452e */
-  --destructive-foreground: hsl(18 100% 97%); /* #fff6f2 */
-  --ui-border: hsl(41 21% 83%); /* #dcd6c9 arena */
-  --input: hsl(42 19% 79%); /* #d4cec0 */
-  --ring: hsl(208 71% 20%);
-  --chart-1: hsl(208 71% 20%); /* azul */
-  --chart-2: hsl(174 50% 36%); /* teal #2e8b82 */
-  --chart-3: hsl(39 63% 48%); /* warn #c8922e */
-  --chart-4: hsl(262 46% 58%); /* violeta #8a6bbf */
-  --chart-5: hsl(137 21% 39%); /* ok #4f7a5b */
-  --radius: 10px;
-  --sidebar: hsl(45 50% 97%);
-  --sidebar-foreground: hsl(44 10% 22%);
-  --sidebar-primary: hsl(208 71% 20%);
-  --sidebar-primary-foreground: hsl(210 57% 97%);
-  --sidebar-accent: hsl(41 37% 90%);
-  --sidebar-accent-foreground: hsl(43 19% 7%);
-  --sidebar-border: hsl(41 21% 83%);
-  --sidebar-ring: hsl(208 71% 20%);
-}
-
-/* ── Modo oscuro cálido de la app — se activa con la clase .dark en <html> ── */
-.dark {
-  --ink: #141210;
-  --ink-2: #100e0c;
-  --surface: #1c1a16;
-  --surface-2: #24211b;
-  --border: #322e27;
-  --border-soft: #262320;
-  --muted: #7d776b;
-  --text-2: #a9a293;
-  --text: #ede8dd;
-  --accent: #f0764e;
-  --accent-bright: #f0764e;
-  --brand-deep: #f0764e;
-  --on-brand: #16140f;
-  --danger: #d85a42;
-  --danger-soft: rgba(216, 90, 66, 0.16);
-  --ok: #5e9a6e;
-  --warn: #d9a646;
-  --info: #5b8a96;
-  --type-consulta: #5b8a96;
-  --type-control: #5e9a6e;
-  --type-vacunacion: #3fa89c;
-  --type-cirugia: #a488d0;
-  --type-urgencia: #d85a42;
-  --type-otro: #8a8478;
-
-  --background: hsl(30 11% 7%); /* #141210 */
-  --foreground: hsl(41 31% 90%); /* #ede8dd */
-  --card: hsl(40 12% 10%); /* #1c1a16 */
-  --card-foreground: hsl(41 31% 90%);
-  --popover: hsl(38 14% 11%); /* #211e19 */
-  --popover-foreground: hsl(41 31% 90%);
-  --primary: hsl(209 51% 65%); /* #7aa9d4 azul claro */
-  --primary-foreground: hsl(212 57% 11%); /* #0c1b2c */
-  --secondary: hsl(44 15% 15%); /* #2b2820 */
-  --secondary-foreground: hsl(42 20% 81%); /* #d8d2c4 */
-  --ui-muted: hsl(40 14% 12%); /* #24211b */
-  --ui-muted-foreground: hsl(40 7% 51%); /* #8a8478 */
-  --ui-accent: hsl(42 15% 13%); /* #26231c */
-  --ui-accent-foreground: hsl(41 31% 90%);
-  --destructive: hsl(10 66% 55%); /* #d85a42 */
-  --destructive-foreground: hsl(15 100% 97%); /* #fff3ef */
-  --ui-border: hsl(38 12% 17%); /* #322e27 */
-  --input: hsl(39 14% 20%); /* #3a352c */
-  --ring: hsl(209 51% 65%);
-  --chart-1: hsl(209 51% 65%);
-  --chart-2: hsl(172 47% 45%); /* teal #3fa89c */
-  --chart-3: hsl(40 65% 56%); /* warn #d9a646 */
-  --chart-4: hsl(263 43% 67%); /* violeta #a488d0 */
-  --chart-5: hsl(133 24% 49%); /* ok #5e9a6e */
-  --sidebar: hsl(40 12% 10%);
-  --sidebar-foreground: hsl(42 20% 81%);
-  --sidebar-primary: hsl(209 51% 65%);
-  --sidebar-primary-foreground: hsl(212 57% 11%);
-  --sidebar-accent: hsl(42 15% 13%);
-  --sidebar-accent-foreground: hsl(41 31% 90%);
-  --sidebar-border: hsl(38 12% 17%);
-  --sidebar-ring: hsl(209 51% 65%);
+  /* ── Tokens shadcn/ui. Los que chocaban con la marca van prefijados --ui-*. ── */
+  --background: hsl(0 0% 100%); /* #ffffff */
+  --foreground: hsl(164 30% 7%); /* #0c1613 grafito */
+  --card: hsl(0 0% 100%);
+  --card-foreground: hsl(164 30% 7%);
+  --popover: hsl(0 0% 100%);
+  --popover-foreground: hsl(164 30% 7%);
+  --primary: hsl(165 76% 30%); /* #12856a menta */
+  --primary-foreground: hsl(0 0% 100%);
+  --secondary: hsl(162 35% 93%); /* #e6f2ee menta 100 */
+  --secondary-foreground: hsl(165 78% 19%); /* #0b5847 */
+  --ui-muted: hsl(165 16% 97%); /* #f5f8f7 nieve */
+  --ui-muted-foreground: hsl(160 8% 40%); /* #5c6d66 */
+  --ui-accent: hsl(162 35% 93%); /* hover sutil en menta */
+  --ui-accent-foreground: hsl(165 78% 19%);
+  --destructive: hsl(5 62% 47%); /* #c03a2e */
+  --destructive-foreground: hsl(0 0% 100%);
+  --ui-border: hsl(156 14% 90%); /* #e2e9e5 */
+  --input: hsl(158 8% 51%); /* #7a8a82 borde fuerte de campo */
+  --ring: hsl(165 76% 30%);
+  --chart-1: hsl(165 76% 30%); /* menta */
+  --chart-2: hsl(190 50% 36%); /* teal */
+  --chart-3: hsl(39 85% 29%); /* ámbar */
+  --chart-4: hsl(240 39% 58%); /* violeta */
+  --chart-5: hsl(160 22% 45%); /* verde apagado */
+  /* El mockup separa las dos formas: 8px controles, 12px cards. Antes era un
+     solo valor escalado, por eso `--radius-xl` pasa de ×1.4 a ×1.5. */
+  --radius: 8px;
+  --sidebar: hsl(0 0% 100%);
+  --sidebar-foreground: hsl(160 8% 40%);
+  --sidebar-primary: hsl(165 76% 30%);
+  --sidebar-primary-foreground: hsl(0 0% 100%);
+  --sidebar-accent: hsl(162 35% 93%);
+  --sidebar-accent-foreground: hsl(165 78% 19%);
+  --sidebar-border: hsl(156 14% 90%);
+  --sidebar-ring: hsl(165 76% 30%);
 }
 
-/* ── Scoping .app-theme (del cliente): dentro de la app el primario de marca
-   pasa de brasa naranja a azul profundo. Se aplica en la raíz del layout
-   autenticado y en las pantallas de auth, para que la LANDING conserve su
-   acento brasa intacto. ── */
-/* `.app-theme-tokens` es el mismo cambio de acento SIN el grano de papel de abajo. Existe para las
-   superficies que se portalean a <body> y por eso salen del `.app-theme` del layout: ahí `--accent`
-   caía al `:root` y volvía a ser el brasa de la landing. Con `.app-theme` a secas heredarían
-   también el `::before`, que es `position: fixed` a viewport completo — un segundo velo de grano
-   dentro del panel. */
-.app-theme,
-.app-theme-tokens {
-  --accent: #0f3557;
-  --accent-bright: #164873;
-  --brand-deep: #164873;
-  --on-brand: #f4f8fc;
-}
-.dark .app-theme,
-.dark .app-theme-tokens {
-  --accent: #7aa9d4;
-  --accent-bright: #8db8de;
-  --brand-deep: #8db8de;
-  --on-brand: #0c1b2c;
+/* ═══════════════════════════════════════════════════════════════════════════
+   Superficie grafito — UN solo bloque de tokens, usado de DOS maneras:
+
+     `.dark`     en <html>, global, lo prende el ThemeToggle
+     `.consulta` local, envuelve la consulta abierta y el Tomanotas
+
+   Son el mismo cambio de contexto, así que comparten valores en vez de
+   duplicarlos: si divergieran, la consulta se vería distinta según el tema y
+   nadie lo notaría hasta que un vet con modo oscuro abriera una consulta.
+
+   El acento sube a menta 300: el menta 500 de la superficie clara no tiene
+   contraste suficiente sobre grafito.
+   ═══════════════════════════════════════════════════════════════════════════ */
+.dark,
+.consulta {
+  --ink: var(--tv-graphite);
+  --ink-2: #0a1210;
+  --surface: var(--tv-graphite);
+  --surface-2: #14211c;
+  --border: #223129;
+  --border-soft: #1a2620;
+  --border-strong: #5c7066;
+  --muted: #7b8d85;
+  --text-2: #9dafa7;
+  --text: var(--tv-snow);
+  --accent: var(--tv-mint-300);
+  --accent-bright: #99dcc9;
+  --brand-deep: #99dcc9;
+  --on-brand: var(--tv-graphite);
+  --accent-text: var(--tv-mint-300);
+  --accent-soft: rgba(126, 208, 186, 0.12);
+  --danger: #d6584c;
+  --danger-soft: rgba(214, 88, 76, 0.16);
+  --ok: var(--tv-mint-300);
+  --warn: #e5c078;
+  --info: #7fb0bd;
+  --status-scheduled: #a0a0e0;
+  --status-confirmed: var(--tv-mint-300);
+  --status-in-progress: #e5c078;
+  --status-completed: #4fbfb2;
+  --status-canceled: #7b8d85;
+  --status-no-show: #d6584c;
+
+  --background: hsl(164 30% 7%); /* #0c1613 */
+  --foreground: hsl(165 16% 97%); /* #f5f8f7 */
+  --card: hsl(164 24% 11%); /* #14211c */
+  --card-foreground: hsl(165 16% 97%);
+  --popover: hsl(164 24% 11%);
+  --popover-foreground: hsl(165 16% 97%);
+  --primary: hsl(164 49% 68%); /* #7ed0ba menta 300 */
+  --primary-foreground: hsl(164 30% 7%);
+  --secondary: hsl(160 19% 16%); /* #223129 */
+  --secondary-foreground: hsl(160 12% 78%);
+  --ui-muted: hsl(164 24% 11%);
+  --ui-muted-foreground: hsl(160 12% 65%); /* #9dafa7 */
+  --ui-accent: hsl(160 19% 16%);
+  --ui-accent-foreground: hsl(165 16% 97%);
+  --destructive: hsl(5 62% 57%); /* #d6584c */
+  --destructive-foreground: hsl(164 30% 7%);
+  --ui-border: hsl(160 19% 16%); /* #223129 */
+  --input: hsl(157 10% 40%); /* #5c7066 */
+  --ring: hsl(164 49% 68%);
+  --chart-1: hsl(164 49% 68%);
+  --chart-2: hsl(174 44% 53%);
+  --chart-3: hsl(39 66% 68%);
+  --chart-4: hsl(240 51% 75%);
+  --chart-5: hsl(160 25% 60%);
+  --sidebar: hsl(164 30% 7%);
+  --sidebar-foreground: hsl(160 12% 65%);
+  --sidebar-primary: hsl(164 49% 68%);
+  --sidebar-primary-foreground: hsl(164 30% 7%);
+  --sidebar-accent: hsl(160 19% 16%);
+  --sidebar-accent-foreground: hsl(165 16% 97%);
+  --sidebar-border: hsl(160 19% 16%);
+  --sidebar-ring: hsl(164 49% 68%);
 }
 
-/* Grano de papel sutil: debajo del contenido (z-0 vs z-[1]). */
-.app-theme::before {
-  content: '';
-  position: fixed;
-  inset: 0;
-  pointer-events: none;
-  z-index: 0;
-  opacity: 0.35;
-  mix-blend-mode: multiply;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 .04 0'/%3E%3C/filter%3E%3Crect width='160' height='160' filter='url(%23n)'/%3E%3C/svg%3E");
+/* `.dark` sólo reasigna variables — el <body> ya pinta con ellas. `.consulta`
+   es un contenedor cualquiera, así que tiene que pintarse a sí mismo. */
+.consulta {
+  color-scheme: dark;
+  background: var(--surface);
+  color: var(--text);
 }
-.dark .app-theme::before {
-  mix-blend-mode: screen;
-  opacity: 0.25;
-}
+
+/* `.app-theme` / `.app-theme-tokens` YA NO CAMBIAN EL COLOR, y se quedan igual.
+ *
+ * Existían para separar la app de la landing: la landing es brasa naranja, y dentro de la app el
+ * acento pasaba a azul profundo. Ahora el acento de la app es el menta y ya vive en `:root`, así
+ * que no hay nada que reasignar. Las clases se conservan —las aplican ~30 sitios, incluidos los
+ * paneles que se portalean a <body>— porque borrarlas sería un diff enorme sin ningún efecto.
+ *
+ * Y con ellas se fue EL GRANO DE PAPEL: un ruido SVG en `multiply` sobre todo el viewport. Sobre
+ * el crema era textura; sobre blanco puro es suciedad, y el sistema del mockup es explícitamente
+ * plano — "la única sombra permitida" es la de popovers.
+ */
 
 * {
   -webkit-tap-highlight-color: transparent;
 }
 
-/* Titulares en Bricolage Grotesque (display); el cuerpo queda en Inter Tight.
-   Scoped a .app-theme para NO pisar la landing de marketing, que trae su
-   propia tipografía (Archivo) y estiliza h1/h2 por herencia. */
+/* Titulares en Newsreader (serif); el cuerpo queda en Geist. Sigue scoped a
+   .app-theme para NO pisar la landing, que trae su propia tipografía (Archivo)
+   y estiliza h1/h2 por herencia.
+
+   El peso baja a 500 y el tracking se afloja a -0.01em: -0.015em y el bold
+   estaban calibrados para Bricolage, un grotesco. Un serif apretado y en
+   negrita se empasta. */
 .app-theme h1,
 .app-theme h2,
 .sec-title {
   font-family: var(--font-display);
-  letter-spacing: -0.015em;
+  font-weight: 500;
+  letter-spacing: -0.01em;
 }
 
+/* `--text` era legible sobre el brasa; sobre el menta 500 no. La selección usa
+   la tinta que le corresponde al acento. */
 ::selection {
   background: var(--accent);
-  color: var(--text);
+  color: var(--on-brand);
 }
 
 @layer base {
