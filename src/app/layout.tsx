@@ -1,8 +1,9 @@
 import type { Metadata } from "next";
 import {
-  Inter_Tight,
+  Geist,
+  Geist_Mono,
+  Newsreader,
   JetBrains_Mono,
-  Bricolage_Grotesque,
   Archivo,
   Instrument_Serif,
 } from "next/font/google";
@@ -13,32 +14,41 @@ import "./globals.css";
 import { getAppBaseUrl } from "@/lib/base-url";
 import { cn } from "@/lib/utils";
 
-const interTight = Inter_Tight({
+// ── Fuentes de la APP (sistema de diseño Tuvetia v2) ──
+// Geist para la UI operativa, Newsreader para títulos y estados vacíos, Geist
+// Mono para valores clínicos y códigos — nada más. Es la regla del mockup: el
+// serif es para el título, no para el cuerpo, y la mono es para lo que se lee
+// como dato (40.1 °C, $180.000), no para lo que se lee como texto.
+const geist = Geist({
   subsets: ["latin"],
-  weight: ["400", "500", "600", "700", "800"],
-  style: ["normal", "italic"],
-  variable: "--font-inter-tight",
+  variable: "--font-geist",
   display: "swap",
 });
 
-const jetbrains = JetBrains_Mono({
+const geistMono = Geist_Mono({
+  subsets: ["latin"],
+  variable: "--font-geist-mono",
+  display: "swap",
+});
+
+const newsreader = Newsreader({
   subsets: ["latin"],
   weight: ["400", "500", "600"],
-  variable: "--font-jetbrains",
-  display: "swap",
-});
-
-const bricolage = Bricolage_Grotesque({
-  subsets: ["latin"],
-  weight: ["400", "600", "700", "800"],
-  variable: "--font-bricolage",
+  style: ["normal", "italic"],
+  variable: "--font-newsreader",
   display: "swap",
 });
 
 // ── Fuentes de la landing de marketing (grupo (marketing)). Viven acá y no en
 // el layout del grupo porque landing.css las referencia en reglas de <body>
-// (var(--font-archivo) / --font-mono / --font-serif) y las variables deben
-// resolver a ese nivel.
+// (var(--font-archivo) / --font-mono-landing / --font-serif) y las variables
+// deben resolver a ese nivel.
+//
+// `--font-mono-landing` se llamaba `--font-mono` a secas. Se renombró porque la
+// app pasó a Geist Mono y ese nombre lo define también `@theme inline` para la
+// utilidad `font-mono`: mientras las dos resolvían a JetBrains la colisión era
+// invisible, con dos fuentes distintas el ganador lo decidía el orden de
+// inyección del CSS. La landing conserva JetBrains Mono, sin cambio visual.
 const archivo = Archivo({
   subsets: ["latin"],
   weight: ["400", "500", "600", "700", "800"],
@@ -49,7 +59,7 @@ const archivo = Archivo({
 const jetbrainsLanding = JetBrains_Mono({
   subsets: ["latin"],
   weight: ["400", "500"],
-  variable: "--font-mono",
+  variable: "--font-mono-landing",
   display: "swap",
 });
 
@@ -82,9 +92,9 @@ export default function RootLayout({
         "h-full",
         "antialiased",
         "font-sans",
-        interTight.variable,
-        jetbrains.variable,
-        bricolage.variable,
+        geist.variable,
+        geistMono.variable,
+        newsreader.variable,
         archivo.variable,
         jetbrainsLanding.variable,
         instrumentSerif.variable

@@ -92,7 +92,7 @@ export function AthosEmailSettings({
       <div className="flex flex-col gap-3">
         <div className="flex flex-wrap items-center gap-3">
           <span className="inline-flex items-center gap-1.5 text-sm text-fg-muted">
-            <CheckCircle2 className="size-4 text-green-600" aria-hidden />
+            <CheckCircle2 className="size-4 text-ok" aria-hidden />
             {proveedor ? `${NOMBRE_PROVEEDOR[proveedor]} conectado` : "Correo conectado"}
             {/* La dirección NO es decorativa: es desde dónde va a salir el correo, y verla es lo
                 que permite darse cuenta de que se conectó la cuenta equivocada. */}
@@ -113,9 +113,9 @@ export function AthosEmailSettings({
         {aviso && (
           <p
             role="alert"
-            className="flex items-start gap-2 rounded-lg border border-amber-500/40 bg-amber-500/10 p-3 text-sm text-fg"
+            className="flex items-start gap-2 rounded-lg border border-warn/40 bg-warn/10 p-3 text-sm text-fg"
           >
-            <TriangleAlert className="mt-0.5 size-4 shrink-0 text-amber-600" aria-hidden />
+            <TriangleAlert className="mt-0.5 size-4 shrink-0 text-warn" aria-hidden />
             <span>{aviso}</span>
           </p>
         )}

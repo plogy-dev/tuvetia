@@ -262,7 +262,19 @@ export default function NotaConsultaPage({ params }: { params: Promise<{ id: str
   const initial = (pet?.name ?? "?").charAt(0).toUpperCase()
 
   return (
-    <div className="mx-auto flex w-full max-w-7xl flex-col gap-4 px-4 py-4 md:gap-5 md:py-6 lg:px-6">
+    // `consulta` = superficie GRAFITO. Es el segundo contexto del sistema de diseño v2: el CRM va en
+    // blanco y la consulta abierta en oscuro. No es estética — es lo que separa el "cockpit" de la
+    // consulta del resto de la app, y de un vistazo dice si estás con un paciente delante o no.
+    //
+    // La clase sólo reasigna variables (`globals.css`), así que TODO lo de adentro —cards, badges,
+    // el hilo de Athos, los bloques del calendario— se repinta heredando. Ningún componente de acá
+    // sabe en qué contexto está, que es justamente el punto.
+    //
+    // El padding que antes tenía el contenedor centrado sube a este: `dashboard/layout.tsx` no pone
+    // ninguno alrededor de `{children}`, así que el grafito tiene que llegar solo hasta el borde del
+    // área de contenido. Si el padding se quedara adentro, quedaría un marco blanco alrededor.
+    <div className="consulta flex flex-1 flex-col px-4 py-4 md:py-6 lg:px-6">
+    <div className="mx-auto flex w-full max-w-7xl flex-col gap-4 md:gap-5">
       <Link
         href="/dashboard/consultas"
         className="inline-flex w-fit items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
@@ -610,6 +622,7 @@ export default function NotaConsultaPage({ params }: { params: Promise<{ id: str
         />
       )}
       </div>
+    </div>
     </div>
   )
 }

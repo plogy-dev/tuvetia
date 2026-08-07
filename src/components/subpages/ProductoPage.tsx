@@ -190,7 +190,7 @@ export default function ProductoPage() {
                         </div>
                         <div
                           style={{
-                            fontFamily: "var(--font-mono),monospace",
+                            fontFamily: "var(--font-mono-landing),monospace",
                             fontSize: 10,
                             lineHeight: 1.75,
                             color: "var(--a-soft)",

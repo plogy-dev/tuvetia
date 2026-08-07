@@ -87,7 +87,7 @@ export function OnboardingChecklist({
               className={`flex items-center gap-2 text-sm ${i.done ? "text-muted-foreground line-through" : "hover:underline"}`}
             >
               {i.done ? (
-                <CheckCircle2 className="size-4 text-green-600" />
+                <CheckCircle2 className="size-4 text-ok" />
               ) : (
                 <Circle className="size-4 text-muted-foreground" />
               )}

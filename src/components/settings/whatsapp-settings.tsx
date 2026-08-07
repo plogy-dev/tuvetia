@@ -301,7 +301,7 @@ export function WhatsappSettings({
       <div className="flex flex-col gap-3">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <span className="inline-flex items-center gap-1.5 text-sm">
-            <MessageCircle className="size-4 text-green-600" />
+            <MessageCircle className="size-4 text-ok" />
             Conectado{phone ? <span className="text-muted-foreground">· {phone}</span> : null}
           </span>
           <Button size="sm" variant="outline" onClick={refresh} disabled={busy}>
@@ -339,14 +339,14 @@ export function WhatsappSettings({
         llegan a Tuvetia.
       </p>
       {!evolutionEnabled && (
-        <p className="rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-900 dark:border-amber-900/50 dark:bg-amber-950/40 dark:text-amber-200">
+        <p className="rounded-lg border border-warn/30 bg-warn/10 px-3 py-2 text-xs text-warn">
           <b>Requisito:</b> el número debe usar la app <b>WhatsApp Business</b> (la aplicación gratuita
           de Meta). Si hoy usás WhatsApp personal, convertí el número desde la app WhatsApp Business —
           conservás chats y contactos.
         </p>
       )}
       {status === "disconnected" && (
-        <p className="rounded-lg border border-red-300 bg-red-50 px-3 py-2 text-xs text-red-900 dark:border-red-900/50 dark:bg-red-950/40 dark:text-red-200">
+        <p className="rounded-lg border border-danger/30 bg-danger/10 px-3 py-2 text-xs text-danger">
           El número se desvinculó y los mensajes nuevos <b>no están llegando a Tuvetia</b>. Reconecta
           escaneando el QR de nuevo.
         </p>

@@ -112,7 +112,7 @@ export function OnboardingTour({ onboarded }: { onboarded: boolean }) {
         {
           element: 'a[href="/dashboard/calendario"]',
           popover: {
-            title: "Calendario",
+            title: "Agenda",
             description:
               "Tu agenda de citas: crear, mover y editar. Se puede sincronizar con Google Calendar o compartir por un enlace.",
           },

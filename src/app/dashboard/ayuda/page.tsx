@@ -53,13 +53,13 @@ const SECTIONS = [
   },
   {
     icon: CalendarClock,
-    title: "Calendario",
+    title: "Agenda",
     body: "Tu agenda de citas: crear, mover y editar. Puedes sincronizarla con Google Calendar (opcional) o compartirla con un enlace de sólo lectura.",
     href: "/dashboard/calendario",
   },
   {
     icon: Receipt,
-    title: "Facturación",
+    title: "Ventas",
     body: "Factura electrónica DIAN, catálogo de servicios y productos, inventario por movimientos, compras y cartera. Se activa cuando quieras desde su propia configuración.",
     href: "/dashboard/facturacion",
   },

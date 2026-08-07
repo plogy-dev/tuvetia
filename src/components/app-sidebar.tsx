@@ -44,32 +44,36 @@ function BrandGlyph({ className }: { className?: string }) {
   )
 }
 
-// Una sola lista, en el orden del demo del cliente (`tuvetia.com/app/athos`).
+// La navegación partida en dos, como pidió el cliente para la v2: "en el consultorio tiene el athos
+// y el phantom, es decir todo lo necesario para la consulta y en el CRM tiene lo demás".
 //
-// Antes Athos y el Modo Fantasma vivían en un grupo aparte rotulado "Copiloto clínico", y el
-// comentario de acá decía que eso copiaba su sidebar. No era cierto: en su demo ese grupo no
-// existe — Athos es sencillamente el PRIMER ítem del menú, sin rótulo que lo separe del resto.
+// Antes era una sola lista plana de nueve ítems con Athos a la cabeza y sin rótulos. El corte
+// separa dos modos de trabajo distintos: lo que se usa CON UN PACIENTE DELANTE y lo que se usa
+// entre consultas.
 //
-// El Modo Fantasma baja con las demás secciones. Ya no encabeza, pero sigue siendo un ítem: es la
-// única vía directa a la lista de consultas desde cualquier pantalla, y —esto es lo que decide—
-// `onboarding-tour.tsx:97` engancha su tercer paso en `a[href="/dashboard/consultas"]`. Sacarlo del
-// sidebar habría roto el tour EN SILENCIO, sin que fallara ningún test.
+// El Modo Fantasma queda en Consultorio, que es su lugar natural, y sigue siendo un <a href> real:
+// `onboarding-tour.tsx` engancha su tercer paso en `a[href="/dashboard/consultas"]`, y sacarlo o
+// convertirlo en botón rompería el tour EN SILENCIO. Hay test que lo cubre.
 //
-// Lo que ellos no tienen y nosotros sí, y se queda: Dashboard, Titulares, Configuración, Ayuda y el
-// nombre real de la clínica en `NavClinic` (su demo corre con una sola clínica ficticia, por eso le
-// alcanza con el "Tuvetia BETA" de la cabecera).
+// SE RENOMBRAN DOS ETIQUETAS, NO LAS RUTAS. "Calendario" → "Agenda" y "Facturación" → "Ventas" son
+// los nombres del mockup. Las URLs siguen siendo `/dashboard/calendario` y `/dashboard/facturacion`:
+// cambiarlas rompería enlaces ya compartidos, los selectores del tour y los tests, a cambio de nada
+// que el vet pueda ver.
 //
-// Ojo al tocar el markup: los pasos del tour son selectores CSS sobre `a[href="/dashboard/..."]`,
-// así que estos ítems tienen que seguir renderizando un <a href> de verdad y visible.
+// "Modo Fantasma" NO se renombra a "Tomanotas" aunque el mockup lo llame así: es marca, la landing
+// lo vende con ese nombre desde hace semanas, y cambiarlo en la app sola dejaría dos nombres para
+// la misma cosa.
 const data = {
-  navMain: [
+  consultorio: [
     { title: "Athos", url: "/dashboard/asistente", icon: <BotIcon /> },
+    { title: "Modo Fantasma", url: "/dashboard/consultas", icon: <GhostIcon /> },
+  ],
+  crm: [
     { title: "Dashboard", url: "/dashboard", icon: <LayoutDashboardIcon /> },
     { title: "Pacientes", url: "/dashboard/patients", icon: <UsersIcon /> },
-    { title: "Modo Fantasma", url: "/dashboard/consultas", icon: <GhostIcon /> },
     { title: "Titulares", url: "/dashboard/owners", icon: <ContactIcon /> },
-    { title: "Calendario", url: "/dashboard/calendario", icon: <CalendarIcon /> },
-    { title: "Facturación", url: "/dashboard/facturacion", icon: <ReceiptIcon /> },
+    { title: "Agenda", url: "/dashboard/calendario", icon: <CalendarIcon /> },
+    { title: "Ventas", url: "/dashboard/facturacion", icon: <ReceiptIcon /> },
     { title: "Comunicaciones", url: "/dashboard/comunicaciones", icon: <MessageCircleIcon /> },
     { title: "Conexiones", url: "/dashboard/conexiones", icon: <PlugIcon /> },
   ],
@@ -116,11 +120,10 @@ export function AppSidebar({
       </SidebarHeader>
       <SidebarContent>
         <NavClinic name={clinic.name} logoUrl={clinic.logoUrl} />
-        {/* `NavMain` trae la lista de secciones Y los dos botones de acción, en ese orden — como en
-            el demo, donde "Iniciar consulta" va DEBAJO del menú, no encima. */}
-        <NavMain items={data.navMain} />
-        {/* Segundo nivel: sólo aparece dentro de Athos y del Modo Fantasma, y se paga solo ahí.
-            Va después de los botones, que es donde el cliente lo tiene. */}
+        {/* Cada grupo trae su rótulo, sus secciones y su acción: "Iniciar consulta" en Consultorio,
+            "Nuevo paciente" en CRM. */}
+        <NavMain consultorio={data.consultorio} crm={data.crm} />
+        {/* Segundo nivel: sólo aparece dentro de Athos y del Modo Fantasma, y se paga solo ahí. */}
         <AthosSidebarSection />
         <NavSecondary items={data.navSecondary} className="mt-auto" />
       </SidebarContent>

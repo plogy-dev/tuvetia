@@ -106,7 +106,7 @@ export function BulkEmailPanel({
         </Button>
       </div>
 
-      <div className="rounded-lg border border-amber-500/40 bg-amber-500/10 p-3 text-xs">
+      <div className="rounded-lg border border-warn/40 bg-warn/10 p-3 text-xs">
         <b>No lo uses para contenido comercial.</b> Eso exige base legal (Ley 1581), registro de
         consentimiento y enlace de baja — y nada de eso está construido todavía. Antes de la primera
         tanda, verificá SPF y DKIM del dominio: sin eso, los rebotes queman la reputación para{" "}
