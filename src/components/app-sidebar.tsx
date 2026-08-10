@@ -28,6 +28,7 @@ import {
   PlugIcon,
   ReceiptIcon,
   Settings2Icon,
+  SlidersHorizontalIcon,
   UsersIcon,
 } from "lucide-react"
 
@@ -83,14 +84,44 @@ const data = {
   ],
 }
 
+/**
+ * El acceso al riel de configuración desde cualquier pantalla.
+ *
+ * El riel completo vive en el dashboard, pero el vet pasa el día en la agenda o en una consulta: si
+ * la única señal de que la clínica está a medio configurar estuviera en una pantalla que no visita,
+ * "llenar la plataforma progresivamente" no pasa nunca. Esto es el recordatorio permanente, con el
+ * número a la vista.
+ *
+ * Se retira solo al 100%, igual que el riel.
+ */
+function ChipConfiguracion({ porcentaje }: { porcentaje: number }) {
+  if (porcentaje >= 100) return null
+  return (
+    <SidebarMenuButton
+      tooltip={`Configuración de la clínica: ${porcentaje}%`}
+      render={<a href="/dashboard" />}
+      className="text-fg-muted"
+    >
+      <SlidersHorizontalIcon />
+      <span>Configuración</span>
+      <span className="ml-auto font-mono text-[11px] tabular-nums text-brand-text group-data-[collapsible=icon]:hidden">
+        {porcentaje}%
+      </span>
+    </SidebarMenuButton>
+  )
+}
+
 export function AppSidebar({
   user,
   clinic,
+  progresoConfiguracion,
   className,
   ...props
 }: React.ComponentProps<typeof Sidebar> & {
   user: { name: string; email: string; avatar: string }
   clinic: { name: string; logoUrl: string | null }
+  /** 0–100. Lo calcula `dashboard/layout.tsx`; el sidebar sólo lo muestra. */
+  progresoConfiguracion: number
 }) {
   return (
     // `app-theme-tokens` es por la variante MÓVIL: ahí el sidebar se pinta dentro de un `SheetContent`
@@ -125,7 +156,14 @@ export function AppSidebar({
         <NavMain consultorio={data.consultorio} crm={data.crm} />
         {/* Segundo nivel: sólo aparece dentro de Athos y del Modo Fantasma, y se paga solo ahí. */}
         <AthosSidebarSection />
-        <NavSecondary items={data.navSecondary} className="mt-auto" />
+        <SidebarMenu className="mt-auto px-2">
+          <SidebarMenuItem>
+            <ChipConfiguracion porcentaje={progresoConfiguracion} />
+          </SidebarMenuItem>
+        </SidebarMenu>
+        {/* `mt-auto` se mudó al bloque de arriba: con los dos empujando, el de Configuración
+            quedaba pegado al menú y Ayuda al fondo, con un hueco entre medio. */}
+        <NavSecondary items={data.navSecondary} />
       </SidebarContent>
       <SidebarFooter>
         <NavUser user={user} />

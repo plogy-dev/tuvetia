@@ -6,6 +6,7 @@ import { SiteHeader } from "@/components/site-header"
 import { OnboardingTour } from "@/components/onboarding-tour"
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar"
 import { createClient } from "@/lib/supabase/server"
+import { progresoDeConfiguracion } from "@/lib/onboarding/consultar"
 import { AthosProvider } from "@/components/athos/athos-provider"
 import { AthosDock } from "@/components/athos/athos-dock"
 
@@ -80,7 +81,15 @@ export default async function DashboardLayout({
           es HERMANO de `{children}` y por eso abrirlo no re-renderiza ninguna pantalla.
           `clinic_id` y el nombre ya están resueltos arriba: el widget arranca sin una sola query. */}
       <AthosProvider clinicId={p?.clinic_id ?? null} clinicName={sidebarClinic.name}>
-        <AppSidebar variant="inset" user={sidebarUser} clinic={sidebarClinic} />
+        {/* `progresoDeConfiguracion()` está envuelto en `cache()` de React: el dashboard lo vuelve
+            a llamar para pintar el riel completo y comparten el mismo round-trip, en vez de correr
+            la tanda de conteos dos veces por carga. */}
+        <AppSidebar
+          variant="inset"
+          user={sidebarUser}
+          clinic={sidebarClinic}
+          progresoConfiguracion={(await progresoDeConfiguracion()).porcentaje}
+        />
         <OnboardingTour onboarded={Boolean((profile as { onboarded_at?: string | null } | null)?.onboarded_at)} />
         <SidebarInset>
           <SiteHeader />
