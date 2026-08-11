@@ -46,19 +46,20 @@ export function GrabacionPastilla() {
             : "La grabación falló"
       }
       className={`pointer-events-auto flex items-center gap-2 rounded-full border py-1.5 pl-3 pr-1.5 shadow-lg ${
-        fallo ? "border-destructive/40 bg-destructive/10" : "border-line-soft bg-card"
+        fallo ? "border-destructive/40 bg-destructive/10" : "border-brand bg-card"
       }`}
     >
       {enCurso && (
-        // EXCEPCIÓN DELIBERADA AL SISTEMA DE DISEÑO, y la única que queda en la app.
+        // MENTA, NO ROJO. Lo tenía en `bg-red-500` con el argumento de que el rojo de grabación es
+        // una convención de hardware y que `bg-danger` colisionaría con el estado de FALLO de esta
+        // misma pastilla. El mockup del cliente resuelve el conflicto mejor: usa el MENTA, que en
+        // este sistema es el color de "activo", y deja el rojo libre para lo que salió mal.
         //
-        // El punto rojo de "grabando" es una convención de hardware, no un estado semántico. No
-        // puede ser `bg-danger`: ese token ya pinta el estado de FALLO tres líneas más abajo, en
-        // esta misma pastilla, y usarlo para las dos cosas haría que "grabando bien" y "la
-        // grabación falló" se vieran del mismo color. Rojo fijo en los dos contextos es lo correcto.
+        // Con eso desaparece la última clase de paleta cruda de la app, y la pastilla deja de
+        // parecer una alerta cuando está haciendo exactamente lo que se le pidió.
         <span
           aria-hidden
-          className="size-2 shrink-0 rounded-full bg-red-500 motion-safe:animate-pulse"
+          className="size-2 shrink-0 rounded-full bg-brand motion-safe:animate-pulse"
         />
       )}
       {cerrando && <Loader2 aria-hidden className="size-3.5 shrink-0 animate-spin text-fg-faint" />}

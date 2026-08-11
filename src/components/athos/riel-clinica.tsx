@@ -9,6 +9,7 @@ import Link from "next/link"
 //
 // Server component: los datos los pasa la página, ya resueltos.
 
+import { Button } from "@/components/ui/button"
 import { formatCOP } from "@/lib/facturacion/format"
 
 export type CitaDelRiel = {
@@ -125,13 +126,24 @@ export function RielClinica({
             {pendientes.map((p) => (
               <li key={p.id} className="flex items-baseline gap-2.5 text-sm">
                 <span className="min-w-0 flex-1 truncate">{p.etiqueta}</span>
-                <span className="flex shrink-0 items-center gap-1.5 text-[11px] font-medium text-danger">
+                <span className="flex shrink-0 items-center gap-1.5 rounded bg-danger/10 px-1.5 py-0.5 text-[11px] font-medium text-danger">
                   <span aria-hidden className="size-1.5 rounded-full bg-danger" />
                   {p.detalle}
                 </span>
               </li>
             ))}
           </ul>
+          {/* El botón que cierra el circuito: ver el problema y resolverlo sin cambiar de pantalla.
+              Es lo que el mockup pone al pie del riel, y es la diferencia entre un tablero que
+              informa y uno desde el que se trabaja. */}
+          <Button
+            variant="outline"
+            size="sm"
+            className="mt-1 w-full"
+            render={<Link href="/dashboard/asistente?pedir=cobros" />}
+          >
+            Resolverlo con Athos
+          </Button>
         </section>
       )}
     </aside>

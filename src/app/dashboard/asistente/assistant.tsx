@@ -104,21 +104,25 @@ function TextBlocks({ text, kp }: { text: string; kp: string }) {
   const limpio = sinMarcas(text)
   if (!limpio) return null
   return (
-    <div className="rounded-2xl rounded-tl-sm border bg-muted/50 px-4 py-1 text-sm leading-relaxed">
+    // La burbuja del mockup: `surface-raised` con borde, radio de card y la esquina superior
+    // izquierda pequeña — la muesca que la ancla al avatar.
+    //
+    // SIN RAYAS ENTRE PÁRRAFOS. Antes cada bloque llevaba `border-b`, así que una respuesta en prosa
+    // se leía como una planilla: tres líneas horizontales entre tres oraciones. Los párrafos se
+    // separan con espacio, que es como se separan los párrafos. Las viñetas conservan su punto.
+    <div className="flex flex-col gap-3 rounded-xl rounded-tl-sm border border-line bg-surface-2 px-4 py-3.5 text-sm leading-relaxed">
       {splitBlocks(limpio).map((blk, j) =>
         blk.heading ? (
-          <div key={j} className="pt-3 pb-1 text-[13px] font-semibold tracking-tight">
+          <div key={j} className="text-[13px] font-semibold tracking-tight">
             {renderInline(blk.text, [], `${kp}h${j}`)}
           </div>
         ) : blk.bullet ? (
-          <div key={j} className="flex gap-2 border-b border-border/60 py-2 last:border-b-0 last:pb-0">
-            <span className="mt-[7px] size-1.5 shrink-0 rounded-full bg-muted-foreground" />
+          <div key={j} className="flex gap-2">
+            <span className="mt-[7px] size-1.5 shrink-0 rounded-full bg-brand" />
             <div className="min-w-0 flex-1">{renderInline(blk.text, [], `${kp}b${j}`)}</div>
           </div>
         ) : (
-          <div key={j} className="border-b border-border/60 py-2.5 last:border-b-0 last:pb-0">
-            {renderInline(blk.text, [], `${kp}p${j}`)}
-          </div>
+          <div key={j}>{renderInline(blk.text, [], `${kp}p${j}`)}</div>
         ),
       )}
     </div>
@@ -199,11 +203,17 @@ function ToolPartView({ part }: { part: ToolUIPart }) {
 
 function AssistantMessage({ message, streaming }: { message: UIMessage; streaming: boolean }) {
   return (
-    <div className="flex gap-2.5">
-      <div className="mt-0.5 flex size-7 shrink-0 items-center justify-center rounded-lg bg-primary text-primary-foreground">
-        <Bot className="size-4" />
+    <div className="flex gap-3">
+      {/* Avatar del mockup: CÍRCULO en menta suave con la inicial, no un cuadrado menta relleno con
+          un icono de robot. El menta relleno es el color de ACCIÓN en este sistema —lo usan los
+          botones primarios— y gastarlo en un avatar que aparece en cada turno lo devalúa. */}
+      <div className="mt-0.5 grid size-8 shrink-0 place-items-center rounded-full bg-brand-soft text-[13px] font-semibold text-brand-text">
+        A
       </div>
-      <div className="flex max-w-[92%] flex-1 flex-col gap-1.5">
+      <div className="flex min-w-0 max-w-[70ch] flex-1 flex-col gap-1.5">
+        {/* La línea de autoría que el mockup pone SOBRE la burbuja. Sin ella, con dos o tres turnos
+            seguidos el hilo se vuelve un muro sin puntos de referencia. */}
+        <span className="text-xs font-medium text-fg-muted">Athos</span>
         {message.parts.map((part, i) => {
           if (part.type === "text") {
             return part.text ? <TextBlocks key={i} text={part.text} kp={`t${i}-`} /> : null
@@ -233,6 +243,7 @@ export function Assistant({
   saludo,
   contexto,
   riel,
+  textoInicial,
 }: {
   clinicId: string
   patients: AssistantPatient[]
@@ -247,11 +258,13 @@ export function Assistant({
   /** El riel de configuración de la clínica. Se recibe ya renderizado desde el server component
    *  porque calcula el progreso con datos, y este componente es de cliente. */
   riel?: React.ReactNode
+  /** Petición ya redactada que otra pantalla dejó lista (`?pedir=`). Se escribe, no se envía. */
+  textoInicial?: string
 }) {
   const [patientId, setPatientId] = useState<string>(
     initialPatientId ?? patients[0]?.id ?? GENERAL,
   )
-  const [input, setInput] = useState<string>("")
+  const [input, setInput] = useState<string>(textoInicial ?? "")
   const threadRef = useRef<HTMLDivElement>(null)
 
   // useChat contra el agente. Cambiar de paciente cambia el `id` → el hook crea un Chat nuevo, y
@@ -441,15 +454,22 @@ export function Assistant({
       {/* Compositor. Franja separada por una línea, como en el mockup: la conversación termina y
           acá empieza la entrada. Antes era una card con sombra flotando sobre otra card. */}
       <div className="-mx-4 mt-auto border-t border-line px-4 pt-4 md:-mx-6 md:px-6">
+        {/* La etiqueta va ARRIBA y visible, como en el mockup, no escondida en el placeholder: un
+            placeholder desaparece al escribir la primera letra y con él la única pista de qué es
+            ese campo. */}
+        <label htmlFor="pedir-a-athos" className="mb-1.5 block text-[13px] font-medium">
+          Pedirle algo a Athos
+        </label>
         <div className="flex items-end gap-2">
           <Textarea
+            id="pedir-a-athos"
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={(e) => {
               if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) send()
             }}
             rows={1}
-            placeholder="Pedile algo a Athos — agenda el control de Luna la próxima semana"
+            placeholder="Agenda el control de Luna la próxima semana"
             className="max-h-40 min-h-11 flex-1 resize-none"
           />
           <Button onClick={send} disabled={busy} variant="outline" className="h-11 shrink-0">

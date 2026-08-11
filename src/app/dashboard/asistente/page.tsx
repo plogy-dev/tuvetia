@@ -23,6 +23,17 @@ export const metadata = { title: "Athos · Tuvetia" }
 /** Cuántas citas del día caben en el riel sin volverlo una segunda agenda. */
 const CITAS_EN_EL_RIEL = 6
 
+/**
+ * Las peticiones que otras pantallas pueden dejar escritas con `?pedir=`.
+ *
+ * Es un diccionario cerrado a propósito: si el texto viniera de la URL, cualquiera podría armar un
+ * enlace que le deje al veterinario una orden redactada por un tercero esperando en el compositor.
+ * Una clave desconocida simplemente no escribe nada.
+ */
+const PETICIONES: Record<string, string> = {
+  cobros: "Ponete al día con los cobros vencidos: decime a quién le escribirías y qué le dirías.",
+}
+
 function saludo(hora: number): string {
   if (hora < 12) return "Buenos días"
   if (hora < 19) return "Buenas tardes"
@@ -33,9 +44,10 @@ export default async function AsistentePage({
   searchParams,
 }: {
   // `?patient=` lo pone el historial del sidebar al abrir un chat ya existente.
-  searchParams: Promise<{ patient?: string }>
+  // `?pedir=` lo pone "Resolverlo con Athos" del riel: deja la petición escrita y lista para enviar.
+  searchParams: Promise<{ patient?: string; pedir?: string }>
 }) {
-  const { patient: patientParam } = await searchParams
+  const { patient: patientParam, pedir } = await searchParams
   const supabase = await createClient()
   const {
     data: { user },
@@ -182,6 +194,10 @@ export default async function AsistentePage({
         initialPatientId={initialPatientId}
         saludo={`${saludo(horaBogota)}${primerNombre ? `, ${primerNombre}` : ""}`}
         contexto={resumenDelDia({ citas: citas.length, consultasHoy, pendientes })}
+        // Se DEJA ESCRITO, no se envía. Un botón que dispara una petición al agente sin que el vet
+        // vea qué se pidió es una caja negra; dejarlo en el compositor le da la última palabra —
+        // que es la misma regla que gobierna todo lo demás acá.
+        textoInicial={pedir ? PETICIONES[pedir] : undefined}
         // El riel de configuración se mudó acá desde el tablero: ésta pasó a ser la pantalla de
         // inicio, y un recordatorio de "te falta configurar la clínica" en una pantalla que ya nadie
         // abre primero no recuerda nada. Va en la COLUMNA y no en el `aside` porque el aside es
