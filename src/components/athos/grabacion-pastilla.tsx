@@ -50,6 +50,12 @@ export function GrabacionPastilla() {
       }`}
     >
       {enCurso && (
+        // EXCEPCIÓN DELIBERADA AL SISTEMA DE DISEÑO, y la única que queda en la app.
+        //
+        // El punto rojo de "grabando" es una convención de hardware, no un estado semántico. No
+        // puede ser `bg-danger`: ese token ya pinta el estado de FALLO tres líneas más abajo, en
+        // esta misma pastilla, y usarlo para las dos cosas haría que "grabando bien" y "la
+        // grabación falló" se vieran del mismo color. Rojo fijo en los dos contextos es lo correcto.
         <span
           aria-hidden
           className="size-2 shrink-0 rounded-full bg-red-500 motion-safe:animate-pulse"

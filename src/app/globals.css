@@ -149,8 +149,9 @@
   --accent-bright: var(--tv-mint-600);
   --brand-deep: var(--tv-mint-700);
   --on-brand: var(--tv-white);
-  /* Menta 500 sobre blanco da ~4.7:1 — pasa AA para texto normal, pero NO para
-     13px en peso 400, que es media app. El menta oscuro es el que va en TEXTO. */
+  /* Menta 500 sobre blanco da 4.58:1 — pasa AA (4.5:1) por cinco centésimas, sin
+     margen para nada. Menta 700 da 8.4:1 y pasa AAA. Por eso el 500 pinta RELLENOS
+     (botones, barras) y el 700 es el que va en TEXTO. */
   --accent-text: var(--tv-mint-700);
   --accent-soft: var(--tv-mint-100);
 
@@ -201,7 +202,10 @@
   --destructive: hsl(5 62% 47%); /* #c03a2e */
   --destructive-foreground: hsl(0 0% 100%);
   --ui-border: hsl(156 14% 90%); /* #e2e9e5 */
-  --input: hsl(158 8% 51%); /* #7a8a82 borde fuerte de campo */
+  /* Apunta al token, no a una copia. Estaba escrito como `hsl(158 8% 51%)`, que NO
+     es exactamente `#7a8a82` (≈`hsl(150 6% 51%)`): dos valores para un mismo color,
+     que es como empieza toda deriva. */
+  --input: var(--border-strong);
   --ring: hsl(165 76% 30%);
   --chart-1: hsl(165 76% 30%); /* menta */
   --chart-2: hsl(190 50% 36%); /* teal */
@@ -281,7 +285,7 @@
   --destructive: hsl(5 62% 57%); /* #d6584c */
   --destructive-foreground: hsl(164 30% 7%);
   --ui-border: hsl(160 19% 16%); /* #223129 */
-  --input: hsl(157 10% 40%); /* #5c7066 */
+  --input: var(--border-strong);
   --ring: hsl(164 49% 68%);
   --chart-1: hsl(164 49% 68%);
   --chart-2: hsl(174 44% 53%);
@@ -305,6 +309,16 @@
   background: var(--surface);
   color: var(--text);
 }
+
+/* OJO AL AGREGAR UN DIÁLOGO, POPOVER O DRAWER DENTRO DE LA CONSULTA.
+ *
+ * `.consulta` es un contenedor, no el <html>: lo que se portalea a <body> SALE de él y vuelve a
+ * heredar el `:root` claro — un panel blanco saltando sobre una pantalla grafito. Es el mismo
+ * problema que `.app-theme-tokens` resuelve para el sidebar móvil, y la solución es la misma:
+ * ponerle `consulta` también al contenido portaleado.
+ *
+ * Hoy no lo sufre nadie porque la consulta no monta ninguno (verificado). Queda dicho acá porque
+ * el día que se agregue uno, el síntoma no va a parecerse a su causa. */
 
 /* `.app-theme` / `.app-theme-tokens` YA NO CAMBIAN EL COLOR, y se quedan igual.
  *
