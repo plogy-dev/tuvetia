@@ -1,14 +1,21 @@
 "use client"
 
 // Equipo de la clínica (Settings): miembros, invitaciones pendientes y "Invitar colega".
-// Crear invitación = RPC create_invitation (solo admins, valida en BD) -> link para compartir
-// (WhatsApp/como sea) + intento de email automático best-effort (/api/team/invite-email).
+// Crear invitación = RPC create_invitation (solo admins, valida en BD) -> link, con dos caminos
+// para hacérselo llegar al colega, los dos a un clic y los dos explícitos: COPIAR el link (para
+// mandarlo por WhatsApp o donde sea) o ENVIAR la invitación al correo con el que se creó, que sale
+// por Resend (/api/team/invite-email).
+//
+// El envío es un botón y no algo automático a propósito: antes salía solo, en segundo plano, y el
+// admin no sabía si había llegado ni podía reintentar. Ahora el resultado se dice —y si falla, el
+// link sigue ahí, que es el camino garantizado.
+//
 // Quitar miembro = RPC remove_clinic_member (solo admins, valida en BD: no a uno mismo, no al
 // único admin restante).
 
 import { useState } from "react"
 import { useRouter } from "next/navigation"
-import { Copy, Loader2, Mail, Trash2, UserPlus, UserX } from "lucide-react"
+import { Copy, Loader2, Mail, Send, Trash2, UserPlus, UserX } from "lucide-react"
 import { toast } from "sonner"
 
 import { createClient } from "@/lib/supabase/client"
@@ -55,14 +62,19 @@ export function TeamSettings({
   const [role, setRole] = useState<"vet" | "admin">("vet")
   const [creating, setCreating] = useState(false)
   const [removingId, setRemovingId] = useState<string | null>(null)
-  const [inviteLink, setInviteLink] = useState<string | null>(null)
+  // La invitación recién creada: el link para copiar y el token+email para poder enviarla.
+  const [invite, setInvite] = useState<{ token: string; email: string; link: string } | null>(null)
+  const [sending, setSending] = useState(false)
+  const [sent, setSent] = useState(false)
 
-  async function invite(e: React.FormEvent) {
+  async function createInvite(e: React.FormEvent) {
     e.preventDefault()
     setCreating(true)
-    setInviteLink(null)
+    setInvite(null)
+    setSent(false)
+    const destino = email.trim()
     const { data: token, error } = await supabase.rpc("create_invitation", {
-      p_email: email.trim(),
+      p_email: destino,
       p_role: role,
     })
     setCreating(false)
@@ -70,25 +82,38 @@ export function TeamSettings({
       toast.error(`No se pudo crear la invitación: ${error?.message ?? "desconocido"}`)
       return
     }
-    const link = `${window.location.origin}/invitar/${token}`
-    setInviteLink(link)
-    toast.success("Invitación creada — compartí el link")
+    setInvite({ token, email: destino, link: `${window.location.origin}/invitar/${token}` })
+    toast.success("Invitación creada — enviala por correo o copiá el link")
     router.refresh()
-    // Email automático best-effort: si falla, el link sigue siendo el camino.
-    void fetch("/api/team/invite-email", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ token }),
-    }).then(async (r) => {
-      const j = (await r.json().catch(() => ({}))) as { sent?: boolean }
-      if (j.sent) toast.success("También le enviamos la invitación por email")
-    })
   }
 
   async function copyLink() {
-    if (!inviteLink) return
-    await navigator.clipboard.writeText(inviteLink)
+    if (!invite) return
+    await navigator.clipboard.writeText(invite.link)
     toast.success("Link copiado")
+  }
+
+  async function sendInvite() {
+    if (!invite) return
+    setSending(true)
+    const res = await fetch("/api/team/invite-email", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ token: invite.token }),
+    }).catch(() => null)
+    const body = (await res?.json().catch(() => ({}))) as { sent?: boolean; reason?: string }
+    setSending(false)
+    if (body.sent) {
+      setSent(true)
+      toast.success(`Invitación enviada a ${invite.email}`)
+      return
+    }
+    // El correo no salió, pero la invitación existe: el link de al lado sigue sirviendo.
+    toast.error(
+      body.reason
+        ? `No se pudo enviar el correo: ${body.reason}`
+        : "No se pudo enviar el correo. Copiá el link y mandáselo por otro medio.",
+    )
   }
 
   async function revoke(id: string) {
@@ -189,7 +214,7 @@ export function TeamSettings({
           )}
 
           {/* Invitar colega */}
-          <form onSubmit={invite} className="flex flex-col gap-3 border-t pt-3">
+          <form onSubmit={createInvite} className="flex flex-col gap-3 border-t pt-3">
             <div className="flex items-center gap-2 text-sm font-medium">
               <UserPlus className="size-4 text-muted-foreground" /> Invitar colega
             </div>
@@ -220,23 +245,45 @@ export function TeamSettings({
                 </Select>
               </Field>
             </div>
-            <div className="flex flex-wrap items-center gap-2">
+            <div>
               <Button type="submit" disabled={creating}>
                 {creating ? <Loader2 className="size-4 animate-spin" /> : <Mail className="size-4" />}
                 Crear invitación
               </Button>
-              {inviteLink && (
-                <>
-                  <Input readOnly value={inviteLink} className="max-w-xs font-mono text-xs" onFocus={(e) => e.currentTarget.select()} />
+            </div>
+
+            {invite && (
+              <div className="flex flex-col gap-2 rounded-lg border bg-muted/40 p-3">
+                <div className="text-xs text-muted-foreground">
+                  Invitación para <b className="text-foreground">{invite.email}</b>
+                  {sent && " · enviada"}
+                </div>
+                <Input
+                  readOnly
+                  value={invite.link}
+                  className="font-mono text-xs"
+                  aria-label="Link de invitación"
+                  onFocus={(e) => e.currentTarget.select()}
+                />
+                <div className="flex flex-wrap gap-2">
+                  <Button type="button" onClick={sendInvite} disabled={sending}>
+                    {sending ? (
+                      <Loader2 className="size-4 animate-spin" />
+                    ) : (
+                      <Send className="size-4" />
+                    )}
+                    {sent ? "Reenviar invitación" : "Enviar invitación"}
+                  </Button>
                   <Button type="button" variant="outline" onClick={copyLink}>
                     <Copy className="size-4" /> Copiar link
                   </Button>
-                </>
-              )}
-            </div>
+                </div>
+              </div>
+            )}
+
             <p className="text-xs text-muted-foreground">
-              El link vence en 7 días. Compartilo por WhatsApp o email; al aceptarlo, tu colega entra
-              a esta clínica con acceso a sus datos.
+              El link vence en 7 días. Enviáselo por correo desde acá o copialo para mandarlo por
+              WhatsApp; al aceptarlo, tu colega entra a esta clínica con acceso a sus datos.
             </p>
           </form>
         </>

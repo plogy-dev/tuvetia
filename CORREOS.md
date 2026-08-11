@@ -5,7 +5,7 @@ decisión de arquitectura, no un detalle de implementación.
 
 | | Sale de | Lo usa | Transporte |
 |---|---|---|---|
-| **Transaccional** | `vet@tuvetia.com`, firmado con el nombre de la clínica | Facturas, cobranza, y las notificaciones de `/admin` a los veterinarios | **Resend** |
+| **Transaccional** | `vet@tuvetia.com`, firmado con el nombre de la clínica | Facturas, cobranza, invitaciones de equipo, y las notificaciones de `/admin` a los veterinarios | **Resend** |
 | **De Athos** | La cuenta Google que conectó **cada miembro** | Athos leyendo y escribiendo correo, y la bandeja de Comunicaciones | **Composio** (OAuth) |
 
 **La regla en una línea:** si el correo lo manda *el sistema*, va por Resend; si lo manda *una
@@ -207,14 +207,32 @@ en presente, con conclusiones opuestas— daban por perdida la lectura automáti
 está: vive en `cartera/respuestas-correo.ts` y lee el buzón del administrador por Composio. Lo único
 que se perdió es la **descarga de adjuntos**, explicada arriba.
 
-## El tercer camino, que no es de nadie
+## El tercer camino, que ya casi no es de nadie
 
-Hay correos que no salen ni por Resend ni por Composio: los de **Supabase Auth** — invitaciones de
-equipo (`api/team/invite-email`), magic links y OTP de login y signup. Los manda el SMTP configurado
-en Supabase, con sus propias plantillas, y no pasan por ninguna de las dos capas de este documento.
+Hay correos que no salen ni por Resend ni por Composio: los de **Supabase Auth** — magic links y OTP
+de login y signup. Los manda el SMTP configurado en Supabase, con sus propias plantillas, y no pasan
+por ninguna de las dos capas de este documento.
 
-No es un error, pero conviene saberlo: si un vet dice que no le llegó la invitación, el problema no
-está en nada de lo que se describe acá.
+No es un error, pero conviene saberlo: si alguien dice que no le llegó el código para entrar, el
+problema no está en nada de lo que se describe acá.
+
+**Las invitaciones de equipo ya no viven ahí.** Salían por `auth.admin.inviteUserByEmail`, o sea por
+este mismo SMTP, y era el peor lugar para ellas: el correo con el que se le da acceso a la clínica a
+una persona nueva iba por un transporte que no compartía dominio, reputación ni plantilla con el
+resto, y cuando no llegaba no había dónde mirar. Hoy `api/team/invite-email` es un transaccional más
+—`sendTransactionalEmail`, con el nombre de la clínica y Reply-To a sus administradores— y quien la
+recibe puede responderle a quien lo invitó.
+
+Con la mudanza se fue también el aparato que exigía el magic link: el enlace era un `?code=` de PKCE
+que había que canjear en `/auth/callback` antes de redirigir, y equivocarse ahí fue exactamente el
+bug de *"el enlace no hace nada"*. Ahora es el enlace pelado a `/invitar/<token>`, que es una página
+pública: si el invitado no tiene cuenta, ahí mismo se le ofrece crearla con el correo invitado y
+vuelve a aceptar. Un clic más para él, ninguna criptografía de sesión en el medio.
+
+**Y el envío es un botón, no un automatismo.** Al crear la invitación el admin ve dos: *Enviar
+invitación* (a ese correo) y *Copiar link* (para WhatsApp o lo que sea). Antes salía sola, en
+segundo plano, y si fallaba nadie se enteraba — ni el admin, que no tenía cómo reintentar. El link
+sigue siendo el camino garantizado: si el correo no sale, se dice por qué y el link ya está ahí.
 
 ## Configuración
 
@@ -261,6 +279,9 @@ todas. Antes de cualquier tanda grande conviene tener manejo de rebotes y enlace
 
 - `npx vitest run src/lib/cartera/__tests__/channels-email.test.ts` — el canal de cobranza: que no
   pierda un recordatorio y que propague `transient`.
+- `npx vitest run src/app/api/team/__tests__/invite-email.test.ts` — la invitación de equipo: que
+  vaya al correo invitado, con el enlace del dominio estable, y que un fallo se explique en vez de
+  perderse.
 - Manual: emitir una factura y enviarla por correo → confirmar que llega **desde
   `vet@tuvetia.com`**, que el remitente muestra el **nombre de la clínica**, y que al responder el
   destinatario es el **admin**.

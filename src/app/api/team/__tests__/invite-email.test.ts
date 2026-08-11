@@ -1,16 +1,21 @@
-// El armado del enlace de invitación que va en el correo.
+// La invitación de equipo por correo: qué sale, a quién, y qué pasa cuando no sale.
 //
-// Acá vivían dos de los cuatro bugs que el cliente reportó como "el enlace no hace nada":
+// Este envío iba por el SMTP de Supabase Auth (`inviteUserByEmail`) y ahí vivían dos de los cuatro
+// bugs que el cliente reportó como "el enlace no hace nada":
 //   1) `redirectTo` apuntaba a /invitar/<token>, que NO canjea el `?code=` de PKCE -> el invitado
-//      aterrizaba sin sesión. Tiene que apuntar a /auth/callback.
+//      aterrizaba sin sesión.
 //   2) el origen salía de `new URL(req.url).origin`, que en un deployment de preview es un dominio
 //      efímero fuera de la allow-list de Supabase -> el enlace moría antes de llegar.
+//
+// Ahora sale por Resend (ver CORREOS.md) con el enlace directo a /invitar/<token>, que es una página
+// pública y sabe recibir a alguien sin sesión. El (1) deja de existir por construcción; el (2) sigue
+// siendo posible —el origen se puede volver a leer de la request sin querer— así que se fija acá.
 import { beforeEach, describe, expect, it, vi } from "vitest"
 
-const inviteUserByEmail = vi.fn()
 const getUser = vi.fn()
 const perfil = vi.fn()
 const invitacion = vi.fn()
+const sendTransactionalEmail = vi.fn()
 
 vi.mock("@/lib/supabase/server", () => ({
   createClient: async () => ({
@@ -20,54 +25,79 @@ vi.mock("@/lib/supabase/server", () => ({
 }))
 vi.mock("@/lib/supabase/admin", () => ({
   createAdminClient: () => ({
-    auth: { admin: { inviteUserByEmail } },
     from: () => ({
       select: () => ({ eq: () => ({ is: () => ({ maybeSingle: invitacion }) }) }),
     }),
   }),
 }))
 vi.mock("@/lib/base-url", () => ({ getAppBaseUrl: () => "https://app.tuvetia.com" }))
+vi.mock("@/lib/email/transactional", () => ({
+  loadClinicSender: async () => ({ displayName: "Clínica Norte", replyTo: ["admin@clinica.com"] }),
+  // Envuelto en una arrow a propósito: la factory de vi.mock se hoistea, y nombrar el spy directo
+  // acá lo lee antes de que exista (TDZ). Dentro de la arrow se resuelve recién al llamarlo.
+  sendTransactionalEmail: (...args: unknown[]) =>
+    (sendTransactionalEmail as (...a: unknown[]) => unknown)(...args),
+}))
 
 import { POST } from "@/app/api/team/invite-email/route"
 
 const pedir = (body: unknown) =>
-  POST(new Request("https://efimero-abc123.vercel.app/api/team/invite-email", {
-    method: "POST",
-    body: JSON.stringify(body),
-  }))
+  POST(
+    new Request("https://efimero-abc123.vercel.app/api/team/invite-email", {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
+  )
+
+/** Dentro de 7 días, como lo deja `create_invitation`. */
+const vigente = new Date(Date.now() + 7 * 24 * 3600_000).toISOString()
 
 beforeEach(() => {
   vi.clearAllMocks()
   getUser.mockResolvedValue({ data: { user: { id: "admin-1" } } })
-  perfil.mockResolvedValue({ data: { clinic_id: "c-1", role: "admin" } })
-  invitacion.mockResolvedValue({ data: { email: "nuevo@ejemplo.com", clinic_id: "c-1" } })
-  inviteUserByEmail.mockResolvedValue({ error: null })
+  perfil.mockResolvedValue({ data: { clinic_id: "c-1", role: "admin", full_name: "Ana Ruiz" } })
+  invitacion.mockResolvedValue({
+    data: { email: "nuevo@ejemplo.com", clinic_id: "c-1", expires_at: vigente },
+  })
+  sendTransactionalEmail.mockResolvedValue({ ok: true, id: "re_1" })
 })
 
-describe("el enlace que recibe el invitado", () => {
-  it("apunta a /auth/callback, NO a /invitar directo", async () => {
+describe("el correo que recibe el invitado", () => {
+  it("va al email con el que se creó la invitación", async () => {
+    const res = await pedir({ token: "tok-9" })
+    expect(await res.json()).toEqual({ sent: true, to: "nuevo@ejemplo.com" })
+    const [clinicId, input] = sendTransactionalEmail.mock.calls[0]
+    expect(clinicId).toBe("c-1")
+    expect(input.to).toBe("nuevo@ejemplo.com")
+  })
+
+  it("lleva el enlace de aceptación con el token", async () => {
     await pedir({ token: "tok-9" })
-    const [correo, opciones] = inviteUserByEmail.mock.calls[0]
-    expect(correo).toBe("nuevo@ejemplo.com")
-    expect(opciones.redirectTo).toBe(
-      "https://app.tuvetia.com/auth/callback?next=%2Finvitar%2Ftok-9",
-    )
+    const { text } = sendTransactionalEmail.mock.calls[0][1]
+    expect(text).toContain("https://app.tuvetia.com/invitar/tok-9")
   })
 
   it("usa el dominio estable, no el efímero del deployment", async () => {
     // La petición llega a efimero-abc123.vercel.app y ese origen NO debe aparecer en el enlace:
-    // no está en la allow-list de Redirect URLs de Supabase.
+    // un dominio de preview desaparece y se lleva la invitación con él.
     await pedir({ token: "tok-9" })
-    const { redirectTo } = inviteUserByEmail.mock.calls[0][1]
-    expect(redirectTo).not.toContain("efimero-abc123")
-    expect(redirectTo.startsWith("https://app.tuvetia.com/")).toBe(true)
+    const { text } = sendTransactionalEmail.mock.calls[0][1]
+    expect(text).not.toContain("efimero-abc123")
   })
 
-  it("el `next` nunca viaja vacío", async () => {
-    // Un `next` vacío rompía el enlace: la plantilla de Supabase concatena `&token_hash=` sobre él.
+  it("dice quién invita y a qué clínica", async () => {
     await pedir({ token: "tok-9" })
-    const { redirectTo } = inviteUserByEmail.mock.calls[0][1]
-    expect(redirectTo).toMatch(/[?&]next=%2Finvitar%2F[^&]+$/)
+    const { subject, text } = sendTransactionalEmail.mock.calls[0][1]
+    expect(subject).toContain("Clínica Norte")
+    expect(text).toContain("Ana Ruiz")
+    expect(text).toContain("Clínica Norte")
+  })
+
+  it("sin nombre del que invita, el correo sale igual", async () => {
+    perfil.mockResolvedValue({ data: { clinic_id: "c-1", role: "admin", full_name: null } })
+    await pedir({ token: "tok-9" })
+    const { text } = sendTransactionalEmail.mock.calls[0][1]
+    expect(text).toContain("Te invitaron a unirte al equipo de Clínica Norte")
   })
 })
 
@@ -75,19 +105,21 @@ describe("autorización", () => {
   it("sin sesión no manda nada", async () => {
     getUser.mockResolvedValue({ data: { user: null } })
     expect((await pedir({ token: "tok-9" })).status).toBe(401)
-    expect(inviteUserByEmail).not.toHaveBeenCalled()
+    expect(sendTransactionalEmail).not.toHaveBeenCalled()
   })
 
   it("un vet no puede invitar: solo administradores", async () => {
-    perfil.mockResolvedValue({ data: { clinic_id: "c-1", role: "vet" } })
+    perfil.mockResolvedValue({ data: { clinic_id: "c-1", role: "vet", full_name: "Beto" } })
     expect((await pedir({ token: "tok-9" })).status).toBe(403)
-    expect(inviteUserByEmail).not.toHaveBeenCalled()
+    expect(sendTransactionalEmail).not.toHaveBeenCalled()
   })
 
   it("no se puede reenviar la invitación de OTRA clínica", async () => {
-    invitacion.mockResolvedValue({ data: { email: "x@y.com", clinic_id: "otra-clinica" } })
+    invitacion.mockResolvedValue({
+      data: { email: "x@y.com", clinic_id: "otra-clinica", expires_at: vigente },
+    })
     expect((await pedir({ token: "tok-9" })).status).toBe(404)
-    expect(inviteUserByEmail).not.toHaveBeenCalled()
+    expect(sendTransactionalEmail).not.toHaveBeenCalled()
   })
 
   it("sin token responde 400", async () => {
@@ -96,10 +128,32 @@ describe("autorización", () => {
 })
 
 describe("degradación", () => {
-  it("si el correo no sale, se reporta pero no se rompe: el enlace es el camino garantizado", async () => {
-    inviteUserByEmail.mockResolvedValue({ error: { message: "email ya registrado" } })
+  it("si el correo no sale, se dice por qué: el enlace es el camino garantizado", async () => {
+    sendTransactionalEmail.mockResolvedValue({
+      ok: false,
+      id: null,
+      error: "El dominio del remitente no está verificado en Resend.",
+      transient: false,
+    })
     const res = await pedir({ token: "tok-9" })
     expect(res.status).toBe(200)
-    expect(await res.json()).toEqual({ sent: false, reason: "email ya registrado" })
+    expect(await res.json()).toEqual({
+      sent: false,
+      reason: "El dominio del remitente no está verificado en Resend.",
+    })
+  })
+
+  it("no manda un enlace ya vencido", async () => {
+    // Enviarlo igual produce un clic que muestra "Invitación no válida" y nadie sabe por qué.
+    invitacion.mockResolvedValue({
+      data: {
+        email: "nuevo@ejemplo.com",
+        clinic_id: "c-1",
+        expires_at: new Date(Date.now() - 1000).toISOString(),
+      },
+    })
+    const res = await pedir({ token: "tok-9" })
+    expect((await res.json()).sent).toBe(false)
+    expect(sendTransactionalEmail).not.toHaveBeenCalled()
   })
 })

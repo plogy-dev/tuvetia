@@ -3,11 +3,23 @@ import { NextResponse } from "next/server"
 import { createClient } from "@/lib/supabase/server"
 import { createAdminClient } from "@/lib/supabase/admin"
 import { getAppBaseUrl } from "@/lib/base-url"
+import { loadClinicSender, sendTransactionalEmail } from "@/lib/email/transactional"
 
-// Envío best-effort del email de invitación (misma infra SMTP del magic link, vía
-// auth.admin.inviteUserByEmail). Si falla (p.ej. el email ya tiene cuenta), no pasa nada:
-// el LINK de invitación es siempre el camino garantizado. Autoriza que la invitación
-// exista y pertenezca a la clínica del solicitante.
+// Envío de la invitación de equipo por correo, **a pedido del admin** (botón "Enviar invitación").
+//
+// Sale por Resend, como todo el correo transaccional (ver CORREOS.md): del remitente de Tuvetia,
+// firmado con el nombre de la clínica y con Reply-To a sus administradores — así el invitado que
+// responde "¿esto qué es?" le escribe a quien lo invitó, no a nadie.
+//
+// Antes iba por `auth.admin.inviteUserByEmail`, o sea por el SMTP de Supabase Auth con sus propias
+// plantillas: un tercer camino de correo que no compartía dominio ni reputación con el resto, y que
+// nadie miraba cuando una invitación no llegaba. Con él se van también sus dos bugs conocidos: el
+// enlace ya no es un magic link con `?code=` de PKCE que había que canjear en /auth/callback, sino
+// el enlace directo a /invitar/<token>, que es una página pública y sabe recibir a alguien sin
+// sesión (le ofrece crear cuenta con el correo invitado y vuelve acá).
+//
+// Lo que NO cambia: el enlace sigue siendo el camino garantizado. Si el correo no sale, el admin lo
+// copia y lo manda por donde quiera — por eso el fallo se devuelve con su motivo en vez de romper.
 export async function POST(req: Request) {
   const supabase = await createClient()
   const {
@@ -20,10 +32,10 @@ export async function POST(req: Request) {
 
   const { data: prof } = await supabase
     .from("profiles")
-    .select("clinic_id, role")
+    .select("clinic_id, role, full_name")
     .eq("id", user.id)
     .maybeSingle()
-  const p = prof as { clinic_id: string | null; role: string | null } | null
+  const p = prof as { clinic_id: string | null; role: string | null; full_name: string | null } | null
   if (!p?.clinic_id || p.role !== "admin") {
     return NextResponse.json({ error: "Solo administradores" }, { status: 403 })
   }
@@ -32,30 +44,61 @@ export async function POST(req: Request) {
     const admin = createAdminClient()
     const { data: inv } = await admin
       .from("invitations")
-      .select("email, clinic_id")
+      .select("email, clinic_id, expires_at")
       .eq("token", body.token)
       .is("accepted_at", null)
       .maybeSingle()
-    const invitation = inv as { email: string; clinic_id: string } | null
+    const invitation = inv as { email: string; clinic_id: string; expires_at: string } | null
     if (!invitation || invitation.clinic_id !== p.clinic_id) {
       return NextResponse.json({ error: "Invitación no encontrada" }, { status: 404 })
     }
+    // Un token vencido produce un correo con un enlace muerto: el invitado hace clic, ve
+    // "Invitación no válida" y nadie se entera de por qué. Mejor decirlo acá.
+    if (new Date(invitation.expires_at) <= new Date()) {
+      return NextResponse.json({
+        sent: false,
+        reason: "La invitación venció. Creá una nueva y volvé a enviarla.",
+      })
+    }
 
-    // El destino tiene que ser /auth/callback, NO /invitar/<token> directo: esa página sólo lee la
-    // sesión con getUser() y no canjea el `?code=` de PKCE que trae el enlace del correo. Al
-    // aterrizar ahí sin sesión, el invitado veía "Inicia sesión o crea tu cuenta" — el enlace del
-    // correo "no hacía nada" (los 2 intentos fallidos que reportó el cliente). /auth/callback hace
-    // el exchangeCodeForSession y después redirige al `next`, que valida contra open redirect.
-    // Y el origin sale de getAppBaseUrl(): `new URL(req.url).origin` daba el dominio del deployment
-    // de preview, que no está en la allow-list de Redirect URLs de Supabase.
-    const base = getAppBaseUrl()
-    const next = encodeURIComponent(`/invitar/${body.token}`)
-    const { error } = await admin.auth.admin.inviteUserByEmail(invitation.email, {
-      redirectTo: `${base}/auth/callback?next=${next}`,
-    })
-    // Falla típica: el email ya tiene cuenta -> no es un error para nosotros (usará el link).
-    return NextResponse.json({ sent: !error, reason: error?.message ?? null })
+    // El origen sale de getAppBaseUrl(), no de `new URL(req.url).origin`: en un deployment de
+    // preview ese origen es un dominio efímero, y el enlace del correo moría con él.
+    const link = `${getAppBaseUrl()}/invitar/${body.token}`
+    // El sender se carga una vez y se reusa: da el nombre de la clínica para el cuerpo y evita que
+    // sendTransactionalEmail lo vuelva a buscar.
+    const sender = await loadClinicSender(p.clinic_id, admin)
+    const quienInvita = p.full_name?.trim()
+    const clinica = sender.displayName
+
+    const subject = `Te invitaron a ${clinica} en Tuvetia`
+    const text = [
+      "Hola,",
+      "",
+      quienInvita
+        ? `${quienInvita} te invitó a unirte al equipo de ${clinica} en Tuvetia.`
+        : `Te invitaron a unirte al equipo de ${clinica} en Tuvetia.`,
+      "",
+      "Aceptá la invitación acá:",
+      link,
+      "",
+      `El enlace vence en 7 días. Si todavía no tenés cuenta, vas a poder crearla con este mismo correo (${invitation.email}) y volver para aceptar.`,
+      "",
+      "Si no esperabas esta invitación, podés ignorar este correo.",
+    ].join("\n")
+
+    const result = await sendTransactionalEmail(
+      p.clinic_id,
+      { to: invitation.email, subject, text },
+      sender,
+    )
+
+    if (!result.ok) {
+      console.error(`[team/invite-email] no salió la invitación a ${invitation.email}:`, result.error)
+      return NextResponse.json({ sent: false, reason: result.error ?? "Error desconocido" })
+    }
+    return NextResponse.json({ sent: true, to: invitation.email })
   } catch (e) {
+    console.error("[team/invite-email] fallo inesperado:", e)
     return NextResponse.json({ sent: false, reason: (e as Error).message })
   }
 }
