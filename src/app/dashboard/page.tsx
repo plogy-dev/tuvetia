@@ -6,7 +6,9 @@ import { createClient } from "@/lib/supabase/server"
 import { DataError } from "@/components/data-error"
 import { SectionCards } from "@/components/section-cards"
 import { ConsultationsChartLazy as ConsultationsChart } from "@/components/dashboard/consultations-chart-lazy"
-import { OnboardingChecklist } from "@/components/dashboard/onboarding-checklist"
+import { BorrarEjemplo } from "@/components/onboarding/borrar-ejemplo"
+import { RielConfiguracion } from "@/components/onboarding/riel-configuracion"
+import { progresoDeConfiguracion } from "@/lib/onboarding/consultar"
 import {
   UpcomingAppointments,
   type UpcomingAppointment,
@@ -39,7 +41,7 @@ export default async function DashboardPage() {
     weekStartsOn: 1,
   })
 
-  const [consultasMes, pacientes, citas7d, notasRevisar, chartData, upcomingData, audiosCount, aprobadas, demoOwner] =
+  const [consultasMes, pacientes, citas7d, notasRevisar, chartData, upcomingData, demoOwner] =
     await Promise.all([
       supabase
         .from("consultations")
@@ -65,9 +67,9 @@ export default async function DashboardPage() {
         .in("status", ["scheduled", "confirmed", "in_progress"])
         .order("starts_at", { ascending: true })
         .limit(8),
-      // Checklist de primeros pasos (datos reales de la clínica)
-      supabase.from("consultation_audios").select("*", { count: "exact", head: true }),
-      supabase.from("clinical_notes").select("*", { count: "exact", head: true }).eq("status", "approved"),
+      // Lo único que queda del viejo checklist: si hay datos de ejemplo, se ofrece borrarlos. Los
+      // conteos de audios y notas aprobadas que alimentaban sus otros dos checks se fueron con él —
+      // medían USO, y el riel que lo reemplazó mide CONFIGURACIÓN.
       supabase
         .from("owners")
         .select("*", { count: "exact", head: true })
@@ -121,12 +123,8 @@ export default async function DashboardPage() {
           </DataError>
         </div>
       )}
-      <OnboardingChecklist
-        hasPatient={(pacientes.count ?? 0) > 0}
-        hasRecording={(audiosCount.count ?? 0) > 0}
-        hasApprovedNote={(aprobadas.count ?? 0) > 0}
-        hasDemo={(demoOwner.count ?? 0) > 0}
-      />
+      <RielConfiguracion progreso={await progresoDeConfiguracion()} />
+      {(demoOwner.count ?? 0) > 0 && <BorrarEjemplo />}
       <SectionCards metrics={metrics} />
       <div className="grid gap-4 px-4 lg:grid-cols-5 lg:px-6">
         <div className="lg:col-span-3">
