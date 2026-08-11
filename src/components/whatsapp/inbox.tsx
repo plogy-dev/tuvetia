@@ -558,11 +558,11 @@ export function WhatsappInbox({
                       {fmtTime(m.provider_timestamp)}
                       {m.direction === "outbound" &&
                         (m.failed_at ? (
-                          <span className="inline-flex items-center gap-0.5 text-red-300" title={m.error_detail ?? "No se pudo entregar"}>
+                          <span className="inline-flex items-center gap-0.5 text-danger" title={m.error_detail ?? "No se pudo entregar"}>
                             <CircleAlert className="size-3" /> No entregado
                           </span>
                         ) : m.read_at ? (
-                          <CheckCheck className="size-3 text-sky-300" />
+                          <CheckCheck className="size-3 text-info" />
                         ) : m.delivered_at ? (
                           <CheckCheck className="size-3" />
                         ) : (
