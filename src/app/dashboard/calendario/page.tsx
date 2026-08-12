@@ -3,7 +3,14 @@ import { endOfWeek, startOfWeek } from "date-fns"
 import { createClient } from "@/lib/supabase/server"
 import { AppointmentCalendarLazy as AppointmentCalendar } from "@/components/calendar/appointment-calendar-lazy"
 import { DataError } from "@/components/data-error"
+import { DiaDeHoy, type CitaDeHoy } from "@/components/calendar/dia-de-hoy"
+import { huecosDelDia } from "@/lib/agenda/huecos"
+import { bogotaTodayISO } from "@/lib/date-utils"
+import { localWeekday } from "@/lib/athos-agent/agenda"
 import { APPOINTMENT_SELECT, type AppointmentRow, type PatientOption, type SelectOption } from "@/lib/appointments"
+
+/** Los estados que ocupan un espacio de verdad. Una cancelada o un no-show lo liberan. */
+const ESTADOS_VIVOS = new Set(["scheduled", "confirmed", "in_progress"])
 
 // La agenda de la clínica. `public.appointments` es la ÚNICA fuente de verdad: nada entra desde un
 // calendario externo (calendario v3, migración 0049 — la sincronización es de una sola vía). Eso es
@@ -60,15 +67,45 @@ export default async function CalendarioPage() {
     (profs as { id: string; full_name: string | null }[] | null) ?? []
   ).map((v) => ({ id: v.id, label: v.full_name ?? "—" }))
 
+  // El día de hoy como lista, encima de la grilla. Se arma con las citas QUE YA SE TRAJERON —la
+  // semana incluye hoy— así que no cuesta ninguna consulta extra; sólo los horarios de atención,
+  // que son cinco filas.
+  const hoy = bogotaTodayISO()
+  const { data: franjasHoy } = clinicId
+    ? await supabase
+        .from("clinic_hours")
+        .select("opens_at, closes_at")
+        .eq("clinic_id", clinicId)
+        .eq("weekday", localWeekday(hoy))
+    : { data: null }
+
+  const citasDeHoy: CitaDeHoy[] = ((appts as unknown as AppointmentRow[] | null) ?? [])
+    .filter((a) => a.starts_at.slice(0, 10) === hoy && ESTADOS_VIVOS.has(a.status))
+    .map((a) => ({
+      id: a.id,
+      starts_at: a.starts_at,
+      etiqueta: [a.patient?.name, a.title].filter(Boolean).join(" · ") || "Cita",
+      estado: a.status,
+    }))
+
+  const huecos = huecosDelDia({
+    date: hoy,
+    franjas: ((franjasHoy as { opens_at: string; closes_at: string }[] | null) ?? []),
+    // Los huecos se calculan contra TODAS las citas vivas del día, no sólo las que se listan:
+    // una cita cancelada libera el espacio, una confirmada no.
+    ocupados: ((appts as unknown as AppointmentRow[] | null) ?? [])
+      .filter((a) => a.starts_at.slice(0, 10) === hoy && ESTADOS_VIVOS.has(a.status))
+      .map((a) => ({ starts_at: a.starts_at, ends_at: a.ends_at })),
+  })
+
   return (
-    <div className="px-4 py-4 md:py-6 lg:px-6">
+    <div className="flex flex-col gap-6 p-[clamp(16px,3vw,32px)]">
       {apptsError && (
-        <div className="mb-3">
-          <DataError>
-            No se pudieron cargar las citas; el calendario puede verse vacío. Recargá la página.
-          </DataError>
-        </div>
+        <DataError>
+          No se pudieron cargar las citas; el calendario puede verse vacío. Recargá la página.
+        </DataError>
       )}
+      <DiaDeHoy citas={citasDeHoy} huecos={huecos} />
       <AppointmentCalendar
         initialAppointments={(appts as unknown as AppointmentRow[] | null) ?? []}
         initialRange={{ start: rangeStart.toISOString(), end: rangeEnd.toISOString() }}

@@ -34,6 +34,23 @@ const PETICIONES: Record<string, string> = {
   cobros: "Ponete al día con los cobros vencidos: decime a quién le escribirías y qué le dirías.",
 }
 
+/** `HH:mm` y nada más. Cualquier otra cosa se descarta. */
+const HORA = /^\d{2}:\d{2}$/
+
+/**
+ * La petición del hueco libre, que SÍ lleva datos de la URL — la hora y los minutos.
+ *
+ * Por eso se validan con formato antes de usarse y se INTERPOLAN en una plantilla nuestra, en vez
+ * de concatenar lo que venga. La frase la escribimos nosotros; de la URL sólo salen dos números que
+ * tienen que parecerse a una hora y a una duración, o no sale nada.
+ */
+function peticionDeHueco(desde?: string, minutos?: string): string | undefined {
+  if (!desde || !HORA.test(desde)) return undefined
+  const n = Number(minutos)
+  if (!Number.isInteger(n) || n <= 0 || n > 12 * 60) return undefined
+  return `Tengo ${n} minutos libres a las ${desde} de hoy. ¿A quién le vendría bien y qué le escribirías para ofrecérselo?`
+}
+
 function saludo(hora: number): string {
   if (hora < 12) return "Buenos días"
   if (hora < 19) return "Buenas tardes"
@@ -45,9 +62,9 @@ export default async function AsistentePage({
 }: {
   // `?patient=` lo pone el historial del sidebar al abrir un chat ya existente.
   // `?pedir=` lo pone "Resolverlo con Athos" del riel: deja la petición escrita y lista para enviar.
-  searchParams: Promise<{ patient?: string; pedir?: string }>
+  searchParams: Promise<{ patient?: string; pedir?: string; desde?: string; minutos?: string }>
 }) {
-  const { patient: patientParam, pedir } = await searchParams
+  const { patient: patientParam, pedir, desde, minutos } = await searchParams
   const supabase = await createClient()
   const {
     data: { user },
@@ -197,7 +214,9 @@ export default async function AsistentePage({
         // Se DEJA ESCRITO, no se envía. Un botón que dispara una petición al agente sin que el vet
         // vea qué se pidió es una caja negra; dejarlo en el compositor le da la última palabra —
         // que es la misma regla que gobierna todo lo demás acá.
-        textoInicial={pedir ? PETICIONES[pedir] : undefined}
+        textoInicial={
+          pedir === "hueco" ? peticionDeHueco(desde, minutos) : pedir ? PETICIONES[pedir] : undefined
+        }
         // El riel de configuración se mudó acá desde el tablero: ésta pasó a ser la pantalla de
         // inicio, y un recordatorio de "te falta configurar la clínica" en una pantalla que ya nadie
         // abre primero no recuerda nada. Va en la COLUMNA y no en el `aside` porque el aside es
