@@ -3,6 +3,7 @@ import { redirect } from "next/navigation"
 
 import { AppSidebar } from "@/components/app-sidebar"
 import { SiteHeader } from "@/components/site-header"
+import { TabBarMovil } from "@/components/tab-bar-movil"
 import { OnboardingTour } from "@/components/onboarding-tour"
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar"
 import { createClient } from "@/lib/supabase/server"
@@ -98,6 +99,9 @@ export default async function DashboardLayout({
               {children}
             </div>
           </div>
+          {/* Va DENTRO del `SidebarInset` y no como hermano: así queda pegada al área de contenido
+              y no compite por espacio con el cajón del sidebar cuando está abierto. */}
+          <TabBarMovil />
         </SidebarInset>
         <AthosDock />
       </AthosProvider>

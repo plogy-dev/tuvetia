@@ -104,21 +104,25 @@ function TextBlocks({ text, kp }: { text: string; kp: string }) {
   const limpio = sinMarcas(text)
   if (!limpio) return null
   return (
-    <div className="rounded-2xl rounded-tl-sm border bg-muted/50 px-4 py-1 text-sm leading-relaxed">
+    // La burbuja del mockup: `surface-raised` con borde, radio de card y la esquina superior
+    // izquierda pequeña — la muesca que la ancla al avatar.
+    //
+    // SIN RAYAS ENTRE PÁRRAFOS. Antes cada bloque llevaba `border-b`, así que una respuesta en prosa
+    // se leía como una planilla: tres líneas horizontales entre tres oraciones. Los párrafos se
+    // separan con espacio, que es como se separan los párrafos. Las viñetas conservan su punto.
+    <div className="flex flex-col gap-3 rounded-xl rounded-tl-sm border border-line bg-surface-2 px-4 py-3.5 text-sm leading-relaxed">
       {splitBlocks(limpio).map((blk, j) =>
         blk.heading ? (
-          <div key={j} className="pt-3 pb-1 text-[13px] font-semibold tracking-tight">
+          <div key={j} className="text-[13px] font-semibold tracking-tight">
             {renderInline(blk.text, [], `${kp}h${j}`)}
           </div>
         ) : blk.bullet ? (
-          <div key={j} className="flex gap-2 border-b border-border/60 py-2 last:border-b-0 last:pb-0">
-            <span className="mt-[7px] size-1.5 shrink-0 rounded-full bg-muted-foreground" />
+          <div key={j} className="flex gap-2">
+            <span className="mt-[7px] size-1.5 shrink-0 rounded-full bg-brand" />
             <div className="min-w-0 flex-1">{renderInline(blk.text, [], `${kp}b${j}`)}</div>
           </div>
         ) : (
-          <div key={j} className="border-b border-border/60 py-2.5 last:border-b-0 last:pb-0">
-            {renderInline(blk.text, [], `${kp}p${j}`)}
-          </div>
+          <div key={j}>{renderInline(blk.text, [], `${kp}p${j}`)}</div>
         ),
       )}
     </div>
@@ -199,11 +203,17 @@ function ToolPartView({ part }: { part: ToolUIPart }) {
 
 function AssistantMessage({ message, streaming }: { message: UIMessage; streaming: boolean }) {
   return (
-    <div className="flex gap-2.5">
-      <div className="mt-0.5 flex size-7 shrink-0 items-center justify-center rounded-lg bg-primary text-primary-foreground">
-        <Bot className="size-4" />
+    <div className="flex gap-3">
+      {/* Avatar del mockup: CÍRCULO en menta suave con la inicial, no un cuadrado menta relleno con
+          un icono de robot. El menta relleno es el color de ACCIÓN en este sistema —lo usan los
+          botones primarios— y gastarlo en un avatar que aparece en cada turno lo devalúa. */}
+      <div className="mt-0.5 grid size-8 shrink-0 place-items-center rounded-full bg-brand-soft text-[13px] font-semibold text-brand-text">
+        A
       </div>
-      <div className="flex max-w-[92%] flex-1 flex-col gap-1.5">
+      <div className="flex min-w-0 max-w-[70ch] flex-1 flex-col gap-1.5">
+        {/* La línea de autoría que el mockup pone SOBRE la burbuja. Sin ella, con dos o tres turnos
+            seguidos el hilo se vuelve un muro sin puntos de referencia. */}
+        <span className="text-xs font-medium text-fg-muted">Athos</span>
         {message.parts.map((part, i) => {
           if (part.type === "text") {
             return part.text ? <TextBlocks key={i} text={part.text} kp={`t${i}-`} /> : null
@@ -230,6 +240,10 @@ export function Assistant({
   patients,
   threads = {},
   initialPatientId,
+  saludo,
+  contexto,
+  riel,
+  textoInicial,
 }: {
   clinicId: string
   patients: AssistantPatient[]
@@ -237,11 +251,20 @@ export function Assistant({
   /** Paciente con el que abrir, del `?patient=` que pone el historial del sidebar. Ya viene
    *  validado contra los pacientes de la clínica. */
   initialPatientId?: string
+  /** "Buenos días, María". Lo arma el server component, que es quien sabe la hora de Bogotá. */
+  saludo?: string
+  /** "Miércoles 5 de agosto · 9 citas · 2 cobros vencidos". Datos del día, no un eslogan. */
+  contexto?: string
+  /** El riel de configuración de la clínica. Se recibe ya renderizado desde el server component
+   *  porque calcula el progreso con datos, y este componente es de cliente. */
+  riel?: React.ReactNode
+  /** Petición ya redactada que otra pantalla dejó lista (`?pedir=`). Se escribe, no se envía. */
+  textoInicial?: string
 }) {
   const [patientId, setPatientId] = useState<string>(
     initialPatientId ?? patients[0]?.id ?? GENERAL,
   )
-  const [input, setInput] = useState<string>("")
+  const [input, setInput] = useState<string>(textoInicial ?? "")
   const threadRef = useRef<HTMLDivElement>(null)
 
   // useChat contra el agente. Cambiar de paciente cambia el `id` → el hook crea un Chat nuevo, y
@@ -282,19 +305,20 @@ export function Assistant({
   const lastMessage = messages[messages.length - 1]
 
   return (
-    <div className="mx-auto flex h-[calc(100svh-var(--header-height))] w-full max-w-3xl flex-col gap-3 p-4 md:p-6">
-      {/* Encabezado + contexto */}
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="flex items-center gap-2">
-          <div className="flex size-9 items-center justify-center rounded-lg bg-primary text-primary-foreground">
-            <Bot className="size-5" />
-          </div>
-          <div>
-            <h1 className="text-lg font-semibold tracking-tight">Athos</h1>
-            <p className="text-xs text-muted-foreground">
-              Athos propone — tú apruebas. Razona con la ficha y literatura citada; tu criterio decide.
-            </p>
-          </div>
+    // Llena el ancho en vez de ser una columna de 3xl centrada: al lado va el riel de la clínica, y
+    // dos bloques centrados con aire a los costados leerían como dos páginas pegadas.
+    <div className="flex h-[calc(100svh-var(--header-height))] min-w-0 flex-1 flex-col gap-4 p-4 md:p-6">
+      {/* Encabezado: SALUDO CON DATOS, que es lo que el mockup pone acá. No dice "Athos" —
+          el sidebar ya lo dice, y repetir el nombre de la sección gasta la línea más visible de la
+          pantalla en información que el vet ya tiene. */}
+      <div className="flex flex-wrap items-end justify-between gap-3">
+        <div className="min-w-0">
+          <h1 className="font-display text-[28px] font-medium leading-[1.2] tracking-[-0.01em] text-fg">
+            {saludo ?? "Athos"}
+          </h1>
+          <p className="mt-0.5 text-sm text-fg-muted">
+            {contexto ?? "Athos propone — tú apruebas. Tu criterio decide."}
+          </p>
         </div>
         <div className="flex items-center gap-2">
           {patient ? (
@@ -330,60 +354,39 @@ export function Assistant({
         </div>
       </div>
 
+      {riel}
+
       {/* Aviso de contexto: memoria del hilo (con paciente) o consulta general */}
-      <div className="flex items-center gap-2 rounded-lg border bg-secondary px-3 py-2 text-xs text-muted-foreground">
-        <span className="size-1.5 shrink-0 animate-pulse rounded-full bg-foreground" />
+      <div className="flex items-center gap-2 rounded-lg border border-line-soft bg-brand-soft px-3 py-2 text-xs text-fg-muted">
+        <span className="size-1.5 shrink-0 animate-pulse rounded-full bg-brand" />
         {patient ? (
           <span>
-            <strong className="font-semibold text-foreground">Hilo con memoria</strong> — recuerdo el
-            contexto de {patient.name} y las respuestas anteriores de esta conversación.
+            <strong className="font-medium text-fg">Hilo con memoria</strong> — recuerdo el contexto
+            de {patient.name} y las respuestas anteriores de esta conversación.
           </span>
         ) : (
           <span>
-            <strong className="font-semibold text-foreground">Consulta general</strong> — respondo dudas
-            médicas con literatura veterinaria citada, sin ficha de un paciente.
+            <strong className="font-medium text-fg">Consulta general</strong> — respondo dudas médicas
+            con literatura veterinaria citada, sin ficha de un paciente.
           </span>
         )}
       </div>
 
-      {/* Hilo de conversación */}
+      {/* Hilo de conversación. Sin borde ni fondo propios: en el mockup la conversación no vive
+          dentro de una card, ocupa la pantalla. El único borde de esta pantalla es el que separa
+          el compositor abajo y el riel a la derecha. */}
       <div
         ref={threadRef}
-        className="flex flex-1 flex-col gap-4 overflow-y-auto rounded-xl border bg-card/40 p-4"
+        className="flex flex-1 flex-col gap-5 overflow-y-auto"
       >
         {messages.length === 0 && (
           <div className="m-auto flex max-w-md flex-col items-center gap-3 text-center">
-            <Bot className="size-6 text-muted-foreground opacity-50" />
-            <p className="text-sm text-muted-foreground">
+            <Bot className="size-6 text-fg-faint" />
+            <p className="text-sm text-fg-muted">
               {patient
                 ? `Pregúntame sobre ${patient.name} o una duda médica general. Puedo consultar su ficha, la agenda o la literatura, y proponerte acciones (citas, mensajes) que tú apruebas.`
                 : "Pregúntame una duda médica general, o elige un paciente arriba para razonar con su ficha. Respondo con literatura citada y verificable — nunca un diagnóstico cerrado."}
             </p>
-            {/* Sugerencias para arrancar. Sólo rellenan el cuadro de texto — no envían nada — y
-                cada una pide algo que el agente sabe hacer con las tools que tiene. */}
-            <div className="flex flex-wrap justify-center gap-1.5">
-              {(patient
-                ? [
-                    `Resume la ficha de ${patient.name}`,
-                    `¿Qué debería revisar hoy en ${patient.name}?`,
-                    `Agenda un control para ${patient.name} la próxima semana`,
-                  ]
-                : [
-                    "¿Qué citas hay hoy?",
-                    "¿Cuáles son los horarios de la clínica?",
-                    "¿Qué dice la literatura sobre otitis por Malassezia?",
-                  ]
-              ).map((s) => (
-                <button
-                  key={s}
-                  type="button"
-                  onClick={() => setInput(s)}
-                  className="rounded-md border bg-background px-2.5 py-1 text-xs text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
-                >
-                  {s}
-                </button>
-              ))}
-            </div>
           </div>
         )}
 
@@ -423,25 +426,69 @@ export function Assistant({
         <PendingActions recargarToken={messages.length} />
       </div>
 
-      {/* Composer */}
-      <div className="flex items-end gap-2 rounded-xl border bg-background p-2 shadow-xs">
-        <Textarea
-          value={input}
-          onChange={(e) => setInput(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) send()
-          }}
-          rows={1}
-          placeholder="Escribe tu consulta clínica…  (Ctrl/⌘ + Enter para enviar)"
-          className="max-h-40 min-h-9 flex-1 resize-none border-0 bg-transparent px-2 py-1.5 shadow-none focus-visible:ring-0 dark:bg-transparent"
-        />
-        <Button size="icon" onClick={send} disabled={busy} aria-label="Enviar">
-          {busy ? <Loader2 className="size-4 animate-spin" /> : <Send className="size-4" />}
-        </Button>
+      {/* Compositor. Franja separada por una línea, como en el mockup: la conversación termina y
+          acá empieza la entrada. Antes era una card con sombra flotando sobre otra card. */}
+      {/* SUGERENCIAS PERSISTENTES, no sólo en el estado vacío.
+          Antes desaparecían con el primer mensaje — o sea justo cuando el vet ya vio de qué es capaz
+          Athos y podría querer pedirle lo siguiente. En el mockup viven bajo el briefing y son la
+          forma principal de operar. Se ocultan mientras Athos responde: ofrecer otra cosa a mitad de
+          una respuesta invita a pisarla. */}
+      {!busy && (
+        <div className="flex flex-wrap gap-2">
+          {(patient
+            ? [
+                `Resume la ficha de ${patient.name}`,
+                `¿Qué debería revisar hoy en ${patient.name}?`,
+                `Agenda un control para ${patient.name} la próxima semana`,
+              ]
+            : [
+                "¿Qué citas hay hoy?",
+                "¿Cuáles son los horarios de la clínica?",
+                "¿Qué dice la literatura sobre otitis por Malassezia?",
+              ]
+          ).map((s) => (
+            <Button
+              key={s}
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => setInput(s)}
+              className="h-10 font-normal"
+            >
+              {s}
+            </Button>
+          ))}
+        </div>
+      )}
+
+      <div className="-mx-4 mt-auto border-t border-line px-4 pt-4 md:-mx-6 md:px-6">
+        {/* La etiqueta va ARRIBA y visible, como en el mockup, no escondida en el placeholder: un
+            placeholder desaparece al escribir la primera letra y con él la única pista de qué es
+            ese campo. */}
+        <label htmlFor="pedir-a-athos" className="mb-1.5 block text-[13px] font-medium">
+          Pedirle algo a Athos
+        </label>
+        <div className="flex items-end gap-2">
+          <Textarea
+            id="pedir-a-athos"
+            value={input}
+            onChange={(e) => setInput(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) send()
+            }}
+            rows={1}
+            placeholder="Agenda el control de Luna la próxima semana"
+            className="max-h-40 min-h-11 flex-1 resize-none"
+          />
+          <Button onClick={send} disabled={busy} variant="outline" className="h-11 shrink-0">
+            {busy ? <Loader2 className="size-4 animate-spin" /> : <Send className="size-4" />}
+            <span className="hidden sm:inline">Enviar</span>
+          </Button>
+        </div>
+        <p className="mt-2 text-[11px] text-fg-faint">
+          Athos propone — tú apruebas. Ninguna acción se ejecuta sin tu confirmación.
+        </p>
       </div>
-      <p className="-mt-1.5 px-1 text-[11px] text-muted-foreground">
-        Athos propone — tú apruebas. Ninguna acción se ejecuta sin tu confirmación.
-      </p>
     </div>
   )
 }

@@ -122,7 +122,7 @@ export function NavMain({ consultorio, crm }: { consultorio: NavItem[]; crm: Nav
   return (
     <>
       <SidebarGroup>
-        <Rotulo>Consultorio</Rotulo>
+        <Rotulo>Consulta</Rotulo>
         <SidebarGroupContent className="flex flex-col gap-2">
           <Items items={consultorio} />
           {/* "Iniciar consulta" vive DENTRO del consultorio, no suelta al final de la barra: es la
@@ -130,12 +130,16 @@ export function NavMain({ consultorio, crm }: { consultorio: NavItem[]; crm: Nav
               cambia dónde se monta. */}
           <SidebarMenu>
             <SidebarMenuItem>
+              {/* SECUNDARIO, no menta relleno. En el mockup este botón es blanco con borde: el
+                  menta se reserva para la acción de la pantalla en la que estás, y un botón menta
+                  permanente en la barra compite con todas ellas a la vez. */}
               <NewConsultationDrawer
                 label="Iniciar consulta"
                 trigger={
                   <SidebarMenuButton
                     tooltip="Iniciar consulta"
-                    className="min-w-8 bg-primary text-primary-foreground duration-200 ease-linear hover:bg-primary/90 hover:text-primary-foreground active:bg-primary/90 active:text-primary-foreground"
+                    variant="outline"
+                    className="min-w-8 justify-center font-medium"
                   />
                 }
               />
@@ -146,7 +150,7 @@ export function NavMain({ consultorio, crm }: { consultorio: NavItem[]; crm: Nav
 
       {/* El divisor del mockup: la línea es lo que hace legible que son dos mundos, no dos rótulos. */}
       <SidebarGroup className="mt-1 border-t border-line-soft pt-3">
-        <Rotulo>CRM</Rotulo>
+        <Rotulo>Clínica</Rotulo>
         <SidebarGroupContent className="flex flex-col gap-2">
           <Items items={crm} />
           <SidebarMenu>

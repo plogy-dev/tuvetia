@@ -1,139 +1,21 @@
-import { addWeeks, format, startOfWeek } from "date-fns"
-import { es } from "date-fns/locale/es"
-import { CalendarClock, FileClock, PawPrint, Stethoscope } from "lucide-react"
+import { redirect } from "next/navigation"
 
-import { createClient } from "@/lib/supabase/server"
-import { DataError } from "@/components/data-error"
-import { SectionCards } from "@/components/section-cards"
-import { ConsultationsChartLazy as ConsultationsChart } from "@/components/dashboard/consultations-chart-lazy"
-import { BorrarEjemplo } from "@/components/onboarding/borrar-ejemplo"
-import { RielConfiguracion } from "@/components/onboarding/riel-configuracion"
-import { progresoDeConfiguracion } from "@/lib/onboarding/consultar"
-import {
-  UpcomingAppointments,
-  type UpcomingAppointment,
-} from "@/components/dashboard/upcoming-appointments"
-
-const WEEKS = 12
-
-// Agrupa las fechas de consulta en 12 buckets semanales (lun–dom) para el gráfico.
-function weeklySeries(dates: string[]): { label: string; count: number }[] {
-  const base = startOfWeek(new Date(), { weekStartsOn: 1 })
-  const buckets = Array.from({ length: WEEKS }, (_, i) => {
-    const start = startOfWeek(addWeeks(base, i - (WEEKS - 1)), { weekStartsOn: 1 })
-    return { start, label: format(start, "d MMM", { locale: es }), count: 0 }
-  })
-  for (const iso of dates) {
-    const wk = startOfWeek(new Date(iso), { weekStartsOn: 1 }).getTime()
-    const b = buckets.find((x) => x.start.getTime() === wk)
-    if (b) b.count += 1
-  }
-  return buckets.map(({ label, count }) => ({ label, count }))
-}
-
-export default async function DashboardPage() {
-  const supabase = await createClient()
-
-  const now = new Date()
-  const monthStart = new Date(now.getFullYear(), now.getMonth(), 1)
-  const weekAhead = new Date(now.getTime() + 7 * 864e5)
-  const chartStart = startOfWeek(addWeeks(startOfWeek(now, { weekStartsOn: 1 }), -(WEEKS - 1)), {
-    weekStartsOn: 1,
-  })
-
-  const [consultasMes, pacientes, citas7d, notasRevisar, chartData, upcomingData, demoOwner] =
-    await Promise.all([
-      supabase
-        .from("consultations")
-        .select("*", { count: "exact", head: true })
-        .gte("started_at", monthStart.toISOString()),
-      supabase.from("patients").select("*", { count: "exact", head: true }),
-      supabase
-        .from("appointments")
-        .select("*", { count: "exact", head: true })
-        .gte("starts_at", now.toISOString())
-        .lte("starts_at", weekAhead.toISOString())
-        // Solo estados realmente pendientes: una cita futura marcada completed/no_show no es "próxima".
-        .in("status", ["scheduled", "confirmed", "in_progress"]),
-      supabase.from("clinical_notes").select("*", { count: "exact", head: true }).eq("status", "draft"),
-      supabase
-        .from("consultations")
-        .select("started_at")
-        .gte("started_at", chartStart.toISOString()),
-      supabase
-        .from("appointments")
-        .select("id, title, starts_at, status, patient:patients(name)")
-        .gte("starts_at", now.toISOString())
-        .in("status", ["scheduled", "confirmed", "in_progress"])
-        .order("starts_at", { ascending: true })
-        .limit(8),
-      // Lo único que queda del viejo checklist: si hay datos de ejemplo, se ofrece borrarlos. Los
-      // conteos de audios y notas aprobadas que alimentaban sus otros dos checks se fueron con él —
-      // medían USO, y el riel que lo reemplazó mide CONFIGURACIÓN.
-      supabase
-        .from("owners")
-        .select("*", { count: "exact", head: true })
-        .eq("full_name", "Ejemplo — TuvetIA"),
-    ])
-
-  // Un fallo de query no debe verse como "clínica en ceros": banner de error visible.
-  const loadError = [consultasMes, pacientes, citas7d, notasRevisar, chartData, upcomingData].some(
-    (r) => r.error,
-  )
-
-  const metrics = [
-    {
-      label: "Consultas este mes",
-      value: consultasMes.count ?? 0,
-      hint: "Consultas registradas en la clínica",
-      icon: <Stethoscope className="size-4 text-muted-foreground" />,
-    },
-    {
-      label: "Pacientes",
-      value: pacientes.count ?? 0,
-      hint: "Fichas activas en la clínica",
-      icon: <PawPrint className="size-4 text-muted-foreground" />,
-    },
-    {
-      label: "Citas (próx. 7 días)",
-      value: citas7d.count ?? 0,
-      hint: "Agenda de la semana",
-      icon: <CalendarClock className="size-4 text-muted-foreground" />,
-    },
-    {
-      label: "Notas por revisar",
-      value: notasRevisar.count ?? 0,
-      hint: "Borradores del Modo Fantasma pendientes de aprobar",
-      icon: <FileClock className="size-4 text-muted-foreground" />,
-      help: "El Modo Fantasma redacta la nota de cada consulta como borrador. Ninguna entra a la historia clínica hasta que un veterinario la revisa y aprueba.",
-    },
-  ]
-
-  const series = weeklySeries(
-    ((chartData.data as { started_at: string }[] | null) ?? []).map((c) => c.started_at),
-  )
-  const upcoming = (upcomingData.data as unknown as UpcomingAppointment[] | null) ?? []
-
-  return (
-    <div className="flex flex-col gap-4 py-4 md:gap-6 md:py-6">
-      {loadError && (
-        <div className="px-4 lg:px-6">
-          <DataError>
-            Algunas métricas no se pudieron cargar y pueden verse en cero. Recargá la página.
-          </DataError>
-        </div>
-      )}
-      <RielConfiguracion progreso={await progresoDeConfiguracion()} />
-      {(demoOwner.count ?? 0) > 0 && <BorrarEjemplo />}
-      <SectionCards metrics={metrics} />
-      <div className="grid gap-4 px-4 lg:grid-cols-5 lg:px-6">
-        <div className="lg:col-span-3">
-          <ConsultationsChart data={series} />
-        </div>
-        <div className="lg:col-span-2">
-          <UpcomingAppointments appointments={upcoming} />
-        </div>
-      </div>
-    </div>
-  )
+// ATHOS PRIMERO. `/dashboard` ya no es el tablero de métricas: es la puerta, y la puerta abre en
+// Athos. Es la idea central del mockup v2 del cliente —se llama literalmente "Tuvetia · Athos
+// primero"— y lo que su brief describe: el consultorio antes que el CRM.
+//
+// POR QUÉ UN REDIRECT Y NO PINTAR ATHOS ACÁ. El ítem "Athos" del sidebar apunta a
+// `/dashboard/asistente`, y `onboarding-tour.tsx` ancla uno de sus pasos en
+// `a[href="/dashboard/asistente"]`. Si Athos viviera en `/dashboard`, el ancla tendría que ser
+// `a[href="/dashboard"]` — que también matchea el enlace del logo en la cabecera de la barra, y
+// `document.querySelector` devuelve el PRIMERO del DOM. El tour terminaría señalando el logo en vez
+// del ítem, sin fallar ningún test.
+//
+// Con el redirect, la pantalla de Athos tiene una sola URL, el ancla queda sin ambigüedad, y los
+// enlaces viejos a `/dashboard` siguen llegando a algún lado sensato.
+//
+// El tablero completo no desaparece: vive en `/dashboard/tablero` y se llega desde el riel derecho
+// de Athos ("La clínica hoy → Dashboard") y desde el sidebar.
+export default function DashboardPage() {
+  redirect("/dashboard/asistente")
 }

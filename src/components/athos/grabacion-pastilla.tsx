@@ -23,7 +23,7 @@ function mmss(total: number): string {
   return `${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`
 }
 
-export function GrabacionPastilla() {
+export function GrabacionPastilla({ alAbrir }: { alAbrir?: () => void }) {
   const estado = useConsultaViva()
 
   if (estado.fase === "inactiva" || estado.fase === "terminada") return null
@@ -46,19 +46,20 @@ export function GrabacionPastilla() {
             : "La grabación falló"
       }
       className={`pointer-events-auto flex items-center gap-2 rounded-full border py-1.5 pl-3 pr-1.5 shadow-lg ${
-        fallo ? "border-destructive/40 bg-destructive/10" : "border-line-soft bg-card"
+        fallo ? "border-destructive/40 bg-destructive/10" : "border-brand bg-card"
       }`}
     >
       {enCurso && (
-        // EXCEPCIÓN DELIBERADA AL SISTEMA DE DISEÑO, y la única que queda en la app.
+        // MENTA, NO ROJO. Lo tenía en `bg-red-500` con el argumento de que el rojo de grabación es
+        // una convención de hardware y que `bg-danger` colisionaría con el estado de FALLO de esta
+        // misma pastilla. El mockup del cliente resuelve el conflicto mejor: usa el MENTA, que en
+        // este sistema es el color de "activo", y deja el rojo libre para lo que salió mal.
         //
-        // El punto rojo de "grabando" es una convención de hardware, no un estado semántico. No
-        // puede ser `bg-danger`: ese token ya pinta el estado de FALLO tres líneas más abajo, en
-        // esta misma pastilla, y usarlo para las dos cosas haría que "grabando bien" y "la
-        // grabación falló" se vieran del mismo color. Rojo fijo en los dos contextos es lo correcto.
+        // Con eso desaparece la última clase de paleta cruda de la app, y la pastilla deja de
+        // parecer una alerta cuando está haciendo exactamente lo que se le pidió.
         <span
           aria-hidden
-          className="size-2 shrink-0 rounded-full bg-red-500 motion-safe:animate-pulse"
+          className="size-2 shrink-0 rounded-full bg-brand motion-safe:animate-pulse"
         />
       )}
       {cerrando && <Loader2 aria-hidden className="size-3.5 shrink-0 animate-spin text-fg-faint" />}
@@ -80,15 +81,27 @@ export function GrabacionPastilla() {
         {fallo && <span className="text-destructive">{estado.error ?? "Falló la grabación"}</span>}
       </span>
 
-      {estado.consultaId && (
-        <Button
-          size="sm"
-          variant="ghost"
-          className="h-7 shrink-0 px-2 text-xs"
-          render={<Link href={`/dashboard/consultas/${estado.consultaId}`} />}
-        >
+      {/* "Abrir" ABRE EL PANEL, no navega. Antes mandaba a la pantalla de la consulta: mirar cómo va
+          la transcripción obligaba a abandonar lo que estabas haciendo, que es exactamente lo que
+          esta función existe para evitar. Ir a la consulta sigue estando, dentro del panel.
+
+          Si el dock no pasó `alAbrir` —montado suelto en algún test o pantalla— cae al enlace de
+          antes en vez de quedarse sin salida. */}
+      {alAbrir ? (
+        <Button size="sm" variant="ghost" className="h-7 shrink-0 px-2 text-xs" onClick={alAbrir}>
           Abrir
         </Button>
+      ) : (
+        estado.consultaId && (
+          <Button
+            size="sm"
+            variant="ghost"
+            className="h-7 shrink-0 px-2 text-xs"
+            render={<Link href={`/dashboard/consultas/${estado.consultaId}`} />}
+          >
+            Abrir
+          </Button>
+        )
       )}
 
       {/* Detener sólo en escritorio. En móvil el botón queda al alcance del pulgar y un toque

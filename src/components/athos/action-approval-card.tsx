@@ -151,19 +151,28 @@ export function ActionApprovalCard({
   const Icon = meta.icon
 
   return (
-    <div className="rounded-xl border border-line bg-card p-3 text-sm shadow-sm">
-      <div className="mb-1.5 flex items-center gap-2">
-        <Sparkles className="size-3.5 text-brand" />
-        <span className="text-xs font-semibold uppercase tracking-wide text-fg-muted">
-          Athos propone · {meta.label}
+    // FORMA DEL MOCKUP: borde de acento, franja menta arriba, y el descargo abajo. Sin sombra —el
+    // sistema sólo permite la de popovers— y con tope de 640px: una propuesta es un formulario corto,
+    // no un panel que cruza la pantalla.
+    //
+    // OJO AL TOCAR ESTO: es sólo el envoltorio. `act()`, `overrideEditado()`, `valores` y los enlaces
+    // a `/api/athos/actions/[id]/execute|reject` quedan exactamente como estaban. Lo que cambia es
+    // dónde se dibujan, no qué hacen.
+    <div className="max-w-[640px] overflow-hidden rounded-xl border border-brand text-sm">
+      <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1 border-b border-line bg-brand-soft px-4 py-3">
+        <span className="text-[11px] font-semibold uppercase tracking-[0.08em] text-brand-text">
+          Acción propuesta
+        </span>
+        <span className="flex items-center gap-1.5 text-sm font-semibold">
+          <Icon aria-hidden className="size-4 shrink-0" />
+          {meta.label}
         </span>
       </div>
-      <p className="flex items-start gap-2">
-        <Icon className="mt-0.5 size-4 shrink-0 text-fg-muted" />
-        <span>{action.summary}</span>
-      </p>
+
+      <div className="flex flex-col gap-3 px-4 py-3.5">
+      <p>{action.summary}</p>
       {editable && !resolved && (
-        <div className="mt-2 flex flex-col gap-2">
+        <div className="flex flex-col gap-2">
           {/* La etiqueta va VISIBLE, no sólo de placeholder: el placeholder desaparece en cuanto el
               campo tiene valor, y estos nacen llenos. El vet veía una caja con un correo adentro sin
               nada que dijera que ése era el destinatario — justo el dato que más conviene que mire
@@ -194,9 +203,9 @@ export function ActionApprovalCard({
       )}
       {resolved ? (
         <>
-          <p className="mt-2 text-xs font-medium text-fg-muted">{RESOLVED_LABELS[resolved] ?? RESOLVED_LABELS.failed}</p>
+          <p className="text-xs font-medium text-fg-muted">{RESOLVED_LABELS[resolved] ?? RESOLVED_LABELS.failed}</p>
           {aviso && (
-            <p className="mt-1 text-xs text-warn dark:text-warn">
+            <p className="text-xs text-warn">
               {aviso.texto}{" "}
               {aviso.enlace && (
                 <Link href={aviso.enlace} className="font-medium underline underline-offset-2">
@@ -207,23 +216,34 @@ export function ActionApprovalCard({
           )}
         </>
       ) : (
-        <div className="mt-2 flex items-center gap-2">
-          <Button
-            size="sm"
-            onClick={() => act("execute")}
-            // Ningún campo editable puede quedar vacío: aprobar un correo sin asunto o sin cuerpo
-            // fallaría recién en el servidor, después de haber dicho "Aprobar".
-            disabled={busy !== null || campos.some((c) => !(valores[c.campo] ?? "").trim())}
-          >
-            {busy === "execute" ? <Loader2 className="size-4 animate-spin" /> : <Check className="size-4" />}
-            Aprobar{ENVIA.has(action.tool_name) ? " y enviar" : ""}
-          </Button>
-          <Button size="sm" variant="outline" onClick={() => act("reject")} disabled={busy !== null}>
-            {busy === "reject" ? <Loader2 className="size-4 animate-spin" /> : <X className="size-4" />}
-            Rechazar
-          </Button>
+        // El descargo va DENTRO de la tarjeta y pegado a los botones, como en el mockup: es la
+        // frase que responde "¿qué pasa si le doy?" en el momento exacto en que se hace esa
+        // pregunta. Suelto en otra parte de la pantalla, no lo lee nadie.
+        <div className="flex flex-col gap-2 border-t border-line pt-3">
+          <div className="flex flex-wrap items-center gap-2">
+            <Button
+              size="sm"
+              onClick={() => act("execute")}
+              // Ningún campo editable puede quedar vacío: aprobar un correo sin asunto o sin cuerpo
+              // fallaría recién en el servidor, después de haber dicho "Aprobar".
+              disabled={busy !== null || campos.some((c) => !(valores[c.campo] ?? "").trim())}
+            >
+              {busy === "execute" ? <Loader2 className="size-4 animate-spin" /> : <Check className="size-4" />}
+              Aprobar{ENVIA.has(action.tool_name) ? " y enviar" : ""}
+            </Button>
+            <Button size="sm" variant="outline" onClick={() => act("reject")} disabled={busy !== null}>
+              {busy === "reject" ? <Loader2 className="size-4 animate-spin" /> : <X className="size-4" />}
+              Descartar
+            </Button>
+          </div>
+          <p className="text-[13px] text-fg-muted">
+            {ENVIA.has(action.tool_name)
+              ? "Athos no escribe al titular hasta que usted apruebe."
+              : "Athos no ejecuta nada hasta que usted apruebe."}
+          </p>
         </div>
       )}
+      </div>
     </div>
   )
 }

@@ -12,7 +12,7 @@ import { ThemeToggle } from "@/components/theme-toggle"
 // `titleFor` caía al valor por defecto. Cada sección que aparece en el sidebar tiene que tener su
 // entrada, y las rutas anidadas se resuelven por prefijo más largo.
 const TITLES: Record<string, string> = {
-  "/dashboard": "Dashboard",
+  "/dashboard/tablero": "Dashboard",
   "/dashboard/asistente": "Athos",
   "/dashboard/consultas": "Modo Fantasma",
   "/dashboard/patients": "Pacientes",

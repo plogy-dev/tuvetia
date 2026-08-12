@@ -70,7 +70,7 @@ const data = {
     { title: "Modo Fantasma", url: "/dashboard/consultas", icon: <GhostIcon /> },
   ],
   crm: [
-    { title: "Dashboard", url: "/dashboard", icon: <LayoutDashboardIcon /> },
+    { title: "Dashboard", url: "/dashboard/tablero", icon: <LayoutDashboardIcon /> },
     { title: "Pacientes", url: "/dashboard/patients", icon: <UsersIcon /> },
     { title: "Titulares", url: "/dashboard/owners", icon: <ContactIcon /> },
     { title: "Agenda", url: "/dashboard/calendario", icon: <CalendarIcon /> },
