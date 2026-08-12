@@ -104,13 +104,15 @@ function TextBlocks({ text, kp }: { text: string; kp: string }) {
   const limpio = sinMarcas(text)
   if (!limpio) return null
   return (
-    // La burbuja del mockup: `surface-raised` con borde, radio de card y la esquina superior
-    // izquierda pequeña — la muesca que la ancla al avatar.
+    // SIN BURBUJA. La respuesta se lee como texto sobre la página, que es lo que distingue a un chat
+    // tipo ChatGPT de una mensajería: la única burbuja del hilo es la del veterinario, y por eso se
+    // ve de un vistazo quién dijo qué sin encajonar también la respuesta, que es lo largo y lo que
+    // hay que leer. El avatar circular sigue anclándola al margen izquierdo.
     //
     // SIN RAYAS ENTRE PÁRRAFOS. Antes cada bloque llevaba `border-b`, así que una respuesta en prosa
     // se leía como una planilla: tres líneas horizontales entre tres oraciones. Los párrafos se
     // separan con espacio, que es como se separan los párrafos. Las viñetas conservan su punto.
-    <div className="flex flex-col gap-3 rounded-xl rounded-tl-sm border border-line bg-surface-2 px-4 py-3.5 text-sm leading-relaxed">
+    <div className="flex flex-col gap-3 text-[15px] leading-7">
       {splitBlocks(limpio).map((blk, j) =>
         blk.heading ? (
           <div key={j} className="text-[13px] font-semibold tracking-tight">
@@ -393,7 +395,10 @@ export function Assistant({
         {messages.map((msg) =>
           msg.role === "user" ? (
             <div key={msg.id} className="flex justify-end">
-              <div className="max-w-[82%] whitespace-pre-wrap rounded-2xl rounded-br-sm border bg-background px-4 py-2.5 text-sm">
+              {/* La única burbuja del hilo. Muy redondeada y sin borde, como la del usuario en
+                  ChatGPT: rellena en vez de delineada, que es lo que la separa del fondo ahora que
+                  la respuesta de Athos no tiene caja. */}
+              <div className="max-w-[80%] whitespace-pre-wrap rounded-3xl bg-surface-2 px-4 py-2.5 text-[15px] leading-6">
                 {msg.parts
                   .filter((p): p is Extract<(typeof msg.parts)[number], { type: "text" }> => p.type === "text")
                   .map((p) => p.text)
@@ -468,7 +473,11 @@ export function Assistant({
         <label htmlFor="pedir-a-athos" className="mb-1.5 block text-[13px] font-medium">
           Pedirle algo a Athos
         </label>
-        <div className="flex items-end gap-2">
+        {/* El campo y el botón viven DENTRO de una sola pastilla, como el compositor de ChatGPT: se
+            lee como un control y no como dos piezas sueltas. El borde y el foco los lleva la
+            pastilla, así que el textarea va sin los suyos. El botón queda circular y sin la palabra
+            "Enviar" — la lleva en `aria-label`, que es lo que necesita quien navega con lector. */}
+        <div className="flex items-end gap-2 rounded-3xl border border-line bg-surface py-2 pl-4 pr-2 focus-within:border-brand">
           <Textarea
             id="pedir-a-athos"
             value={input}
@@ -478,11 +487,16 @@ export function Assistant({
             }}
             rows={1}
             placeholder="Agenda el control de Luna la próxima semana"
-            className="max-h-40 min-h-11 flex-1 resize-none"
+            className="max-h-40 min-h-9 flex-1 resize-none self-center border-0 bg-transparent px-0 py-1.5 text-[15px] shadow-none focus-visible:ring-0 dark:bg-transparent"
           />
-          <Button onClick={send} disabled={busy} variant="outline" className="h-11 shrink-0">
+          <Button
+            onClick={send}
+            disabled={busy}
+            size="icon"
+            aria-label="Enviar"
+            className="size-9 shrink-0 rounded-full"
+          >
             {busy ? <Loader2 className="size-4 animate-spin" /> : <Send className="size-4" />}
-            <span className="hidden sm:inline">Enviar</span>
           </Button>
         </div>
         <p className="mt-2 text-[11px] text-fg-faint">
