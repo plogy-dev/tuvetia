@@ -51,7 +51,15 @@ export function AthosDock() {
     <div
       role="region"
       aria-label="Athos"
-      className="pointer-events-none fixed bottom-[calc(env(safe-area-inset-bottom)+0.75rem)] right-3 z-40 flex flex-col items-end gap-2 sm:bottom-4 sm:right-4"
+      // En móvil sube por encima del tab bar (`tab-bar-movil.tsx`): sin este despeje la pastilla de
+      // grabación y la burbuja de Athos quedaban DEBAJO de la barra, o sea invisibles y sin poder
+      // tocarse justo mientras hay un micrófono abierto. El `5rem` cubre la altura de la barra
+      // (48px de ítem + padding) más el área segura del sistema.
+      //
+      // El corte es `md:` y NO `sm:` porque el tab bar es `md:hidden` y `useIsMobile` usa 768px. Con
+      // `sm:` había una franja de 640 a 767px donde la barra seguía visible y el dock ya había vuelto
+      // abajo — o sea solapados, en el único rango de anchos que nadie prueba.
+      className="pointer-events-none fixed bottom-[calc(env(safe-area-inset-bottom)+5rem)] right-3 z-40 flex flex-col items-end gap-2 md:bottom-4 md:right-4"
     >
       <GrabacionPastilla />
       {!ocultarBurbuja && <AthosWidget />}
