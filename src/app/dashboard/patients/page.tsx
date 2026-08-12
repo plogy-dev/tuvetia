@@ -40,7 +40,11 @@ export default async function PatientsPage({
     supabase
       .from("patients")
       .select(
-        "id, name, species, breed, sex, birth_date, photo_url, owner:owners(full_name, phone)"
+        // `allergies` se embebe para poder marcar la alerta EN EL LISTADO. Es la idea del mockup y
+        // la única de esta pasada que evita un daño real: que "Luna" diga *Alergias* antes de abrir
+        // la ficha es lo que frena una prescripción equivocada. Un embed to-many sobre 200 filas,
+        // acotado a lo mínimo (severidad y alérgeno) — no trae la reacción ni quién la registró.
+        "id, name, species, breed, sex, birth_date, photo_url, owner:owners(full_name, phone), allergies(allergen, severity)"
       )
       .order("created_at", { ascending: false })
       .limit(200),

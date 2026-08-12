@@ -11,7 +11,6 @@ import { FileTextIcon, PawPrintIcon, SearchIcon } from "lucide-react"
 import { CreatePatientDrawer } from "@/components/create-patient-drawer"
 import { ExportCsvButton } from "@/components/export-csv-button"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
-import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { FilterChip, FilterChips } from "@/components/ui/filter-chips"
 import { Input } from "@/components/ui/input"
@@ -36,6 +35,41 @@ export type PatientRow = {
   // PostgREST devuelve el embed to-one (owner_id -> owners.id) como objeto,
   // pero el query builder no tipado lo infiere como arreglo.
   owner: { full_name: string; phone: string | null } | null
+  /** Embed to-many. Alimenta la alerta del listado; puede faltar en filas viejas del caché. */
+  allergies?: { allergen: string; severity: string }[] | null
+}
+
+/**
+ * La alerta clínica del listado.
+ *
+ * Sale del mockup y es lo mejor que trae: la alergia se ve ANTES de abrir la ficha, que es cuando
+ * todavía sirve para no equivocarse. Muestra la más grave y, si hay varias, cuántas más.
+ *
+ * `severe` se pinta en rojo y el resto en ámbar: una alergia leve no puede gritar lo mismo que una
+ * anafilaxia, o el rojo deja de significar algo.
+ */
+function AlertaClinica({ alergias }: { alergias: { allergen: string; severity: string }[] }) {
+  if (alergias.length === 0) {
+    return <span className="text-xs text-fg-faint">—</span>
+  }
+  const grave = alergias.some((a) => a.severity === "severe")
+  const peor = alergias.find((a) => a.severity === "severe") ?? alergias[0]
+  const resto = alergias.length - 1
+
+  return (
+    <span
+      title={alergias.map((a) => `${a.allergen} (${a.severity})`).join(" · ")}
+      className={`inline-flex max-w-full items-center gap-1.5 rounded px-1.5 py-0.5 text-[11px] font-medium ${
+        grave ? "bg-danger/10 text-danger" : "bg-warn/10 text-warn"
+      }`}
+    >
+      <span aria-hidden className={`size-1.5 shrink-0 rounded-full ${grave ? "bg-danger" : "bg-warn"}`} />
+      <span className="truncate">
+        {peor.allergen}
+        {resto > 0 && ` +${resto}`}
+      </span>
+    </span>
+  )
 }
 
 const SEX_LABELS: Record<string, string> = {
@@ -127,19 +161,39 @@ export function PatientsExplorer({
         />
       </div>
 
-      {/* Tabla de pacientes */}
-      <div className="overflow-hidden rounded-lg border">
+      {/* Tabla de pacientes. Un bloque con borde y filas separadas por línea —sin sombra, sin fondo
+          en la cabecera— que es la gramática de listas del mockup. La cabecera va en versalitas de
+          11px como el resto del sistema. */}
+      <div className="overflow-hidden rounded-xl border border-line">
         <Table>
-          <TableHeader className="bg-muted">
-            <TableRow>
-              <TableHead>Mascota</TableHead>
-              <TableHead>Especie</TableHead>
-              <TableHead className="hidden md:table-cell">Raza</TableHead>
-              <TableHead>Sexo</TableHead>
-              <TableHead>Edad</TableHead>
-              <TableHead className="hidden sm:table-cell">Titular</TableHead>
-              <TableHead className="hidden lg:table-cell">Teléfono</TableHead>
-              <TableHead className="w-28 text-right">Historia</TableHead>
+          <TableHeader>
+            <TableRow className="hover:bg-transparent">
+              <TableHead className="text-[11px] font-semibold uppercase tracking-[0.08em] text-fg-faint">
+                Paciente
+              </TableHead>
+              {/* "Estado" reemplaza a "Especie": la especie ya se lee en el nombre y en la raza, y
+                  esta columna es la que el mockup usa para la alerta clínica. */}
+              <TableHead className="text-[11px] font-semibold uppercase tracking-[0.08em] text-fg-faint">
+                Estado
+              </TableHead>
+              <TableHead className="hidden text-[11px] font-semibold uppercase tracking-[0.08em] text-fg-faint md:table-cell">
+                Raza
+              </TableHead>
+              <TableHead className="text-[11px] font-semibold uppercase tracking-[0.08em] text-fg-faint">
+                Sexo
+              </TableHead>
+              <TableHead className="text-[11px] font-semibold uppercase tracking-[0.08em] text-fg-faint">
+                Edad
+              </TableHead>
+              <TableHead className="hidden text-[11px] font-semibold uppercase tracking-[0.08em] text-fg-faint sm:table-cell">
+                Titular
+              </TableHead>
+              <TableHead className="hidden text-[11px] font-semibold uppercase tracking-[0.08em] text-fg-faint lg:table-cell">
+                Teléfono
+              </TableHead>
+              <TableHead className="w-28 text-right text-[11px] font-semibold uppercase tracking-[0.08em] text-fg-faint">
+                Historia
+              </TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -157,13 +211,16 @@ export function PatientsExplorer({
                           <PawPrintIcon className="size-4" />
                         </AvatarFallback>
                       </Avatar>
-                      {patient.name}
+                      <span className="min-w-0">
+                        <span className="block truncate">{patient.name}</span>
+                        <span className="block truncate text-xs font-normal text-fg-muted">
+                          {patient.species}
+                        </span>
+                      </span>
                     </Link>
                   </TableCell>
                   <TableCell>
-                    <Badge variant="secondary" className="text-xs">
-                      {patient.species}
-                    </Badge>
+                    <AlertaClinica alergias={patient.allergies ?? []} />
                   </TableCell>
                   <TableCell className="hidden text-muted-foreground md:table-cell">
                     {patient.breed ?? "—"}

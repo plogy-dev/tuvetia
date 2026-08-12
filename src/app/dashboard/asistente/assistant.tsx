@@ -381,37 +381,12 @@ export function Assistant({
       >
         {messages.length === 0 && (
           <div className="m-auto flex max-w-md flex-col items-center gap-3 text-center">
-            <Bot className="size-6 text-muted-foreground opacity-50" />
-            <p className="text-sm text-muted-foreground">
+            <Bot className="size-6 text-fg-faint" />
+            <p className="text-sm text-fg-muted">
               {patient
                 ? `Pregúntame sobre ${patient.name} o una duda médica general. Puedo consultar su ficha, la agenda o la literatura, y proponerte acciones (citas, mensajes) que tú apruebas.`
                 : "Pregúntame una duda médica general, o elige un paciente arriba para razonar con su ficha. Respondo con literatura citada y verificable — nunca un diagnóstico cerrado."}
             </p>
-            {/* Sugerencias para arrancar. Sólo rellenan el cuadro de texto — no envían nada — y
-                cada una pide algo que el agente sabe hacer con las tools que tiene. */}
-            <div className="flex flex-wrap justify-center gap-1.5">
-              {(patient
-                ? [
-                    `Resume la ficha de ${patient.name}`,
-                    `¿Qué debería revisar hoy en ${patient.name}?`,
-                    `Agenda un control para ${patient.name} la próxima semana`,
-                  ]
-                : [
-                    "¿Qué citas hay hoy?",
-                    "¿Cuáles son los horarios de la clínica?",
-                    "¿Qué dice la literatura sobre otitis por Malassezia?",
-                  ]
-              ).map((s) => (
-                <button
-                  key={s}
-                  type="button"
-                  onClick={() => setInput(s)}
-                  className="rounded-md border bg-background px-2.5 py-1 text-xs text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
-                >
-                  {s}
-                </button>
-              ))}
-            </div>
           </div>
         )}
 
@@ -453,6 +428,39 @@ export function Assistant({
 
       {/* Compositor. Franja separada por una línea, como en el mockup: la conversación termina y
           acá empieza la entrada. Antes era una card con sombra flotando sobre otra card. */}
+      {/* SUGERENCIAS PERSISTENTES, no sólo en el estado vacío.
+          Antes desaparecían con el primer mensaje — o sea justo cuando el vet ya vio de qué es capaz
+          Athos y podría querer pedirle lo siguiente. En el mockup viven bajo el briefing y son la
+          forma principal de operar. Se ocultan mientras Athos responde: ofrecer otra cosa a mitad de
+          una respuesta invita a pisarla. */}
+      {!busy && (
+        <div className="flex flex-wrap gap-2">
+          {(patient
+            ? [
+                `Resume la ficha de ${patient.name}`,
+                `¿Qué debería revisar hoy en ${patient.name}?`,
+                `Agenda un control para ${patient.name} la próxima semana`,
+              ]
+            : [
+                "¿Qué citas hay hoy?",
+                "¿Cuáles son los horarios de la clínica?",
+                "¿Qué dice la literatura sobre otitis por Malassezia?",
+              ]
+          ).map((s) => (
+            <Button
+              key={s}
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => setInput(s)}
+              className="h-10 font-normal"
+            >
+              {s}
+            </Button>
+          ))}
+        </div>
+      )}
+
       <div className="-mx-4 mt-auto border-t border-line px-4 pt-4 md:-mx-6 md:px-6">
         {/* La etiqueta va ARRIBA y visible, como en el mockup, no escondida en el placeholder: un
             placeholder desaparece al escribir la primera letra y con él la única pista de qué es
