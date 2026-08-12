@@ -23,7 +23,7 @@ function mmss(total: number): string {
   return `${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`
 }
 
-export function GrabacionPastilla() {
+export function GrabacionPastilla({ alAbrir }: { alAbrir?: () => void }) {
   const estado = useConsultaViva()
 
   if (estado.fase === "inactiva" || estado.fase === "terminada") return null
@@ -81,15 +81,27 @@ export function GrabacionPastilla() {
         {fallo && <span className="text-destructive">{estado.error ?? "Falló la grabación"}</span>}
       </span>
 
-      {estado.consultaId && (
-        <Button
-          size="sm"
-          variant="ghost"
-          className="h-7 shrink-0 px-2 text-xs"
-          render={<Link href={`/dashboard/consultas/${estado.consultaId}`} />}
-        >
+      {/* "Abrir" ABRE EL PANEL, no navega. Antes mandaba a la pantalla de la consulta: mirar cómo va
+          la transcripción obligaba a abandonar lo que estabas haciendo, que es exactamente lo que
+          esta función existe para evitar. Ir a la consulta sigue estando, dentro del panel.
+
+          Si el dock no pasó `alAbrir` —montado suelto en algún test o pantalla— cae al enlace de
+          antes en vez de quedarse sin salida. */}
+      {alAbrir ? (
+        <Button size="sm" variant="ghost" className="h-7 shrink-0 px-2 text-xs" onClick={alAbrir}>
           Abrir
         </Button>
+      ) : (
+        estado.consultaId && (
+          <Button
+            size="sm"
+            variant="ghost"
+            className="h-7 shrink-0 px-2 text-xs"
+            render={<Link href={`/dashboard/consultas/${estado.consultaId}`} />}
+          >
+            Abrir
+          </Button>
+        )
       )}
 
       {/* Detener sólo en escritorio. En móvil el botón queda al alcance del pulgar y un toque

@@ -19,16 +19,22 @@
 // se posiciona contra el viewport igual. Portalear traería el problema de tokens de color que
 // `app-sidebar.tsx` ya documenta para el sidebar móvil, sin ninguna ganancia.
 
-import { useEffect } from "react"
+import { useEffect, useState } from "react"
 import { usePathname } from "next/navigation"
 import { toast } from "sonner"
 
 import { AthosWidget } from "@/components/athos/athos-widget"
 import { GrabacionPastilla } from "@/components/athos/grabacion-pastilla"
+import { PanelTomanotas } from "@/components/athos/panel-tomanotas"
 import { migajaDeGrabacionPerdida } from "@/lib/consulta-viva/sesion"
 
 export function AthosDock() {
   const pathname = usePathname()
+  // Abierto/cerrado del panel de Tomanotas. Vive acá y no en el módulo de la sesión a propósito:
+  // que el panel esté visible es una preferencia de ESTA pestaña y de este momento, no parte del
+  // estado de la grabación. Meterlo en `consultaViva` lo convertiría en algo que sobrevive la
+  // navegación, y entonces el panel reaparecería solo al cambiar de pantalla.
+  const [panelAbierto, setPanelAbierto] = useState(false)
 
   // Si la pestaña se recargó con una grabación viva, el audio de ese tramo se perdió y no hay forma
   // de recuperarlo. Esto no lo arregla: lo DECLARA. Una pérdida dicha es infinitamente mejor que una
@@ -61,8 +67,11 @@ export function AthosDock() {
       // abajo — o sea solapados, en el único rango de anchos que nadie prueba.
       className="pointer-events-none fixed bottom-[calc(env(safe-area-inset-bottom)+5rem)] right-3 z-40 flex flex-col items-end gap-2 md:bottom-4 md:right-4"
     >
-      <GrabacionPastilla />
+      <GrabacionPastilla alAbrir={() => setPanelAbierto(true)} />
       {!ocultarBurbuja && <AthosWidget />}
+      {/* El panel es hermano de la pastilla dentro del dock, pero se posiciona solo con su propio
+          `fixed inset-0`: el `bottom/right` del dock no lo afecta. */}
+      <PanelTomanotas abierto={panelAbierto} alCerrar={() => setPanelAbierto(false)} />
     </div>
   )
 }
