@@ -376,10 +376,23 @@ export function Assistant({
 
       {/* Hilo de conversación. Sin borde ni fondo propios: en el mockup la conversación no vive
           dentro de una card, ocupa la pantalla. El único borde de esta pantalla es el que separa
-          el compositor abajo y el riel a la derecha. */}
+          el compositor abajo y el riel a la derecha.
+
+          EL ANCHO DE LECTURA VIVE ACÁ, EN LOS HIJOS, no en el contenedor de la pantalla.
+
+          Es lo que hace convivir las dos cosas que esta pantalla tiene que ser a la vez. La pantalla
+          llena el ancho porque al lado va el riel de la clínica (320px); si se fijara `max-w-3xl`
+          arriba —como hacía el chat antes de #87— no habría lugar para el riel. Pero sin ningún tope,
+          en un monitor de 1920 quedan ~1300px de texto por línea: muy por encima de cualquier medida
+          legible, y justo en la superficie donde el vet lee párrafos largos.
+
+          Por eso el tope va en `[&>*]`: cada turno se centra en una columna de 3xl dentro de un hilo
+          que ocupa todo el ancho. Los chips y el compositor llevan el MISMO tope unas líneas abajo —
+          si no, el hilo queda angosto y centrado con un compositor ancho debajo, que se ve peor que
+          no haber hecho nada. */}
       <div
         ref={threadRef}
-        className="flex flex-1 flex-col gap-5 overflow-y-auto"
+        className="flex flex-1 flex-col gap-5 overflow-y-auto [&>*]:mx-auto [&>*]:w-full [&>*]:max-w-3xl"
       >
         {messages.length === 0 && (
           <div className="m-auto flex max-w-md flex-col items-center gap-3 text-center">
@@ -439,7 +452,7 @@ export function Assistant({
           forma principal de operar. Se ocultan mientras Athos responde: ofrecer otra cosa a mitad de
           una respuesta invita a pisarla. */}
       {!busy && (
-        <div className="flex flex-wrap gap-2">
+        <div className="mx-auto flex w-full max-w-3xl flex-wrap gap-2">
           {(patient
             ? [
                 `Resume la ficha de ${patient.name}`,
@@ -467,6 +480,7 @@ export function Assistant({
       )}
 
       <div className="-mx-4 mt-auto border-t border-line px-4 pt-4 md:-mx-6 md:px-6">
+       <div className="mx-auto w-full max-w-3xl">
         {/* La etiqueta va ARRIBA y visible, como en el mockup, no escondida en el placeholder: un
             placeholder desaparece al escribir la primera letra y con él la única pista de qué es
             ese campo. */}
@@ -502,6 +516,7 @@ export function Assistant({
         <p className="mt-2 text-[11px] text-fg-faint">
           Athos propone — tú apruebas. Ninguna acción se ejecuta sin tu confirmación.
         </p>
+       </div>
       </div>
     </div>
   )
