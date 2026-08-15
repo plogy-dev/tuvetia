@@ -22,7 +22,14 @@ import { createClient } from "@/lib/supabase/client"
 import { parseTranscript } from "@/lib/transcript"
 import { ConsultationRecorder } from "@/components/consultation-recorder"
 import { ConsultationThread } from "@/components/athos/consultation-thread"
-import { renderInline } from "@/components/athos/rich-text"
+import { renderInline, tramosIndivisibles } from "@/components/athos/rich-text"
+import {
+  esSevera,
+  marcarAlergenos,
+  resumenDeAlergias,
+  SEVERIDAD_ALERGIA,
+  type AlergiaRegistrada,
+} from "@/lib/alergias"
 import { HelpTip } from "@/components/help-tip"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -63,13 +70,59 @@ const SOAP_FIELDS: { key: keyof Soap; label: string; hint: string }[] = [
   { key: "plan", label: "Plan", hint: "Conducta y siguientes pasos" },
 ]
 
-// Render de la nota (solo lectura): limpia referencias crudas de chunk que notas viejas embebían
-// en el texto y delega en el render compartido (negritas, citas [n] enlazadas, posibilidad).
-function renderNote(raw: string, citations: Citation[], kp: string) {
-  const text = raw
+/** Quita las referencias crudas de chunk que las notas viejas embebían en el texto. */
+function limpiarNota(raw: string): string {
+  return raw
     .replace(/\s*\(chunk_id:[^)]*\)/gi, "")
     .replace(/\s*\[[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f-]{18,}\]/gi, "")
-  return renderInline(text, citations, kp)
+}
+
+// Render de la nota (solo lectura): delega en el render compartido (negritas, citas [n] enlazadas,
+// posibilidad).
+function renderNote(raw: string, citations: Citation[], kp: string) {
+  return renderInline(limpiarNota(raw), citations, kp)
+}
+
+/**
+ * Igual que `renderNote`, pero encendiendo en rojo cada mención de algo a lo que el paciente es
+ * alérgico.
+ *
+ * ES LA PIEZA DEL MOCKUP QUE FALTABA, y la única de la lista que evita un daño real. La alerta de
+ * alergia existía, pero vivía en un panel arriba de la pantalla y no nombraba el fármaco. Acá la
+ * contraindicación aparece dentro de la frase que la propone, que es donde se decide prescribir.
+ *
+ * No la escribe ningún modelo: sale de cruzar `allergies` con el texto. El chequeo da lo mismo cada
+ * vez que se abre la nota.
+ */
+function renderPlan(
+  raw: string,
+  citations: Citation[],
+  kp: string,
+  alergias: AlergiaRegistrada[],
+) {
+  const texto = limpiarNota(raw)
+  const trozos = marcarAlergenos(texto, alergias, tramosIndivisibles(texto))
+  return trozos.map((t, i) =>
+    t.alergeno ? (
+      // `<mark>` y no un `<span>` con color: para un lector de pantalla esto ES una marca sobre el
+      // texto, y el `title` dice por qué está marcada — el color solo no le llega a quien no lo ve.
+      <mark
+        key={`${kp}-al${i}`}
+        title={`Alergia registrada: ${t.alergeno.allergen}${
+          SEVERIDAD_ALERGIA[t.alergeno.severity] ? ` (${SEVERIDAD_ALERGIA[t.alergeno.severity]})` : ""
+        }`}
+        className={`rounded-sm px-0.5 font-semibold ${
+          esSevera(t.alergeno)
+            ? "bg-destructive/15 text-destructive"
+            : "bg-warn/15 text-warn"
+        }`}
+      >
+        {renderInline(t.texto, citations, `${kp}-al${i}`)}
+      </mark>
+    ) : (
+      renderInline(t.texto, citations, `${kp}-t${i}`)
+    ),
+  )
 }
 
 export default function NotaConsultaPage({ params }: { params: Promise<{ id: string }> }) {
@@ -85,6 +138,7 @@ export default function NotaConsultaPage({ params }: { params: Promise<{ id: str
   const [consultation, setConsultation] = useState<Consultation | null>(null)
   const [note, setNote] = useState<Note | null>(null)
   const [alerts, setAlerts] = useState<ConditionAlert[]>([])
+  const [alergias, setAlergias] = useState<AlergiaRegistrada[]>([])
   const [transcript, setTranscript] = useState<string>("")
   const [soap, setSoap] = useState<Soap>({ subjective: "", objective: "", assessment: "", plan: "" })
   const [captureOpen, setCaptureOpen] = useState(true) // panel colapsable de grabación/transcripción
@@ -104,6 +158,22 @@ export default function NotaConsultaPage({ params }: { params: Promise<{ id: str
     }
     setLoadError(false)
     setConsultation(c as unknown as Consultation | null)
+
+    // Las alergias registradas del paciente, para marcarlas DENTRO del plan.
+    //
+    // El gate (`allergy_gate_triggered`) es un booleano: dice que hay una alergia severa y no dice
+    // CUÁL. El vet leía "revisá el plan considerando esta alergia severa" sin que la pantalla
+    // nombrara nunca el fármaco. Esto trae el nombre, que es lo que hace accionable la alerta.
+    //
+    // Va después del select de la consulta porque necesita su `patient_id`.
+    const patientId = (c as unknown as Consultation).patient_id
+    if (patientId) {
+      const { data: al } = await supabase
+        .from("allergies")
+        .select("allergen, severity, reaction")
+        .eq("patient_id", patientId)
+      setAlergias((al ?? []) as unknown as AlergiaRegistrada[])
+    }
 
     const { data: t } = await supabase
       .from("transcripts")
@@ -364,9 +434,24 @@ export default function NotaConsultaPage({ params }: { params: Promise<{ id: str
                     <span className="mr-1.5 rounded bg-secondary px-2 py-0.5 text-[11px] font-bold uppercase text-foreground">
                       En {pet?.name ?? "este paciente"}
                     </span>
-                    Hay una <strong>alergia severa</strong> registrada en su historia. Evita el fármaco
-                    implicado y su clase en cualquier plan. Esta alerta <strong>bloquea la aprobación</strong> de
-                    la nota hasta tu revisión.
+                    {/* NOMBRA EL FÁRMACO. El gate es un booleano en la nota, así que este panel
+                        decía "hay una alergia severa registrada" y mandaba a revisar el plan sin
+                        decir nunca contra qué. Los nombres salen de `allergies`, la misma tabla que
+                        dispara el gate. Si por lo que sea no cargaron, cae al texto de antes en vez
+                        de dejar el hueco. */}
+                    {alergias.some(esSevera) ? (
+                      <>
+                        Alergia severa registrada:{" "}
+                        <strong>{resumenDeAlergias(alergias.filter(esSevera))}</strong>. Evita ese
+                        fármaco y su clase en cualquier plan.
+                      </>
+                    ) : (
+                      <>
+                        Hay una <strong>alergia severa</strong> registrada en su historia. Evita el
+                        fármaco implicado y su clase en cualquier plan.
+                      </>
+                    )}{" "}
+                    Esta alerta <strong>bloquea la aprobación</strong> de la nota hasta tu revisión.
                   </p>
                   {!approved && (
                     <label className="mt-3 flex cursor-pointer items-center gap-2 text-xs font-medium">
@@ -522,7 +607,11 @@ export default function NotaConsultaPage({ params }: { params: Promise<{ id: str
                   {approved ? (
                     <p className="text-sm leading-relaxed whitespace-pre-wrap">
                       {soap[f.key] ? (
-                        renderNote(soap[f.key], citations, f.key)
+                        f.key === "plan" ? (
+                          renderPlan(soap[f.key], citations, f.key, alergias)
+                        ) : (
+                          renderNote(soap[f.key], citations, f.key)
+                        )
                       ) : (
                         <span className="text-muted-foreground">—</span>
                       )}
@@ -533,6 +622,27 @@ export default function NotaConsultaPage({ params }: { params: Promise<{ id: str
                       onChange={(e) => setSoap((s) => ({ ...s, [f.key]: e.target.value }))}
                       rows={f.key === "assessment" || f.key === "plan" ? 4 : 2}
                     />
+                  )}
+                  {/* LA ADVERTENCIA VA SIEMPRE QUE HAYA ALERGIA, mencione el plan el fármaco o no.
+                      El resaltado de arriba sólo se enciende si el texto lo nombra; el riesgo que
+                      importa es el otro — que el plan prescriba algo de la misma clase con otro
+                      nombre y nada en pantalla diga contra qué revisar.
+
+                      Y va también mientras se EDITA, que es cuando el vet todavía puede cambiar la
+                      conducta: dentro de un <textarea> no se puede resaltar nada, así que sin esta
+                      línea la revisión sería justo el momento sin aviso. */}
+                  {f.key === "plan" && alergias.length > 0 && (
+                    <p
+                      className={`mt-2 flex items-start gap-1.5 text-xs font-medium ${
+                        alergias.some(esSevera) ? "text-destructive" : "text-warn"
+                      }`}
+                    >
+                      <AlertTriangle aria-hidden className="mt-px size-3.5 shrink-0" />
+                      <span>
+                        Alergias registradas de {pet?.name ?? "este paciente"}:{" "}
+                        {resumenDeAlergias(alergias)}. Evita el fármaco implicado y su clase.
+                      </span>
+                    </p>
                   )}
                 </div>
               </div>

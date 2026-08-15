@@ -32,6 +32,7 @@ import { toast } from "sonner"
 
 import { createClient } from "@/lib/supabase/client"
 import { bogotaDateOnly, bogotaTodayISO } from "@/lib/date-utils"
+import { SEVERIDAD_ALERGIA } from "@/lib/alergias"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
@@ -53,11 +54,8 @@ export type Vaccine = {
   next_dose_at: string | null
 }
 
-const SEVERITY_LABELS: Record<string, string> = {
-  mild: "leve",
-  moderate: "moderada",
-  severe: "severa",
-}
+// El mapa se mudó a `lib/alergias.ts`, junto a la lógica que marca el alérgeno dentro del plan de
+// la nota: las dos pantallas tienen que nombrar la misma severidad con la misma palabra.
 
 function Campo({
   etiqueta,
@@ -229,7 +227,7 @@ export function PatientClinicalSummary({
                 />
                 <span className="font-medium">{a.allergen}</span>
                 <span className="text-muted-foreground">
-                  {SEVERITY_LABELS[a.severity] ?? a.severity}
+                  {SEVERIDAD_ALERGIA[a.severity] ?? a.severity}
                 </span>
               </li>
             ))}
