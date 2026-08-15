@@ -5,7 +5,7 @@
 // en athos_actions + audit_logs.
 
 import { useState } from "react"
-import { CalendarPlus, Check, ClipboardEdit, Loader2, Mail, MessageCircle, PawPrint, Sparkles, UserPlus, X } from "lucide-react"
+import { Check, Loader2, X } from "lucide-react"
 import Link from "next/link"
 import { toast } from "sonner"
 
@@ -28,16 +28,24 @@ export type ProposedAction = {
   created_at?: string
 }
 
-const TOOL_LABELS: Record<string, { label: string; icon: typeof MessageCircle }> = {
-  send_whatsapp_message: { label: "Mensaje de WhatsApp", icon: MessageCircle },
-  create_appointment: { label: "Nueva cita", icon: CalendarPlus },
-  update_appointment: { label: "Cambio de cita", icon: CalendarPlus },
-  create_owner: { label: "Nuevo titular", icon: UserPlus },
-  create_patient: { label: "Nuevo paciente", icon: PawPrint },
-  create_owner_and_patient: { label: "Titular + paciente", icon: PawPrint },
-  update_patient_record: { label: "Actualizar ficha", icon: ClipboardEdit },
-  send_email: { label: "Correo", icon: Mail },
-  reply_email: { label: "Respuesta por correo", icon: Mail },
+/**
+ * Cómo se nombra cada acción en la cabecera de la tarjeta.
+ *
+ * SIN ÍCONO, como el mockup: su cabecera es `ACCIÓN PROPUESTA · Agendar cita`, versalitas y texto.
+ * El sistema del cliente usa íconos en UN solo lugar de las 16 secciones —la tab bar móvil, donde
+ * no cabe una palabra— y en todo lo demás deja que el texto haga el trabajo. Acá el ícono repetía
+ * lo que la etiqueta de al lado ya decía.
+ */
+const TOOL_LABELS: Record<string, string> = {
+  send_whatsapp_message: "Mensaje de WhatsApp",
+  create_appointment: "Nueva cita",
+  update_appointment: "Cambio de cita",
+  create_owner: "Nuevo titular",
+  create_patient: "Nuevo paciente",
+  create_owner_and_patient: "Titular + paciente",
+  update_patient_record: "Actualizar ficha",
+  send_email: "Correo",
+  reply_email: "Respuesta por correo",
 }
 
 /**
@@ -171,8 +179,8 @@ export function ActionApprovalCard({
     }
   }
 
-  const meta = TOOL_LABELS[action.tool_name] ?? { label: action.tool_name, icon: Sparkles }
-  const Icon = meta.icon
+  // Un tool sin etiqueta cae a su nombre crudo: es feo, pero decir mal qué se va a ejecutar es peor.
+  const etiqueta = TOOL_LABELS[action.tool_name] ?? action.tool_name
 
   return (
     // FORMA DEL MOCKUP: borde de acento, franja menta arriba, y el descargo abajo. Sin sombra —el
@@ -188,8 +196,7 @@ export function ActionApprovalCard({
           Acción propuesta
         </span>
         <span className="flex items-center gap-1.5 text-sm font-semibold">
-          <Icon aria-hidden className="size-4 shrink-0" />
-          {meta.label}
+          {etiqueta}
         </span>
       </div>
 
