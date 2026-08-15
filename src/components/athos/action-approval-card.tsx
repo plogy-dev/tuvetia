@@ -12,6 +12,7 @@ import { toast } from "sonner"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
+import { camposDeAccion } from "@/lib/athos-agent/detalle-accion"
 
 export type ProposedAction = {
   id: string
@@ -90,6 +91,10 @@ export function ActionApprovalCard({
 }) {
   const campos = CAMPOS_EDITABLES[action.tool_name] ?? []
   const editable = campos.length > 0
+  // La lista `etiqueta → valor` del mockup. Se calcula del payload, no del resumen: el resumen es
+  // prosa que arma la tool y deja campos afuera (ver `detalle-accion.ts`). Para los tools de
+  // mensajería viene vacía, porque sus campos ya se pintan editables acá abajo.
+  const detalle = camposDeAccion(action.tool_name, action.payload)
   // Valores de trabajo, sembrados del payload propuesto. Se comparan contra el original al aprobar
   // para mandar SOLO lo que el vet tocó.
   const [valores, setValores] = useState<Record<string, string>>(() =>
@@ -171,6 +176,22 @@ export function ActionApprovalCard({
 
       <div className="flex flex-col gap-3 px-4 py-3.5">
       <p>{action.summary}</p>
+      {/* LA LISTA DE DEFINICIÓN DEL MOCKUP. Se sigue mostrando después de resuelta: es la
+          constancia de qué se aprobó exactamente, y una tarjeta que borra sus datos al ejecutarse
+          deja al vet sin forma de verificar lo que acaba de autorizar.
+
+          `sm:` en la grilla porque en un teléfono dos columnas dejan al valor con 12 caracteres de
+          ancho; ahí la etiqueta va encima. */}
+      {detalle.length > 0 && (
+        <dl className="grid gap-x-4 gap-y-1.5 text-[13px] sm:grid-cols-[minmax(0,8rem)_minmax(0,1fr)]">
+          {detalle.map((c) => (
+            <div key={c.etiqueta} className="contents">
+              <dt className="text-fg-muted">{c.etiqueta}</dt>
+              <dd className="min-w-0 break-words whitespace-pre-wrap">{c.valor}</dd>
+            </div>
+          ))}
+        </dl>
+      )}
       {editable && !resolved && (
         <div className="flex flex-col gap-2">
           {/* La etiqueta va VISIBLE, no sólo de placeholder: el placeholder desaparece en cuanto el
