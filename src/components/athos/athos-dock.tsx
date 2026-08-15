@@ -25,12 +25,12 @@ import { toast } from "sonner"
 
 import { AthosWidget } from "@/components/athos/athos-widget"
 import { GrabacionPastilla } from "@/components/athos/grabacion-pastilla"
-import { PanelTomanotas } from "@/components/athos/panel-tomanotas"
+import { PanelModoFantasma } from "@/components/athos/panel-modo-fantasma"
 import { migajaDeGrabacionPerdida } from "@/lib/consulta-viva/sesion"
 
 export function AthosDock() {
   const pathname = usePathname()
-  // Abierto/cerrado del panel de Tomanotas. Vive acá y no en el módulo de la sesión a propósito:
+  // Abierto/cerrado del panel del Modo Fantasma. Vive acá y no en el módulo de la sesión a propósito:
   // que el panel esté visible es una preferencia de ESTA pestaña y de este momento, no parte del
   // estado de la grabación. Meterlo en `consultaViva` lo convertiría en algo que sobrevive la
   // navegación, y entonces el panel reaparecería solo al cambiar de pantalla.
@@ -71,7 +71,7 @@ export function AthosDock() {
       {!ocultarBurbuja && <AthosWidget />}
       {/* El panel es hermano de la pastilla dentro del dock, pero se posiciona solo con su propio
           `fixed inset-0`: el `bottom/right` del dock no lo afecta. */}
-      <PanelTomanotas abierto={panelAbierto} alCerrar={() => setPanelAbierto(false)} />
+      <PanelModoFantasma abierto={panelAbierto} alCerrar={() => setPanelAbierto(false)} />
     </div>
   )
 }

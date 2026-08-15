@@ -1,6 +1,6 @@
 "use client"
 
-// El panel de Tomanotas: baja desde arriba y cubre la app, como en el mockup.
+// El panel del Modo Fantasma: baja desde arriba y cubre la app, como en el mockup.
 //
 // LA IDEA QUE IMPLEMENTA. Grabar no te saca de donde estás. Es la mitad visual de lo que el PR #82
 // ya construyó por dentro —la grabación sobrevive la navegación— y hasta ahora no tenía dónde verse:
@@ -30,7 +30,7 @@ function mmss(total: number): string {
   return `${String(Math.floor(total / 60)).padStart(2, "0")}:${String(total % 60).padStart(2, "0")}`
 }
 
-export function PanelTomanotas({ abierto, alCerrar }: { abierto: boolean; alCerrar: () => void }) {
+export function PanelModoFantasma({ abierto, alCerrar }: { abierto: boolean; alCerrar: () => void }) {
   const estado = useConsultaViva()
 
   if (!abierto || estado.fase === "inactiva") return null
@@ -62,7 +62,7 @@ export function PanelTomanotas({ abierto, alCerrar }: { abierto: boolean; alCerr
           {cerrando && <Loader2 aria-hidden className="size-4 shrink-0 animate-spin text-fg-faint" />}
           {fallo && <TriangleAlert aria-hidden className="size-4 shrink-0 text-danger" />}
 
-          <span className="text-sm font-semibold">Tomanotas</span>
+          <span className="text-sm font-semibold">Modo Fantasma</span>
           <span className="text-sm text-fg-muted">{titular}</span>
           {/* El cronómetro va aria-hidden: una región viva que cambia cada segundo hace que el
               lector de pantalla anuncie la hora sin parar. Mismo criterio que la pastilla. */}
@@ -129,7 +129,7 @@ export function PanelTomanotas({ abierto, alCerrar }: { abierto: boolean; alCerr
           minimizar y terminar son cosas distintas, y confundirlas acá cortaría una consulta. */}
       <button
         type="button"
-        aria-label="Minimizar Tomanotas"
+        aria-label="Minimizar el Modo Fantasma"
         onClick={alCerrar}
         className="flex-1 cursor-default bg-fg/20"
       />
