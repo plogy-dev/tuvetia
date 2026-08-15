@@ -88,6 +88,11 @@
      usaban la escala de Tailwind — y las cards, que no deberían tener ninguna, usaban `shadow-sm`
      en 19 lugares. Se usa SÓLO en lo que flota por encima del contenido. */
   --shadow-popover: 0 4px 16px rgba(12, 22, 19, 0.12), 0 1px 2px rgba(12, 22, 19, 0.08);
+  /* El cuerpo del sistema del cliente: 15px con interlínea 1.55. Se aplica en `body` —igual que
+     ellos— y NO en `html`: tocar la raíz reescalaría todas las utilidades en `rem` (padding, gap,
+     alturas) y encogería la app entera un 6%, que no es lo que el token quiere decir. */
+  --text-base-app: 15px;
+  --leading-app: 1.55;
   --color-ok: var(--ok);
   --color-warn: var(--warn);
   --color-info: var(--info);
@@ -361,6 +366,26 @@
    El peso baja a 500 y el tracking se afloja a -0.01em: -0.015em y el bold
    estaban calibrados para Bricolage, un grotesco. Un serif apretado y en
    negrita se empasta. */
+/* EL CUERPO DE 15px/1.55 DEL SISTEMA DEL CLIENTE.
+ *
+ * Va en `.app-theme` y NO en `body`: la landing fija su propio `body` (Archivo, en `landing.css`)
+ * sin tamaño, así que declararlo global le cambiaría el cuerpo a una superficie que este sistema
+ * de diseño no gobierna. Es la misma razón por la que los titulares de abajo están scopeados.
+ * `.app-theme` cubre el dashboard entero, login, signup e invitaciones.
+ *
+ * Y va acá y no en `html`, igual que en el mockup: tocar la raíz reescalaría todas las utilidades
+ * en `rem` —padding, gap, alturas— y encogería la app un 6%, que no es lo que el token dice.
+ *
+ * ALCANCE REAL, para que nadie espere de más: afecta al texto que HEREDA su tamaño. Lo que lleva
+ * clase explícita (`text-sm` = 14px, `text-[13px]`) sigue en la escala de Tailwind — y ahí el
+ * mockup y nosotros seguimos difiriendo un punto. Igualarlo pide reescribir los tamaños componente
+ * por componente, que es otra decisión.
+ */
+.app-theme {
+  font-size: var(--text-base-app);
+  line-height: var(--leading-app);
+}
+
 .app-theme h1,
 .app-theme h2,
 .sec-title {
