@@ -96,7 +96,31 @@ O sea: las tres cifras que OkVet pone al frente —agendamientos, recibos, docum
 
 ---
 
-## 4. La tensión que hay que resolver antes de diseñar nada
+## 4. DECIDIDO (15-ago): OkVet es referente de UI, y sólo para facturación
+
+El cliente cerró el punto: **OkVet no es referente de arquitectura, ni del tablero de la clínica.
+Es referente de INTERFAZ y sólo para la zona de facturación.**
+
+Eso resuelve la tensión de abajo sin discutirla: Athos sigue siendo el inicio, `/dashboard/tablero`
+se queda como está, y lo que se mira de OkVet es cómo presenta ventas, recibos y documentos
+electrónicos — que es justamente donde ellos tienen su producto de pago y su mejor trabajo.
+
+**Lo que esto cambia respecto de la propuesta original de este documento:**
+
+| | Propuesta original | Con la decisión |
+|---|---|---|
+| Llevar las cifras de dinero al tablero | Fase 1 | ✗ se descarta — el tablero no cambia |
+| Mejorar la presentación de `/dashboard/facturacion` | no estaba | ✅ es TODO el alcance |
+| Panel configurable | Fase 3 | ✗ fuera |
+| KPIs de retención, ACT, especie | Fase 2 | ◐ sólo si viven dentro de Ventas |
+
+La §6 de abajo queda como estaba **a título de inventario de lo que se podría calcular**, no como
+plan. El plan es: tomar la forma en que OkVet presenta la información de ventas y aplicarla a
+nuestra pantalla de Ventas, que ya tiene los datos y el agregado (`getDashboardKpis`).
+
+---
+
+## 5. La tensión que YA NO hay que resolver (queda por registro)
 
 Esto no es un detalle: **OkVet y el mockup del propio cliente empujan en direcciones opuestas.**
 
@@ -124,7 +148,7 @@ es lo que diferencia, y es lo que el cliente pidió en julio.
 
 ---
 
-## 5. Los KPIs que sí valen, y cuáles podemos calcular HOY
+## 6. Los KPIs que sí valen, y cuáles podemos calcular HOY
 
 La industria veterinaria tiene un set bastante estable (Provet, entre otros). Contrastado contra
 nuestro modelo de datos:
@@ -155,7 +179,7 @@ que se lee mal y puede generar conflicto interno. Para que sirva hay que atarlo 
 
 ---
 
-## 6. Propuesta concreta
+## 7. Propuesta concreta (revisada por la decisión de la §4)
 
 ### Fase 1 — el tablero deja de ser ciego al dinero (~1 día)
 
@@ -202,12 +226,12 @@ guardar layout por usuario pide una tabla nueva y una migración — no es sólo
 
 ---
 
-## 7. Lo que hay que preguntarle al cliente
+## 8. Lo que hay que preguntarle al cliente
 
 1. **¿Capturas o demo de OkVet?** Sin ver el producto, el punto 2 es lectura de marketing.
 2. **¿Qué le gustó exactamente?** ¿Que sea configurable, que hable de plata, o que sea el centro?
    Las tres llevan a construcciones distintas.
-3. **¿Athos sigue siendo el inicio?** Es la pregunta de la §4 y bloquea todo lo demás.
+3. ~~¿Athos sigue siendo el inicio?~~ **Resuelto: sí.** Ver §4.
 4. **¿Quiere retención?** Es lo que OkVet no tiene y lo que más dice del negocio de una clínica.
 
 ---
