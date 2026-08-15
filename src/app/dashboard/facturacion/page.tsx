@@ -79,7 +79,7 @@ export default async function FacturacionPage() {
             description="Factura tus consultas y productos sin salir de Tuvetia."
           />
 
-          <div className="rounded-lg border border-line-soft bg-card p-8 shadow-sm">
+          <div className="rounded-lg border border-line-soft bg-card p-8">
             <div className="flex items-center gap-3">
               <div className="flex size-11 items-center justify-center rounded-lg bg-secondary">
                 <Receipt className="size-5 text-fg" aria-hidden />
@@ -243,7 +243,7 @@ export default async function FacturacionPage() {
         </div>
 
         {/* ── Tabla de facturas ── */}
-        <div className="mb-[14px] overflow-hidden rounded-lg border border-line-soft bg-card shadow-sm">
+        <div className="mb-[14px] overflow-hidden rounded-lg border border-line-soft bg-card">
           {invoices.length === 0 ? (
             <div className="flex flex-col items-center gap-3 px-4 py-10 text-center">
               <p className="text-sm text-fg-faint">Todavía no hay facturas.</p>
@@ -317,7 +317,7 @@ export default async function FacturacionPage() {
 
         {/* ── Cobranza automática (estado, se gestiona en configuración) ── */}
         <div className="grid gap-[13px] [grid-template-columns:repeat(auto-fit,minmax(260px,1fr))]">
-          <div className="rounded-lg border border-line-soft bg-card px-[18px] py-4 shadow-sm">
+          <div className="rounded-lg border border-line-soft bg-card px-[18px] py-4">
             <div className="flex items-start justify-between gap-3">
               <div>
                 <h2 className="text-[14.5px] font-semibold tracking-[-0.005em] text-fg">

@@ -113,8 +113,8 @@ function renderPlan(
         }`}
         className={`rounded-sm px-0.5 font-semibold ${
           esSevera(t.alergeno)
-            ? "bg-destructive/15 text-destructive"
-            : "bg-warn/15 text-warn"
+            ? "bg-danger-soft text-destructive"
+            : "bg-warn-soft text-warn"
         }`}
       >
         {renderInline(t.texto, citations, `${kp}-al${i}`)}
@@ -357,7 +357,7 @@ export default function NotaConsultaPage({ params }: { params: Promise<{ id: str
       <div className="flex min-w-0 flex-col gap-4 md:gap-5">
 
       {/* Cabecera del paciente */}
-      <div className="rounded-xl border bg-card p-4 shadow-sm md:p-6">
+      <div className="rounded-xl border bg-card p-4 md:p-6">
         <div className="flex flex-wrap items-center gap-4">
           <div className="grid size-12 shrink-0 place-items-center rounded-xl bg-secondary text-xl font-bold">
             {initial}
@@ -403,7 +403,7 @@ export default function NotaConsultaPage({ params }: { params: Promise<{ id: str
 
       {/* Alertas de la consulta: gate de alergia (bloqueante) + condiciones relevantes */}
       {(note?.allergy_gate_triggered || alerts.length > 0) && (
-        <section className="rounded-xl border bg-card p-4 shadow-sm md:p-5">
+        <section className="rounded-xl border bg-card p-4 md:p-5">
           <p className="mb-3 text-[11px] font-bold uppercase tracking-[0.09em] text-muted-foreground">
             Alertas de la consulta
           </p>
@@ -411,7 +411,7 @@ export default function NotaConsultaPage({ params }: { params: Promise<{ id: str
             {/* Gate de alergia severa — CRÍTICO, bloquea la aprobación */}
             {note?.allergy_gate_triggered && (
               <details open className="group overflow-hidden rounded-lg border border-destructive/40 bg-card">
-                <summary className="flex cursor-pointer list-none items-center gap-3 border-l-4 border-l-destructive bg-destructive/10 p-3">
+                <summary className="flex cursor-pointer list-none items-center gap-3 border-l-4 border-l-destructive bg-danger-soft p-3">
                   <span className="grid size-9 shrink-0 place-items-center rounded-lg bg-destructive text-destructive-foreground">
                     <AlertTriangle className="size-[18px]" />
                   </span>
@@ -510,7 +510,7 @@ export default function NotaConsultaPage({ params }: { params: Promise<{ id: str
         <details
           open={captureOpen}
           onToggle={(e) => setCaptureOpen((e.currentTarget as HTMLDetailsElement).open)}
-          className="group rounded-xl border bg-card shadow-sm"
+          className="group rounded-xl border bg-card"
         >
           <summary className="flex cursor-pointer list-none items-center justify-between gap-2 px-4 py-3">
             <div className="flex items-center gap-2 text-sm font-semibold">
@@ -558,7 +558,7 @@ export default function NotaConsultaPage({ params }: { params: Promise<{ id: str
       )}
 
       {/* Nota clínica (SOAP) — una columna */}
-      <section className="flex flex-col rounded-xl border bg-card shadow-sm">
+      <section className="flex flex-col rounded-xl border bg-card">
         <div className="flex items-center justify-between border-b px-4 py-3">
           <div className="flex items-center gap-2 text-sm font-semibold">
             <FileText className="size-4 text-muted-foreground" /> Nota clínica
@@ -681,7 +681,7 @@ export default function NotaConsultaPage({ params }: { params: Promise<{ id: str
 
       {/* Referencias citadas — lista numerada estilo mockup */}
       {note && (
-        <section className="rounded-xl border bg-card p-4 shadow-sm md:p-5">
+        <section className="rounded-xl border bg-card p-4 md:p-5">
           <p className="mb-3 text-[11px] font-bold uppercase tracking-[0.09em] text-muted-foreground">
             Referencias citadas ({citations.length})
           </p>

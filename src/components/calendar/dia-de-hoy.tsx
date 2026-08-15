@@ -27,7 +27,7 @@ export type CitaDeHoy = {
 
 /** Estados que el vet lee como "todavía puede pasar algo". */
 const ETIQUETA_ESTADO: Record<string, { texto: string; clase: string }> = {
-  scheduled: { texto: "Sin confirmar", clase: "bg-warn/10 text-warn" },
+  scheduled: { texto: "Sin confirmar", clase: "bg-warn-soft text-warn" },
   confirmed: { texto: "Confirmada", clase: "bg-brand-soft text-brand-text" },
   in_progress: { texto: "En curso", clase: "bg-brand-soft text-brand-text" },
 }

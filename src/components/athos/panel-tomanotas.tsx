@@ -54,7 +54,7 @@ export function PanelTomanotas({ abierto, alCerrar }: { abierto: boolean; alCerr
     // mockup. z-50 para quedar por encima del dock (z-40) pero al nivel de los modales: mientras
     // esto está abierto, es lo único con lo que se interactúa.
     <div className="fixed inset-0 z-50 flex flex-col">
-      <div className="flex max-h-[82%] flex-col overflow-hidden border-b border-line bg-surface shadow-lg">
+      <div className="flex max-h-[82%] flex-col overflow-hidden border-b border-line bg-surface shadow-popover">
         <div className="flex flex-wrap items-center gap-x-3 gap-y-2 border-b border-line px-4 py-3.5 md:px-6">
           {grabando && (
             <span aria-hidden className="size-2.5 shrink-0 rounded-full bg-brand motion-safe:animate-pulse" />

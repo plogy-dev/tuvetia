@@ -64,7 +64,7 @@ export function SendEmailDialog({
       {abierto && (
         <form
           onSubmit={enviar}
-          className="absolute right-0 z-20 mt-1 flex w-80 flex-col gap-2 rounded-lg border bg-popover p-3 shadow-lg"
+          className="absolute right-0 z-20 mt-1 flex w-80 flex-col gap-2 rounded-lg border bg-popover p-3 shadow-popover"
         >
           <div className="text-xs text-muted-foreground">
             Para: <span className="font-medium text-foreground">{nombre ?? to}</span> · {to}

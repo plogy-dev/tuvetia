@@ -68,7 +68,7 @@ export default async function ConexionesPage() {
       />
 
       <div className="flex flex-col gap-4">
-        <section className="rounded-lg border border-line-soft bg-card p-4 shadow-sm">
+        <section className="rounded-lg border border-line-soft bg-card p-4">
           <div className="mb-3 flex items-center gap-2 text-sm font-semibold text-fg">
             <MessageCircle className="size-4 text-fg-faint" aria-hidden /> WhatsApp
             <HelpTip>
@@ -90,7 +90,7 @@ export default async function ConexionesPage() {
             con el nombre de la clínica como remitente. La tarjeta seguía diciendo "Envío (SMTP)
             smtp.gmail.com · verificado", que era falso, y pedía una credencial que no se usaba para
             nada. En su lugar va una nota: no hay nada que conectar, y conviene decir por qué. */}
-        <section className="rounded-lg border border-line-soft bg-card p-4 shadow-sm">
+        <section className="rounded-lg border border-line-soft bg-card p-4">
           <div className="mb-2 flex items-center gap-2 text-sm font-semibold text-fg">
             <Mail className="size-4 text-fg-faint" aria-hidden /> Facturas y cobranza
           </div>
@@ -102,7 +102,7 @@ export default async function ConexionesPage() {
           </p>
         </section>
 
-        <section className="rounded-lg border border-line-soft bg-card p-4 shadow-sm">
+        <section className="rounded-lg border border-line-soft bg-card p-4">
           <div className="mb-3 flex items-center gap-2 text-sm font-semibold text-fg">
             <Mail className="size-4 text-fg-faint" aria-hidden /> Correo de Athos
             <HelpTip>
@@ -122,7 +122,7 @@ export default async function ConexionesPage() {
           />
         </section>
 
-        <section className="rounded-lg border border-line-soft bg-card p-4 shadow-sm">
+        <section className="rounded-lg border border-line-soft bg-card p-4">
           <div className="mb-3 flex items-center gap-2 text-sm font-semibold text-fg">
             <CalendarDays className="size-4 text-fg-faint" aria-hidden /> Calendario
             <HelpTip>

@@ -128,7 +128,7 @@ export function CalendarSettings({
           </Button>
         </div>
         {compartidoConElCorreo && (
-          <p className="flex items-start gap-2 rounded-lg border border-warn/40 bg-warn/10 p-3 text-sm text-fg">
+          <p className="flex items-start gap-2 rounded-lg border border-warn/40 bg-warn-soft p-3 text-sm text-fg">
             <TriangleAlert className="mt-0.5 size-4 shrink-0 text-warn" aria-hidden />
             <span>
               El calendario y el correo de Microsoft son <b>la misma cuenta</b>: desconectar acá

@@ -54,7 +54,7 @@ export function ConnectEmailCard() {
   }
 
   return (
-    <div className="rounded-xl border border-line bg-card p-3.5 text-sm shadow-sm">
+    <div className="rounded-xl border border-line bg-card p-3.5 text-sm">
       <div className="mb-1.5 flex items-center gap-2">
         <Mail className="size-4 shrink-0 text-brand" aria-hidden />
         <span className="font-medium text-fg">Conectá tu correo para que pueda escribir por vos</span>

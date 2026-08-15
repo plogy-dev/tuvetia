@@ -45,8 +45,8 @@ export function GrabacionPastilla({ alAbrir }: { alAbrir?: () => void }) {
             ? "Guardando la grabación"
             : "La grabación falló"
       }
-      className={`pointer-events-auto flex items-center gap-2 rounded-full border py-1.5 pl-3 pr-1.5 shadow-lg ${
-        fallo ? "border-destructive/40 bg-destructive/10" : "border-brand bg-card"
+      className={`pointer-events-auto flex items-center gap-2 rounded-full border py-1.5 pl-3 pr-1.5 shadow-popover ${
+        fallo ? "border-destructive/40 bg-danger-soft" : "border-brand bg-card"
       }`}
     >
       {enCurso && (

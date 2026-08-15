@@ -229,7 +229,7 @@ export function RielClinica({
                 </span>
                 <span className="min-w-0 flex-1 truncate">{c.etiqueta}</span>
                 {c.sinConfirmar && (
-                  <span className="shrink-0 rounded bg-warn/10 px-1.5 py-0.5 text-[11px] font-medium text-warn">
+                  <span className="shrink-0 rounded bg-warn-soft px-1.5 py-0.5 text-[11px] font-medium text-warn">
                     Sin confirmar
                   </span>
                 )}
@@ -246,7 +246,7 @@ export function RielClinica({
             {pendientes.map((p) => (
               <li key={p.id} className="flex items-baseline gap-2.5 text-sm">
                 <span className="min-w-0 flex-1 truncate">{p.etiqueta}</span>
-                <span className="flex shrink-0 items-center gap-1.5 rounded bg-danger/10 px-1.5 py-0.5 text-[11px] font-medium text-danger">
+                <span className="flex shrink-0 items-center gap-1.5 rounded bg-danger-soft px-1.5 py-0.5 text-[11px] font-medium text-danger">
                   <span aria-hidden className="size-1.5 rounded-full bg-danger" />
                   {p.detalle}
                 </span>

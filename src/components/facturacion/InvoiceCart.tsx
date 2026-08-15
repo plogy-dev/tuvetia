@@ -554,7 +554,7 @@ function CatalogPicker({
       </div>
 
       {open && (
-        <div className="absolute z-20 mt-1 w-full overflow-hidden rounded-xl border border-line bg-surface shadow-lg">
+        <div className="absolute z-20 mt-1 w-full overflow-hidden rounded-xl border border-line bg-surface shadow-popover">
           {/* Filtros por tipo */}
           <div className="flex flex-wrap gap-1 border-b border-line px-2 py-2">
             {TYPE_FILTERS.map((f) => (

@@ -82,7 +82,7 @@ export function AthosWidget() {
         onClick={() => setAbierto(true)}
         aria-label="Abrir Athos"
         aria-expanded={false}
-        className="pointer-events-auto grid size-12 place-items-center rounded-full bg-primary text-primary-foreground shadow-lg transition hover:brightness-110 focus-visible:outline-2 focus-visible:outline-offset-2"
+        className="pointer-events-auto grid size-12 place-items-center rounded-full bg-primary text-primary-foreground shadow-popover transition hover:brightness-110 focus-visible:outline-2 focus-visible:outline-offset-2"
       >
         <Bot className="size-5" />
       </button>
@@ -94,7 +94,7 @@ export function AthosWidget() {
       role="dialog"
       aria-modal="false"
       aria-label="Athos"
-      className="pointer-events-auto flex h-[min(32rem,calc(100svh-6rem))] w-[min(23rem,calc(100vw-1.5rem))] flex-col rounded-2xl border bg-card shadow-xl"
+      className="pointer-events-auto flex h-[min(32rem,calc(100svh-6rem))] w-[min(23rem,calc(100vw-1.5rem))] flex-col rounded-2xl border bg-card shadow-popover"
     >
       <header className="flex items-center gap-2 border-b px-3 py-2">
         <div className="grid size-7 shrink-0 place-items-center rounded-lg bg-primary text-primary-foreground">

@@ -171,7 +171,7 @@ export default async function PatientHistoryPage({ params }: { params: Promise<{
 
       {/* Alergias severas — gate clínico */}
       {severeAllergies.length > 0 && (
-        <div className="flex items-start gap-2 rounded-lg border border-destructive/50 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+        <div className="flex items-start gap-2 rounded-lg border border-destructive/50 bg-danger-soft px-3 py-2 text-sm text-destructive">
           <AlertTriangle className="mt-0.5 size-4 shrink-0" />
           <span>
             <strong>Alergia severa:</strong> {severeAllergies.map((a) => a.allergen).join(", ")}.
