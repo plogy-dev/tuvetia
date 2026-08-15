@@ -96,7 +96,14 @@ export default async function OwnersPage({
                     </Avatar>
                   </TableCell>
                   <TableCell className="font-medium">
-                    {owner.full_name}
+                    {/* El nombre lleva a la ficha. Hasta ahora el listado era un callejón sin
+                        salida: se veía el titular y no había a dónde ir. */}
+                    <Link
+                      href={`/dashboard/owners/${owner.id}`}
+                      className="hover:underline"
+                    >
+                      {owner.full_name}
+                    </Link>
                   </TableCell>
                   <TableCell>{owner.document_id ?? "—"}</TableCell>
                   <TableCell>{owner.phone ?? "—"}</TableCell>

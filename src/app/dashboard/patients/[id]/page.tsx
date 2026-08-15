@@ -46,6 +46,8 @@ type Patient = {
   photo_url: string | null
   is_deceased: boolean
   notes: string | null
+  /** Para enlazar a la ficha del titular; el embed `owner` sólo trae su nombre y teléfono. */
+  owner_id: string | null
   owner: Owner
 }
 
@@ -56,7 +58,7 @@ export default async function PatientHistoryPage({ params }: { params: Promise<{
   const { data: p } = await supabase
     .from("patients")
     .select(
-      "id, clinic_id, name, species, breed, sex, birth_date, weight_kg, color, photo_url, is_deceased, notes, owner:owners(full_name, phone)",
+      "id, clinic_id, name, species, breed, sex, birth_date, weight_kg, color, photo_url, is_deceased, notes, owner_id, owner:owners(full_name, phone)",
     )
     .eq("id", id)
     .maybeSingle()
@@ -162,7 +164,19 @@ export default async function PatientHistoryPage({ params }: { params: Promise<{
           <p className="text-sm text-muted-foreground">{meta.join(" · ")}</p>
           {patient.owner && (
             <p className="mt-0.5 text-xs text-muted-foreground">
-              Titular: <span className="text-foreground">{patient.owner.full_name}</span>
+              Titular:{" "}
+              {/* Enlace a la ficha del titular: es donde viven su documento, su correo, el
+                  consentimiento de grabación y sus OTRAS mascotas. Antes era texto muerto. */}
+              {patient.owner_id ? (
+                <Link
+                  href={`/dashboard/owners/${patient.owner_id}`}
+                  className="text-foreground hover:underline"
+                >
+                  {patient.owner.full_name}
+                </Link>
+              ) : (
+                <span className="text-foreground">{patient.owner.full_name}</span>
+              )}
               {patient.owner.phone ? ` · ${patient.owner.phone}` : ""}
             </p>
           )}
