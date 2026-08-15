@@ -12,6 +12,7 @@ import {
   type CitaDelRiel,
   type PendienteDelRiel,
 } from "@/components/athos/riel-clinica"
+import { consultarPresupuesto, type Presupuesto } from "@/lib/athos-agent/presupuesto"
 import { RielConfiguracion } from "@/components/onboarding/riel-configuracion"
 import { progresoDeConfiguracion } from "@/lib/onboarding/consultar"
 import { Assistant, type AssistantPatient } from "./assistant"
@@ -76,6 +77,9 @@ export default async function AsistentePage({
   } = await supabase.auth.getUser()
 
   let clinicId = ""
+  // El cupo de IA del mes. Se resuelve abajo, con la clínica ya conocida; si no hay tope
+  // configurado `consultarPresupuesto` ni consulta la base y el riel no pinta nada.
+  let presupuesto: Presupuesto | null = null
   let nombreVet: string | null = null
   let patients: AssistantPatient[] = []
   let threads: StoredThreads = {}
@@ -97,6 +101,7 @@ export default async function AsistentePage({
     nombreVet = p?.full_name ?? null
 
     if (clinicId) {
+      presupuesto = await consultarPresupuesto(clinicId)
       const hoy = bogotaTodayISO()
       const finDeHoy = finDelDiaBogota(hoy)
       // El primer día del mes EN BOGOTÁ, no en UTC: el 1° a las 00:30 de Bogotá todavía es el mes
@@ -218,7 +223,9 @@ export default async function AsistentePage({
         contexto={resumenDelDia({ citas: citas.length, consultasHoy, pendientes })}
         // Por debajo de `xl` el riel de la derecha no se pinta. Sin esto, en un teléfono la app
         // abría sin decir cuántas citas hay hoy ni que hay cobros vencidos.
-        tiraClinica={<TiraClinica citas={citas} pendientes={pendientes} />}
+        tiraClinica={
+          <TiraClinica citas={citas} pendientes={pendientes} presupuesto={presupuesto} />
+        }
         // Se DEJA ESCRITO, no se envía. Un botón que dispara una petición al agente sin que el vet
         // vea qué se pidió es una caja negra; dejarlo en el compositor le da la última palabra —
         // que es la misma regla que gobierna todo lo demás acá.
@@ -238,6 +245,7 @@ export default async function AsistentePage({
         citas={citas}
         pendientes={pendientes}
         mostrarDinero={facturacionActiva}
+        presupuesto={presupuesto}
       />
     </div>
   )
