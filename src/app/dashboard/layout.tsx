@@ -2,6 +2,8 @@ import { cookies } from "next/headers"
 import { redirect } from "next/navigation"
 
 import { AppSidebar } from "@/components/app-sidebar"
+import { CuentaDesactivada } from "@/components/cuenta-desactivada"
+import { estadoDeAcceso } from "@/lib/acceso"
 import { SiteHeader } from "@/components/site-header"
 import { TabBarMovil } from "@/components/tab-bar-movil"
 import { OnboardingTour } from "@/components/onboarding-tour"
@@ -25,9 +27,10 @@ export default async function DashboardLayout({
     ? (
         await supabase
           .from("profiles")
-          // `role` es para el pie de la barra lateral. Va en ESTE select y no en una consulta
-          // aparte: el perfil ya se estaba trayendo, así que la columna sale gratis.
-          .select("full_name, onboarded_at, clinic_id, setup_completed_at, role")
+          // `role` es para el pie de la barra lateral e `is_active` para el gate de cuenta
+          // desactivada. Van en ESTE select y no en consultas aparte: el perfil ya se estaba
+          // trayendo, así que las dos columnas salen gratis.
+          .select("full_name, onboarded_at, clinic_id, setup_completed_at, role, is_active")
           .eq("id", user.id)
           .single()
       ).data
@@ -41,12 +44,22 @@ export default async function DashboardLayout({
     clinic_id: string | null
     setup_completed_at: string | null
     role: string | null
+    is_active: boolean | null
   } | null
+  // Adónde va este usuario. El orden vive en `lib/acceso.ts` y está probado ahí — se toma la misma
+  // decisión en `/bienvenida`, y las dos ya se desincronizaron una vez con un lazo de redirecciones.
+  const acceso = estadoDeAcceso(p)
+
+  // CUENTA DESACTIVADA. Se atiende ANTES de cualquier redirección: con el gate de la migración 0059
+  // la RLS deja de mostrarle su clínica, así que sin esto caería en /bienvenida y la app le diría
+  // «no tienes clínica» — que se lee como «tus datos se perdieron».
+  if (user && acceso === "desactivada") return <CuentaDesactivada correo={user.email} />
+
   // Falta terminar el onboarding **o** no hay clínica -> a /bienvenida, que atiende los dos casos.
   // Antes la condición exigía `p?.clinic_id &&`, así que un usuario sin clínica (invitación
   // pendiente sin aceptar, o trigger que no corrió) caía en un dashboard vacío con todo en cero y
   // sin ninguna pista. No hay lazo: /bienvenida ya NO rebota acá cuando falta la clínica.
-  if (user && (!p?.clinic_id || !p.setup_completed_at)) redirect("/bienvenida")
+  if (user && acceso !== "activo") redirect("/bienvenida")
 
   const { data: clinic } = p?.clinic_id
     ? await supabase.from("clinics").select("name, logo_url").eq("id", p.clinic_id).maybeSingle()
