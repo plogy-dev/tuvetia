@@ -55,6 +55,48 @@ function Fila({ etiqueta, valor }: { etiqueta: string; valor: string }) {
   )
 }
 
+/**
+ * El mismo riel, aplastado a una línea, para cuando no hay 320px que darle.
+ *
+ * POR QUÉ HACE FALTA. `RielClinica` es `xl:flex`: por debajo de 1280px desaparece ENTERO. O sea que
+ * en un teléfono —y en cualquier portátil de 13"— el vet abría la app y no veía ni cuántas citas
+ * tiene hoy ni que hay cobros vencidos. El dato no estaba escondido detrás de un toque: no estaba.
+ *
+ * Es la tira que el mockup dibuja arriba en la vista móvil, y se queda en el mismo dato: cuántas
+ * citas y qué requiere atención. Todo lo demás (ventas del mes, la lista de citas hora por hora)
+ * necesita alto que en un teléfono le pertenece a la conversación.
+ *
+ * No consulta nada: recibe lo que la página ya resolvió para el riel grande.
+ */
+export function TiraClinica({
+  citas,
+  pendientes,
+}: {
+  citas: CitaDelRiel[]
+  pendientes: PendienteDelRiel[]
+}) {
+  const partes = [citas.length === 1 ? "1 cita" : `${citas.length} citas`]
+  // Sólo el primero: en una línea no entran tres, y hoy `pendientes` trae como mucho cartera.
+  if (pendientes.length > 0) partes.push(pendientes[0].etiqueta)
+
+  return (
+    <div className="flex items-center gap-2 rounded-lg border border-line-soft px-3 py-2 text-xs xl:hidden">
+      <span className="shrink-0 font-semibold uppercase tracking-[0.08em] text-fg-faint">
+        La clínica hoy
+      </span>
+      <span className="min-w-0 flex-1 truncate text-fg-muted">{partes.join(" · ")}</span>
+      {/* Al tablero y no a la agenda: es la pantalla que tiene TODO lo que la tira resume, incluido
+          lo que aquí no cupo. */}
+      <Link
+        href="/dashboard/tablero"
+        className="shrink-0 font-medium text-brand-text hover:underline"
+      >
+        Ver
+      </Link>
+    </div>
+  )
+}
+
 export function RielClinica({
   consultasHoy,
   ventasMesCents,

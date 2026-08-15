@@ -6,7 +6,12 @@ import {
   type StoredThreads,
 } from "@/lib/athos-history"
 import { bogotaTimeOf, bogotaTodayISO, finDelDiaBogota } from "@/lib/date-utils"
-import { RielClinica, type CitaDelRiel, type PendienteDelRiel } from "@/components/athos/riel-clinica"
+import {
+  RielClinica,
+  TiraClinica,
+  type CitaDelRiel,
+  type PendienteDelRiel,
+} from "@/components/athos/riel-clinica"
 import { RielConfiguracion } from "@/components/onboarding/riel-configuracion"
 import { progresoDeConfiguracion } from "@/lib/onboarding/consultar"
 import { Assistant, type AssistantPatient } from "./assistant"
@@ -211,6 +216,9 @@ export default async function AsistentePage({
         initialPatientId={initialPatientId}
         saludo={`${saludo(horaBogota)}${primerNombre ? `, ${primerNombre}` : ""}`}
         contexto={resumenDelDia({ citas: citas.length, consultasHoy, pendientes })}
+        // Por debajo de `xl` el riel de la derecha no se pinta. Sin esto, en un teléfono la app
+        // abría sin decir cuántas citas hay hoy ni que hay cobros vencidos.
+        tiraClinica={<TiraClinica citas={citas} pendientes={pendientes} />}
         // Se DEJA ESCRITO, no se envía. Un botón que dispara una petición al agente sin que el vet
         // vea qué se pidió es una caja negra; dejarlo en el compositor le da la última palabra —
         // que es la misma regla que gobierna todo lo demás acá.
