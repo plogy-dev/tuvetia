@@ -20,6 +20,40 @@ def test_build_note_prompt_incluye_contexto(sample_chunks):
     assert "c1" in user and "c2" in user          # chunk_id de la literatura
 
 
+# ── El cuaderno del veterinario (migración 0058) ────────────────────────────────────────────────
+
+def test_sin_cuaderno_el_prompt_es_EL_MISMO_de_antes(sample_chunks):
+    """Una consulta sin cuaderno tiene que armar el prompt idéntico al de siempre.
+
+    Es lo que hace que las mediciones ya tomadas del Fantasma sigan siendo comparables: si el
+    prompt cambiara para todos, el banco de calidad estaría midiendo otra cosa.
+    """
+    _, con_defecto = build_note_prompt("el perro vomita", sample_chunks, _patient(), ["pollo"])
+    _, vacio = build_note_prompt("el perro vomita", sample_chunks, _patient(), ["pollo"],
+                                 notebook="")
+    _, blancos = build_note_prompt("el perro vomita", sample_chunks, _patient(), ["pollo"],
+                                   notebook="   \n  ")
+    assert con_defecto == vacio == blancos
+    assert "NOTAS DEL VETERINARIO" not in con_defecto
+
+
+def test_el_cuaderno_entra_en_su_propia_seccion(sample_chunks):
+    _, user = build_note_prompt("el perro vomita", sample_chunks, _patient(), ["pollo"],
+                                notebook="Peso real 12,4 kg. Pedir hemograma.")
+    assert "NOTAS DEL VETERINARIO" in user
+    assert "Pedir hemograma" in user
+    # Y NO se mezcla con lo hablado: son dos secciones distintas, porque una la dictó el criterio
+    # del vet y la otra el micrófono.
+    assert user.index("NOTAS DEL VETERINARIO") < user.index("TRANSCRIPCIÓN DE LA CONSULTA")
+
+
+def test_el_cuaderno_prima_sobre_lo_hablado_y_el_prompt_lo_dice(sample_chunks):
+    """Un peso anotado a mano es una medición; el mismo peso dicho al pasar puede ser un estimado."""
+    _, user = build_note_prompt("pesa como doce kilos", sample_chunks, _patient(), ["pollo"],
+                                notebook="Peso real 12,4 kg")
+    assert "PRIMAN" in user
+
+
 def test_parse_descarta_citas_inventadas(sample_chunks):
     text = json.dumps({
         "soap": {"subjective": "s", "objective": "o", "assessment": "a", "plan": "p"},

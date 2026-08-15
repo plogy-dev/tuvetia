@@ -21,6 +21,7 @@ import { athosPhantomSuggest, type Citation, type ConditionAlert } from "@/lib/a
 import { createClient } from "@/lib/supabase/client"
 import { parseTranscript } from "@/lib/transcript"
 import { ConsultationRecorder } from "@/components/consultation-recorder"
+import { Cuaderno } from "@/components/athos/cuaderno"
 import { ConsultationThread } from "@/components/athos/consultation-thread"
 import { renderInline, tramosIndivisibles } from "@/components/athos/rich-text"
 import {
@@ -556,6 +557,16 @@ export default function NotaConsultaPage({ params }: { params: Promise<{ id: str
           </div>
         </details>
       )}
+
+      {/* EL CUADERNO. Va ARRIBA de la nota y fuera del panel plegable de la grabación, a propósito:
+          es lo que el vet escribe él, y esconderlo detrás del mismo `<details>` que la transcripción
+          lo trataría como un anexo de la captura. Acá queda entre las alertas y la nota, que es el
+          orden en que se trabaja: veo las alertas, anoto, reviso lo que Athos redactó.
+
+          Se muestra aunque la nota ya esté aprobada — en sólo lectura no, editable: el cuaderno es
+          material de trabajo, no la historia clínica, y agregarle algo después no altera nada que
+          se haya firmado. */}
+      {consultation && <Cuaderno consultaId={id} className="rounded-xl border bg-card p-4 md:p-5" />}
 
       {/* Nota clínica (SOAP) — una columna */}
       <section className="flex flex-col rounded-xl border bg-card">

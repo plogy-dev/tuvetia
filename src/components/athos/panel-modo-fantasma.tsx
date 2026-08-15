@@ -23,6 +23,7 @@ import Link from "next/link"
 import { Loader2, TriangleAlert, X } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
+import { Cuaderno } from "@/components/athos/cuaderno"
 import { consultaViva } from "@/lib/consulta-viva/sesion"
 import { useConsultaViva } from "@/lib/consulta-viva/usar"
 
@@ -98,23 +99,34 @@ export function PanelModoFantasma({ abierto, alCerrar }: { abierto: boolean; alC
           </span>
         </div>
 
-        <div className="flex-1 overflow-auto px-4 py-4 md:px-6">
-          {fallo ? (
-            <p className="text-sm text-danger">{estado.error ?? "La grabación falló."}</p>
-          ) : estado.estable || estado.provisional ? (
-            <p className="max-w-[75ch] text-sm leading-relaxed">
-              {estado.estable}{" "}
-              {/* Lo provisional se pinta apagado: el proveedor todavía puede reemplazarlo, y en una
-                  historia clínica la diferencia entre "lo dijo" y "creo que lo dijo" importa. */}
-              <span className="text-fg-muted">{estado.provisional}</span>
-            </p>
-          ) : (
-            <p className="text-sm text-fg-muted">
-              {estado.vivo
-                ? "Escuchando… el texto aparece a medida que se habla."
-                : "La transcripción en vivo no está disponible; la consulta se transcribe completa al terminar."}
-            </p>
-          )}
+        {/* DOS COLUMNAS EN ESCRITORIO: lo que se oye a la izquierda, lo que el vet escribe a la
+            derecha. Es la forma que hace del panel un cuaderno y no un visor — la transcripción
+            corre sola y el cuaderno es lo único con lo que se interactúa mientras se atiende.
+
+            En un teléfono se apilan, y el CUADERNO VA PRIMERO: ahí no hay lugar para las dos, y
+            entre leer lo que se acaba de decir y poder anotar, lo segundo es lo que no se puede
+            hacer en ningún otro lado. */}
+        <div className="flex flex-1 flex-col-reverse gap-4 overflow-auto px-4 py-4 md:px-6 lg:grid lg:grid-cols-[1fr_minmax(0,22rem)] lg:gap-6">
+          <div className="min-w-0">
+            {fallo ? (
+              <p className="text-sm text-danger">{estado.error ?? "La grabación falló."}</p>
+            ) : estado.estable || estado.provisional ? (
+              <p className="max-w-[75ch] text-sm leading-relaxed">
+                {estado.estable}{" "}
+                {/* Lo provisional se pinta apagado: el proveedor todavía puede reemplazarlo, y en una
+                    historia clínica la diferencia entre "lo dijo" y "creo que lo dijo" importa. */}
+                <span className="text-fg-muted">{estado.provisional}</span>
+              </p>
+            ) : (
+              <p className="text-sm text-fg-muted">
+                {estado.vivo
+                  ? "Escuchando… el texto aparece a medida que se habla."
+                  : "La transcripción en vivo no está disponible; la consulta se transcribe completa al terminar."}
+              </p>
+            )}
+          </div>
+
+          <Cuaderno consultaId={estado.consultaId} filas={8} className="min-w-0 lg:border-l lg:border-line lg:pl-6" />
         </div>
 
         {grabando && (
