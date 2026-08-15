@@ -16,6 +16,7 @@ import { generateObject } from 'ai';
 import { z } from 'zod';
 import { visionModel } from '@/lib/athos-agent/model';
 import { registrarUso } from '@/lib/athos-agent/usage';
+import { consultarPresupuesto, mensajeSinCupo } from '@/lib/athos-agent/presupuesto';
 import type { RecipeDraft } from '@/lib/facturacion/domain/recipes';
 import { parseSpreadsheetDraft, spreadsheetToCsv } from '@/lib/facturacion/domain/recipe-parse';
 
@@ -57,6 +58,15 @@ async function extractWithModel(
           { type: 'image' as const, image: parts.base64, mediaType: parts.mediaType },
         ] as const)
       : ([{ type: 'text', text: `Receta (texto):\n"""\n${parts.text.slice(0, 6000)}\n"""` }] as const);
+
+  // TOPE MENSUAL DE IA DE LA CLÍNICA. La visión es Anthropic sí o sí y es de lo más caro por
+  // llamada, así que no puede quedar fuera del cupo compartido.
+  //
+  // Lanza en vez de devolver un borrador vacío: acá SÍ hay una persona esperando la pantalla, y un
+  // borrador vacío se leería como "la foto no se entendió" — mandándola a repetirla y a gastar de
+  // nuevo. El mensaje sube tal cual hasta la UI.
+  const presupuesto = await consultarPresupuesto(clinicId);
+  if (!presupuesto.permitido) throw new Error(mensajeSinCupo(presupuesto));
 
   const elegido = visionModel();
   const { object, usage } = await generateObject({

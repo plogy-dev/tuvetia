@@ -16,6 +16,7 @@ import { agentModel } from "@/lib/athos-agent/model"
 import { clasificarFallo } from "@/lib/athos-agent/cascada"
 import { registrarUso } from "@/lib/athos-agent/usage"
 import { rateLimit } from "@/lib/athos-agent/rate-limit"
+import { consultarPresupuesto, mensajeSinCupo } from "@/lib/athos-agent/presupuesto"
 import type { AgentContext } from "@/lib/athos-agent/actions"
 
 export const runtime = "nodejs"
@@ -63,6 +64,17 @@ export async function POST(req: Request) {
   const perfil = prof as { clinic_id: string | null; full_name: string | null } | null
   const clinicId = perfil?.clinic_id
   if (!clinicId) return new Response("El usuario no tiene clínica", { status: 400 })
+
+  // TOPE MENSUAL DE LA CLÍNICA. Distinto del `rateLimit` de arriba: aquél corta la ráfaga de UN
+  // usuario en memoria, éste corta el consumo acumulado de la CLÍNICA contra la base — que es lo
+  // único que sobrevive a que Vercel levante otra lambda.
+  //
+  // 402 y no 429: no es "demasiado rápido, esperá unos segundos", es "se acabó el cupo del mes".
+  // Confundirlos hace que el front muestre "reintentá" sobre algo que no se arregla reintentando.
+  const presupuesto = await consultarPresupuesto(clinicId)
+  if (!presupuesto.permitido) {
+    return new Response(mensajeSinCupo(presupuesto), { status: 402 })
+  }
 
   // Athos firmaba los correos como "Veterinaria" a secas porque nunca supo el nombre de la clínica
   // ni el del vet. Con esto puede firmar de verdad — y un correo a un titular tiene que decir de

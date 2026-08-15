@@ -20,6 +20,7 @@ import { createAdminClient } from "@/lib/supabase/admin"
 import { buildAutoReplyTools } from "@/lib/athos-agent/auto-tools"
 import { autoModel } from "@/lib/athos-agent/model"
 import { registrarUso } from "@/lib/athos-agent/usage"
+import { consultarPresupuesto } from "@/lib/athos-agent/presupuesto"
 import { sendWhatsAppText } from "./send-message"
 const DEBOUNCE_MS = 5_000
 const MAX_PER_HOUR_PER_CONVERSATION = 8
@@ -121,6 +122,24 @@ export async function maybeAutoReply(input: {
   ])
   if ((daily ?? 0) >= effectiveDailyLimit) return
   if ((hourly ?? 0) >= MAX_PER_HOUR_PER_CONVERSATION) return
+
+  // 6) TOPE MENSUAL DE IA DE LA CLÍNICA. Los frenos de arriba son anti-loop y anti-baneo: cuentan
+  //    RESPUESTAS ENVIADAS por conversación y por día. Éste cuenta GASTO, y es el único que ve el
+  //    cupo compartido con el chat, la bandeja, cartera y la lectura de facturas.
+  //
+  //    Va acá y no sólo en las rutas HTTP a propósito: el modo automático es, junto con cartera,
+  //    la superficie que gasta sin que el vet lo note. Un tope que sólo frenara las pantallas
+  //    dejaría el agujero exactamente donde está el gasto que nadie mira.
+  //
+  //    Sin cupo, silencio — que es el comportamiento normal de este camino cuando decide no
+  //    responder: el mensaje queda sin leer para el vet, que lo contesta él.
+  const presupuesto = await consultarPresupuesto(clinicId)
+  if (!presupuesto.permitido) {
+    console.warn(
+      `[auto-reply] clínica ${clinicId} sin cupo de IA este mes (${presupuesto.usadas}/${presupuesto.tope}): el mensaje queda para el vet.`,
+    )
+    return
+  }
 
   // Contexto: clínica + horarios reales + hilo reciente + titular (clinic_id explícito SIEMPRE).
   const [{ data: clinic }, { data: hours }, { data: thread }, { data: ownerRows }] = await Promise.all([

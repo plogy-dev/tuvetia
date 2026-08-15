@@ -12,6 +12,7 @@ import { generateObject } from 'ai';
 import { z } from 'zod';
 import { visionModel } from '@/lib/athos-agent/model';
 import { registrarUso } from '@/lib/athos-agent/usage';
+import { consultarPresupuesto, mensajeSinCupo } from '@/lib/athos-agent/presupuesto';
 import { captureRowsToTable, MAX_CAPTURE_ROWS, type CaptureRow } from './capture';
 
 const cell = z.string().nullable();
@@ -81,6 +82,12 @@ export async function extractImportTable(
       : ([
           { type: 'text', text: `Lista (texto):\n"""\n${input.text.slice(0, 20000)}\n"""` },
         ] as const);
+
+  // TOPE MENSUAL DE IA DE LA CLÍNICA. 8000 tokens de salida: es la llamada más cara del producto,
+  // así que si alguna tiene que respetar el cupo es ésta. Lanza —hay alguien mirando la pantalla— y
+  // el mensaje llega tal cual a la UI.
+  const presupuesto = await consultarPresupuesto(opts.clinicId);
+  if (!presupuesto.permitido) throw new Error(mensajeSinCupo(presupuesto));
 
   const elegido = visionModel();
   const { object, usage } = await generateObject({
