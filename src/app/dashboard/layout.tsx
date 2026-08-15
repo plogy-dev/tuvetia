@@ -25,7 +25,9 @@ export default async function DashboardLayout({
     ? (
         await supabase
           .from("profiles")
-          .select("full_name, onboarded_at, clinic_id, setup_completed_at")
+          // `role` es para el pie de la barra lateral. Va en ESTE select y no en una consulta
+          // aparte: el perfil ya se estaba trayendo, así que la columna sale gratis.
+          .select("full_name, onboarded_at, clinic_id, setup_completed_at, role")
           .eq("id", user.id)
           .single()
       ).data
@@ -38,6 +40,7 @@ export default async function DashboardLayout({
     onboarded_at: string | null
     clinic_id: string | null
     setup_completed_at: string | null
+    role: string | null
   } | null
   // Falta terminar el onboarding **o** no hay clínica -> a /bienvenida, que atiende los dos casos.
   // Antes la condición exigía `p?.clinic_id &&`, así que un usuario sin clínica (invitación
@@ -54,6 +57,7 @@ export default async function DashboardLayout({
     name: profile?.full_name || user?.email || "Usuario",
     email: user?.email ?? "",
     avatar: "",
+    role: p?.role ?? null,
   }
   const sidebarClinic = { name: c?.name ?? "Tuvetia", logoUrl: c?.logo_url ?? null }
 
