@@ -60,7 +60,7 @@ function AlertaClinica({ alergias }: { alergias: { allergen: string; severity: s
     <span
       title={alergias.map((a) => `${a.allergen} (${a.severity})`).join(" · ")}
       className={`inline-flex max-w-full items-center gap-1.5 rounded px-1.5 py-0.5 text-[11px] font-medium ${
-        grave ? "bg-danger/10 text-danger" : "bg-warn/10 text-warn"
+        grave ? "bg-danger-soft text-danger" : "bg-warn-soft text-warn"
       }`}
     >
       <span aria-hidden className={`size-1.5 shrink-0 rounded-full ${grave ? "bg-danger" : "bg-warn"}`} />

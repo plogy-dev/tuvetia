@@ -96,7 +96,7 @@ export default function AyudaPage() {
           <Link
             key={s.title}
             href={s.href}
-            className="flex gap-3 rounded-lg border border-line-soft bg-card p-4 shadow-sm transition-colors hover:bg-surface-2"
+            className="flex gap-3 rounded-lg border border-line-soft bg-card p-4 transition-colors hover:bg-surface-2"
           >
             <s.icon className="mt-0.5 size-5 shrink-0 text-fg-faint" aria-hidden />
             <div>
@@ -111,7 +111,7 @@ export default function AyudaPage() {
         <RepetirOnboarding />
       </div>
 
-      <div className="mt-4 rounded-lg border border-line-soft bg-card p-4 shadow-sm">
+      <div className="mt-4 rounded-lg border border-line-soft bg-card p-4">
         <div className="mb-1 flex items-center gap-2 text-sm font-semibold text-fg">
           <MessageSquareHeart className="size-4 text-fg-faint" aria-hidden /> ¿Necesitas más ayuda?
         </div>

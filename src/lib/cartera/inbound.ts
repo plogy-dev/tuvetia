@@ -20,6 +20,7 @@ import { z } from 'zod';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { autoModel } from '@/lib/athos-agent/model';
 import { registrarUso } from '@/lib/athos-agent/usage';
+import { consultarPresupuesto } from '@/lib/athos-agent/presupuesto';
 import { getAppBaseUrl } from '@/lib/base-url';
 import { refreshInvoiceStatus } from '@/lib/facturacion/invoices';
 import type { CommsChannel } from '@/lib/supabase/types';
@@ -48,6 +49,22 @@ export async function classifyCarteraIntent(
   text: string,
   opts: { todayISO: string; clinicId: string },
 ): Promise<IntentClassification> {
+  // TOPE MENSUAL DE IA DE LA CLÍNICA, antes de gastar. Cartera es —junto con el modo automático de
+  // WhatsApp— la superficie que más gasta sin que nadie la mire: corre en un barrido diario y
+  // clasifica cada respuesta del cliente con el modelo. Dejarla fuera del tope sería dejar el
+  // agujero justo donde está el consumo invisible.
+  //
+  // Sin cupo se degrada a `OTRO`, que es exactamente lo mismo que hace cuando el clasificador
+  // falla: escala a una persona y no se responde nada automático. El cobro no se pierde — lo
+  // atiende un humano.
+  const presupuesto = await consultarPresupuesto(opts.clinicId);
+  if (!presupuesto.permitido) {
+    console.warn(
+      `[cartera/inbound] clínica ${opts.clinicId} sin cupo de IA este mes (${presupuesto.usadas}/${presupuesto.tope}): el mensaje escala a una persona.`,
+    );
+    return { intent: 'OTRO', promiseDate: null };
+  }
+
   // Una sola resolución del modelo: la misma instancia atiende y, abajo, dice quién respondió si
   // la cascada tuvo que caer al respaldo.
   const elegido = autoModel();

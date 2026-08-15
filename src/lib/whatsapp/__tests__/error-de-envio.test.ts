@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest"
 
-import { clasificarFalloDeEnvio, ErrorQueElVetPuedeResolver } from "../error-de-envio"
+import { clasificarFalloDeEnvio, ErrorQueElVetPuedeResolver, FALLO_DE_ACCION } from "../error-de-envio"
 import { EvolutionError } from "../evolution"
 import { normalizarTelefono } from "../telefono"
 
@@ -50,6 +50,43 @@ describe("clasificarFalloDeEnvio", () => {
   })
 })
 
+describe("clasificarFalloDeEnvio con contexto de acción", () => {
+  // El clasificador se aplica a las nueve tools de `athos/actions/[id]/execute`, no sólo a WhatsApp.
+  it("NO le habla de mensajes al vet cuando falló crear un paciente", () => {
+    const f = clasificarFalloDeEnvio(new Error("violación de constraint"), FALLO_DE_ACCION)
+    expect(f.texto).not.toContain("mensaje")
+    expect(f.texto).not.toContain("WhatsApp")
+    expect(f.texto).toContain("acción")
+  })
+
+  it("no manda a revisar una conexión de WhatsApp que no tiene nada que ver", () => {
+    const f = clasificarFalloDeEnvio(new EvolutionError("x → 400", 400), FALLO_DE_ACCION)
+    expect(f.texto).not.toContain("WhatsApp")
+    expect(f.texto).toContain("400")
+  })
+
+  it("un 5xx y un timeout siguen distinguiéndose", () => {
+    const t = new Error("abortado")
+    t.name = "TimeoutError"
+    expect(clasificarFalloDeEnvio(t, FALLO_DE_ACCION).status).toBe(504)
+    expect(clasificarFalloDeEnvio(new EvolutionError("x → 503", 503), FALLO_DE_ACCION).texto).toContain("503")
+  })
+
+  it("sigue sin filtrar el detalle crudo", () => {
+    const crudo = 'POST /instancia/tuvetia_6c7504ae → 401: {"apikey":"secreta"}'
+    const f = clasificarFalloDeEnvio(new EvolutionError(crudo, 401), FALLO_DE_ACCION)
+    expect(f.texto).not.toContain("tuvetia_6c7504ae")
+    expect(f.texto).not.toContain("secreta")
+  })
+
+  it("el contexto por defecto sigue siendo el de WhatsApp, palabra por palabra", () => {
+    // Lo que garantiza que agregar el contexto no cambió nada del camino de envío.
+    expect(clasificarFalloDeEnvio(new Error("x")).texto).toBe(
+      "No se pudo enviar el mensaje por un error inesperado. Si vuelve a pasar, avisá a soporte.",
+    )
+  })
+})
+
 describe("ErrorQueElVetPuedeResolver", () => {
   it("su mensaje llega TAL CUAL a la UI, con su propio status", () => {
     const f = clasificarFalloDeEnvio(
@@ -68,6 +105,29 @@ describe("ErrorQueElVetPuedeResolver", () => {
     const f = clasificarFalloDeEnvio(new ErrorQueElVetPuedeResolver("una frase que nadie previó"))
     expect(f.texto).toBe("una frase que nadie previó")
     expect(f.status).toBe(409)
+  })
+
+  it("el `detalle` NUNCA se le muestra al vet: para eso está el mensaje", () => {
+    // Los fallos a medias de Athos necesitan las dos cosas — la frase accionable para el vet y el
+    // error de Postgres para la auditoría. Si `detalle` se colara a la UI, el arreglo habría
+    // reintroducido justo la fuga que este archivo existe para evitar.
+    const e = new ErrorQueElVetPuedeResolver(
+      "El titular se creó, pero el paciente no.",
+      409,
+      'duplicate key value violates unique constraint "patients_pkey" en tuvetia_6c7504ae',
+    )
+    const f = clasificarFalloDeEnvio(e, FALLO_DE_ACCION)
+    expect(f.texto).toBe("El titular se creó, pero el paciente no.")
+    expect(f.texto).not.toContain("constraint")
+    expect(f.texto).not.toContain("tuvetia_6c7504ae")
+    // Y el detalle sigue disponible para quien lo audita.
+    expect(e.detalle).toContain("patients_pkey")
+  })
+
+  it("sin `detalle`, el mensaje sigue siendo el rastro — no queda undefined", () => {
+    const e = new ErrorQueElVetPuedeResolver("algo pasó")
+    expect(e.detalle).toBeUndefined()
+    expect(e.message).toBe("algo pasó")
   })
 })
 

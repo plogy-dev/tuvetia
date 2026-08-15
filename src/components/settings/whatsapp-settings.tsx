@@ -339,14 +339,14 @@ export function WhatsappSettings({
         llegan a Tuvetia.
       </p>
       {!evolutionEnabled && (
-        <p className="rounded-lg border border-warn/30 bg-warn/10 px-3 py-2 text-xs text-warn">
+        <p className="rounded-lg border border-warn/30 bg-warn-soft px-3 py-2 text-xs text-warn">
           <b>Requisito:</b> el número debe usar la app <b>WhatsApp Business</b> (la aplicación gratuita
           de Meta). Si hoy usás WhatsApp personal, convertí el número desde la app WhatsApp Business —
           conservás chats y contactos.
         </p>
       )}
       {status === "disconnected" && (
-        <p className="rounded-lg border border-danger/30 bg-danger/10 px-3 py-2 text-xs text-danger">
+        <p className="rounded-lg border border-danger/30 bg-danger-soft px-3 py-2 text-xs text-danger">
           El número se desvinculó y los mensajes nuevos <b>no están llegando a Tuvetia</b>. Reconecta
           escaneando el QR de nuevo.
         </p>

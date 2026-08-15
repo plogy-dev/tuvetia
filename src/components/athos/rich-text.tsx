@@ -6,6 +6,20 @@ import type { Citation } from "@/lib/athos"
 export const POSSIBILITY =
   /(compatible con|sugestivo de|sugerente de|no hay evidencia suficiente|evidencia insuficiente|posiblemente|posible|podría|sugiere|se recomienda valorar)/i
 
+/** Los tokens que este render trata como una unidad: cita `[n]` y negrita `**…**`. */
+const TOKENS = /(\[\d+\])|(\*\*[^*]+\*\*)/g
+
+/**
+ * Dónde empieza y termina cada token, para quien necesite CORTAR el texto sin partirlos.
+ *
+ * Lo usa la nota del Phantom, que parte el plan para resaltar los alérgenos registrados: un corte a
+ * mitad de `**penicilina**` deja dos trozos con los asteriscos huérfanos, y `renderInline` los
+ * pintaría literales en una nota clínica.
+ */
+export function tramosIndivisibles(text: string): { desde: number; hasta: number }[] {
+  return [...text.matchAll(TOKENS)].map((m) => ({ desde: m.index, hasta: m.index + m[0].length }))
+}
+
 // Renderiza texto inline: negritas **..**, marcadores de cita [n] enlazados a su fuente, y resalta
 // el lenguaje de posibilidad. Compartido por el Copiloto, el hilo embebido y la nota del Phantom.
 export function renderInline(text: string, citations: Citation[], kp: string): ReactNode[] {
@@ -27,7 +41,7 @@ export function renderInline(text: string, citations: Citation[], kp: string): R
       )
     })
   }
-  const regex = /(\[\d+\])|(\*\*[^*]+\*\*)/g
+  const regex = new RegExp(TOKENS.source, "g")
   let last = 0
   let m: RegExpExecArray | null
   let k = 0

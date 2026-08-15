@@ -40,6 +40,30 @@ def _load_consultation(clinic_id: str, consultation_id: str) -> dict | None:
     return rows[0] if rows else None
 
 
+def _load_notebook(clinic_id: str, consultation_id: str) -> str:
+    """El cuaderno del veterinario, en su propia consulta y a prueba de despliegue desordenado.
+
+    Va aparte de `_load_consultation` A PROPÓSITO. `consultations.notebook` la agrega la migración
+    0058, y este servicio despliega en Railway por su lado: si el código sale antes que la
+    migración, un `select notebook` dentro de la consulta principal reventaría la generación ENTERA
+    de la nota — el Fantasma dejaría de funcionar por una columna que todavía no existe.
+
+    Aislado y con captura, lo peor que pasa es que la nota se redacte sin el cuaderno, que es
+    exactamente como se redactaba ayer. Mismo criterio de "falla abierta" que el juez de evidencia
+    y la verificación de citas.
+    """
+    try:
+        rows = fetch_all(
+            "select notebook from public.consultations where clinic_id = %s and id = %s",
+            (clinic_id, consultation_id),
+        )
+    except Exception:  # noqa: BLE001 — columna ausente, permisos, red: todo degrada igual
+        log.warning("No se pudo leer el cuaderno de la consulta %s; se redacta sin él",
+                    consultation_id, exc_info=True)
+        return ""
+    return (rows[0].get("notebook") or "") if rows else ""
+
+
 def _load_transcript(clinic_id: str, consultation_id: str) -> dict | None:
     rows = fetch_all(
         "select id, full_text from public.transcripts "
@@ -133,7 +157,8 @@ def suggest(consultation_id: str, clinic_id: str, user_id: str | None = None) ->
         # mejor en utilidad. Acá se puede hacer porque el juez ya corrió (en el chat corre en paralelo
         # y esperar su veredicto costaría latencia justo en el primer token).
         soap, citations, allergy_flag = generate_note(
-            transcript_text, literature, patient, severe, task=task_para_banda(verdict.band))
+            transcript_text, literature, patient, severe, task=task_para_banda(verdict.band),
+            notebook=_load_notebook(clinic_id, consultation_id))
     except EmptyNoteError as e:
         log.error("Fantasma sin nota utilizable para consulta %s: %s", consultation_id, e)
         raise HTTPException(

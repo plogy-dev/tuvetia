@@ -207,7 +207,7 @@ export default async function ConsultasPage({
           <details
             key={g.id}
             open={filtering || gi === 0}
-            className="group rounded-xl border bg-card shadow-sm"
+            className="group rounded-xl border bg-card"
           >
             <summary className="flex cursor-pointer list-none items-center gap-3 px-4 py-3">
               <span className="grid size-9 shrink-0 place-items-center rounded-lg bg-secondary text-sm font-bold">

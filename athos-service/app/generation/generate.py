@@ -58,20 +58,40 @@ def _format_literature(literature: list[RetrievedChunk]) -> str:
 
 def build_note_prompt(transcript: str, literature: list[RetrievedChunk], patient: PatientContext,
                       severe_allergens: list[str],
-                      system_prompt: str | None = None) -> tuple[str, str]:
+                      system_prompt: str | None = None,
+                      notebook: str = "") -> tuple[str, str]:
     """Arma (system, user) para la nota SOAP. Determinístico y testeable sin LLM.
 
     `system_prompt` sustituye el de producción — es el punto de entrada del A/B de prompts
     (`scripts/calidad/phantom_ab.py`), que corre variantes en paralelo y por eso necesita pasarlo como
     argumento y no mutar el global del módulo.
+
+    `notebook` es el CUADERNO del veterinario: lo que escribió a mano durante la consulta
+    (`consultations.notebook`). Va en su propia sección y sólo si tiene contenido, por dos razones:
+
+      · **No es transcripción.** Lo dictó el criterio del vet, no el micrófono. Mezclarlo con lo
+        hablado le haría atribuir al titular cosas que dijo el veterinario para sí mismo.
+      · **Vale más que lo hablado cuando se contradicen.** Un peso anotado a mano es una medición; el
+        mismo peso dicho al pasar puede ser una estimación. Por eso el prompt lo dice explícito.
+
+    Vacío por defecto: una consulta sin cuaderno arma el mismo prompt que antes, carácter por
+    carácter, y las mediciones ya hechas del Fantasma siguen siendo comparables.
     """
     ficha = (f"- especie: {patient.species or '?'}; peso: {patient.weight_kg or '?'} kg; "
              f"edad: {patient.age_years or '?'} años")
     alergias = ", ".join(severe_allergens) if severe_allergens else "ninguna conocida"
+    # El cuaderno sólo aparece si tiene contenido: sin él, el prompt queda IDÉNTICO al de siempre y
+    # las mediciones ya tomadas del Fantasma siguen siendo comparables.
+    cuaderno = (
+        "NOTAS DEL VETERINARIO (escritas a mano durante la consulta; ante contradicción con lo "
+        "hablado, PRIMAN estas):\n"
+        f"{notebook.strip()}\n\n"
+    ) if notebook.strip() else ""
     user = (
         "CONTEXTO DEL PACIENTE:\n"
         f"{ficha}\n"
         f"- alergias severas conocidas: {alergias} (ADVERTIR antes de cualquier plan)\n\n"
+        f"{cuaderno}"
         "TRANSCRIPCIÓN DE LA CONSULTA:\n"
         f"{transcript.strip() or '(vacía)'}\n\n"
         "LITERATURA RECUPERADA (cita SOLO estos chunk_id):\n"
@@ -175,7 +195,8 @@ class EmptyNoteError(RuntimeError):
 def generate_note(transcript: str, literature: list[RetrievedChunk], patient: PatientContext,
                   severe_allergens: list[str],
                   system_prompt: str | None = None,
-                  task: str = REDACCION) -> tuple[SOAP, list[Citation], bool]:
+                  task: str = REDACCION,
+                  notebook: str = "") -> tuple[SOAP, list[Citation], bool]:
     """Genera la nota SOAP (Modo Fantasma) en una sola llamada. Usa LLMClient(LLM_MODEL).
 
     Devuelve (soap, citations, allergy_transcript_flag). El gate DURO (allergy_gate_triggered) y el
@@ -188,7 +209,7 @@ def generate_note(transcript: str, literature: list[RetrievedChunk], patient: Pa
     Lanza `EmptyNoteError` si el modelo no devuelve una nota utilizable ni al reintentar.
     """
     system, user = build_note_prompt(transcript, literature, patient, severe_allergens,
-                                     system_prompt)
+                                     system_prompt, notebook=notebook)
     # El fallo es transitorio: medido, la misma transcripción que salió vacía generó bien en los dos
     # reintentos siguientes. Un reintento convierte el fallo duro en éxito; el segundo vacío ya no se
     # tapa, se levanta.

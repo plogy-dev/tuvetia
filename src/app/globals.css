@@ -81,6 +81,18 @@
   --color-brand-soft: var(--accent-soft);
   --color-danger: var(--danger);
   --color-danger-soft: var(--danger-soft);
+  --color-warn-soft: var(--warn-soft);
+  --color-ok-soft: var(--ok-soft);
+  /* LA ÚNICA SOMBRA DEL SISTEMA. El del cliente lo dice literal: "Profundidad: la única sombra
+     permitida (popovers y menús)". No existía como token, así que hasta los popovers legítimos
+     usaban la escala de Tailwind — y las cards, que no deberían tener ninguna, usaban `shadow-sm`
+     en 19 lugares. Se usa SÓLO en lo que flota por encima del contenido. */
+  --shadow-popover: 0 4px 16px rgba(12, 22, 19, 0.12), 0 1px 2px rgba(12, 22, 19, 0.08);
+  /* El cuerpo del sistema del cliente: 15px con interlínea 1.55. Se aplica en `body` —igual que
+     ellos— y NO en `html`: tocar la raíz reescalaría todas las utilidades en `rem` (padding, gap,
+     alturas) y encogería la app entera un 6%, que no es lo que el token quiere decir. */
+  --text-base-app: 15px;
+  --leading-app: 1.55;
   --color-ok: var(--ok);
   --color-warn: var(--warn);
   --color-info: var(--info);
@@ -165,11 +177,18 @@
   --ease: cubic-bezier(0.2, 0, 0, 1);
   --font-display: var(--font-newsreader), "Newsreader", Georgia, serif;
 
-  /* ── Estados ── */
+  /* ── Estados ──
+     Los `-soft` son SÓLIDOS, como en el sistema del cliente (`--tv-danger-soft: var(--tv-red-100)`,
+     `--tv-warn-soft: var(--tv-amber-100)`). Estaban sintetizados con opacidad sobre el color fuerte,
+     y eso desató siete opacidades distintas repartidas por la app —`/5`, `/10`, `/15`, `/20`, `/30`—
+     para exactamente dos estados. Un color translúcido además cambia según lo que tenga debajo, así
+     que el mismo aviso se veía distinto sobre una card que sobre la superficie elevada. */
   --danger: var(--tv-red-500);
-  --danger-soft: rgba(192, 58, 46, 0.1);
+  --danger-soft: var(--tv-red-100);
   --ok: var(--tv-mint-500);
+  --ok-soft: var(--tv-mint-100);
   --warn: var(--tv-amber-700);
+  --warn-soft: var(--tv-amber-100);
   --info: #3f6670;
   /* Estados de cita — el bloque de color en el calendario.
      Reemplazan a los viejos `--type-*`, que no los usaba NADIE: los colores de
@@ -257,9 +276,13 @@
   --accent-text: var(--tv-mint-300);
   --accent-soft: rgba(126, 208, 186, 0.12);
   --danger: #d6584c;
+  /* En el contexto oscuro los `-soft` SÍ son translúcidos, y es lo que hace el cliente también:
+     sobre grafito un sólido claro sería una mancha, y la transparencia deja pasar la superficie. */
   --danger-soft: rgba(214, 88, 76, 0.16);
   --ok: var(--tv-mint-300);
+  --ok-soft: rgba(126, 208, 186, 0.12);
   --warn: #e5c078;
+  --warn-soft: rgba(229, 192, 120, 0.14);
   --info: #7fb0bd;
   --status-scheduled: #a0a0e0;
   --status-confirmed: var(--tv-mint-300);
@@ -343,6 +366,26 @@
    El peso baja a 500 y el tracking se afloja a -0.01em: -0.015em y el bold
    estaban calibrados para Bricolage, un grotesco. Un serif apretado y en
    negrita se empasta. */
+/* EL CUERPO DE 15px/1.55 DEL SISTEMA DEL CLIENTE.
+ *
+ * Va en `.app-theme` y NO en `body`: la landing fija su propio `body` (Archivo, en `landing.css`)
+ * sin tamaño, así que declararlo global le cambiaría el cuerpo a una superficie que este sistema
+ * de diseño no gobierna. Es la misma razón por la que los titulares de abajo están scopeados.
+ * `.app-theme` cubre el dashboard entero, login, signup e invitaciones.
+ *
+ * Y va acá y no en `html`, igual que en el mockup: tocar la raíz reescalaría todas las utilidades
+ * en `rem` —padding, gap, alturas— y encogería la app un 6%, que no es lo que el token dice.
+ *
+ * ALCANCE REAL, para que nadie espere de más: afecta al texto que HEREDA su tamaño. Lo que lleva
+ * clase explícita (`text-sm` = 14px, `text-[13px]`) sigue en la escala de Tailwind — y ahí el
+ * mockup y nosotros seguimos difiriendo un punto. Igualarlo pide reescribir los tamaños componente
+ * por componente, que es otra decisión.
+ */
+.app-theme {
+  font-size: var(--text-base-app);
+  line-height: var(--leading-app);
+}
+
 .app-theme h1,
 .app-theme h2,
 .sec-title {

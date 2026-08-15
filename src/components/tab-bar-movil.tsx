@@ -93,7 +93,10 @@ export function TabBarMovil() {
         <span className="-mt-3.5 grid size-11 place-items-center rounded-full border-[3px] border-surface bg-brand text-on-brand">
           <GhostIcon aria-hidden className="size-[22px]" strokeWidth={1.5} />
         </span>
-        Tomanotas
+        {/* "Fantasma" y no "Modo Fantasma": son 64px de ancho a 10px y el nombre completo se
+            parte en dos líneas. Es una ABREVIATURA de la marca, no un segundo nombre — que es
+            justo lo que decía "Tomanotas" y lo que el cliente pidió corregir. */}
+        Fantasma
       </Link>
 
       {DESTINOS_DERECHA.map((d) => (

@@ -118,7 +118,7 @@ export default async function FacturaPublicaPage({ params }: { params: Promise<{
 
   return (
     <main className="mx-auto w-full max-w-2xl px-4 py-10 sm:py-16">
-      <div className="overflow-hidden rounded-2xl border bg-white shadow-sm">
+      <div className="overflow-hidden rounded-2xl border bg-white">
         {/* Encabezado: quién cobra */}
         <div className="border-b px-6 py-5">
           <h1 className="text-lg font-semibold text-neutral-900">{emisor}</h1>

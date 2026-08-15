@@ -118,7 +118,7 @@ export function AppSidebar({
   className,
   ...props
 }: React.ComponentProps<typeof Sidebar> & {
-  user: { name: string; email: string; avatar: string }
+  user: { name: string; email: string; avatar: string; role: string | null }
   clinic: { name: string; logoUrl: string | null }
   /** 0–100. Lo calcula `dashboard/layout.tsx`; el sidebar sólo lo muestra. */
   progresoConfiguracion: number

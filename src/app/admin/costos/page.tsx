@@ -142,7 +142,7 @@ export default async function AdminCostosPage() {
       </div>
 
       {sinTarifa.length > 0 && (
-        <div className="rounded-lg border border-warn/40 bg-warn/10 p-3 text-sm">
+        <div className="rounded-lg border border-warn/40 bg-warn-soft p-3 text-sm">
           <b>El total está incompleto.</b> Hay consumo de{" "}
           {[...new Set(sinTarifa.map((v) => v.provider ?? "proveedor desconocido"))].join(", ")} sin
           tarifa por token cargada, así que esas llamadas se listan pero <b>no suman</b>. Se cargan en{" "}
@@ -153,7 +153,7 @@ export default async function AdminCostosPage() {
       )}
 
       {m.agentUsage.length === 0 && (
-        <div className="rounded-lg border border-warn/40 bg-warn/10 p-3 text-sm">
+        <div className="rounded-lg border border-warn/40 bg-warn-soft p-3 text-sm">
           <b>El consumo del agente de Next no se está registrando.</b> Falta aplicar la migración{" "}
           <code>0046_athos_agent_usage.sql</code> al proyecto principal. Hasta entonces, el gasto de
           Anthropic del asistente, del modo auto de WhatsApp y de la lectura de facturas{" "}

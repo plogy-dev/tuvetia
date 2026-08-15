@@ -4,6 +4,8 @@ import { createClient } from "@/lib/supabase/server"
 import { WelcomeWizard } from "@/components/onboarding/welcome-wizard"
 import { OnboardingAthos } from "@/components/onboarding/onboarding-athos"
 import { SinClinica } from "@/components/onboarding/sin-clinica"
+import { CuentaDesactivada } from "@/components/cuenta-desactivada"
+import { estadoDeAcceso } from "@/lib/acceso"
 
 export const metadata = { title: "Configura tu clínica · Tuvetia" }
 
@@ -22,10 +24,19 @@ export default async function BienvenidaPage() {
 
   const { data: prof } = await supabase
     .from("profiles")
-    .select("clinic_id, setup_completed_at")
+    .select("clinic_id, setup_completed_at, is_active")
     .eq("id", user.id)
     .maybeSingle()
-  const p = prof as { clinic_id: string | null; setup_completed_at: string | null } | null
+  const p = prof as {
+    clinic_id: string | null
+    setup_completed_at: string | null
+    is_active: boolean | null
+  } | null
+
+  // CUENTA DESACTIVADA, antes que nada. Sin esto, el gate de la 0059 hace que un perfil inactivo
+  // llegue sin clínica y esta pantalla le ofrezca CREAR UNA NUEVA — exactamente lo que desactivar
+  // una cuenta existe para impedir.
+  if (estadoDeAcceso(p) === "desactivada") return <CuentaDesactivada correo={user.email} />
 
   // SIN CLÍNICA se evalúa PRIMERO, antes que `setup_completed_at`. El orden importa y no es
   // cosmético: el layout manda acá cuando falta la clínica, así que si este archivo rebotara al

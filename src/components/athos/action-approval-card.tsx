@@ -5,13 +5,19 @@
 // en athos_actions + audit_logs.
 
 import { useState } from "react"
-import { CalendarPlus, Check, ClipboardEdit, Loader2, Mail, MessageCircle, PawPrint, Sparkles, UserPlus, X } from "lucide-react"
+import { Check, Loader2, X } from "lucide-react"
 import Link from "next/link"
 import { toast } from "sonner"
 
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
+import { camposDeAccion } from "@/lib/athos-agent/detalle-accion"
+import {
+  destinosDeAccion,
+  pasosEjecutados,
+  pasosPrevistos,
+} from "@/lib/athos-agent/pasos-de-accion"
 
 export type ProposedAction = {
   id: string
@@ -22,16 +28,24 @@ export type ProposedAction = {
   created_at?: string
 }
 
-const TOOL_LABELS: Record<string, { label: string; icon: typeof MessageCircle }> = {
-  send_whatsapp_message: { label: "Mensaje de WhatsApp", icon: MessageCircle },
-  create_appointment: { label: "Nueva cita", icon: CalendarPlus },
-  update_appointment: { label: "Cambio de cita", icon: CalendarPlus },
-  create_owner: { label: "Nuevo titular", icon: UserPlus },
-  create_patient: { label: "Nuevo paciente", icon: PawPrint },
-  create_owner_and_patient: { label: "Titular + paciente", icon: PawPrint },
-  update_patient_record: { label: "Actualizar ficha", icon: ClipboardEdit },
-  send_email: { label: "Correo", icon: Mail },
-  reply_email: { label: "Respuesta por correo", icon: Mail },
+/**
+ * Cómo se nombra cada acción en la cabecera de la tarjeta.
+ *
+ * SIN ÍCONO, como el mockup: su cabecera es `ACCIÓN PROPUESTA · Agendar cita`, versalitas y texto.
+ * El sistema del cliente usa íconos en UN solo lugar de las 16 secciones —la tab bar móvil, donde
+ * no cabe una palabra— y en todo lo demás deja que el texto haga el trabajo. Acá el ícono repetía
+ * lo que la etiqueta de al lado ya decía.
+ */
+const TOOL_LABELS: Record<string, string> = {
+  send_whatsapp_message: "Mensaje de WhatsApp",
+  create_appointment: "Nueva cita",
+  update_appointment: "Cambio de cita",
+  create_owner: "Nuevo titular",
+  create_patient: "Nuevo paciente",
+  create_owner_and_patient: "Titular + paciente",
+  update_patient_record: "Actualizar ficha",
+  send_email: "Correo",
+  reply_email: "Respuesta por correo",
 }
 
 /**
@@ -90,6 +104,12 @@ export function ActionApprovalCard({
 }) {
   const campos = CAMPOS_EDITABLES[action.tool_name] ?? []
   const editable = campos.length > 0
+  // La lista `etiqueta → valor` del mockup. Se calcula del payload, no del resumen: el resumen es
+  // prosa que arma la tool y deja campos afuera (ver `detalle-accion.ts`). Para los tools de
+  // mensajería viene vacía, porque sus campos ya se pintan editables acá abajo.
+  const detalle = camposDeAccion(action.tool_name, action.payload)
+  // Lo que la acción va a hacer si se aprueba. Sale del payload, así que ya se puede calcular.
+  const previstos = pasosPrevistos(action.tool_name, action.payload)
   // Valores de trabajo, sembrados del payload propuesto. Se comparan contra el original al aprobar
   // para mandar SOLO lo que el vet tocó.
   const [valores, setValores] = useState<Record<string, string>>(() =>
@@ -98,6 +118,17 @@ export function ActionApprovalCard({
   const [busy, setBusy] = useState<"execute" | "reject" | null>(null)
   const [resolved, setResolved] = useState<string | null>(action.status !== "proposed" ? action.status : null)
   const [aviso, setAviso] = useState<{ texto: string; enlace: string | null } | null>(null)
+  // El resultado COMPLETO de la ejecución, no sólo el aviso. De acá salen los pasos que de verdad
+  // ocurrieron y el enlace a lo que se creó — antes se leían dos campos y el resto se tiraba, así
+  // que la tarjeta terminaba en "✓ Ejecutada" sin forma de llegar a la cita recién agendada.
+  //
+  // Arranca en null porque las cinco pantallas que montan esta tarjeta le pasan siempre acciones en
+  // `proposed`: el desglose es el de la ejecución que ocurre acá mismo.
+  const [resultado, setResultado] = useState<unknown>(null)
+
+  // La otra mitad: lo que pasó de verdad. Depende del resultado, así que va después del estado.
+  const ejecutados = pasosEjecutados(action.tool_name, resultado)
+  const destinos = destinosDeAccion(action.tool_name, resultado)
 
   /** Solo los campos que el vet cambió; si no tocó nada, no se manda override. */
   function overrideEditado(): Record<string, string> | null {
@@ -125,6 +156,7 @@ export function ActionApprovalCard({
       if (!res.ok) throw new Error(json.error ?? `HTTP ${res.status}`)
       const status = kind === "execute" ? "executed" : "rejected"
       setResolved(status)
+      if (kind === "execute") setResultado(json.result ?? {})
       onResolved?.(action.id, status)
       // Un aviso NO es un error: la acción se ejecutó. Es algo que el vet necesita saber igual —
       // p.ej. que la cita no llegó a Google porque no está conectado. Sin esto la cita "desaparece"
@@ -147,8 +179,8 @@ export function ActionApprovalCard({
     }
   }
 
-  const meta = TOOL_LABELS[action.tool_name] ?? { label: action.tool_name, icon: Sparkles }
-  const Icon = meta.icon
+  // Un tool sin etiqueta cae a su nombre crudo: es feo, pero decir mal qué se va a ejecutar es peor.
+  const etiqueta = TOOL_LABELS[action.tool_name] ?? action.tool_name
 
   return (
     // FORMA DEL MOCKUP: borde de acento, franja menta arriba, y el descargo abajo. Sin sombra —el
@@ -164,13 +196,28 @@ export function ActionApprovalCard({
           Acción propuesta
         </span>
         <span className="flex items-center gap-1.5 text-sm font-semibold">
-          <Icon aria-hidden className="size-4 shrink-0" />
-          {meta.label}
+          {etiqueta}
         </span>
       </div>
 
       <div className="flex flex-col gap-3 px-4 py-3.5">
       <p>{action.summary}</p>
+      {/* LA LISTA DE DEFINICIÓN DEL MOCKUP. Se sigue mostrando después de resuelta: es la
+          constancia de qué se aprobó exactamente, y una tarjeta que borra sus datos al ejecutarse
+          deja al vet sin forma de verificar lo que acaba de autorizar.
+
+          `sm:` en la grilla porque en un teléfono dos columnas dejan al valor con 12 caracteres de
+          ancho; ahí la etiqueta va encima. */}
+      {detalle.length > 0 && (
+        <dl className="grid gap-x-4 gap-y-1.5 text-[13px] sm:grid-cols-[minmax(0,8rem)_minmax(0,1fr)]">
+          {detalle.map((c) => (
+            <div key={c.etiqueta} className="contents">
+              <dt className="text-fg-muted">{c.etiqueta}</dt>
+              <dd className="min-w-0 break-words whitespace-pre-wrap">{c.valor}</dd>
+            </div>
+          ))}
+        </dl>
+      )}
       {editable && !resolved && (
         <div className="flex flex-col gap-2">
           {/* La etiqueta va VISIBLE, no sólo de placeholder: el placeholder desaparece en cuanto el
@@ -204,6 +251,26 @@ export function ActionApprovalCard({
       {resolved ? (
         <>
           <p className="text-xs font-medium text-fg-muted">{RESOLVED_LABELS[resolved] ?? RESOLVED_LABELS.failed}</p>
+
+          {/* QUÉ PASÓ, PASO POR PASO — el estado "hecha" del mockup.
+              Cada línea sale del resultado real que devolvió la ejecución, no de la lista de
+              arriba dada por buena: si la cita no llegó a Google Calendar, ese paso se pinta como
+              NO hecho. Es la diferencia entre informar y suponer. */}
+          {resolved === "executed" && ejecutados.length > 0 && (
+            <ul className="flex flex-col gap-1 text-[13px]">
+              {ejecutados.map((p) => (
+                <li key={p.texto} className="flex items-start gap-1.5">
+                  {p.estado === "ok" ? (
+                    <Check aria-hidden className="mt-0.5 size-3.5 shrink-0 text-brand-text" />
+                  ) : (
+                    <X aria-hidden className="mt-0.5 size-3.5 shrink-0 text-warn" />
+                  )}
+                  <span className={p.estado === "ok" ? "text-fg-muted" : "text-warn"}>{p.texto}</span>
+                </li>
+              ))}
+            </ul>
+          )}
+
           {aviso && (
             <p className="text-xs text-warn">
               {aviso.texto}{" "}
@@ -214,12 +281,53 @@ export function ActionApprovalCard({
               )}
             </p>
           )}
+
+          {/* "[Ver en la agenda]" del mockup. No estaba: la tarjeta decía "✓ Ejecutada" y dejaba al
+              vet sin forma de llegar a lo que acababa de aprobar. */}
+          {resolved === "executed" && destinos.length > 0 && (
+            <div className="flex flex-wrap gap-2">
+              {destinos.map((d) => (
+                <Button key={d.href} size="sm" variant="outline" render={<Link href={d.href} />}>
+                  {d.texto}
+                </Button>
+              ))}
+            </div>
+          )}
         </>
       ) : (
         // El descargo va DENTRO de la tarjeta y pegado a los botones, como en el mockup: es la
         // frase que responde "¿qué pasa si le doy?" en el momento exacto en que se hace esa
         // pregunta. Suelto en otra parte de la pantalla, no lo lee nadie.
         <div className="flex flex-col gap-2 border-t border-line pt-3">
+          {/* QUÉ VA A PASAR SI APRUEBA. El mockup dibuja la lista de pasos MIENTRAS se ejecuta;
+              acá va antes, que es donde de verdad cambia una decisión. Después ya no hay nada que
+              decidir, y estas ejecuciones duran uno o dos segundos.
+
+              Lo que resuelve: una acción de Athos casi nunca es una sola cosa. "Agendar la cita"
+              también la copia al Google Calendar de la clínica; "actualizar la ficha" pueden ser
+              tres escrituras distintas. El vet apretaba "Aprobar" viendo una sola frase. */}
+          {previstos.length > 0 && (
+            <ul className="mb-1 flex flex-col gap-1 text-[13px] text-fg-muted">
+              {previstos.map((p, i) => (
+                <li key={p} className="flex items-start gap-1.5">
+                  <span
+                    aria-hidden
+                    className="mt-1 size-1.5 shrink-0 rounded-full bg-brand"
+                  />
+                  {/* El número deja ver que hay un ORDEN: si el paso 2 falla, el 1 ya ocurrió.
+                      Es exactamente el caso de "titular creado pero el paciente falló". */}
+                  <span>
+                    {previstos.length > 1 && (
+                      <span className="mr-1 font-mono text-[11px] tabular-nums text-fg-faint">
+                        {i + 1}.
+                      </span>
+                    )}
+                    {p}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          )}
           <div className="flex flex-wrap items-center gap-2">
             <Button
               size="sm"

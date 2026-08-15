@@ -245,6 +245,7 @@ export function Assistant({
   saludo,
   contexto,
   riel,
+  tiraClinica,
   textoInicial,
 }: {
   clinicId: string
@@ -260,6 +261,11 @@ export function Assistant({
   /** El riel de configuración de la clínica. Se recibe ya renderizado desde el server component
    *  porque calcula el progreso con datos, y este componente es de cliente. */
   riel?: React.ReactNode
+  /** `TiraClinica`, el riel de la derecha aplastado a una línea. Se pinta sola por debajo de `xl`,
+   *  que es justo donde el riel grande desaparece. Va acá dentro y no envolviendo esta pantalla
+   *  porque el alto es `h-[calc(100svh-var(--header-height))]`: cualquier cosa apilada por fuera
+   *  empujaría el compositor fuera de la ventana. */
+  tiraClinica?: React.ReactNode
   /** Petición ya redactada que otra pantalla dejó lista (`?pedir=`). Se escribe, no se envía. */
   textoInicial?: string
 }) {
@@ -355,6 +361,8 @@ export function Assistant({
           </Select>
         </div>
       </div>
+
+      {tiraClinica}
 
       {riel}
 

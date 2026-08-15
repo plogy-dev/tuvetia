@@ -74,7 +74,7 @@ export default async function AdminUsuariosPage() {
       />
 
       {!configurado && (
-        <div className="rounded-lg border border-warn/40 bg-warn/10 p-3 text-sm">
+        <div className="rounded-lg border border-warn/40 bg-warn-soft p-3 text-sm">
           <b>El envío de correos está deshabilitado.</b> Falta <code>RESEND_API_KEY</code> en Vercel.
           Además, antes del primer envío el dominio del remitente tiene que estar verificado en
           Resend (SPF y DKIM) — ver <code>CORREOS.md</code>.

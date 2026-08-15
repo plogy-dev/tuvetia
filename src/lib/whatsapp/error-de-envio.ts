@@ -26,16 +26,71 @@ export class ErrorQueElVetPuedeResolver extends Error {
   constructor(
     message: string,
     readonly status: number = 409,
+    /**
+     * El detalle CRUDO, para el registro de auditoría y la columna `error`. NO se le muestra al
+     * vet: `message` es lo que él lee.
+     *
+     * Existe porque los dos usos nuevos —las acciones de Athos que se completan A MEDIAS— tienen
+     * que decirle al vet algo accionable ("el titular sí se creó") sin perder el error de Postgres
+     * que hace depurable el fallo. Antes eran la misma cadena y había que elegir: o el vet entendía
+     * o quedaba rastro.
+     */
+    readonly detalle?: string,
   ) {
     super(message)
     this.name = "ErrorQueElVetPuedeResolver"
   }
 }
 
+/**
+ * De qué se está hablando cuando el fallo no se pudo clasificar.
+ *
+ * El clasificador nació para los envíos de WhatsApp y después se aplicó a las NUEVE tools de
+ * `athos/actions/[id]/execute`. Resultado: al fallar la creación de un paciente, el vet leía "No se
+ * pudo **enviar el mensaje** por un error inesperado" — un mensaje que nunca existió. El texto por
+ * defecto es el de siempre, así que el camino de WhatsApp no cambia en nada.
+ */
+// Cada contexto trae la FRASE ENTERA y no piezas para componer: así el camino de WhatsApp queda
+// idéntico al carácter —"el mensaje no salió" se lee mejor que cualquier plantilla— y el texto de
+// cada caso se puede leer completo acá, sin armarlo mentalmente.
+export type ContextoDeFallo = {
+  sinRespuesta: string
+  cayo: (status: number) => string
+  rechazo: (status: number) => string
+  inesperado: string
+}
+
+const WHATSAPP: ContextoDeFallo = {
+  sinRespuesta:
+    "El servicio de WhatsApp no respondió a tiempo. El mensaje no salió; probá de nuevo en un momento.",
+  cayo: (s) => `El servicio de WhatsApp está fallando (${s}). El mensaje no salió.`,
+  rechazo: (s) =>
+    `El servicio de WhatsApp rechazó el envío (${s}). Revisá que el número esté bien y que la conexión siga activa en Configuración.`,
+  inesperado: "No se pudo enviar el mensaje por un error inesperado. Si vuelve a pasar, avisá a soporte.",
+}
+
+/**
+ * Para las acciones de Athos que NO mandan nada afuera: crear una cita, un paciente, un titular,
+ * actualizar una ficha.
+ *
+ * Con el contexto de WhatsApp, un fallo creando un paciente le decía al vet "No se pudo **enviar el
+ * mensaje** por un error inesperado" — hablándole de un mensaje que nunca existió, y mandándolo a
+ * revisar una conexión de WhatsApp que no tiene nada que ver.
+ */
+export const FALLO_DE_ACCION: ContextoDeFallo = {
+  sinRespuesta: "El servicio no respondió a tiempo. La acción no se completó; probá de nuevo en un momento.",
+  cayo: (s) => `El servicio está fallando (${s}). La acción no se completó.`,
+  rechazo: (s) => `La acción fue rechazada (${s}). Revisá los datos de la propuesta antes de reintentar.`,
+  inesperado: "No se pudo completar la acción por un error inesperado. Si vuelve a pasar, avisá a soporte.",
+}
+
 const contiene = (e: unknown, aguja: string) =>
   e instanceof Error && e.message.toLowerCase().includes(aguja)
 
-export function clasificarFalloDeEnvio(e: unknown): FalloDeEnvio {
+export function clasificarFalloDeEnvio(
+  e: unknown,
+  ctx: ContextoDeFallo = WHATSAPP,
+): FalloDeEnvio {
   // 1. Lo que el vet puede resolver: su mensaje ya está escrito para él.
   if (e instanceof ErrorQueElVetPuedeResolver) {
     return { texto: e.message, status: e.status }
@@ -51,10 +106,7 @@ export function clasificarFalloDeEnvio(e: unknown): FalloDeEnvio {
   //    ve cuando el proveedor está caído o inalcanzable desde el servidor, y es DISTINTO de que
   //    haya rechazado el mensaje.
   if (e instanceof Error && (e.name === "TimeoutError" || e.name === "AbortError")) {
-    return {
-      texto: "El servicio de WhatsApp no respondió a tiempo. El mensaje no salió; probá de nuevo en un momento.",
-      status: 504,
-    }
+    return { texto: ctx.sinRespuesta, status: 504 }
   }
 
   // 3. Respondió, pero con error. El código HTTP se incluye porque es lo único que distingue "está
@@ -62,19 +114,10 @@ export function clasificarFalloDeEnvio(e: unknown): FalloDeEnvio {
   //    nada: es el mismo número que devolvería cualquier servicio.
   const status = (e as { status?: unknown })?.status
   if (typeof status === "number") {
-    return {
-      texto:
-        status >= 500
-          ? `El servicio de WhatsApp está fallando (${status}). El mensaje no salió.`
-          : `El servicio de WhatsApp rechazó el envío (${status}). Revisá que el número esté bien y que la conexión siga activa en Configuración.`,
-      status: 502,
-    }
+    return { texto: status >= 500 ? ctx.cayo(status) : ctx.rechazo(status), status: 502 }
   }
 
   // 4. Lo que no supimos clasificar. Sigue siendo genérico —no hay nada honesto que decir— pero se
   //    admite que es inesperado en vez de sugerir que reintentar lo va a resolver.
-  return {
-    texto: "No se pudo enviar el mensaje por un error inesperado. Si vuelve a pasar, avisá a soporte.",
-    status: 502,
-  }
+  return { texto: ctx.inesperado, status: 502 }
 }

@@ -35,7 +35,7 @@ export default async function ImportarInventarioPage() {
           <p className="mt-[3px] text-[13px] text-fg-muted">Catálogo y existencias desde Excel/CSV</p>
         </header>
 
-        <div className="rounded-lg border border-line-soft bg-card p-8 shadow-sm">
+        <div className="rounded-lg border border-line-soft bg-card p-8">
           <div className="flex items-center gap-3">
             <div className="flex size-11 items-center justify-center rounded-lg bg-secondary">
               <FileSpreadsheet className="size-5 text-fg" aria-hidden />

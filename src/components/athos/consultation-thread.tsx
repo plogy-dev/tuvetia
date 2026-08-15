@@ -79,7 +79,7 @@ export function ConsultationThread({
   }
 
   return (
-    <section className="flex max-h-[calc(100vh-7rem)] flex-col rounded-xl border bg-card shadow-sm lg:sticky lg:top-20">
+    <section className="flex max-h-[calc(100vh-7rem)] flex-col rounded-xl border bg-card lg:sticky lg:top-20">
       <div className="border-b px-4 pt-4 pb-3">
         <p className="mb-2 text-[11px] font-bold uppercase tracking-[0.09em] text-muted-foreground">
           Hilo de la consulta
@@ -116,7 +116,7 @@ export function ConsultationThread({
                 Athos
               </span>
               {msg.warning && (
-                <div className="mb-1 flex w-full items-start gap-2 rounded-lg border border-warn/30 bg-warn/10 px-2.5 py-2 text-xs text-warn">
+                <div className="mb-1 flex w-full items-start gap-2 rounded-lg border border-warn/30 bg-warn-soft px-2.5 py-2 text-xs text-warn">
                   <AlertTriangle className="mt-0.5 size-3.5 shrink-0" />
                   <span>{msg.warning}</span>
                 </div>

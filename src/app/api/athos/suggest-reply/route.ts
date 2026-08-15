@@ -8,6 +8,7 @@ import { buildAthosTools } from "@/lib/athos-agent/tools"
 import { agentModel } from "@/lib/athos-agent/model"
 import { registrarUso } from "@/lib/athos-agent/usage"
 import { rateLimit } from "@/lib/athos-agent/rate-limit"
+import { consultarPresupuesto, mensajeSinCupo } from "@/lib/athos-agent/presupuesto"
 import type { AgentContext } from "@/lib/athos-agent/actions"
 
 export const runtime = "nodejs"
@@ -44,6 +45,14 @@ export async function POST(req: Request) {
     .maybeSingle()
   const clinicId = (prof as { clinic_id: string | null } | null)?.clinic_id
   if (!clinicId) return NextResponse.json({ error: "El usuario no tiene clínica" }, { status: 400 })
+
+  // El mismo tope mensual de la clínica que en `/api/athos/agent`: es UN cupo compartido entre
+  // todas las superficies, no uno por pantalla. Sugerir una respuesta en la bandeja cuesta una
+  // llamada al modelo igual que una pregunta en el chat.
+  const presupuesto = await consultarPresupuesto(clinicId)
+  if (!presupuesto.permitido) {
+    return NextResponse.json({ error: mensajeSinCupo(presupuesto) }, { status: 402 })
+  }
 
   const {
     data: { session },

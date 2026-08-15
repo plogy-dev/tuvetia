@@ -313,7 +313,7 @@ export function PatientConsultationHistory({
               ) : (
                 <>
                   {note.allergy_gate_triggered && (
-                    <div className="flex items-start gap-2 rounded-lg border border-destructive/50 bg-destructive/10 px-3 py-2 text-xs text-destructive">
+                    <div className="flex items-start gap-2 rounded-lg border border-destructive/50 bg-danger-soft px-3 py-2 text-xs text-destructive">
                       <AlertTriangle className="mt-0.5 size-3.5 shrink-0" />
                       <span>Gate de alergia severa activado en esta consulta.</span>
                     </div>

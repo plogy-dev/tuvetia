@@ -156,7 +156,7 @@ export function ConsultationRecorder({
 
   if (grabando) {
     return (
-      <div className="rounded-xl border border-destructive/40 bg-destructive/5 p-4">
+      <div className="rounded-xl border border-destructive/40 bg-danger-soft p-4">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="flex items-center gap-2 text-sm">
             <span className="size-2 rounded-full bg-destructive motion-safe:animate-pulse" />

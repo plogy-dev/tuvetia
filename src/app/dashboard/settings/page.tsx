@@ -13,12 +13,9 @@ import {
 import { composioConfigurado, estadoConexion } from "@/lib/composio/correo"
 import { HelpTip } from "@/components/help-tip"
 import { PageHeader, PageShell } from "@/components/ui/page-shell"
+// Los rótulos de rol se mudaron a `lib/roles.ts`: el pie de la barra lateral también los usa ahora.
+import { ROLES_LEGIBLES } from "@/lib/roles"
 
-const ROLE_LABELS: Record<string, string> = {
-  admin: "Administrador",
-  vet: "Veterinario",
-  assistant: "Asistente",
-}
 
 export default async function SettingsPage() {
   const supabase = await createClient()
@@ -97,7 +94,7 @@ export default async function SettingsPage() {
           <dt className="text-muted-foreground">Nombre</dt>
           <dd className="font-medium">{clinicName}</dd>
           <dt className="text-muted-foreground">Tu rol</dt>
-          <dd>{p?.role ? (ROLE_LABELS[p.role] ?? p.role) : "—"}</dd>
+          <dd>{p?.role ? (ROLES_LEGIBLES[p.role] ?? p.role) : "—"}</dd>
         </dl>
       </div>
 
