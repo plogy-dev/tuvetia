@@ -5,7 +5,11 @@ import { createAdminClient } from "@/lib/supabase/admin"
 import { empujarCita } from "@/lib/composio/calendario"
 import { validarPayload } from "@/lib/athos-agent/payload-schemas"
 import { sendWhatsAppText } from "@/lib/whatsapp/send-message"
-import { clasificarFalloDeEnvio } from "@/lib/whatsapp/error-de-envio"
+import {
+  clasificarFalloDeEnvio,
+  ErrorQueElVetPuedeResolver,
+  FALLO_DE_ACCION,
+} from "@/lib/whatsapp/error-de-envio"
 import {
   avisoDeEntrega,
   enviarCorreo,
@@ -147,7 +151,12 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     return NextResponse.json({ ok: true, result })
   } catch (e) {
     // El detalle CRUDO se guarda y se audita: es lo que hace depurable una propuesta fallida.
-    const msg = (e as Error).message
+    //
+    // `detalle` gana cuando existe: en los fallos A MEDIAS el `message` es el texto escrito para el
+    // vet ("el titular sí se creó"), y el error de Postgres que hace depurable el caso viaja
+    // aparte. Sin esto, hacer legible el mensaje habría borrado el rastro.
+    const msg =
+      e instanceof ErrorQueElVetPuedeResolver && e.detalle ? e.detalle : (e as Error).message
     await markAction(action.id, {
       status: "failed",
       reviewed_by: user.id,
@@ -160,10 +169,20 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     // le puso en pantalla la respuesta entera del proveedor —ruta interna y nombre de la instancia,
     // que es el id de la clínica— dentro de un toast. La bandeja ya no lo hacía; este camino sí,
     // porque el clasificador se agregó sólo en /api/whatsapp/send.
-    const fallo = clasificarFalloDeEnvio(e)
+    // El clasificador nació para los envíos de WhatsApp y acá se aplica a las NUEVE tools. Con el
+    // contexto por defecto, fallar creando un paciente le decía al vet "no se pudo ENVIAR EL
+    // MENSAJE" y lo mandaba a revisar la conexión de WhatsApp. Las tools que sí mandan algo afuera
+    // conservan ese texto, que para ellas es el correcto.
+    const fallo = clasificarFalloDeEnvio(e, ENVIA_AFUERA.has(action.tool_name) ? undefined : FALLO_DE_ACCION)
     return NextResponse.json({ error: fallo.texto }, { status: fallo.status })
   }
 }
+
+/**
+ * Las tools cuyo efecto es mandarle algo a alguien por un proveedor externo. Son las únicas para
+ * las que "no se pudo enviar el mensaje / revisá la conexión" es el texto correcto ante un fallo.
+ */
+const ENVIA_AFUERA = new Set(["send_whatsapp_message", "send_email", "reply_email"])
 
 async function dispatch(
   supabase: Awaited<ReturnType<typeof createClient>>,
@@ -337,7 +356,15 @@ const threadId = String(p.thread_id ?? "")
         p_birth_date: patient.birth_date ?? null,
         p_weight_kg: patient.weight_kg ?? null,
       })
-      if (pErr) throw new Error(`Titular creado pero el paciente falló: ${pErr.message}`)
+      // FALLO A MEDIAS: el titular YA quedó creado. Decírselo al vet no es cortesía — sin eso
+      // vuelve a aprobar la propuesta y termina con el titular duplicado, que después hay que
+      // deduplicar a mano. El error de Postgres viaja en `detalle` y sigue quedando en la auditoría.
+      if (pErr)
+        throw new ErrorQueElVetPuedeResolver(
+          "El titular se creó, pero el paciente no. Agregá el paciente desde la ficha del titular: si volvés a aprobar esta propuesta, el titular queda duplicado.",
+          409,
+          `Titular creado pero el paciente falló: ${pErr.message}`,
+        )
       return { owner_id: ownerId as unknown, patient_id: patientId as unknown }
     }
 
@@ -364,7 +391,15 @@ const threadId = String(p.thread_id ?? "")
           reaction: allergy.reaction ?? null,
           created_by: userId,
         })
-        if (error) throw new Error(`Ficha actualizada pero la alergia falló: ${error.message}`)
+        // El otro fallo a medias, y el más delicado de los dos: peso y notas ya se guardaron, pero
+        // LA ALERGIA NO. Que el vet crea que quedó registrada es justo lo que desarma el gate de
+        // alergia severa en la próxima consulta.
+        if (error)
+          throw new ErrorQueElVetPuedeResolver(
+            "La ficha se actualizó, pero la ALERGIA no quedó registrada. Cargala a mano en la ficha del paciente antes de seguir: el aviso de alergia no va a aparecer hasta que esté.",
+            409,
+            `Ficha actualizada pero la alergia falló: ${error.message}`,
+          )
       }
       return { patient_id: patientId, updated: Object.keys(patch), allergy_added: Boolean(allergy?.allergen) }
     }
