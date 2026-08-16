@@ -1,0 +1,46 @@
+# El briefing diario de cada clínica, una vez al día.
+#
+# POR QUÉ ACÁ Y NO EN VERCEL: el plan Hobby permite 2 crons con disparo diario y los 2 cupos están
+# usados (purge-audio y cartera). Mismo camino que `cartera-sweep.yml`, que ya lleva semanas
+# corriendo — no se inventa infraestructura para esto.
+#
+# HORA: 11:30 UTC = 6:30 en Colombia. Antes de que abra la clínica, para que el resumen esté escrito
+# cuando el primer veterinario entre. No hay ventana legal que respetar (esto no le escribe a
+# ningún titular: es un texto que se muestra adentro de la app), así que la hora la manda el uso.
+#
+# CORRER DE MÁS ES INOFENSIVO Y ADEMÁS NO CUESTA: `clinic_briefings` tiene
+# `unique (clinic_id, fecha)`, y el barrido consulta si ya existe ANTES de armar el pedido — así que
+# un segundo disparo del mismo día no redacta nada y no gasta un token.
+#
+# REQUIERE: el secreto CRON_SECRET en Settings → Secrets and variables → Actions, con el MISMO valor
+# que la env de Vercel. Sin él el job falla con mensaje claro, no en silencio.
+name: Briefing diario
+
+on:
+  schedule:
+    - cron: "30 11 * * *"
+  workflow_dispatch: {}
+
+concurrency:
+  group: briefing-diario
+  cancel-in-progress: false # un barrido en curso se termina
+
+jobs:
+  briefing:
+    runs-on: ubuntu-latest
+    steps:
+      - name: redactar el briefing de cada clínica
+        env:
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+        run: |
+          if [ -z "$CRON_SECRET" ]; then
+            echo "::error::Falta el secreto CRON_SECRET en GitHub Actions (Settings → Secrets → Actions). Debe ser el mismo valor que la env de Vercel."
+            exit 1
+          fi
+          # --fail-with-body: si el endpoint responde 4xx/5xx el job sale rojo Y muestra el cuerpo.
+          # Los reintentos son para hipos de red, no para errores de la app: el barrido ya aísla los
+          # fallos por clínica y devuelve 200 con el detalle de cuáles fallaron.
+          curl --fail-with-body -sS \
+            --retry 2 --retry-delay 10 --retry-connrefused \
+            -H "Authorization: Bearer $CRON_SECRET" \
+            https://tuvetia.vercel.app/api/cron/briefing

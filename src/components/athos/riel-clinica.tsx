@@ -179,12 +179,21 @@ export function RielClinica({
   pendientes,
   mostrarDinero,
   presupuesto,
+  briefing,
 }: {
   consultasHoy: number
   ventasMesCents: number
   carteraVencidaCents: number
   citas: CitaDelRiel[]
   pendientes: PendienteDelRiel[]
+  /**
+   * El resumen del día redactado por Athos. `null` cuando el cron todavía no corrió, cuando la
+   * clínica lo tiene apagado, o cuando no había nada que contar.
+   *
+   * Es lo ÚNICO del riel que gasta IA, y por eso es lo único que puede faltar sin que falte nada:
+   * los pendientes de abajo salen de las mismas señales y se ven igual sin él.
+   */
+  briefing?: string | null
   /** Cupo de IA del mes. `null` o sin tope = no se pinta nada. */
   presupuesto?: CupoVisible | null
   /**
@@ -196,6 +205,13 @@ export function RielClinica({
 }) {
   return (
     <aside className="hidden w-80 shrink-0 flex-col gap-6 overflow-auto border-l border-line p-5 xl:flex">
+      {/* EL RESUMEN DEL DÍA, arriba de todo: es lo primero que se lee al abrir la app.
+          Va SIN encabezado propio — un rótulo "Resumen del día" encima de dos frases es más
+          cromo que contenido, y el texto ya empieza diciendo de qué habla. */}
+      {briefing && (
+        <p className="text-[13px] leading-relaxed text-fg-muted">{briefing}</p>
+      )}
+
       <section className="flex flex-col gap-3">
         <Rotulo accion={<EnlaceSuave href="/dashboard/tablero">Dashboard</EnlaceSuave>}>
           La clínica hoy

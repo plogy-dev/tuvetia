@@ -89,6 +89,9 @@ export default async function AsistentePage({
   let carteraVencidaCents = 0
   let citas: CitaDelRiel[] = []
   let pendientes: PendienteDelRiel[] = []
+  // El resumen del dia. `null` si el cron no corrio, si la clinica lo apago, o si no habia nada
+  // que contar: en los tres casos el riel simplemente no lo pinta.
+  let briefing: string | null = null
   let facturacionActiva = false
 
   if (user) {
@@ -198,8 +201,19 @@ export default async function AsistentePage({
       // Los cobros vencidos siguen calculándose acá arriba para `carteraVencidaCents`, que el riel
       // muestra aparte; a las señales se les pasa ya contado para no repetir la consulta.
       {
-        const { pendientes: senales } = await senalesDeLaClinica(supabase, clinicId, hoy)
+        const [{ pendientes: senales }, { data: br }] = await Promise.all([
+          senalesDeLaClinica(supabase, clinicId, hoy),
+          // Lo escribe el cron con service_role; acá se lee con la sesion del vet y la RLS de
+          // `clinic_briefings` lo acota a su clinica.
+          supabase
+            .from("clinic_briefings")
+            .select("texto")
+            .eq("clinic_id", clinicId)
+            .eq("fecha", hoy)
+            .maybeSingle(),
+        ])
         pendientes = senales
+        briefing = (br as { texto: string } | null)?.texto ?? null
       }
     }
   }
@@ -248,6 +262,7 @@ export default async function AsistentePage({
         pendientes={pendientes}
         mostrarDinero={facturacionActiva}
         presupuesto={presupuesto}
+        briefing={briefing}
       />
     </div>
   )
