@@ -22,6 +22,7 @@ import {
   type Medication,
   type Vaccine,
 } from "@/components/patient/patient-clinical-summary"
+import { EditarPacienteDrawer } from "@/components/patient/editar-paciente-drawer"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
 
@@ -160,6 +161,20 @@ export default async function PatientHistoryPage({ params }: { params: Promise<{
           <div className="flex flex-wrap items-center gap-2">
             <h1 className="text-lg font-semibold">{patient.name}</h1>
             {patient.is_deceased && <Badge variant="outline">Fallecido</Badge>}
+            {/* Hasta hoy un error de tipeo en el nombre quedaba para siempre: `patients` no tenía
+                ninguna ruta de UPDATE en el producto. */}
+            <EditarPacienteDrawer
+              patientId={patient.id}
+              ownerId={patient.owner_id}
+              inicial={{
+                name: patient.name,
+                species: patient.species,
+                breed: patient.breed ?? "",
+                sex: patient.sex,
+                birthDate: patient.birth_date ?? "",
+                weightKg: patient.weight_kg != null ? String(patient.weight_kg) : "",
+              }}
+            />
           </div>
           <p className="text-sm text-muted-foreground">{meta.join(" · ")}</p>
           {patient.owner && (
