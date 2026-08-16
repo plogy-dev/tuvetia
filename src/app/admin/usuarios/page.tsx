@@ -1,8 +1,10 @@
 import { loadPlatformUsers } from "@/lib/admin/users"
 import { platformEmailConfigurado } from "@/lib/email/platform-sender"
+import { createClient } from "@/lib/supabase/server"
 import { TOPE_ENVIO_MASIVO } from "@/lib/admin/limites"
 import { ExportCsvButton } from "@/components/export-csv-button"
 import { SendEmailDialog } from "@/components/admin/send-email-dialog"
+import { ToggleActivacion } from "@/components/admin/toggle-activacion"
 import { BulkEmailPanel } from "@/components/admin/bulk-email-panel"
 import { Badge } from "@/components/ui/badge"
 import {
@@ -28,6 +30,13 @@ const fecha = (iso: string | null) => (iso ? iso.slice(0, 10) : "—")
 export default async function AdminUsuariosPage() {
   const { users, pending } = await loadPlatformUsers()
   const configurado = platformEmailConfigurado()
+
+  // Quién está mirando. Sólo se usa para apagar el botón en su propia fila — el servidor lo vuelve
+  // a comprobar en `cambiarActivacion`, porque una server action es un endpoint propio y esconder
+  // un botón no protege nada.
+  const {
+    data: { user: admin },
+  } = await (await createClient()).auth.getUser()
 
   const sinCorreo = users.filter((u) => !u.email).length
   const nuncaEntraron = users.filter((u) => u.nuncaEntro).length
@@ -146,9 +155,19 @@ export default async function AdminUsuariosPage() {
                   {u.nuncaEntro ? "nunca" : fecha(u.lastSignInAt)}
                 </TableCell>
                 <TableCell className="relative">
-                  {u.email && (
-                    <SendEmailDialog to={u.email} nombre={u.fullName} configurado={configurado} />
-                  )}
+                  <div className="flex items-center justify-end gap-0.5">
+                    {u.email && (
+                      <SendEmailDialog to={u.email} nombre={u.fullName} configurado={configurado} />
+                    )}
+                    <ToggleActivacion
+                      userId={u.id}
+                      nombre={u.fullName}
+                      // `null` en la base cuenta como activa: la columna se agregó después de que
+                      // existieran perfiles, y los viejos la tienen sin valor.
+                      activo={u.isActive !== false}
+                      esUnoMismo={u.id === admin?.id}
+                    />
+                  </div>
                 </TableCell>
               </TableRow>
             ))}

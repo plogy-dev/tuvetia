@@ -8,6 +8,7 @@
 // propio, invocable con un POST, y el `notFound()` del layout no la protege — el layout sólo corre
 // al renderizar la página.
 
+import { revalidatePath } from "next/cache"
 import { z } from "zod"
 
 import { createClient } from "@/lib/supabase/server"
@@ -23,6 +24,95 @@ const EnvioSchema = z.object({
 })
 
 export type ResultadoEnvio = { ok: true; mensaje: string } | { ok: false; error: string }
+
+// ── Desactivar / reactivar una cuenta ─────────────────────────────────────────────────────────
+//
+// LA MITAD QUE FALTABA. El gate de cuenta desactivada existe desde la migración 0059 y el bypass se
+// cerró en la 0060, pero `profiles.is_active` se LEÍA en dos lugares y no se ESCRIBÍA en ninguno:
+// no había forma de desactivar a nadie desde el producto, sólo por SQL a mano. El panel ya pintaba
+// la insignia "inactivo" (`usuarios/page.tsx`), así que la pantalla estaba y faltaba la escritura.
+//
+// POR QUÉ FUNCIONA CON `service_role`. El trigger `profiles_guard_sensitive_columns` bloquea que la
+// SESIÓN DEL USUARIO toque `is_active` —ése era el bypass— pero deja pasar a `postgres` y a
+// `service_role`. La 0060 lo dejó así a propósito, anticipando exactamente esta ruta.
+
+const ActivacionSchema = z.object({
+  userId: z.string().uuid("El identificador de usuario no es válido"),
+  activo: z.boolean(),
+  // Queda en la traza, no en la pantalla del vet. Para una desactivación por abuso, "por qué" es
+  // la mitad del valor del registro.
+  motivo: z.string().trim().max(500).optional(),
+})
+
+export async function cambiarActivacion(input: {
+  userId: string
+  activo: boolean
+  motivo?: string
+}): Promise<ResultadoEnvio> {
+  const admin = await adminActual()
+  if (!admin) return { ok: false, error: "No autorizado." }
+
+  const parsed = ActivacionSchema.safeParse(input)
+  if (!parsed.success) {
+    return { ok: false, error: parsed.error.issues[0]?.message ?? "Datos inválidos." }
+  }
+  const { userId, activo, motivo } = parsed.data
+
+  // NADIE SE DESACTIVA A SÍ MISMO. No es una hipótesis rebuscada: el botón vive en una tabla donde
+  // el admin también aparece como usuario, en su propia fila, al lado de todos los demás. Un clic
+  // en la fila equivocada lo deja sin `/dashboard` y sin nada que apretar para volver.
+  if (!activo && userId === admin.id) {
+    return { ok: false, error: "No podés desactivar tu propia cuenta." }
+  }
+
+  const supabaseAdmin = createAdminClient()
+
+  // Se lee ANTES de escribir para poder registrar el estado previo y para no anotar en la traza un
+  // cambio que no ocurrió (desactivar a quien ya estaba desactivado).
+  const { data: antes, error: errLectura } = await supabaseAdmin
+    .from("profiles")
+    .select("is_active, full_name")
+    .eq("id", userId)
+    .maybeSingle()
+
+  if (errLectura) return { ok: false, error: `No se pudo leer el perfil: ${errLectura.message}` }
+  if (!antes) return { ok: false, error: "Ese usuario no existe." }
+
+  const previo = (antes as { is_active: boolean | null }).is_active
+  const nombre = (antes as { full_name: string | null }).full_name ?? "la cuenta"
+  if (previo === activo) {
+    return { ok: true, mensaje: `${nombre} ya estaba ${activo ? "activa" : "desactivada"}.` }
+  }
+
+  const { error } = await supabaseAdmin.from("profiles").update({ is_active: activo }).eq("id", userId)
+  if (error) {
+    return { ok: false, error: `No se pudo ${activo ? "reactivar" : "desactivar"}: ${error.message}` }
+  }
+
+  // La traza va DESPUÉS del cambio y no lo revierte si falla: una desactivación aplicada y sin
+  // registrar es mejor que una que se deshace porque el log no respondió. Queda ruidosa en consola.
+  const { error: errTraza } = await supabaseAdmin.from("audit_logs").insert({
+    clinic_id: null,
+    user_id: admin.id,
+    action: activo ? "platform_user.reactivated" : "platform_user.deactivated",
+    table_name: "profiles",
+    record_id: userId,
+    payload: { de: previo, a: activo, motivo: motivo ?? null, by: admin.email },
+  })
+  if (errTraza) {
+    console.error("[admin/usuarios] no se pudo registrar el cambio de activación:", errTraza.message)
+  }
+
+  // Sin esto la tabla sigue mostrando el estado viejo hasta que alguien recargue a mano.
+  revalidatePath("/admin/usuarios")
+
+  return {
+    ok: true,
+    mensaje: activo
+      ? `${nombre} puede volver a entrar.`
+      : `${nombre} quedó sin acceso. Sus datos NO se borraron.`,
+  }
+}
 
 /** Quién está pidiendo la acción, o `null` si no es admin de plataforma. */
 async function adminActual(): Promise<{ id: string; email: string } | null> {
