@@ -26,7 +26,7 @@ export default async function ImportarInventarioPage() {
   const ctx = await requireClinicPage()
   if (!ctx) return null
   return (
-    <main className="min-w-0 flex-1">
+    <section className="min-w-0 flex-1">
       <div className="mx-auto w-full max-w-3xl px-[30px] pb-16 pt-7">
         <header className="mb-6">
           <h1 className="font-display text-[26px] font-semibold leading-[1.15] tracking-[-0.022em] text-fg">
@@ -64,6 +64,6 @@ export default async function ImportarInventarioPage() {
           </div>
         </div>
       </div>
-    </main>
+    </section>
   )
 }

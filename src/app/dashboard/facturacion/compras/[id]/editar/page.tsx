@@ -5,6 +5,9 @@ import { requireClinicPage } from '@/lib/facturacion/page-auth';
 import { getPurchaseDetail, listCatalogItems, listSuppliers } from '@/lib/facturacion/queries';
 import { PurchaseForm } from '@/components/facturacion/PurchaseForm';
 
+export const metadata = { title: "Editar compra · Tuvetia" }
+
+
 export const dynamic = 'force-dynamic';
 
 function todayBogota(): string {
@@ -29,7 +32,7 @@ export default async function EditarCompraPage({
 
   if (purchase.status !== 'BORRADOR') {
     return (
-      <main className="flex-1 min-w-0">
+      <section className="flex-1 min-w-0">
         <div className="mx-auto w-full max-w-4xl px-8 py-10">
           <p className="rounded-xl border border-line bg-surface-2 px-4 py-3 text-sm text-fg-muted">
             Solo se edita una compra en borrador.{' '}
@@ -39,7 +42,7 @@ export default async function EditarCompraPage({
             .
           </p>
         </div>
-      </main>
+      </section>
     );
   }
 
@@ -59,7 +62,7 @@ export default async function EditarCompraPage({
     }));
 
   return (
-    <main className="flex-1 min-w-0">
+    <section className="flex-1 min-w-0">
       <div className="mx-auto w-full max-w-5xl px-8 py-10">
         <header className="mb-6">
           <Link
@@ -97,6 +100,6 @@ export default async function EditarCompraPage({
           }}
         />
       </div>
-    </main>
+    </section>
   );
 }

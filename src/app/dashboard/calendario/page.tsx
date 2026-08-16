@@ -9,6 +9,9 @@ import { bogotaTodayISO } from "@/lib/date-utils"
 import { localWeekday } from "@/lib/athos-agent/agenda"
 import { APPOINTMENT_SELECT, type AppointmentRow, type PatientOption, type SelectOption } from "@/lib/appointments"
 
+export const metadata = { title: "Agenda · Tuvetia" }
+
+
 /** Los estados que ocupan un espacio de verdad. Una cancelada o un no-show lo liberan. */
 const ESTADOS_VIVOS = new Set(["scheduled", "confirmed", "in_progress"])
 
@@ -100,6 +103,11 @@ export default async function CalendarioPage() {
 
   return (
     <div className="flex flex-col gap-6 p-[clamp(16px,3vw,32px)]">
+      {/* El encabezado de la página, sólo para lectores de pantalla: el calendario se explica solo
+          a la vista —tiene su propio selector de mes y el bloque "hoy"— y meterle un título encima
+          le robaría alto a lo único que importa acá, que es la grilla. Pero sin ningún <h1> la
+          pantalla quedaba sin encabezado desde que el del topbar dejó de serlo. */}
+      <h1 className="sr-only">Agenda</h1>
       {apptsError && (
         <DataError>
           No se pudieron cargar las citas; el calendario puede verse vacío. Recargá la página.

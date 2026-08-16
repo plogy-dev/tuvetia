@@ -14,6 +14,9 @@ import { estadoCalendario, type EstadoCalendario } from "@/lib/composio/calendar
 import { HelpTip } from "@/components/help-tip"
 import { PageHeader, PageShell } from "@/components/ui/page-shell"
 
+export const metadata = { title: "Integraciones · Tuvetia" }
+
+
 // Conexiones — la sección que el cliente separa de Configuración: acá vive todo lo que conecta a
 // Tuvetia con el mundo de afuera. No duplica nada; son los mismos componentes que estaban en
 // Configuración, que ahora apunta acá en vez de repetirlos.

@@ -17,6 +17,9 @@ import { Button } from "@/components/ui/button"
 import { PageHeader, PageShell } from "@/components/ui/page-shell"
 import { buildWaLink } from "@/lib/landing/contact"
 
+export const metadata = { title: "Ayuda · Tuvetia" }
+
+
 // Esta página cubría cuatro secciones de nueve y terminaba con "Escribinos y te damos una mano"
 // sin un solo enlace de contacto en todo el dashboard: una invitación a hacer algo imposible.
 // Ahora están las nueve, y "escribinos" lleva al WhatsApp que `lib/landing/contact.ts` ya definía

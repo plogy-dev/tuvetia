@@ -138,7 +138,20 @@ export async function planNextReminders(
       .eq('invoice_id', inv.id);
     if ((total ?? 0) >= steps.length) continue;
 
-    const due = new Date(`${inv.due_date}T09:00:00`);
+    // `T09:00:00-05:00`, con el offset EXPLÍCITO. Sin él, Node parsea la fecha como hora local del
+    // proceso — y en Vercel el proceso corre en UTC, así que las 09:00 pretendidas eran las 04:00
+    // de Bogotá. Verificado: `TZ=UTC node -e "new Date('2026-08-20T09:00:00').toISOString()"` da
+    // `2026-08-20T09:00:00.000Z`.
+    //
+    // El daño era acotado porque la ventana de la Ley 2300 (`domain/reminders.ts`) reprograma todo
+    // lo que cae fuera de 7:00–19:00, así que no salía nada de madrugada: salían al ABRIR la
+    // ventana en vez de a las nueve. Igual se corrige, porque es el mismo bug que este repo ya
+    // arregló dos veces —`invoices.ts` con `finDelDiaBogota`, y todo `business-timezone.ts` existe
+    // por esto— y acá había quedado uno suelto.
+    //
+    // El `-05:00` va literal y no calculado: Bogotá es UTC-5 fijo, sin horario de verano. Es el
+    // mismo criterio que `inicioDelMesISO` en `athos-agent/presupuesto.ts`.
+    const due = new Date(`${inv.due_date}T09:00:00-05:00`);
     const schedule = scheduleReminders(due, steps);
     const rows = schedule.map((s) => ({
       invoice_id: inv.id,

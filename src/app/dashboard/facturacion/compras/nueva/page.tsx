@@ -4,6 +4,9 @@ import { requireClinicPage } from '@/lib/facturacion/page-auth';
 import { getBillingSettings, listCatalogItems, listSuppliers } from '@/lib/facturacion/queries';
 import { PurchaseForm } from '@/components/facturacion/PurchaseForm';
 
+export const metadata = { title: "Nueva compra · Tuvetia" }
+
+
 export const dynamic = 'force-dynamic';
 
 function todayBogota(): string {
@@ -38,7 +41,7 @@ export default async function NuevaCompraPage() {
     }));
 
   return (
-    <main className="flex-1 min-w-0">
+    <section className="flex-1 min-w-0">
       <div className="mx-auto w-full max-w-5xl px-8 py-10">
         <header className="mb-6">
           <Link
@@ -75,6 +78,6 @@ export default async function NuevaCompraPage() {
           <PurchaseForm suppliers={suppliers} items={items} today={todayBogota()} />
         )}
       </div>
-    </main>
+    </section>
   );
 }

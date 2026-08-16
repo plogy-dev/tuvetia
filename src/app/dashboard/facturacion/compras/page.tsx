@@ -5,6 +5,9 @@ import { getBillingSettings, listPurchases } from '@/lib/facturacion/queries';
 import { formatCOP } from '@/lib/facturacion/domain/money';
 import { TrLink } from '@/components/ui/TrLink';
 
+export const metadata = { title: "Compras · Tuvetia" }
+
+
 export const dynamic = 'force-dynamic';
 
 const STATUS_BADGE: Record<string, string> = {
@@ -23,7 +26,7 @@ export default async function ComprasPage() {
   const purchases = active ? await listPurchases(supabase, clinicId) : [];
 
   return (
-    <main className="flex-1 min-w-0">
+    <section className="flex-1 min-w-0">
       <div className="mx-auto w-full max-w-5xl px-8 py-10">
         <header className="mb-6 flex flex-wrap items-end justify-between gap-4">
           <div>
@@ -122,6 +125,6 @@ export default async function ComprasPage() {
           </div>
         )}
       </div>
-    </main>
+    </section>
   );
 }

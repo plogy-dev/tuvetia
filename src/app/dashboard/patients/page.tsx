@@ -10,6 +10,9 @@ import { VistaPacientesTitulares } from "@/components/patients/vista-pacientes-t
 import { StatCard } from "@/components/ui/stat-card"
 import { createClient } from "@/lib/supabase/server"
 
+export const metadata = { title: "Pacientes · Tuvetia" }
+
+
 // Límites del día y del mes en hora de Colombia (UTC-5, sin DST) para las métricas.
 function bogotaBounds() {
   const BOG = 5 * 3600e3

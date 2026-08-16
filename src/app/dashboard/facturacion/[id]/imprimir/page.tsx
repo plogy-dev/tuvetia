@@ -14,6 +14,9 @@ import {
 import { PrintAutoTrigger } from '@/components/print/PrintAutoTrigger';
 import type { NumberingRangeRow } from '@/lib/supabase/types';
 
+export const metadata = { title: "Imprimir factura · Tuvetia" }
+
+
 export const dynamic = 'force-dynamic';
 
 export default async function ImprimirFacturaPage({

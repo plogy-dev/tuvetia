@@ -4,6 +4,9 @@ import { requireClinicPage } from '@/lib/facturacion/page-auth';
 import { getBillingSettings, listSuppliers } from '@/lib/facturacion/queries';
 import { SupplierManager } from '@/components/facturacion/SupplierManager';
 
+export const metadata = { title: "Proveedores · Tuvetia" }
+
+
 export const dynamic = 'force-dynamic';
 
 export default async function ProveedoresPage() {
@@ -19,7 +22,7 @@ export default async function ProveedoresPage() {
     : [];
 
   return (
-    <main className="flex-1 min-w-0">
+    <section className="flex-1 min-w-0">
       <div className="mx-auto w-full max-w-4xl px-8 py-10">
         <header className="mb-6">
           <Link
@@ -51,6 +54,6 @@ export default async function ProveedoresPage() {
           <SupplierManager suppliers={suppliers} />
         )}
       </div>
-    </main>
+    </section>
   );
 }

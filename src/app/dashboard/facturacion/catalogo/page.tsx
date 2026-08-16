@@ -12,6 +12,9 @@ import { CatalogItemsTab } from '@/components/facturacion/CatalogItemsTab';
 import { CategoryManager } from '@/components/facturacion/CategoryManager';
 import { TabNav, TabNavLink } from '@/components/ui/tab-nav';
 
+export const metadata = { title: "Catálogo · Tuvetia" }
+
+
 export const dynamic = 'force-dynamic';
 
 type Tab = 'productos' | 'servicios' | 'categorias';
@@ -37,7 +40,7 @@ export default async function CatalogoPage({
   const settings = await getBillingSettings(supabase, clinicId);
   if (settings?.module_status !== 'ACTIVO') {
     return (
-      <main className="flex-1 min-w-0">
+      <section className="flex-1 min-w-0">
         <div className="mx-auto w-full max-w-4xl px-8 py-10">
           <h1 className="text-2xl font-semibold tracking-tight text-fg">Catálogo</h1>
           <p className="mt-4 rounded-xl border border-line bg-surface-2 px-4 py-3 text-sm text-fg-muted">
@@ -48,7 +51,7 @@ export default async function CatalogoPage({
             .
           </p>
         </div>
-      </main>
+      </section>
     );
   }
 
@@ -69,7 +72,7 @@ export default async function CatalogoPage({
     .map((i) => ({ id: i.id, name: i.name, use_unit: i.use_unit }));
 
   return (
-    <main className="flex-1 min-w-0">
+    <section className="flex-1 min-w-0">
       <div className="mx-auto w-full max-w-4xl px-8 py-10">
         <header className="mb-6">
           <Link
@@ -135,6 +138,6 @@ export default async function CatalogoPage({
         )}
         {tab === 'categorias' && <CategoryManager categories={categoriesAll} />}
       </div>
-    </main>
+    </section>
   );
 }

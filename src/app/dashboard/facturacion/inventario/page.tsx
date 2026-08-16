@@ -17,6 +17,9 @@ import { InventorySearch } from '@/components/facturacion/InventorySearch';
 import { ImportBatchesList } from '@/components/facturacion/ImportBatchesList';
 import type { ImportBatchRow } from '@/lib/supabase/types';
 
+export const metadata = { title: "Inventario · Tuvetia" }
+
+
 export const dynamic = 'force-dynamic';
 
 const TYPE_LABELS: Record<string, string> = {
@@ -69,7 +72,7 @@ export default async function InventarioPage({
 
   if (!active) {
     return (
-      <main className="flex-1 min-w-0">
+      <section className="flex-1 min-w-0">
         <div className="mx-auto w-full max-w-5xl px-8 py-10">
           <h1 className="text-2xl font-semibold tracking-tight text-fg">Inventario</h1>
           <p className="mt-4 rounded-xl border border-line bg-surface-2 px-4 py-3 text-sm text-fg-muted">
@@ -80,7 +83,7 @@ export default async function InventarioPage({
             .
           </p>
         </div>
-      </main>
+      </section>
     );
   }
 
@@ -144,7 +147,7 @@ export default async function InventarioPage({
     }`;
 
   return (
-    <main className="flex-1 min-w-0">
+    <section className="flex-1 min-w-0">
       <div className="mx-auto w-full max-w-5xl px-8 py-10">
         <header className="mb-6 flex flex-wrap items-end justify-between gap-3">
           <div>
@@ -326,6 +329,6 @@ export default async function InventarioPage({
           <ImportBatchesList batches={batches} />
         </div>
       </div>
-    </main>
+    </section>
   );
 }

@@ -6,6 +6,9 @@ import { MovementForm } from '@/components/facturacion/MovementForm';
 import { MovementsExport } from '@/components/facturacion/MovementsExport';
 import { TrLink } from '@/components/ui/TrLink';
 
+export const metadata = { title: "Movimientos de inventario · Tuvetia" }
+
+
 export const dynamic = 'force-dynamic';
 
 const MOVEMENT_LABELS: Record<string, string> = {
@@ -56,7 +59,7 @@ export default async function MovimientosPage({
 
   if (!active) {
     return (
-      <main className="flex-1 min-w-0">
+      <section className="flex-1 min-w-0">
         <div className="mx-auto w-full max-w-5xl px-8 py-10">
           <h1 className="text-2xl font-semibold tracking-tight text-fg">Movimientos</h1>
           <p className="mt-4 rounded-xl border border-line bg-surface-2 px-4 py-3 text-sm text-fg-muted">
@@ -67,7 +70,7 @@ export default async function MovimientosPage({
             .
           </p>
         </div>
-      </main>
+      </section>
     );
   }
 
@@ -127,7 +130,7 @@ export default async function MovimientosPage({
   };
 
   return (
-    <main className="flex-1 min-w-0">
+    <section className="flex-1 min-w-0">
       <div className="mx-auto w-full max-w-5xl px-8 py-10">
         <header className="mb-6">
           <Link
@@ -299,6 +302,6 @@ export default async function MovimientosPage({
           <MovementForm items={items} />
         </div>
       </div>
-    </main>
+    </section>
   );
 }

@@ -10,6 +10,9 @@ import { DEFAULT_UVT_VALUE_CENTS } from '@/lib/facturacion/constants';
 import { fmtDate } from '@/lib/facturacion/format';
 import { InvoiceCart } from '@/components/facturacion/InvoiceCart';
 
+export const metadata = { title: "Nueva factura · Tuvetia" }
+
+
 export const dynamic = 'force-dynamic';
 
 type SearchParams = Promise<{
@@ -57,7 +60,7 @@ export default async function NuevaFacturaPage({ searchParams }: { searchParams:
   // ── Paso carrito ──────────────────────────────────────────────────────────
   if (active && showCart) {
     return (
-      <main className="flex-1 min-w-0">
+      <section className="flex-1 min-w-0">
         <div className="mx-auto w-full max-w-4xl px-8 py-10">
           <header className="mb-6">
             <Link
@@ -92,7 +95,7 @@ export default async function NuevaFacturaPage({ searchParams }: { searchParams:
             remindersEnabled={settings?.reminders_enabled ?? false}
           />
         </div>
-      </main>
+      </section>
     );
   }
 
@@ -136,7 +139,7 @@ export default async function NuevaFacturaPage({ searchParams }: { searchParams:
   }
 
   return (
-    <main className="flex-1 min-w-0">
+    <section className="flex-1 min-w-0">
       <div className="mx-auto w-full max-w-3xl px-8 py-10">
         <header className="mb-6">
           <Link
@@ -303,6 +306,6 @@ export default async function NuevaFacturaPage({ searchParams }: { searchParams:
           </>
         )}
       </div>
-    </main>
+    </section>
   );
 }

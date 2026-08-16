@@ -18,6 +18,9 @@ import { FollowupActions } from '@/components/cartera/FollowupActions';
 import { getInvoiceCommMessages } from '@/lib/cartera/queries';
 import type { InvoiceEventType } from '@/lib/facturacion/domain/types';
 
+export const metadata = { title: "Factura · Tuvetia" }
+
+
 export const dynamic = 'force-dynamic';
 
 const EVENT_LABELS: Record<InvoiceEventType, string> = {
@@ -99,7 +102,7 @@ export default async function FacturaDetallePage({
   const isSandbox = fiscalDoc?.provider === 'SANDBOX';
 
   return (
-    <main className="flex-1 min-w-0">
+    <section className="flex-1 min-w-0">
       <div className="mx-auto w-full max-w-4xl px-8 py-10">
         <header className="mb-6">
           <Link
@@ -356,6 +359,6 @@ export default async function FacturaDetallePage({
           </div>
         </div>
       </div>
-    </main>
+    </section>
   );
 }
