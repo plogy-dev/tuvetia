@@ -178,7 +178,7 @@ export function AppointmentCalendar({
         toast.info("La cita se guardó. No se copió a ningún calendario porque la clínica no tiene administrador asignado.")
       } else if (j.motivo === "sin-calendario") {
         toast.info(
-          "La cita se guardó, pero no se copió al calendario: el administrador de la clínica no conectó el suyo en Conexiones.",
+          "La cita se guardó, pero no se copió al calendario: el administrador de la clínica no conectó el suyo en Integraciones.",
         )
       }
     } catch (e) {
@@ -279,7 +279,7 @@ export function AppointmentCalendar({
           Calendario
           <HelpTip>
             Agendá y arrastrá citas. Cada cita aparece en el calendario del <b>veterinario
-            asignado</b> e invita al titular — conectá el tuyo desde <b>Conexiones</b>. El{" "}
+            asignado</b> e invita al titular — conectá el tuyo desde <b>Integraciones</b>. El{" "}
             <b>Enlace ICS</b> muestra la agenda en cualquier calendario sin conectar la cuenta (solo
             lectura).
           </HelpTip>

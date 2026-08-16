@@ -37,7 +37,7 @@ export default async function CorreoPage() {
           Conectá <b>tu</b> cuenta de correo —Gmail u Outlook— para leer y responder desde acá, y
           para que Athos pueda escribirles a los titulares por vos. Es un clic.
         </p>
-        <Button render={<Link href="/dashboard/conexiones" />}>Conectar en Conexiones</Button>
+        <Button render={<Link href="/dashboard/conexiones" />}>Conectar en Integraciones</Button>
       </div>
     )
   }

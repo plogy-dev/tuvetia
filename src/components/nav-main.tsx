@@ -81,7 +81,37 @@ function Rotulo({ children }: { children: React.ReactNode }) {
   )
 }
 
-function Items({ items }: { items: NavItem[] }) {
+/**
+ * El indicador del ítem: un punto, no un icono.
+ *
+ * Es lo que pidió el cliente el 12-ago —«quitar los iconos y reemplazarlo por los circulitos verdes
+ * que hiciste»— y lo que el mockup ya dibujaba: punto menta relleno para lo de la CONSULTA, aro sin
+ * relleno para lo del CRM. La diferencia no es decorativa: distingue de un vistazo lo que se usa con
+ * un paciente delante de lo que se usa entre consultas, que es el corte que el propio cliente pidió
+ * para la barra.
+ *
+ * Ocupa una caja de 16px, la misma que ocupaba el icono, para que el texto de todos los ítems siga
+ * alineado y para que pasar a la barra colapsada no mueva nada.
+ */
+function Indicador({ grupo }: { grupo: "consulta" | "crm" }) {
+  return (
+    <span
+      aria-hidden
+      // Se esconde al colapsar: ahí manda el icono. Ver el comentario de `NavMain`.
+      className="grid size-4 shrink-0 place-items-center group-data-[collapsible=icon]:hidden"
+    >
+      <span
+        className={
+          grupo === "consulta"
+            ? "size-2 rounded-full bg-brand"
+            : "size-2 rounded-full border border-line-strong"
+        }
+      />
+    </span>
+  )
+}
+
+function Items({ items, grupo }: { items: NavItem[]; grupo: "consulta" | "crm" }) {
   const pathname = usePathname()
   return (
     <SidebarMenu>
@@ -96,7 +126,11 @@ function Items({ items }: { items: NavItem[] }) {
             isActive={isNavActive(pathname, item.url)}
             render={<a href={item.url} />}
           >
-            {item.icon}
+            <Indicador grupo={grupo} />
+            {/* El icono SÓLO existe en la barra colapsada. Ahí el punto no sirve —serían siete
+                puntos idénticos en una columna de 48px— y el icono es lo único que distingue un
+                ítem de otro. */}
+            <span className="hidden group-data-[collapsible=icon]:contents">{item.icon}</span>
             <span>{item.title}</span>
           </SidebarMenuButton>
         </SidebarMenuItem>
@@ -114,9 +148,21 @@ function Items({ items }: { items: NavItem[] }) {
  * división no es cosmética: separa lo que se usa CON UN PACIENTE DELANTE de lo que se usa entre
  * consultas, que son dos modos de trabajo distintos y con urgencias distintas.
  *
- * LOS ICONOS SE QUEDAN, AUNQUE EL MOCKUP USE PUNTITOS. La barra es `collapsible="icon"`: colapsada
- * muestra ÚNICAMENTE el icono de cada ítem. Cambiarlos por los indicadores del mockup dejaría siete
- * puntos idénticos e indistinguibles, o sea una barra colapsada inutilizable.
+ * PUNTOS EXPANDIDA, ICONOS COLAPSADA — y las dos cosas a la vez, que es lo que destraba el problema.
+ *
+ * El cliente pidió el 12-ago «quitar los iconos y reemplazarlo por los circulitos verdes», y el
+ * mockup ya los dibujaba. La objeción que este archivo tenía escrita era real pero PARCIAL: la barra
+ * es `collapsible="icon"` y colapsada mide 48px, así que ahí siete puntos idénticos serían
+ * inutilizables. Sólo que eso vale para el modo colapsado, no para el expandido.
+ *
+ * Así que se renderizan los dos y se alternan por estado de la barra: el punto lleva
+ * `group-data-[collapsible=icon]:hidden` y el icono `hidden group-data-[collapsible=icon]:contents`.
+ * El pedido se cumple donde el vet mira, y la barra angosta conserva lo único que la hace usable.
+ *
+ * `contents` y no `block` en el icono: `SidebarMenuButton` es un flex con `gap-2` y estilos que
+ * apuntan al `svg` como hijo. Un `<span>` de por medio con display propio agregaría una caja al
+ * flex y descuadraría el centrado de 32×32 de la barra colapsada; con `contents` el envoltorio no
+ * genera caja y el svg queda como hijo directo a efectos de layout.
  */
 export function NavMain({ consultorio, crm }: { consultorio: NavItem[]; crm: NavItem[] }) {
   return (
@@ -124,7 +170,7 @@ export function NavMain({ consultorio, crm }: { consultorio: NavItem[]; crm: Nav
       <SidebarGroup>
         <Rotulo>Consulta</Rotulo>
         <SidebarGroupContent className="flex flex-col gap-2">
-          <Items items={consultorio} />
+          <Items items={consultorio} grupo="consulta" />
           {/* "Iniciar consulta" vive DENTRO del consultorio, no suelta al final de la barra: es la
               acción del grupo que la contiene. Reusa el drawer de la página de Consultas — sólo
               cambia dónde se monta. */}
@@ -152,7 +198,7 @@ export function NavMain({ consultorio, crm }: { consultorio: NavItem[]; crm: Nav
       <SidebarGroup className="mt-1 border-t border-line-soft pt-3">
         <Rotulo>Clínica</Rotulo>
         <SidebarGroupContent className="flex flex-col gap-2">
-          <Items items={crm} />
+          <Items items={crm} grupo="crm" />
           <SidebarMenu>
             <SidebarMenuItem className="flex items-center gap-2">
               <CreatePatientDrawer

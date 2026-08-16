@@ -63,7 +63,7 @@ export default async function ConexionesPage() {
   return (
     <PageShell width="narrow">
       <PageHeader
-        title="Conexiones"
+        title="Integraciones"
         description="Los canales por los que Tuvetia habla con tus titulares y con tu agenda."
       />
 

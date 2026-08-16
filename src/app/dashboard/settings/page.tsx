@@ -119,14 +119,14 @@ export default async function SettingsPage() {
           enlace — repetir los mismos formularios en dos páginas sólo genera la duda de cuál manda. */}
       <div className="rounded-xl border bg-card p-4">
         <div className="mb-2 flex items-center gap-2 text-sm font-semibold">
-          <Plug className="size-4 text-muted-foreground" /> Conexiones
+          <Plug className="size-4 text-muted-foreground" /> Integraciones
         </div>
         <p className="mb-3 text-sm text-muted-foreground">
           WhatsApp {waConnected ? "conectado" : "sin conectar"} · Correo de Athos{" "}
           {correoAthos.conectado ? "conectado" : "sin conectar"}.
         </p>
         <Button variant="outline" render={<Link href="/dashboard/conexiones" />}>
-          <Plug className="size-4" /> Ir a Conexiones
+          <Plug className="size-4" /> Ir a Integraciones
         </Button>
       </div>
 

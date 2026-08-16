@@ -71,7 +71,7 @@ const SECTIONS = [
   },
   {
     icon: Plug,
-    title: "Conexiones",
+    title: "Integraciones",
     body: "Donde conectas el WhatsApp de la clínica y el correo desde el que salen las facturas.",
     href: "/dashboard/conexiones",
   },

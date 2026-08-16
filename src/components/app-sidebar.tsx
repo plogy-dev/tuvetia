@@ -83,9 +83,23 @@ const data = {
     { title: "Ventas", url: "/dashboard/facturacion", icon: <ReceiptIcon /> },
     { title: "Comunicaciones", url: "/dashboard/comunicaciones", icon: <MessageCircleIcon /> },
     { title: "Dashboard", url: "/dashboard/tablero", icon: <LayoutDashboardIcon /> },
-    { title: "Conexiones", url: "/dashboard/conexiones", icon: <PlugIcon /> },
   ],
+  // «CONEXIONES» SE FUE DE ACÁ, y con otro nombre. David lo pidió el 12-ago: «el tema de
+  // comunicaciones y conexiones, que le quede muy claro al usuario».
+  //
+  // Eran dos entradas contiguas, con nombres que comparten raíz y terminación, para cosas que no se
+  // parecen: una es la BANDEJA donde llegan los mensajes de los titulares, la otra es donde se
+  // enchufan WhatsApp, Gmail y el calendario. Se resuelve por los dos lados: el nombre deja de
+  // rimar («Integraciones») y deja de estar pegado al otro.
+  //
+  // Y baja al bloque secundario porque es lo que es: se configura una vez y no se vuelve. Ahí abajo
+  // está con Configuración y Ayuda, que es exactamente la misma clase de cosa.
+  //
+  // LA RUTA NO CAMBIA. Sigue siendo `/dashboard/conexiones`: hay enlaces compartidos, selectores del
+  // tour y avisos del calendario que apuntan ahí. Cambiar la URL rompería todo eso a cambio de nada
+  // que el vet pueda ver.
   navSecondary: [
+    { title: "Integraciones", url: "/dashboard/conexiones", icon: <PlugIcon /> },
     { title: "Configuración", url: "/dashboard/settings", icon: <Settings2Icon /> },
     { title: "Ayuda", url: "/dashboard/ayuda", icon: <CircleHelpIcon /> },
   ],
