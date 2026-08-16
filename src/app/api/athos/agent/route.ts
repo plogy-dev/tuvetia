@@ -17,6 +17,7 @@ import { clasificarFallo } from "@/lib/athos-agent/cascada"
 import { registrarUso } from "@/lib/athos-agent/usage"
 import { rateLimit } from "@/lib/athos-agent/rate-limit"
 import { consultarPresupuesto, mensajeSinCupo } from "@/lib/athos-agent/presupuesto"
+import { clinicaDeLaSesion } from "@/lib/api/clinica-de-la-sesion"
 import type { AgentContext } from "@/lib/athos-agent/actions"
 
 export const runtime = "nodejs"
@@ -56,14 +57,12 @@ export async function POST(req: Request) {
   if (!parsed.success) return new Response("Bad request", { status: 400 })
   const { messages, patientId, source, conversationKey } = parsed.data
 
-  const { data: prof } = await supabase
-    .from("profiles")
-    .select("clinic_id, full_name")
-    .eq("id", user.id)
-    .maybeSingle()
-  const perfil = prof as { clinic_id: string | null; full_name: string | null } | null
-  const clinicId = perfil?.clinic_id
-  if (!clinicId) return new Response("El usuario no tiene clínica", { status: 400 })
+  // Resuelve la clínica Y comprueba que la cuenta siga activa, en el mismo select. Antes esto sólo
+  // sacaba `clinic_id`, y una cuenta desactivada llegaba hasta acá con su JWT todavía válido y
+  // gastaba una llamada al modelo antes de que la RLS le negara los datos.
+  const sesion = await clinicaDeLaSesion(supabase, user.id)
+  if (!sesion.ok) return new Response(sesion.mensaje, { status: sesion.status })
+  const { clinicId } = sesion
 
   // TOPE MENSUAL DE LA CLÍNICA. Distinto del `rateLimit` de arriba: aquél corta la ráfaga de UN
   // usuario en memoria, éste corta el consumo acumulado de la CLÍNICA contra la base — que es lo
@@ -128,8 +127,8 @@ export async function POST(req: Request) {
       ? `\n- Clínica: **${clinicName}**. Es el nombre con el que firmás los correos y el que va en el asunto cuando ayuda — nunca "Veterinaria" a secas.`
       : ""
   }${
-    perfil?.full_name
-      ? `\n- Hablás con ${perfil.full_name}. Los correos salen de SU cuenta: la firma lleva su nombre y debajo el de la clínica.`
+    sesion.fullName
+      ? `\n- Hablás con ${sesion.fullName}. Los correos salen de SU cuenta: la firma lleva su nombre y debajo el de la clínica.`
       : ""
   }${
     patientId ? `\n- Hay un paciente en contexto (id interno: ${patientId}) — usa get_patient_summary si lo necesitas.` : ""

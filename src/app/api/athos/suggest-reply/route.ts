@@ -3,6 +3,7 @@ import { NextResponse } from "next/server"
 import { z } from "zod"
 
 import { createClient } from "@/lib/supabase/server"
+import { clinicaDeLaSesion } from "@/lib/api/clinica-de-la-sesion"
 import { ATHOS_AGENT_SYSTEM_PROMPT } from "@/lib/athos-agent/system-prompt"
 import { buildAthosTools } from "@/lib/athos-agent/tools"
 import { agentModel } from "@/lib/athos-agent/model"
@@ -38,13 +39,9 @@ export async function POST(req: Request) {
   if (!parsed.success) return NextResponse.json({ error: "Bad request" }, { status: 400 })
   const { phone, owner_id, owner_name } = parsed.data
 
-  const { data: prof } = await supabase
-    .from("profiles")
-    .select("clinic_id")
-    .eq("id", user.id)
-    .maybeSingle()
-  const clinicId = (prof as { clinic_id: string | null } | null)?.clinic_id
-  if (!clinicId) return NextResponse.json({ error: "El usuario no tiene clínica" }, { status: 400 })
+  const sesion = await clinicaDeLaSesion(supabase, user.id)
+  if (!sesion.ok) return NextResponse.json({ error: sesion.mensaje }, { status: sesion.status })
+  const { clinicId } = sesion
 
   // El mismo tope mensual de la clínica que en `/api/athos/agent`: es UN cupo compartido entre
   // todas las superficies, no uno por pantalla. Sugerir una respuesta en la bandeja cuesta una
