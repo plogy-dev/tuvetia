@@ -68,9 +68,17 @@ export function NavUser({
               <SidebarMenuButton size="lg" className="aria-expanded:bg-muted" />
             }
           >
-            <Avatar className="size-8 rounded-lg grayscale">
+            {/* CIRCULAR, las dos veces. Antes este avatar era `rounded-lg` y el del desplegable
+                —once líneas más abajo— circular: dos formas para la misma persona. Y adentro del
+                segundo era peor todavía, la imagen circular y su fallback cuadrado.
+
+                Se unifican en círculo y no en cuadrado redondeado porque es una PERSONA, y porque
+                el cliente pidió expresamente elementos más circulares. El logo de la clínica
+                (`nav-clinic.tsx`) sí se queda cuadrado-redondeado: un logo metido en un círculo se
+                recorta mal. */}
+            <Avatar className="size-8 grayscale">
               <AvatarImage src={user.avatar} alt={user.name} />
-              <AvatarFallback className="rounded-lg">CN</AvatarFallback>
+              <AvatarFallback>CN</AvatarFallback>
             </Avatar>
             <div className="grid flex-1 text-left text-sm leading-tight">
               <span className="truncate font-medium">{user.name}</span>
@@ -91,7 +99,7 @@ export function NavUser({
                 <div className="flex items-center gap-2 px-1 py-1.5 text-left text-sm">
                   <Avatar className="size-8">
                     <AvatarImage src={user.avatar} alt={user.name} />
-                    <AvatarFallback className="rounded-lg">CN</AvatarFallback>
+                    <AvatarFallback>CN</AvatarFallback>
                   </Avatar>
                   <div className="grid flex-1 text-left text-sm leading-tight">
                     <span className="truncate font-medium">{user.name}</span>

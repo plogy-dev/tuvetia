@@ -149,7 +149,7 @@ export function AppSidebar({
               <span className="font-display text-base font-bold tracking-[-0.02em]">Tuvetia</span>
               {/* La insignia del demo del cliente. `group-data-[collapsible=icon]:hidden` porque en
                   la barra angosta sólo cabe el glifo. */}
-              <span className="rounded bg-sidebar-accent px-1.5 py-0.5 text-[9px] font-semibold tracking-[0.12em] text-muted-foreground group-data-[collapsible=icon]:hidden">
+              <span className="rounded-md bg-sidebar-accent px-1.5 py-0.5 text-[9px] font-semibold tracking-[0.12em] text-muted-foreground group-data-[collapsible=icon]:hidden">
                 BETA
               </span>
             </SidebarMenuButton>

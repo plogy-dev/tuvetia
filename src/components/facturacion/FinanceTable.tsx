@@ -186,7 +186,7 @@ export function FinanceTable({ items }: { items: FinanceItem[] }) {
                           disabled={isPending}
                           onClick={() => openAttachment(i.id)}
                           title="Ver comprobante"
-                          className="rounded p-1 text-fg-faint hover:text-fg transition"
+                          className="rounded-md p-1 text-fg-faint hover:text-fg transition"
                         >
                           <Paperclip className="size-3.5" aria-hidden />
                         </button>
@@ -195,7 +195,7 @@ export function FinanceTable({ items }: { items: FinanceItem[] }) {
                         <Link
                           href={i.editHref}
                           title={i.kind === 'EGRESO' ? 'Editar gasto' : 'Editar ingreso'}
-                          className="rounded p-1 text-fg-faint hover:text-fg transition"
+                          className="rounded-md p-1 text-fg-faint hover:text-fg transition"
                         >
                           <Pencil className="size-3.5" aria-hidden />
                         </Link>
@@ -207,7 +207,7 @@ export function FinanceTable({ items }: { items: FinanceItem[] }) {
                           disabled={isPending}
                           onClick={() => remove(i)}
                           title={i.kind === 'EGRESO' ? 'Eliminar gasto' : 'Eliminar ingreso'}
-                          className="rounded p-1 text-fg-faint hover:text-warn transition"
+                          className="rounded-md p-1 text-fg-faint hover:text-warn transition"
                         >
                           <Trash2 className="size-3.5" aria-hidden />
                         </button>

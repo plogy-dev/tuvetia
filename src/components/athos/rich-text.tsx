@@ -51,7 +51,7 @@ export function renderInline(text: string, citations: Citation[], kp: string): R
       const n = parseInt(m[1].slice(1, -1), 10)
       const c = citations[n - 1]
       const cls =
-        "mx-0.5 inline-block rounded border bg-secondary px-1 font-mono text-[11px] font-bold text-foreground underline decoration-dotted underline-offset-2 align-baseline"
+        "mx-0.5 inline-block rounded-md border bg-secondary px-1 font-mono text-[11px] font-bold text-foreground underline decoration-dotted underline-offset-2 align-baseline"
       nodes.push(
         c?.url ? (
           <a

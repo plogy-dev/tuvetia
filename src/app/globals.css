@@ -231,9 +231,20 @@
   --chart-3: hsl(39 85% 29%); /* ámbar */
   --chart-4: hsl(240 39% 58%); /* violeta */
   --chart-5: hsl(160 22% 45%); /* verde apagado */
-  /* El mockup separa las dos formas: 8px controles, 12px cards. Antes era un
-     solo valor escalado, por eso `--radius-xl` pasa de ×1.4 a ×1.5. */
-  --radius: 8px;
+  /* LA FORMA SUBE DE 8px A 12px, y es una divergencia deliberada del mockup.
+
+     El mockup del cliente fija 8px en controles y 12px en cards, y la app lo
+     seguía al pie. Aun así, en la revisión del 12-ago David dijo que se ve
+     "demasiado cuadrada, ladrilluda, muy rígida — muy AI-based", y pidió
+     bordes más redondos. O sea: cumplir el mockup no alcanzó.
+
+     Así que el mockup se conserva como referencia de COLOR y TIPOGRAFÍA, y la
+     forma se decide contra lo que el cliente ve. Con 12px de base la escala
+     derivada da 9px en controles y 18px en cards.
+
+     `--radius-xl` mantiene el ×1.5 de antes: era para que las cards dieran los
+     12px del mockup, y ahora es lo que las lleva a 18. */
+  --radius: 12px;
   --sidebar: hsl(0 0% 100%);
   --sidebar-foreground: hsl(160 8% 40%);
   --sidebar-primary: hsl(165 76% 30%);

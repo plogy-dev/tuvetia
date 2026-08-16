@@ -4,6 +4,13 @@ import * as React from "react"
 
 import { cn } from "@/lib/utils"
 
+// ESTE PRIMITIVO NO LLEVA RADIO NI BORDE, y no es un olvido.
+//
+// Verificado el 15-ago: las 5 tablas del repo ya vienen envueltas por su llamador en un contenedor
+// `overflow-hidden rounded-xl border` (p. ej. `patients-explorer.tsx:167`, `owners/page.tsx:75`).
+// Ponerle borde y radio acá duplicaría el borde en todas.
+//
+// Si algún día se agrega una tabla SIN ese envoltorio, el arreglo va en el llamador — no acá.
 function Table({ className, ...props }: React.ComponentProps<"table">) {
   return (
     <div

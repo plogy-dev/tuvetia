@@ -5,8 +5,8 @@ export default function PatientHistoryLoading() {
       <div className="flex items-center gap-4">
         <div className="size-14 animate-pulse rounded-full bg-muted" />
         <div className="flex flex-col gap-2">
-          <div className="h-5 w-48 animate-pulse rounded bg-muted" />
-          <div className="h-4 w-64 animate-pulse rounded bg-muted" />
+          <div className="h-5 w-48 animate-pulse rounded-md bg-muted" />
+          <div className="h-4 w-64 animate-pulse rounded-md bg-muted" />
         </div>
       </div>
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">

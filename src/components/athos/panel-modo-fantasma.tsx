@@ -71,7 +71,7 @@ export function PanelModoFantasma({ abierto, alCerrar }: { abierto: boolean; alC
             {mmss(estado.segundos)}
           </span>
           {estado.pacienteNombre && (
-            <span className="rounded bg-surface-2 px-1.5 py-0.5 text-xs text-fg-muted">
+            <span className="rounded-md bg-surface-2 px-1.5 py-0.5 text-xs text-fg-muted">
               {estado.pacienteNombre}
             </span>
           )}

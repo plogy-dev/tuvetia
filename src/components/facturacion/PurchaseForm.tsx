@@ -311,7 +311,7 @@ export function PurchaseForm({
                       onClick={() => removeLine(l.key)}
                       disabled={lines.length === 1}
                       title="Quitar línea"
-                      className="rounded p-1.5 text-fg-faint hover:text-warn transition disabled:opacity-30"
+                      className="rounded-md p-1.5 text-fg-faint hover:text-warn transition disabled:opacity-30"
                     >
                       <Trash2 className="size-4" aria-hidden />
                     </button>

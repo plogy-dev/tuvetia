@@ -173,7 +173,7 @@ export function ExpenseForm({
           name="attachment"
           type="file"
           accept="application/pdf,image/jpeg,image/png"
-          className={`${inputCls} file:mr-2 file:rounded file:border-0 file:bg-surface file:px-2 file:py-1 file:text-xs file:text-fg-muted`}
+          className={`${inputCls} file:mr-2 file:rounded-md file:border-0 file:bg-surface file:px-2 file:py-1 file:text-xs file:text-fg-muted`}
         />
       </div>
       <div className="sm:col-span-3">

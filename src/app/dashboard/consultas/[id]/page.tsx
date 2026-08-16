@@ -432,7 +432,7 @@ export default function NotaConsultaPage({ params }: { params: Promise<{ id: str
                     Fuente: ficha del paciente (determinístico, no del modelo)
                   </p>
                   <p>
-                    <span className="mr-1.5 rounded bg-secondary px-2 py-0.5 text-[11px] font-bold uppercase text-foreground">
+                    <span className="mr-1.5 rounded-md bg-secondary px-2 py-0.5 text-[11px] font-bold uppercase text-foreground">
                       En {pet?.name ?? "este paciente"}
                     </span>
                     {/* NOMBRA EL FÁRMACO. El gate es un booleano en la nota, así que este panel
@@ -493,7 +493,7 @@ export default function NotaConsultaPage({ params }: { params: Promise<{ id: str
                       Explicación generada · anclada a la literatura recuperada
                     </p>
                     <p>
-                      <span className="mr-1.5 rounded bg-secondary px-2 py-0.5 text-[11px] font-bold uppercase text-foreground">
+                      <span className="mr-1.5 rounded-md bg-secondary px-2 py-0.5 text-[11px] font-bold uppercase text-foreground">
                         En {pet?.name ?? "este paciente"}
                       </span>
                       {a.detail}
@@ -705,7 +705,7 @@ export default function NotaConsultaPage({ params }: { params: Promise<{ id: str
             <ol className="flex flex-col divide-y">
               {citations.map((c, i) => (
                 <li key={`${c.chunk_id}-${i}`} className="flex gap-3 py-3 first:pt-0 last:pb-0">
-                  <span className="grid size-6 shrink-0 place-items-center rounded border bg-secondary font-mono text-[11px] font-bold">
+                  <span className="grid size-6 shrink-0 place-items-center rounded-md border bg-secondary font-mono text-[11px] font-bold">
                     {i + 1}
                   </span>
                   <div className="min-w-0 flex-1">

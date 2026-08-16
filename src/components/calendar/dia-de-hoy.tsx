@@ -73,7 +73,7 @@ export function DiaDeHoy({ citas, huecos }: { citas: CitaDeHoy[]; huecos: Hueco[
             <span className="min-w-0 flex-1 truncate">{f.cita.etiqueta}</span>
             {ETIQUETA_ESTADO[f.cita.estado] && (
               <span
-                className={`shrink-0 rounded px-1.5 py-0.5 text-[11px] font-medium ${ETIQUETA_ESTADO[f.cita.estado].clase}`}
+                className={`shrink-0 rounded-md px-1.5 py-0.5 text-[11px] font-medium ${ETIQUETA_ESTADO[f.cita.estado].clase}`}
               >
                 {ETIQUETA_ESTADO[f.cita.estado].texto}
               </span>

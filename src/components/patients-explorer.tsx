@@ -59,7 +59,7 @@ function AlertaClinica({ alergias }: { alergias: { allergen: string; severity: s
   return (
     <span
       title={alergias.map((a) => `${a.allergen} (${a.severity})`).join(" · ")}
-      className={`inline-flex max-w-full items-center gap-1.5 rounded px-1.5 py-0.5 text-[11px] font-medium ${
+      className={`inline-flex max-w-full items-center gap-1.5 rounded-md px-1.5 py-0.5 text-[11px] font-medium ${
         grave ? "bg-danger-soft text-danger" : "bg-warn-soft text-warn"
       }`}
     >
