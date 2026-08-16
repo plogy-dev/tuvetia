@@ -79,7 +79,14 @@ export function ConsultationThread({
   }
 
   return (
-    <section className="flex max-h-[calc(100vh-7rem)] flex-col rounded-xl border bg-card lg:sticky lg:top-20">
+    // SIN `sticky`, y con un alto propio. Esto vivía en una columna lateral de ancho fijo, donde
+    // quedarse pegado en el scroll tenía sentido. Desde que la consulta es una sola columna
+    // centrada —lo pidió el cliente: «la distribución de paneles centralizarla del lado izquierdo»—
+    // el hilo va al final del flujo, y un `sticky` ahí lo dejaría flotando sobre el resto.
+    //
+    // El alto pasa de `max-h-[calc(100vh-7rem)]` a uno fijo: a ancho completo, un panel que crece
+    // hasta la altura de la ventana empuja todo lo demás fuera de la pantalla.
+    <section className="flex h-[28rem] flex-col rounded-xl border bg-card">
       <div className="border-b px-4 pt-4 pb-3">
         <p className="mb-2 text-[11px] font-bold uppercase tracking-[0.09em] text-muted-foreground">
           Hilo de la consulta

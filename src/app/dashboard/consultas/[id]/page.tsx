@@ -353,8 +353,13 @@ export default function NotaConsultaPage({ params }: { params: Promise<{ id: str
         <ArrowLeft className="size-4" /> Volver a consultas
       </Link>
 
-      {/* Layout del mockup: nota (izquierda) + hilo de la consulta (derecha, sticky) */}
-      <div className="grid gap-4 md:gap-5 lg:grid-cols-[minmax(0,1.55fr)_minmax(320px,1fr)] lg:items-start">
+      {/* UNA SOLA COLUMNA, y es lo que pidió el cliente el 12-ago: «la distribución de paneles
+          centralizarla del lado izquierdo, es una vaina mucho más tranquila».
+
+          Antes eran dos: la consulta a la izquierda y el hilo de Athos ocupando un tercio fijo a la
+          derecha, sticky, siempre visible. Ese tercio es justo donde David quiere el transcripto —
+          «aquí me suelta el transcripto en esta parte de acá hasta acá». El hilo baja al final,
+          plegado: sigue estando, deja de competir. */}
       <div className="flex min-w-0 flex-col gap-4 md:gap-5">
 
       {/* Cabecera del paciente */}
@@ -506,7 +511,17 @@ export default function NotaConsultaPage({ params }: { params: Promise<{ id: str
         </section>
       )}
 
-      {/* Grabar y transcripción — panel colapsable (no compite con la nota) */}
+      {/* TRANSCRIPTO Y CUADERNO, LADO A LADO. Es la secuencia que describió el cliente palabra por
+          palabra: «aquí me suelta el transcripto en esta parte de acá hasta acá. Y en esta parte me
+          pone un cuaderno para tomar notas yo. Y acá quedan las notas clínicas».
+
+          Es también la forma que ya tenía el panel flotante, así que ahora las dos superficies se
+          parecen en vez de competir.
+
+          En un teléfono se apilan y el CUADERNO VA PRIMERO (`flex-col-reverse`): ahí no caben las
+          dos, y entre releer lo que se acaba de decir y poder anotar, lo segundo es lo que no se
+          puede hacer en ningún otro lado. */}
+      <div className="flex flex-col-reverse gap-4 md:gap-5 lg:grid lg:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)] lg:items-start">
       {((consultation && !approved) || turns.length > 0) && (
         <details
           open={captureOpen}
@@ -559,15 +574,16 @@ export default function NotaConsultaPage({ params }: { params: Promise<{ id: str
         </details>
       )}
 
-      {/* EL CUADERNO. Va ARRIBA de la nota y fuera del panel plegable de la grabación, a propósito:
-          es lo que el vet escribe él, y esconderlo detrás del mismo `<details>` que la transcripción
-          lo trataría como un anexo de la captura. Acá queda entre las alertas y la nota, que es el
-          orden en que se trabaja: veo las alertas, anoto, reviso lo que Athos redactó.
+      {/* El cuaderno NO va dentro del `<details>` de la captura, aunque esté a su lado: es lo que
+          el vet escribe él, y esconderlo detrás del mismo plegable que la transcripción lo trataría
+          como un anexo de la grabación.
 
-          Se muestra aunque la nota ya esté aprobada — en sólo lectura no, editable: el cuaderno es
-          material de trabajo, no la historia clínica, y agregarle algo después no altera nada que
-          se haya firmado. */}
-      {consultation && <Cuaderno consultaId={id} className="rounded-xl border bg-card p-4 md:p-5" />}
+          Se muestra aunque la nota ya esté aprobada, y editable: es material de trabajo, no la
+          historia clínica, y agregarle algo después no altera nada que se haya firmado. */}
+      {consultation && (
+        <Cuaderno consultaId={id} filas={10} className="rounded-xl border bg-card p-4 md:p-5" />
+      )}
+      </div>
 
       {/* Nota clínica (SOAP) — una columna */}
       <section className="flex flex-col rounded-xl border bg-card">
@@ -744,7 +760,6 @@ export default function NotaConsultaPage({ params }: { params: Promise<{ id: str
         />
       )}
       </div>
-    </div>
     </div>
   )
 }
