@@ -35,16 +35,19 @@ begin
   insert into public.clinics (id, name) values
     (v_clinica_a, 'Verificación A'), (v_clinica_b, 'Verificación B');
 
-  -- `profiles.id` referencia a `auth.users`; se siembra ahí primero para respetar la FK.
-  insert into auth.users (id, instance_id, aud, role, email)
-  values (v_usuario, '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated',
-          'verificacion-0059@example.test'),
-         (v_ajeno, '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated',
-          'verificacion-0059-ajeno@example.test');
+  -- `profiles.id` referencia a `auth.users`, así que se siembra ahí primero.
+  --
+  -- Y NO se hace `insert into profiles`: el trigger `on_auth_user_created` (handle_new_user) YA
+  -- crea la fila del perfil al insertar en `auth.users`. Insertarla a mano choca con
+  -- `profiles_pkey` — medido, es exactamente el error que da. Se ACTUALIZA lo que el trigger dejó.
+  insert into auth.users (id) values (v_usuario), (v_ajeno);
 
-  insert into public.profiles (id, clinic_id, full_name, role, is_active)
-  values (v_usuario, v_clinica_a, 'Vet de prueba', 'admin', true),
-         (v_ajeno,   v_clinica_b, 'Vet ajeno',     'admin', true);
+  update public.profiles set clinic_id = v_clinica_a, full_name = 'Vet de prueba',
+         role = 'admin', is_active = true
+   where id = v_usuario;
+  update public.profiles set clinic_id = v_clinica_b, full_name = 'Vet ajeno',
+         role = 'admin', is_active = true
+   where id = v_ajeno;
 
   insert into public.owners (id, clinic_id, full_name)
   values (gen_random_uuid(), v_clinica_a, 'Titular de prueba')
