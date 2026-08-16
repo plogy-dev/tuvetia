@@ -114,17 +114,22 @@ const data = {
  * número a la vista.
  *
  * Se retira solo al 100%, igual que el riel.
+ *
+ * SE LLAMA "PRIMEROS PASOS" Y NO "CONFIGURACIÓN". Decía "Configuración", y tres filas más abajo, en
+ * el mismo bloque visual, está el enlace a los ajustes — que también dice "Configuración". Dos
+ * etiquetas idénticas a la vista, que llevan a sitios distintos: ésta al riel de onboarding en
+ * `/dashboard`, la otra a `/dashboard/settings`. Elegir entre las dos era cara o sello.
  */
 function ChipConfiguracion({ porcentaje }: { porcentaje: number }) {
   if (porcentaje >= 100) return null
   return (
     <SidebarMenuButton
-      tooltip={`Configuración de la clínica: ${porcentaje}%`}
+      tooltip={`Puesta a punto de la clínica: ${porcentaje}% completo`}
       render={<a href="/dashboard" />}
       className="text-fg-muted"
     >
       <SlidersHorizontalIcon />
-      <span>Configuración</span>
+      <span>Primeros pasos</span>
       <span className="ml-auto font-mono text-[11px] tabular-nums text-brand-text group-data-[collapsible=icon]:hidden">
         {porcentaje}%
       </span>

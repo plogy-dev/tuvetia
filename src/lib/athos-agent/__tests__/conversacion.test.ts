@@ -11,6 +11,7 @@ import {
   textoDe,
   turnoAGuardar,
   sanearHistorial,
+  sinMarcaDePropuesta,
 } from "@/lib/athos-agent/conversacion"
 
 const msg = (role: "user" | "assistant", ...textos: string[]): UIMessage =>
@@ -147,6 +148,59 @@ describe("turnoAGuardar — sólo el turno nuevo", () => {
     expect(t[1].content).not.toContain("[[propuesto:")
   })
 
+  // ── La marca falsificada ────────────────────────────────────────────────────────────────────
+  //
+  // Visto en producción el 2026-08-16, a la vista del vet: `[[propuesto:send_email, send_email]]`.
+  // Esa marca NO salió del servidor y hay dos pruebas independientes de eso: `toolsQuePropusieron`
+  // deduplica con `Set` (nunca repite un nombre) y une con `join(",")` (nunca mete un espacio).
+  // La escribió el modelo, imitando las que ve en su propio historial.
+  //
+  // Lo que la vuelve grave no es que se vea: es que `sanearHistorial` LEE la marca como prueba de
+  // que el turno propuso algo de verdad. Sin limpiarla, el modelo fabrica su propia coartada.
+  it("descarta la marca que escribió el modelo, aunque venga bien formada", () => {
+    const falsificada = {
+      id: "a3",
+      role: "assistant",
+      parts: [
+        { type: "text", text: "Te dejé el correo listo.\n\n[[propuesto:send_email]]" },
+        // Ni una sola tool: no hay nada propuesto detrás de esa marca.
+      ],
+    } as unknown as UIMessage
+    const t = turnoAGuardar(historial, falsificada)
+    expect(t[1].content).not.toContain("[[propuesto:")
+    expect(t[1].content).toBe("Te dejé el correo listo.")
+  })
+
+  it("la falsificada no sobrevive para que el saneador la desactive después", () => {
+    const falsificada = {
+      id: "a4",
+      role: "assistant",
+      parts: [{ type: "text", text: "Te dejé propuesto el correo — aprobalo en la tarjeta.\n\n[[propuesto:send_email]]" }],
+    } as unknown as UIMessage
+
+    // Lo que se guarda hoy, con el arreglo puesto.
+    const guardado = turnoAGuardar(historial, falsificada)[1].content
+
+    // Y al releerlo, el saneador SÍ lo desactiva — que es lo que la marca falsa impedía.
+    const releido = sanearHistorial([msg("assistant", guardado)])
+    expect(textoDe(releido[0])).toContain("[[sin-propuesta:")
+  })
+
+  // El caso real, con el formato exacto que se vio en pantalla.
+  it("una marca del modelo NO le roba la suya al turno que sí propuso", () => {
+    const mixta = {
+      id: "a5",
+      role: "assistant",
+      parts: [
+        { type: "text", text: "Listo.\n\n[[propuesto:send_email, send_email]]" },
+        { type: "tool-send_email", output: { action_id: "act-9", status: "proposed" } },
+      ],
+    } as unknown as UIMessage
+    const t = turnoAGuardar(historial, mixta)
+    // Queda UNA marca, y es la del servidor: sin espacio y sin repetir.
+    expect(t[1].content).toBe("Listo.\n\n[[propuesto:send_email]]")
+  })
+
   it("NO reenvía el historial entero", () => {
     // El cliente manda el hilo completo en cada petición: guardarlo todo duplicaría la
     // conversación entera en cada mensaje.
@@ -203,5 +257,29 @@ describe("sanearHistorial — desactiva las afirmaciones de propuesta sin respal
 
   it("no rompe un historial vacío", () => {
     expect(sanearHistorial([])).toEqual([])
+  })
+})
+
+describe("sinMarcaDePropuesta", () => {
+  it("borra el formato que escribe el servidor", () => {
+    expect(sinMarcaDePropuesta("Listo.\n\n[[propuesto:send_email]]")).toBe("Listo.")
+  })
+
+  // El patrón viejo era `[a-z_,]+` y este caso —el que se vio en producción— no lo matcheaba.
+  it("borra el que escribe el modelo, con espacios y repetido", () => {
+    expect(sinMarcaDePropuesta("Listo.\n\n[[propuesto:send_email, send_email]]")).toBe("Listo.")
+  })
+
+  it("borra varias en el mismo texto", () => {
+    expect(sinMarcaDePropuesta("Uno [[propuesto:a]] y dos [[propuesto:b, c]] fin")).toBe(
+      "Uno y dos fin",
+    )
+  })
+
+  it("no toca la otra marca ni el texto normal", () => {
+    expect(sinMarcaDePropuesta("Nada que proponer.")).toBe("Nada que proponer.")
+    expect(sinMarcaDePropuesta("Ojo.\n\n[[sin-propuesta: no lo imites]]")).toBe(
+      "Ojo.\n\n[[sin-propuesta: no lo imites]]",
+    )
   })
 })

@@ -159,6 +159,28 @@ export type TurnoAGuardar = { role: "user" | "assistant"; content: string }
 export const MARCA_PROPUESTA = /\[\[propuesto:([a-z_,]+)\]\]/
 
 /**
+ * Borra cualquier marca `[[propuesto:…]]` del texto del modelo.
+ *
+ * LA MARCA LA PONE EL SERVIDOR, Y SÓLO EL SERVIDOR. Esta función existe porque el modelo también
+ * las escribe: ve las de su propio historial y las imita, que es el mismo mecanismo de imitación
+ * que la marca vino a resolver.
+ *
+ * NO ES COSMÉTICO. `sanearHistorial` trata la marca como PRUEBA de que el turno propuso algo
+ * (`if (MARCA_PROPUESTA.test(texto)) return m` — lo deja pasar sin desactivar). Si el modelo puede
+ * escribirla, puede fabricar esa prueba: escribe "te dejé el correo listo [[propuesto:send_email]]"
+ * sin llamar ninguna tool, y el saneador lo certifica como propuesta real en vez de desactivarlo.
+ * El control que existe para que no invente propuestas pasaría a avalarle las inventadas.
+ *
+ * El patrón es DELIBERADAMENTE tolerante (`[^\]]*` y no `[a-z_,]+`): lo que el modelo escribe no
+ * respeta el formato. En producción se vio `[[propuesto:send_email, send_email]]` — con espacio y
+ * repetida, dos cosas que `toolsQuePropusieron` no puede producir porque deduplica con `Set` y une
+ * con `join(",")`. Un patrón estricto deja pasar justo las que no salieron de acá.
+ */
+export function sinMarcaDePropuesta(texto: string): string {
+  return texto.replace(/\s*\[\[propuesto:[^\]]*\]\]/g, "").trimEnd()
+}
+
+/**
  * Valor de `needs_connection` con el que una tool de correo pide que el chat muestre la tarjeta de
  * conectar la cuenta.
  *
@@ -231,7 +253,9 @@ export function turnoAGuardar(
   const preguntaTexto = ultimoDelVet ? textoDe(ultimoDelVet) : ""
   if (preguntaTexto) turnos.push({ role: "user", content: preguntaTexto })
 
-  const respuestaTexto = respuesta ? textoDe(respuesta) : ""
+  // Se limpia ANTES de anexar la de verdad: lo que llega acá es la salida fresca del modelo, así
+  // que toda marca que traiga la escribió él. Ver `sinMarcaDePropuesta`.
+  const respuestaTexto = respuesta ? sinMarcaDePropuesta(textoDe(respuesta)) : ""
   if (respuestaTexto) {
     const propuestas = toolsQuePropusieron(respuesta)
     const marca = propuestas.length ? `\n\n[[propuesto:${propuestas.join(",")}]]` : ""
