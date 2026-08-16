@@ -108,6 +108,19 @@ begin
     raise exception 'FALLA 3: un perfil inactivo tiene que poder leer su PROPIA fila; leyó %', v_visto;
   end if;
 
+  -- ── 3b. …y NO puede reactivarse solo ──────────────────────────────────────────────────────────
+  -- El chequeo que faltaba, y el que encontró el agujero: `profiles_update` deja al usuario tocar
+  -- su propia fila y la guarda de columnas sensibles no cubría `is_active` (arreglado en la 0060).
+  -- Sin esto, todo el gate valía un PATCH de curl.
+  begin
+    update public.profiles set is_active = true where id = v_usuario;
+    raise exception 'FALLA 3b: EL USUARIO SE REACTIVÓ SOLO — la guarda de is_active no está puesta';
+  exception
+    when sqlstate '42501' or sqlstate 'P0001' then
+      if position('FALLA 3b' in sqlerrm) > 0 then raise; end if;
+      -- La guarda lanzó: es lo que se espera.
+  end;
+
   -- ── 4. Aislamiento entre clínicas, con el gate puesto ─────────────────────────────────────────
   reset role;
   set local role authenticated;
