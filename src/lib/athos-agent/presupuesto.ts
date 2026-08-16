@@ -55,24 +55,53 @@ export type Presupuesto = {
 }
 
 /**
- * El techo por clínica y por mes, de `ATHOS_TOPE_MENSUAL_POR_CLINICA`.
+ * Techo de CONTENCIÓN, que aplica cuando nadie configuró uno comercial.
  *
- * SIN LA VARIABLE NO HAY TOPE. Es lo que permite desplegar esto sin cambiar el comportamiento de
- * ninguna clínica y encenderlo cuando el plan esté definido — el acta todavía tiene abierto "6.2
- * definir el límite exacto entre gratis y pago", y no corresponde que ese número lo invente el
- * código.
+ * NO ES UN PLAN NI UN PRECIO. Es la diferencia entre "cuánto incluye la suscripción" —decisión de
+ * negocio, todavía abierta, y que no le corresponde inventar al código— y "a partir de qué punto
+ * esto dejó de ser uso y es un bucle". Este número es lo segundo.
  *
- * Un valor inválido (texto, negativo) se trata como ausente y se avisa: mejor sin tope que con un
- * tope de 0 que dejaría a toda la plataforma sin Athos por un typo en una variable de entorno.
+ * De dónde sale el 1000. Medido contra el principal el 2026-08-16: 4 clínicas activas, 56 llamadas
+ * en el mes entre todas, y la más intensa acumulaba 38. Mil es ~26× esa clínica — ninguna consulta
+ * real se acerca, y un bucle lo cruza en minutos.
+ *
+ * POR QUÉ VIVE EN EL CÓDIGO Y NO SÓLO EN UNA VARIABLE. Antes, sin la variable no había NINGÚN tope,
+ * y la variable no estaba puesta en Vercel: verificado el 2026-08-16 mirando el riel, donde el
+ * medidor de cupo no se pintaba. O sea que el gasto de IA no tenía techo en producción, y el único
+ * freno era `rateLimit`, que es en memoria y por lambda. Un techo que depende de que alguien se
+ * acuerde de configurarlo no es un techo.
+ */
+export const TOPE_DE_SEGURIDAD = 1000
+
+/** Valor con el que se apaga el tope a propósito, sin tener que desplegar código. */
+export const SIN_TOPE = "ninguno"
+
+/**
+ * El techo por clínica y por mes.
+ *
+ *   sin definir / vacío  → `TOPE_DE_SEGURIDAD`
+ *   `"ninguno"`          → sin tope, y es una decisión explícita de alguien
+ *   entero ≥ 0           → ése (el número comercial, cuando exista)
+ *   inválido             → `TOPE_DE_SEGURIDAD`, con aviso
+ *
+ * EL `0` SIGUE SIENDO VÁLIDO y sigue significando "Athos apagado para todos". Es el kill-switch que
+ * ya existía y que su test documenta como deliberado; no se toca.
+ *
+ * LO QUE SÍ CAMBIA es a dónde cae un valor inválido: antes a "sin tope", ahora al de contención.
+ * Ante un typo en una variable de entorno, contener es más seguro que abrir — y "abrir" acá era, en
+ * los hechos, no tener ningún techo en producción.
  */
 export function topeConfigurado(raw: string | undefined = process.env.ATHOS_TOPE_MENSUAL_POR_CLINICA): number | null {
-  if (raw === undefined || raw.trim() === "") return null
+  if (raw === undefined || raw.trim() === "") return TOPE_DE_SEGURIDAD
+  if (raw.trim().toLowerCase() === SIN_TOPE) return null
+
   const n = Number(raw)
   if (!Number.isInteger(n) || n < 0) {
     console.error(
-      `[athos/presupuesto] ATHOS_TOPE_MENSUAL_POR_CLINICA="${raw}" no es un entero >= 0: se ignora y no se aplica tope.`,
+      `[athos/presupuesto] ATHOS_TOPE_MENSUAL_POR_CLINICA="${raw}" no es un entero >= 0 ni "${SIN_TOPE}": ` +
+        `se aplica el tope de contención (${TOPE_DE_SEGURIDAD}).`,
     )
-    return null
+    return TOPE_DE_SEGURIDAD
   }
   return n
 }

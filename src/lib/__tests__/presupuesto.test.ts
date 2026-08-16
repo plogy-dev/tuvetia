@@ -7,15 +7,34 @@ import {
   mensajeSinCupo,
   proximoReinicio,
   topeConfigurado,
+  TOPE_DE_SEGURIDAD,
 } from "@/lib/athos-agent/presupuesto"
 
 afterEach(() => vi.unstubAllEnvs())
 
 describe("topeConfigurado", () => {
-  it("sin la variable NO hay tope: desplegar esto no cambia nada para nadie", () => {
-    expect(topeConfigurado(undefined)).toBeNull()
-    expect(topeConfigurado("")).toBeNull()
-    expect(topeConfigurado("   ")).toBeNull()
+  // CAMBIÓ EL CONTRATO el 2026-08-16. Antes, sin la variable no había NINGÚN tope — y la variable no
+  // estaba puesta en Vercel, verificado mirando el riel en producción (el medidor de cupo no se
+  // pintaba). O sea que el gasto de IA no tenía techo, y el único freno era `rateLimit`, que es en
+  // memoria y por lambda. Un techo que depende de que alguien lo configure no es un techo.
+  it("sin la variable cae en el tope de contención, no en 'sin tope'", () => {
+    expect(topeConfigurado(undefined)).toBe(TOPE_DE_SEGURIDAD)
+    expect(topeConfigurado("")).toBe(TOPE_DE_SEGURIDAD)
+    expect(topeConfigurado("   ")).toBe(TOPE_DE_SEGURIDAD)
+  })
+
+  // El escape sin desplegar código: si el techo de contención llegara a cortarle a alguien de
+  // verdad, se apaga con una variable y no con un release.
+  it("'ninguno' apaga el tope, y es una decisión explícita", () => {
+    expect(topeConfigurado("ninguno")).toBeNull()
+    expect(topeConfigurado("NINGUNO")).toBeNull()
+    expect(topeConfigurado("  ninguno  ")).toBeNull()
+  })
+
+  // 1000 es ~26× la clínica más intensa medida en el principal (38 llamadas en agosto de 2026). No
+  // es un plan ni un precio: es el punto donde esto dejó de ser uso y es un bucle.
+  it("el tope de contención no toca a nadie en uso normal", () => {
+    expect(TOPE_DE_SEGURIDAD).toBeGreaterThanOrEqual(500)
   })
 
   it("un valor válido se toma tal cual", () => {
@@ -23,11 +42,11 @@ describe("topeConfigurado", () => {
     expect(topeConfigurado("0")).toBe(0) // tope 0 explícito: Athos apagado para todos, a propósito
   })
 
-  it("un valor inválido se IGNORA en vez de convertirse en un tope accidental", () => {
-    // Un typo en una variable de entorno no puede dejar a toda la plataforma sin Athos. Falla hacia
-    // "sin tope", no hacia "tope de cero" — que es el fallo que dolería.
+  it("un valor inválido cae en el tope de contención, no en 'sin tope'", () => {
+    // Un typo sigue sin poder dejar a la plataforma sin Athos: no cae en "tope de cero". Pero ahora
+    // tampoco cae en "sin techo" — ante algo que no se entiende, contener es más seguro que abrir.
     for (const malo of ["quinientos", "-3", "12.5", "500x", "NaN"]) {
-      expect(topeConfigurado(malo)).toBeNull()
+      expect(topeConfigurado(malo)).toBe(TOPE_DE_SEGURIDAD)
     }
   })
 

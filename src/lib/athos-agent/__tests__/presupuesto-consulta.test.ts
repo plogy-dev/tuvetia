@@ -1,6 +1,6 @@
 // La mitad de `presupuesto.ts` que habla con la base. La lógica pura está en
 // `src/lib/__tests__/presupuesto.test.ts`; acá se fija el comportamiento que sólo se ve con la
-// consulta delante: que sin tope no se consulte nada, y que un fallo de la base deje pasar.
+// consulta delante: que con el tope apagado no se consulte nada, y que un fallo de la base deje pasar.
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
@@ -21,7 +21,7 @@ vi.mock("@/lib/supabase/admin", () => ({
 
 let respuesta: { count: number | null; error: { message: string } | null } = { count: 0, error: null }
 
-import { consultarPresupuesto } from "@/lib/athos-agent/presupuesto"
+import { consultarPresupuesto, TOPE_DE_SEGURIDAD } from "@/lib/athos-agent/presupuesto"
 
 const AHORA = new Date("2026-08-15T12:00:00Z")
 
@@ -32,14 +32,25 @@ beforeEach(() => {
 afterEach(() => vi.unstubAllEnvs())
 
 describe("consultarPresupuesto", () => {
-  it("SIN tope configurado no consulta la base", async () => {
+  it("con el tope APAGADO a propósito no consulta la base", async () => {
     // Es una consulta por cada turno del agente, en todas las clínicas, que no cambiaría ninguna
-    // decisión. Mientras el plan no esté definido —el acta lo tiene abierto— esto no debe costar
-    // ni un round-trip.
+    // decisión. Cuando alguien apaga el tope, no debe costar ni un round-trip.
+    //
+    // Antes este caso era "sin la variable", que era el estado por defecto. Ya no: sin variable hay
+    // tope de contención, y apagarlo pasó a exigir decirlo — `ATHOS_TOPE_MENSUAL_POR_CLINICA=ninguno`.
+    vi.stubEnv("ATHOS_TOPE_MENSUAL_POR_CLINICA", "ninguno")
     const p = await consultarPresupuesto("c1", AHORA)
     expect(select).not.toHaveBeenCalled()
     expect(p.permitido).toBe(true)
     expect(p.tope).toBeNull()
+  })
+
+  it("sin la variable SÍ consulta: el tope de contención está activo por defecto", async () => {
+    // El cambio del 2026-08-16. La variable no estaba puesta en Vercel y por lo tanto el gasto de IA
+    // no tenía ningún techo en producción; ahora el defecto es contener.
+    const p = await consultarPresupuesto("c1", AHORA)
+    expect(select).toHaveBeenCalled()
+    expect(p.tope).toBe(TOPE_DE_SEGURIDAD)
   })
 
   it("cuenta sin traer filas: `head: true`", async () => {
