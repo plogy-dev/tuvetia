@@ -29,10 +29,14 @@ vi.mock("@/lib/athos-agent/usage", () => ({
 }))
 
 // Las señales tienen sus propios tests; acá sólo importa si hay algo que contar o no.
+/** Tablas que "no respondieron" en esta pasada. Es lo que ahora reporta `senalesDeLaClinica`. */
+let caidas: string[] = []
+
 vi.mock("@/lib/senales/consultar", () => ({
   senalesDeLaClinica: vi.fn(async () => ({
     pendientes: tablas.__pendientes ?? [],
     cobrosVencidos: { cuantas: 0, totalCents: 0 },
+    caidas,
   })),
 }))
 
@@ -63,6 +67,7 @@ beforeEach(() => {
   tablas = {}
   insertados = []
   errorInsert = null
+  caidas = []
   generateText.mockResolvedValue({ text: "Tenés 3 notas sin aprobar.", usage: { inputTokens: 100, outputTokens: 20 } })
 })
 
@@ -113,7 +118,33 @@ describe("guarda 3 · nada que contar", () => {
     const r = await generarBriefings(HOY)
 
     expect(generateText).not.toHaveBeenCalled()
-    expect(r.omitidos).toEqual([{ clinicId: "cli-1", motivo: "nada-que-contar" }])
+    expect(r.omitidos).toEqual([{ clinicId: "cli-1", motivo: "sin-senales" }])
+  })
+
+  // EL CASO QUE COSTÓ CARO. El 2026-08-16, en el primer disparo real, dos clínicas con notas
+  // pendientes se saltaron como "nada que contar" y no hubo forma de saber por qué: la consulta
+  // falló, el error se descartó sin registrarlo, y desde afuera se leía igual que una clínica al
+  // día. "No hay nada" y "no pude averiguarlo" significan lo contrario.
+  it("una señal caída NO se reporta como clínica al día", async () => {
+    tablas = { clinics: [CLINICA], __pendientes: [] }
+    caidas = ["clinical_notes"]
+
+    const r = await generarBriefings(HOY)
+
+    expect(r.omitidos).toEqual([
+      { clinicId: "cli-1", motivo: "senales-caidas", detalle: "clinical_notes" },
+    ])
+    expect(generateText).not.toHaveBeenCalled()
+  })
+
+  // Con algo que contar SÍ se sigue aunque falte una señal: un resumen parcial es mejor que ninguno.
+  it("con señales caídas pero algo que contar, igual redacta", async () => {
+    tablas = { clinics: [CLINICA], __pendientes: [PENDIENTE] }
+    caidas = ["vaccines"]
+
+    const r = await generarBriefings(HOY)
+
+    expect(r.redactados).toBe(1)
   })
 
   // Un modelo que devuelve vacío no puede escribir una fila en blanco.
@@ -125,6 +156,8 @@ describe("guarda 3 · nada que contar", () => {
 
     expect(insertados.filter((i) => i.tabla === "clinic_briefings")).toHaveLength(0)
     expect(r.redactados).toBe(0)
+    // Motivo PROPIO: acá el modelo ya se pagó, a diferencia de las guardas que evitan el gasto.
+    expect(r.omitidos).toEqual([{ clinicId: "cli-1", motivo: "modelo-vacio" }])
   })
 })
 

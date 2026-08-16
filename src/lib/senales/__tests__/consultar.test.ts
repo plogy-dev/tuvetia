@@ -82,6 +82,34 @@ describe("falla hacia el silencio", () => {
     expect(r.pendientes.map((p) => p.id)).not.toContain("vacunas")
   })
 
+  // LA MITAD QUE FALTABA. Degradar está bien; degradar EN SILENCIO no. Sin esto, "la clínica está
+  // al día" y "no pude averiguarlo" se ven idénticos desde afuera — y eso fue exactamente lo que
+  // hizo indiagnosticable que el briefing se saltara dos clínicas con notas pendientes el
+  // 2026-08-16.
+  it("la consulta que falló queda ANOTADA, no sólo descartada", async () => {
+    respuestas = { vaccines: { error: { message: "timeout" } } }
+
+    const r = await senalesDeLaClinica(clienteFalso(), CLINICA, HOY)
+
+    expect(r.caidas).toEqual(["vaccines"])
+  })
+
+  it("se anotan TODAS las que fallaron, no sólo la primera", async () => {
+    for (const t of ["clinical_notes", "whatsapp_messages", "vaccines", "human_tasks", "invoices"]) {
+      respuestas[t] = { error: { message: "caído" } }
+    }
+
+    const r = await senalesDeLaClinica(clienteFalso(), CLINICA, HOY)
+
+    expect(r.caidas.sort()).toEqual(
+      ["clinical_notes", "human_tasks", "invoices", "vaccines", "whatsapp_messages"],
+    )
+  })
+
+  it("cuando todo responde, no hay caídas que reportar", async () => {
+    expect((await senalesDeLaClinica(clienteFalso(), CLINICA, HOY)).caidas).toEqual([])
+  })
+
   it("si se caen TODAS, devuelve vacío en vez de romper", async () => {
     for (const t of ["clinical_notes", "whatsapp_messages", "vaccines", "human_tasks", "invoices"]) {
       respuestas[t] = { error: { message: "caído" } }
