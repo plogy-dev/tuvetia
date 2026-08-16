@@ -24,6 +24,7 @@ import { ConsultationRecorder } from "@/components/consultation-recorder"
 import { Cuaderno } from "@/components/athos/cuaderno"
 import { ConsultationThread } from "@/components/athos/consultation-thread"
 import { renderInline, tramosIndivisibles } from "@/components/athos/rich-text"
+import { SourceCard } from "@/components/athos/source-card"
 import {
   esSevera,
   marcarAlergenos,
@@ -680,6 +681,27 @@ export default function NotaConsultaPage({ params }: { params: Promise<{ id: str
                 </div>
               </div>
             ))}
+
+            {/* LAS FUENTES, ENUMERADAS. Hasta hoy la única forma de saber qué era `[3]` era pasarle
+                el mouse por encima y leer el `title`. Un hover no sobrevive a imprimir la nota, a
+                exportarla ni a leerla desde el teléfono — y esto es una historia clínica, no un
+                chat. `SourceCard` estaba construida para esto desde el principio y nunca se había
+                montado en ninguna pantalla.
+
+                Sólo con la nota APROBADA: mientras es borrador las citas todavía pueden cambiar —
+                la verificación de fidelidad descarta referencias después de generar. */}
+            {approved && citations.length > 0 && (
+              <div className="flex flex-col gap-2 border-t pt-4">
+                <p className="text-[11px] font-bold uppercase tracking-wide text-muted-foreground">
+                  Fuentes ({citations.length})
+                </p>
+                <div className="grid gap-2 sm:grid-cols-2">
+                  {citations.map((c, i) => (
+                    <SourceCard key={`fuente-${i}`} c={c} />
+                  ))}
+                </div>
+              </div>
+            )}
 
             {!approved && (
               <p className="text-xs text-muted-foreground">

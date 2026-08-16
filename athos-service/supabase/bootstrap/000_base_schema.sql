@@ -671,7 +671,11 @@ create trigger on_auth_user_created
 -- ============================================================
 
 create index idx_profiles_clinic       on public.profiles(clinic_id);
-create index idx_invitations_token     on public.invitations(token);
+-- `idx_invitations_token` se retiró el 2026-08-16: `invitations.token` ya es `unique` (más arriba
+-- en este mismo archivo), y esa constraint la sostiene un índice que Postgres crea solo
+-- (`invitations_token_key`). Éste era un segundo índice sobre la misma columna, que no aportaba
+-- nada y se mantenía en cada escritura. En el principal lo borra la migración 0061; acá se saca
+-- para que un proyecto de dev nuevo no lo vuelva a crear y los dos entornos no diverjan.
 create index idx_invitations_clinic    on public.invitations(clinic_id);
 create index idx_patients_clinic       on public.patients(clinic_id);
 create index idx_patients_owner        on public.patients(owner_id);

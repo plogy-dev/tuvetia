@@ -5,7 +5,10 @@
 .tuvetia-calendar .rbc-time-view,
 .tuvetia-calendar .rbc-month-view {
   border: 1px solid var(--border);
-  border-radius: 0.75rem;
+  /* Era `0.75rem` fijo, o sea 12px. Cuando `--radius` subió a 12 las cards pasaron a 18px y el
+     calendario se quedó en 12: la única superficie grande de la app con una esquina distinta a
+     todas las demás. `--radius-xl` es el token de las cards. */
+  border-radius: var(--radius-xl);
   overflow: hidden;
   background: var(--card);
 }
@@ -47,7 +50,10 @@
 
 .tuvetia-calendar .rbc-event {
   border: none;
-  border-radius: 6px;
+  /* `--radius-sm` da hoy los mismos 6px que estaban escritos a mano, así que esto no cambia nada a
+     la vista. Lo que cambia es que la próxima vez que se mueva `--radius`, las citas se mueven con
+     el resto en vez de quedarse atrás — que es exactamente lo que le pasó al contenedor de arriba. */
+  border-radius: var(--radius-sm);
   padding: 0;
   box-shadow: none;
 }
@@ -78,6 +84,9 @@
   left: -5px;
   width: 10px;
   height: 10px;
+  /* Este 9999px SÍ va a mano y no es deuda: es un círculo, no un valor de la escala de radios.
+     Atarlo a `--radius-*` lo convertiría en un cuadrado redondeado la próxima vez que el token
+     cambie. Es el mismo criterio que `rounded-full` de Tailwind, que también es 9999px fijo. */
   border-radius: 9999px;
   background-color: var(--danger);
 }
