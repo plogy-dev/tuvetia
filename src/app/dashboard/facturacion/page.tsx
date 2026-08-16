@@ -31,6 +31,9 @@ import { TrLink } from '@/components/ui/TrLink';
 import { PageHeader, PageShell } from '@/components/ui/page-shell';
 import { StatCard } from '@/components/ui/stat-card';
 
+export const metadata = { title: "Ventas · Tuvetia" }
+
+
 export const dynamic = 'force-dynamic';
 
 type InvoiceWithPayer = InvoiceRow & { payer: { name: string } | null };

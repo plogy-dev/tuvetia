@@ -6,6 +6,9 @@ import { getPurchaseDetail } from '@/lib/facturacion/queries';
 import { formatCOP } from '@/lib/facturacion/domain/money';
 import { PurchaseDetailActions } from '@/components/facturacion/PurchaseDetailActions';
 
+export const metadata = { title: "Compra · Tuvetia" }
+
+
 export const dynamic = 'force-dynamic';
 
 const STATUS_BADGE: Record<string, string> = {
@@ -31,7 +34,7 @@ export default async function CompraDetallePage({
   const { purchase, items } = detail;
 
   return (
-    <main className="flex-1 min-w-0">
+    <section className="flex-1 min-w-0">
       <div className="mx-auto w-full max-w-4xl px-8 py-10">
         <header className="mb-6">
           <Link
@@ -120,6 +123,6 @@ export default async function CompraDetallePage({
 
         <PurchaseDetailActions purchaseId={purchase.id} status={purchase.status} />
       </div>
-    </main>
+    </section>
   );
 }

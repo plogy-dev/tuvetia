@@ -17,6 +17,9 @@ import {
 } from "@/components/ui/table"
 import { createClient } from "@/lib/supabase/server"
 
+export const metadata = { title: "Titulares · Tuvetia" }
+
+
 function initials(name: string) {
   return name
     .split(" ")

@@ -17,6 +17,9 @@ import { HumanTasksPanel, type TaskItem } from '@/components/cartera/HumanTasksP
 import { RunSweepButton } from '@/components/cartera/RunSweepButton';
 import { TrLink } from '@/components/ui/TrLink';
 
+export const metadata = { title: "Cartera · Tuvetia" }
+
+
 export const dynamic = 'force-dynamic';
 
 export default async function CarteraPage() {
@@ -28,7 +31,7 @@ export default async function CarteraPage() {
   const settings = await getBillingSettings(supabase, clinicId);
   if (settings?.module_status !== 'ACTIVO') {
     return (
-      <main className="flex-1 min-w-0">
+      <section className="flex-1 min-w-0">
         <div className="mx-auto w-full max-w-3xl px-8 py-10">
           <h1 className="text-2xl font-semibold text-fg">Cartera</h1>
           <p className="mt-4 rounded-xl border border-line bg-surface p-6 text-sm text-fg-muted">
@@ -38,7 +41,7 @@ export default async function CarteraPage() {
             </Link>
           </p>
         </div>
-      </main>
+      </section>
     );
   }
 
@@ -74,7 +77,7 @@ export default async function CarteraPage() {
   }));
 
   return (
-    <main className="flex-1 min-w-0">
+    <section className="flex-1 min-w-0">
       <div className="mx-auto w-full max-w-5xl px-8 py-10">
         <Link
           href="/dashboard/facturacion"
@@ -219,7 +222,7 @@ export default async function CarteraPage() {
           </section>
         </div>
       </div>
-    </main>
+    </section>
   );
 }
 

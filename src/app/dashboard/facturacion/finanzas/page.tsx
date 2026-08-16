@@ -20,6 +20,9 @@ import { IncomeForm, type IncomeInitial } from '@/components/facturacion/IncomeF
 import { FinanceBars } from '@/components/facturacion/FinanceBars';
 import { FinanceTable, type FinanceItem } from '@/components/facturacion/FinanceTable';
 
+export const metadata = { title: "Finanzas · Tuvetia" }
+
+
 export const dynamic = 'force-dynamic';
 
 /** `YYYY-MM-DD` local Bogotá de un timestamptz (UTC-5 fijo). */
@@ -62,7 +65,7 @@ export default async function FinanzasPage({
 
   if (!active) {
     return (
-      <main className="flex-1 min-w-0">
+      <section className="flex-1 min-w-0">
         <div className="mx-auto w-full max-w-5xl px-8 py-10">
           <h1 className="text-2xl font-semibold tracking-tight text-fg">Ingresos y egresos</h1>
           <p className="mt-4 rounded-xl border border-line bg-surface-2 px-4 py-3 text-sm text-fg-muted">
@@ -73,7 +76,7 @@ export default async function FinanzasPage({
             .
           </p>
         </div>
-      </main>
+      </section>
     );
   }
 
@@ -188,7 +191,7 @@ export default async function FinanzasPage({
     'rounded-lg border border-line bg-surface px-3 py-1.5 text-sm text-fg focus:border-brand focus:outline-none';
 
   return (
-    <main className="flex-1 min-w-0">
+    <section className="flex-1 min-w-0">
       <div className="mx-auto w-full max-w-5xl px-8 py-10">
         <header className="mb-6">
           <Link
@@ -300,6 +303,6 @@ export default async function FinanzasPage({
         {/* Tabla combinada + export */}
         <FinanceTable items={items} />
       </div>
-    </main>
+    </section>
   );
 }

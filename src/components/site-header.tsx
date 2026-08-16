@@ -43,7 +43,14 @@ export function SiteHeader() {
       <div className="flex w-full items-center gap-1 px-4 lg:gap-2 lg:px-6">
         <SidebarTrigger className="-ml-1" />
         <Separator orientation="vertical" className="mx-2 h-4 data-vertical:self-auto" />
-        <h1 className="text-base font-medium">{title}</h1>
+        {/* ES UN <p>, NO UN <h1>. Esto rotula la SECCIÓN en la que estás —vive al lado del trigger
+            de la barra, en la altura de la navegación— y no es el encabezado de la página: ése lo
+            pone cada pantalla (`PageShell`, o su propio <h1>).
+
+            Eran dos <h1> visibles a la vez, y en las subpantallas decían cosas distintas: medido en
+            producción, `/dashboard/facturacion/cartera` daba `["Ventas", "Cartera"]`. Un lector de
+            pantalla anunciaba dos encabezados de nivel 1 para una página con un solo tema. */}
+        <p className="text-base font-medium">{title}</p>
 
         {/* Buscador global, igual que el del cliente: un <form> GET, sin estado ni JS. Escribir no
             dispara nada; sólo al enviar se navega. El destino es Pacientes porque su explorador ya

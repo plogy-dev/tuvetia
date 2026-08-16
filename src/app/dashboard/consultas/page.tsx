@@ -12,6 +12,9 @@ import { bogotaDate } from "@/lib/date-utils"
 import { DataError } from "@/components/data-error"
 import { NewConsultationDrawer } from "@/components/new-consultation-drawer"
 
+export const metadata = { title: "Modo Fantasma · Tuvetia" }
+
+
 const CONSULTATION_STATUS: Record<string, string> = {
   open: "Abierta",
   transcribing: "Transcribiendo",

@@ -4,6 +4,9 @@ import { requireClinicPage } from '@/lib/facturacion/page-auth';
 import { getBillingSettings, getActiveRange } from '@/lib/facturacion/queries';
 import { SettingsForm } from '@/components/facturacion/SettingsForm';
 
+export const metadata = { title: "Configuración de ventas · Tuvetia" }
+
+
 export const dynamic = 'force-dynamic';
 
 export default async function ConfiguracionFacturacionPage() {
@@ -17,7 +20,7 @@ export default async function ConfiguracionFacturacionPage() {
     : null;
 
   return (
-    <main className="flex-1 min-w-0">
+    <section className="flex-1 min-w-0">
       <div className="mx-auto w-full max-w-3xl px-8 py-10">
         <header className="mb-8">
           <Link
@@ -51,6 +54,6 @@ export default async function ConfiguracionFacturacionPage() {
 
         <SettingsForm settings={settings} />
       </div>
-    </main>
+    </section>
   );
 }

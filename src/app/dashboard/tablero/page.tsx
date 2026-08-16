@@ -12,6 +12,8 @@ import {
   type UpcomingAppointment,
 } from "@/components/dashboard/upcoming-appointments"
 
+export const metadata = { title: "Dashboard · Tuvetia" }
+
 const WEEKS = 12
 
 // Agrupa las fechas de consulta en 12 buckets semanales (lun–dom) para el gráfico.

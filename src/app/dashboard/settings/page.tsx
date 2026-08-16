@@ -16,6 +16,9 @@ import { PageHeader, PageShell } from "@/components/ui/page-shell"
 // Los rótulos de rol se mudaron a `lib/roles.ts`: el pie de la barra lateral también los usa ahora.
 import { ROLES_LEGIBLES } from "@/lib/roles"
 
+export const metadata = { title: "Configuración · Tuvetia" }
+
+
 
 export default async function SettingsPage() {
   const supabase = await createClient()
