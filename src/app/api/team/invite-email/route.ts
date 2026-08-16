@@ -2,6 +2,7 @@ import { NextResponse } from "next/server"
 
 import { createClient } from "@/lib/supabase/server"
 import { createAdminClient } from "@/lib/supabase/admin"
+import { clinicaDeLaSesion } from "@/lib/api/clinica-de-la-sesion"
 import { getAppBaseUrl } from "@/lib/base-url"
 import { loadClinicSender, sendTransactionalEmail } from "@/lib/email/transactional"
 
@@ -30,13 +31,12 @@ export async function POST(req: Request) {
   const body = (await req.json().catch(() => ({}))) as { token?: string }
   if (!body.token) return NextResponse.json({ error: "Falta token" }, { status: 400 })
 
-  const { data: prof } = await supabase
-    .from("profiles")
-    .select("clinic_id, role, full_name")
-    .eq("id", user.id)
-    .maybeSingle()
-  const p = prof as { clinic_id: string | null; role: string | null; full_name: string | null } | null
-  if (!p?.clinic_id || p.role !== "admin") {
+  // `clinicaDeLaSesion` comprueba además que la cuenta siga activa: invitar gente al equipo es
+  // justamente lo que no puede seguir haciendo alguien a quien se le quitó el acceso.
+  const sesion = await clinicaDeLaSesion(supabase, user.id)
+  if (!sesion.ok) return NextResponse.json({ error: sesion.mensaje }, { status: sesion.status })
+  const p = { clinic_id: sesion.clinicId, role: sesion.role, full_name: sesion.fullName }
+  if (p.role !== "admin") {
     return NextResponse.json({ error: "Solo administradores" }, { status: 403 })
   }
 

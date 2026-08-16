@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server"
 
 import { createClient } from "@/lib/supabase/server"
+import { clinicaDeLaSesion } from "@/lib/api/clinica-de-la-sesion"
 import { createAdminClient } from "@/lib/supabase/admin"
 import { providerFor } from "@/lib/whatsapp/provider"
 import { loadIntegration } from "@/lib/whatsapp/send-message"
@@ -15,13 +16,9 @@ export async function POST() {
   } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: "No autenticado" }, { status: 401 })
 
-  const { data: prof } = await supabase
-    .from("profiles")
-    .select("clinic_id")
-    .eq("id", user.id)
-    .maybeSingle()
-  const clinicId = (prof as { clinic_id: string | null } | null)?.clinic_id
-  if (!clinicId) return NextResponse.json({ error: "El usuario no tiene clínica" }, { status: 400 })
+  const sesion = await clinicaDeLaSesion(supabase, user.id)
+  if (!sesion.ok) return NextResponse.json({ error: sesion.mensaje }, { status: sesion.status })
+  const { clinicId } = sesion
 
   try {
     const integ = await loadIntegration(clinicId)

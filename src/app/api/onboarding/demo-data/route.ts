@@ -36,10 +36,22 @@ const DEMO_SOAP = {
     "Dieta blanda por 24 h, agua en tomas pequeñas y frecuentes. Control en 24 h. Acudir de inmediato si hay nuevos vómitos, decaimiento o dolor abdominal.",
 }
 
+// Lee con el cliente ADMIN, así que no puede apoyarse en `clinicaDeLaSesion` (que va por la sesión
+// del usuario) ni en la RLS: `service_role` se la salta entera. Por eso `is_active` se comprueba
+// acá a mano — es el único de los nueve puntos donde la guarda no viene de arriba.
+//
+// Devolver `clinicId: null` cuando la cuenta está desactivada es exactamente lo que hace falta: la
+// ruta ya trata ese caso como "no tiene clínica" y no siembra nada.
 async function clinicOf(userId: string) {
   const admin = createAdminClient()
-  const { data } = await admin.from("profiles").select("clinic_id").eq("id", userId).maybeSingle()
-  return { admin, clinicId: (data as { clinic_id: string | null } | null)?.clinic_id ?? null }
+  const { data } = await admin
+    .from("profiles")
+    .select("clinic_id, is_active")
+    .eq("id", userId)
+    .maybeSingle()
+  const p = data as { clinic_id: string | null; is_active: boolean | null } | null
+  if (p?.is_active === false) return { admin, clinicId: null }
+  return { admin, clinicId: p?.clinic_id ?? null }
 }
 
 export async function POST() {

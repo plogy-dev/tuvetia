@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server"
 
 import { createClient } from "@/lib/supabase/server"
+import { clinicaDeLaSesion } from "@/lib/api/clinica-de-la-sesion"
 import { sendWhatsAppText } from "@/lib/whatsapp/send-message"
 import { clasificarFalloDeEnvio } from "@/lib/whatsapp/error-de-envio"
 
@@ -18,13 +19,9 @@ export async function POST(req: Request) {
   const text = body.body?.trim() ?? ""
   if (!to || !text) return NextResponse.json({ error: "Faltan destinatario o mensaje" }, { status: 400 })
 
-  const { data: prof } = await supabase
-    .from("profiles")
-    .select("clinic_id")
-    .eq("id", user.id)
-    .maybeSingle()
-  const clinicId = (prof as { clinic_id: string | null } | null)?.clinic_id
-  if (!clinicId) return NextResponse.json({ error: "El usuario no tiene clínica" }, { status: 400 })
+  const sesion = await clinicaDeLaSesion(supabase, user.id)
+  if (!sesion.ok) return NextResponse.json({ error: sesion.mensaje }, { status: sesion.status })
+  const { clinicId } = sesion
 
   try {
     const { waMessageId, message } = await sendWhatsAppText(clinicId, to, text, {

@@ -2,6 +2,7 @@ import { NextResponse } from "next/server"
 import { z } from "zod"
 
 import { createClient } from "@/lib/supabase/server"
+import { clinicaDeLaSesion } from "@/lib/api/clinica-de-la-sesion"
 import { createAdminClient } from "@/lib/supabase/admin"
 import { ensureInstance, getConnectQr } from "@/lib/whatsapp/evolution"
 
@@ -23,13 +24,9 @@ export async function POST(req: Request) {
     .safeParse(await req.json().catch(() => ({})))
   if (!parsed.success) return NextResponse.json({ error: "Bad request" }, { status: 400 })
 
-  const { data: prof } = await supabase
-    .from("profiles")
-    .select("clinic_id")
-    .eq("id", user.id)
-    .maybeSingle()
-  const clinicId = (prof as { clinic_id: string | null } | null)?.clinic_id
-  if (!clinicId) return NextResponse.json({ error: "El usuario no tiene clínica" }, { status: 400 })
+  const sesion = await clinicaDeLaSesion(supabase, user.id)
+  if (!sesion.ok) return NextResponse.json({ error: sesion.mensaje }, { status: sesion.status })
+  const { clinicId } = sesion
 
   const admin = createAdminClient()
   const { data: existing } = await admin
