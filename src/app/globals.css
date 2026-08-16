@@ -44,8 +44,9 @@
   --color-popover: var(--popover);
   --color-card-foreground: var(--card-foreground);
   --color-card: var(--card);
-  /* `--radius` es 8px = la forma de los CONTROLES. `rounded-xl` es la de las
-     CARDS y tiene que dar 12px, por eso el factor pasa de 1.4 a 1.5. */
+  /* `--radius` es la forma de los CONTROLES y `rounded-xl` (×1.5) la de las CARDS.
+     El valor vive más abajo, en `:root` — hoy 12px, así que controles 9px y cards
+     18px. Este comentario decía "8px" y quedó viejo cuando el token subió. */
   --radius-sm: calc(var(--radius) * 0.5);
   --radius-md: calc(var(--radius) * 0.75);
   --radius-lg: var(--radius);

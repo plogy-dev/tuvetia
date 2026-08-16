@@ -72,52 +72,17 @@ export function PageHeader({
   )
 }
 
-/**
- * Un listado con la forma del mockup: UN contenedor con borde, y filas separadas por una línea.
- *
- * Es la diferencia de composición más visible entre lo que teníamos y lo que el cliente dibujó.
- * Nosotros poníamos una card con sombra por sección —a veces una por ítem—; el mockup no tiene
- * ninguna sombra fuera de los popovers, y sus listas son un solo bloque. Con veinte filas, veinte
- * cards son veinte rectángulos flotando; un bloque con líneas es una tabla que se lee de un vistazo.
- */
-export function ListaEnBloque({
-  children,
-  className,
-}: {
-  children: React.ReactNode
-  className?: string
-}) {
-  return (
-    <div
-      className={cn(
-        "overflow-hidden rounded-xl border border-line [&>*+*]:border-t [&>*]:border-line",
-        className,
-      )}
-    >
-      {children}
-    </div>
-  )
-}
-
-/** El encabezado de columnas: versalitas 11px, como en todo el sistema. */
-export function FilaEncabezado({
-  children,
-  className,
-}: {
-  children: React.ReactNode
-  className?: string
-}) {
-  return (
-    <div
-      className={cn(
-        "flex items-center gap-4 px-5 py-3.5 text-[11px] font-semibold uppercase tracking-[0.08em] text-fg-faint",
-        className,
-      )}
-    >
-      {children}
-    </div>
-  )
-}
+// SE RETIRARON `ListaEnBloque` y `FilaEncabezado` (2026-08-16).
+//
+// Eran el contenedor con borde y el encabezado de columnas para el rediseño de Pacientes con la
+// forma del mockup. Se escribieron por adelantado y **nunca se montaron en ninguna pantalla**: cero
+// usos en todo el repo, ni siquiera en tests. `Fila`, que iba adentro de `ListaEnBloque`, sí se usa
+// cinco veces — dentro de contenedores propios de cada pantalla.
+//
+// Se van porque una comparativa contra el mockup las daba por "listas para usar", y eso las hacía
+// contar como trabajo hecho. Un componente construido y nunca montado no es una base: es deuda con
+// forma de funcionalidad, y mientras esté nadie sabe si el rediseño está a medio hacer o sin
+// empezar. Están en el historial de git si el rediseño se retoma.
 
 /** Una fila de datos. El padding 16/20 es el del mockup. */
 export function Fila({ children, className }: { children: React.ReactNode; className?: string }) {
