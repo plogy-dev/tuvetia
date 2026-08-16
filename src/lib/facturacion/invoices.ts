@@ -750,6 +750,51 @@ export async function issueInvoice(
   }
   await appendEvent(supabase, invoice.id, 'ISSUED', { number, fullNumber });
 
+  // ── Registrar el pago declarado (Pagado ahora / Abono parcial) ─────────────
+  //
+  // VA ACÁ, PEGADO A LA EMISIÓN, Y NO AL FINAL. Estaba después del inventario, de las recetas y del
+  // documento fiscal — tres escrituras que lanzan si fallan. Cualquiera de las tres dejaba la
+  // factura EMITIDA, con su consecutivo fiscal quemado, y **la plata que el cliente ya entregó sin
+  // registrar en ningún lado**.
+  //
+  // Lo que eso provocaba, verificado extremo a extremo: el borrador nace con
+  // `balance_cents = total` (ver `createDraftInvoice`), `refreshInvoiceStatus` —que lo corregiría—
+  // también quedaba después del throw, y `cartera/scheduler.ts` levanta las facturas con
+  // `status='EMITIDA' AND followup_enabled AND balance_cents > 0`. O sea que en un ABONO PARCIAL el
+  // motor de cobranza le escribía al cliente por el TOTAL, habiendo pagado una parte en efectivo.
+  //
+  // Y ninguno de los tres mensajes de error mencionaba el pago: el vet leía "no se pudo descontar
+  // inventario" y no tenía cómo saber que lo otro había quedado sin anotar.
+  //
+  // EL CRITERIO: el pago es un hecho que YA OCURRIÓ EN EL MUNDO REAL — el cliente puso la plata
+  // sobre el mostrador. Registrarlo no puede depender de que el inventario cuadre ni de que el
+  // proveedor fiscal responda. El orden correcto es el orden de irreversibilidad: primero lo que ya
+  // pasó afuera, después lo que podemos reintentar.
+  //
+  // Si ESTE insert falla, se lanza igual que antes — pero ahora es el paso que falló y no un daño
+  // colateral de otro, así que el mensaje dice la verdad.
+  if (paidNowCents > 0) {
+    await insertPaymentWithApplication(
+      supabase,
+      clinicId,
+      {
+        invoiceId: invoice.id,
+        invoiceTotalCents: invoice.total_cents,
+        alreadyPaidCents: 0,
+        creditedCents: 0,
+        method: req.method!,
+        amountCents: paidNowCents,
+        reference: req.reference ?? null,
+        note:
+          req.outcome === 'ABONO_PARCIAL'
+            ? 'Abono declarado en la emisión'
+            : 'Pago declarado en la emisión',
+        createdBy: req.createdBy ?? null,
+      },
+      now,
+    );
+  }
+
   // Inventario: descuento al emitir (decisión de producto heredada de Vetnia).
   if (settings.inventory_decrement_on === 'INVOICE_ISSUE') {
     const movements = lines
@@ -906,31 +951,11 @@ export async function issueInvoice(
   // Sin resultado (proveedor caído): queda PENDIENTE_VALIDACION vía el evento
   // FISCAL_SUBMITTED; el cron de reintentos (1f) retomará el documento.
 
-  // ── Registrar el pago declarado (Pagado ahora / Abono parcial) ─────────────
-  // Después del documento fiscal (el hecho fiscal no depende del recaudo) y
-  // antes del refresh, para que los cachés cierren con el saldo real.
-  if (paidNowCents > 0) {
-    await insertPaymentWithApplication(
-      supabase,
-      clinicId,
-      {
-        invoiceId: invoice.id,
-        invoiceTotalCents: invoice.total_cents,
-        alreadyPaidCents: 0,
-        creditedCents: 0,
-        method: req.method!,
-        amountCents: paidNowCents,
-        reference: req.reference ?? null,
-        note:
-          req.outcome === 'ABONO_PARCIAL'
-            ? 'Abono declarado en la emisión'
-            : 'Pago declarado en la emisión',
-        createdBy: req.createdBy ?? null,
-      },
-      now,
-    );
-  }
-
+  // El pago YA se registró, arriba, pegado a la emisión — ver el comentario largo de allá.
+  //
+  // El `refreshInvoiceStatus` sí se queda al final: es un recálculo de cachés derivados y es
+  // idempotente, así que si algo lanzó antes, la siguiente lectura de la factura lo recompone. No
+  // tiene la propiedad que sí tenía el pago, que era la de perderse para siempre.
   const derived = await refreshInvoiceStatus(supabase, clinicId, invoice.id, now);
 
   // (La agenda de recordatorios local fue reemplazada por el motor de cartera:
