@@ -27,9 +27,11 @@ import { AthosWidget } from "@/components/athos/athos-widget"
 import { GrabacionPastilla } from "@/components/athos/grabacion-pastilla"
 import { PanelModoFantasma } from "@/components/athos/panel-modo-fantasma"
 import { migajaDeGrabacionPerdida } from "@/lib/consulta-viva/sesion"
+import { useConsultaViva } from "@/lib/consulta-viva/usar"
 
 export function AthosDock() {
   const pathname = usePathname()
+  const estado = useConsultaViva()
   // Abierto/cerrado del panel del Modo Fantasma. Vive acá y no en el módulo de la sesión a propósito:
   // que el panel esté visible es una preferencia de ESTA pestaña y de este momento, no parte del
   // estado de la grabación. Meterlo en `consultaViva` lo convertiría en algo que sobrevive la
@@ -49,9 +51,23 @@ export function AthosDock() {
     })
   }, [])
 
-  // La pastilla se ve en TODAS las pantallas, incluida `/dashboard/asistente`. La burbuja no: ahí
-  // la pantalla ES Athos, y una burbuja encima sería un segundo Athos con otro hilo.
+  // La burbuja no se ve en `/dashboard/asistente`: ahí la pantalla ES Athos, y una burbuja encima
+  // sería un segundo Athos con otro hilo.
   const ocultarBurbuja = pathname.startsWith("/dashboard/asistente")
+
+  // Y LA MISMA REGLA PARA LA GRABACIÓN. Estando en la pantalla de la consulta que se está grabando,
+  // la pastilla y el panel sobran: esa pantalla ya tiene el grabador con su cronómetro, su
+  // transcripción en vivo y su botón de detener.
+  //
+  // Sin esto había TRES superficies de grabación simultáneas —el bloque de la pantalla, la pastilla
+  // y el panel encima— cada una con su propio botón de detener. Es parte de lo que el cliente
+  // llamó "mucha fricción" en el Modo Fantasma.
+  //
+  // La pastilla existe para cuando el vet SE FUE a otra parte con el micrófono abierto, que es su
+  // único trabajo. Acá no se fue a ningún lado.
+  const enSuPropiaConsulta = Boolean(
+    estado.consultaId && pathname === `/dashboard/consultas/${estado.consultaId}`,
+  )
 
   return (
     <div
@@ -67,11 +83,14 @@ export function AthosDock() {
       // abajo — o sea solapados, en el único rango de anchos que nadie prueba.
       className="pointer-events-none fixed bottom-[calc(env(safe-area-inset-bottom)+5rem)] right-3 z-40 flex flex-col items-end gap-2 md:bottom-4 md:right-4"
     >
-      <GrabacionPastilla alAbrir={() => setPanelAbierto(true)} />
+      {!enSuPropiaConsulta && <GrabacionPastilla alAbrir={() => setPanelAbierto(true)} />}
       {!ocultarBurbuja && <AthosWidget />}
       {/* El panel es hermano de la pastilla dentro del dock, pero se posiciona solo con su propio
           `fixed inset-0`: el `bottom/right` del dock no lo afecta. */}
-      <PanelModoFantasma abierto={panelAbierto} alCerrar={() => setPanelAbierto(false)} />
+      <PanelModoFantasma
+        abierto={panelAbierto && !enSuPropiaConsulta}
+        alCerrar={() => setPanelAbierto(false)}
+      />
     </div>
   )
 }

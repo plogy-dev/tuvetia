@@ -11,7 +11,8 @@
 // como insumo cuando se redacta el SOAP, junto con la transcripción. Nunca entra solo a la
 // historia clínica — eso sigue pasando por el gate de alergia y por la aprobación del vet.
 
-import { useCuaderno, type EstadoDelCuaderno } from "@/lib/consulta-viva/cuaderno"
+import { useCuaderno } from "@/lib/consulta-viva/usar-cuaderno"
+import { type EstadoDelCuaderno } from "@/lib/consulta-viva/cuaderno"
 import { Textarea } from "@/components/ui/textarea"
 
 /**

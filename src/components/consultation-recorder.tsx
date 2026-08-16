@@ -38,6 +38,7 @@ export function ConsultationRecorder({
   patientId,
   ownerId,
   patientName,
+  motivo,
   onTranscribed,
 }: {
   consultationId: string
@@ -45,6 +46,8 @@ export function ConsultationRecorder({
   patientId: string
   ownerId?: string | null
   patientName?: string
+  /** `consultations.chief_complaint`, para que el panel lo muestre mientras se graba. */
+  motivo?: string | null
   onTranscribed?: () => void
 }) {
   const [supabase] = useState(() => createClient())
@@ -90,13 +93,14 @@ export function ConsultationRecorder({
         consultaId: consultationId,
         clinicId,
         pacienteNombre: patientName ?? null,
+        motivo: motivo ?? null,
         alTranscribir: onTranscribed,
       })
       setPidiendoConsentimiento(false)
     } catch (e) {
       toast.error((e as Error).message)
     }
-  }, [consultationId, clinicId, patientName, onTranscribed])
+  }, [consultationId, clinicId, patientName, motivo, onTranscribed])
 
   // Arranque: si el titular YA dio su consentimiento (vigente, no revocado), no se re-pregunta —
   // se registra la fila de esta consulta citando ese consentimiento y se graba directo.

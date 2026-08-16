@@ -529,6 +529,7 @@ export default function NotaConsultaPage({ params }: { params: Promise<{ id: str
                 patientId={consultation.patient_id}
                 ownerId={pet?.owner_id}
                 patientName={pet?.name}
+                motivo={consultation.chief_complaint}
                 onTranscribed={load}
               />
             )}

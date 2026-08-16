@@ -1,16 +1,17 @@
-"use client"
-
 // El cuaderno de la consulta: el texto que el vet escribe MIENTRAS atiende.
 //
-// POR QUÉ ES UN MÓDULO Y NO ESTADO DE UN COMPONENTE. El cuaderno se escribe desde dos lugares —el
-// panel flotante del Modo Fantasma y la pantalla de la consulta— y el panel SE DESMONTA al
-// minimizarlo (`PanelModoFantasma` devuelve null cuando está cerrado). Con el estado dentro del
-// componente, minimizar mientras se escribe perdía lo tecleado desde el último guardado.
+// UNA SOLA FUENTE DE VERDAD, y ése es el cambio importante. El cuaderno se pinta en DOS lugares a la
+// vez —la pantalla de la consulta y el panel flotante del Modo Fantasma— y antes cada uno tenía su
+// propio `useState`. Con el panel abierto sobre la pantalla, escribir en uno no actualizaba el otro:
+// sólo convergían al remontar. Dos cuadros de texto del mismo cuaderno mostrando cosas distintas.
 //
-// Por eso el guardado pendiente se vacía en el desmontaje, y el texto se conserva en memoria del
-// módulo mientras la pestaña viva: reabrir el panel muestra lo último escrito sin esperar a la red.
-
-import { useCallback, useEffect, useRef, useState } from "react"
+// Ahora el texto vive acá y los componentes se suscriben. Es el mismo patrón que `sesion.ts`: la
+// lógica en un `.ts` sin React —testeable con vitest, que corre en `environment: "node"`— y el
+// puente a React en `usar-cuaderno.ts`.
+//
+// POR QUÉ UN MAPA Y NO UN ÚNICO ESTADO. La pantalla monta el cuaderno de la consulta de la URL y el
+// panel el de la consulta que se está grabando, y no tienen por qué ser la misma. Con un solo estado
+// global los dos se pisarían.
 
 import { createClient } from "@/lib/supabase/client"
 
@@ -19,19 +20,40 @@ const ESPERA_MS = 1200
 
 export type EstadoDelCuaderno = "limpio" | "escribiendo" | "guardando" | "guardado" | "error"
 
+export type EntradaDeCuaderno = {
+  texto: string
+  estado: EstadoDelCuaderno
+}
+
 /**
- * Última versión conocida por consulta, viva mientras la pestaña lo esté.
+ * La entrada que se devuelve cuando no hay consulta.
  *
- * Sirve para dos cosas: que reabrir el panel no muestre un cuadro vacío mientras la lectura viaja,
- * y que el vaciado del desmontaje sepa qué escribir sin depender del estado de un componente que
- * ya no existe.
+ * Es una constante y no un objeto nuevo cada vez: `useSyncExternalStore` compara por REFERENCIA y
+ * entra en bucle infinito si `getSnapshot` devuelve un objeto distinto en cada llamada.
  */
-const enMemoria = new Map<string, string>()
+const VACIA: EntradaDeCuaderno = { texto: "", estado: "limpio" }
 
-/** Lo que quedó por guardar cuando el componente se fue. Se vacía en el próximo tick. */
+const entradas = new Map<string, EntradaDeCuaderno>()
+/** Lo que quedó por guardar. Sobrevive al desmontaje del componente. */
 const pendiente = new Map<string, string>()
+const temporizadores = new Map<string, ReturnType<typeof setTimeout>>()
+/** Consultas cuya lectura inicial ya se pidió, para no repetirla en cada montaje. */
+const cargadas = new Set<string>()
 
-async function guardar(consultaId: string, texto: string): Promise<void> {
+const oyentes = new Set<() => void>()
+
+function emitir(): void {
+  for (const fn of oyentes) fn()
+}
+
+/** Reemplaza la entrada por un OBJETO NUEVO: es lo que hace que los suscriptos se enteren. */
+function poner(consultaId: string, cambios: Partial<EntradaDeCuaderno>): void {
+  const previa = entradas.get(consultaId) ?? VACIA
+  entradas.set(consultaId, { ...previa, ...cambios })
+  emitir()
+}
+
+async function guardarEnLaBase(consultaId: string, texto: string): Promise<void> {
   const { error } = await createClient()
     .from("consultations")
     .update({ notebook: texto, updated_at: new Date().toISOString() })
@@ -39,99 +61,107 @@ async function guardar(consultaId: string, texto: string): Promise<void> {
   if (error) throw new Error(error.message)
 }
 
-/**
- * Vacía lo pendiente de una consulta. Se llama al desmontar y no se espera: el componente ya se
- * está yendo, y bloquear su desmontaje por una petición de red congelaría la interfaz.
- *
- * Si falla, el texto se queda en `enMemoria`, así que reabrir el panel lo muestra y el siguiente
- * guardado lo reintenta. No se pierde por un fallo de red.
- */
-function vaciar(consultaId: string): void {
-  const texto = pendiente.get(consultaId)
-  if (texto === undefined) return
-  pendiente.delete(consultaId)
-  void guardar(consultaId, texto).catch((e) => {
-    console.error("[cuaderno] no se pudo guardar al cerrar:", e)
+export const cuaderno = {
+  suscribir(fn: () => void): () => void {
+    oyentes.add(fn)
+    return () => {
+      oyentes.delete(fn)
+    }
+  },
+
+  /**
+   * La entrada de una consulta. Devuelve SIEMPRE la misma referencia mientras nada cambie, que es
+   * lo que `useSyncExternalStore` exige.
+   */
+  leer(consultaId: string | null): EntradaDeCuaderno {
+    if (!consultaId) return VACIA
+    return entradas.get(consultaId) ?? VACIA
+  },
+
+  /** En el servidor no hay cuaderno: no se ha escrito nada todavía. */
+  leerEnServidor(): EntradaDeCuaderno {
+    return VACIA
+  },
+
+  /**
+   * Trae lo guardado, UNA sola vez por consulta.
+   *
+   * No pisa lo que ya haya en memoria: el vet pudo escribir y minimizar antes de que esta lectura
+   * volviera, y sobrescribirlo con lo de la base sería borrarle lo que acaba de teclear.
+   */
+  async cargar(consultaId: string): Promise<void> {
+    if (cargadas.has(consultaId)) return
+    cargadas.add(consultaId)
+    try {
+      const { data } = await createClient()
+        .from("consultations")
+        .select("notebook")
+        .eq("id", consultaId)
+        .maybeSingle()
+      const guardado = (data as { notebook: string | null } | null)?.notebook ?? ""
+      if (guardado && !entradas.has(consultaId)) poner(consultaId, { texto: guardado })
+    } catch (e) {
+      // Sin cuaderno previo se sigue igual: el vet escribe y se guarda. Que la lectura falle no
+      // puede impedir escribir.
+      cargadas.delete(consultaId)
+      console.error("[cuaderno] no se pudo leer lo guardado:", e)
+    }
+  },
+
+  escribir(consultaId: string | null, texto: string): void {
+    if (!consultaId) return
+    poner(consultaId, { texto, estado: "escribiendo" })
     pendiente.set(consultaId, texto)
-  })
+
+    const previo = temporizadores.get(consultaId)
+    if (previo) clearTimeout(previo)
+    temporizadores.set(
+      consultaId,
+      setTimeout(() => {
+        temporizadores.delete(consultaId)
+        void cuaderno.vaciar(consultaId)
+      }, ESPERA_MS),
+    )
+  },
+
+  /**
+   * Guarda lo pendiente. Se llama por el temporizador y también al desmontar.
+   *
+   * Ante un fallo el texto VUELVE a la cola en vez de descartarse: el próximo guardado lo reintenta
+   * y el aviso queda en pantalla. Es lo que hace que minimizar el panel a mitad de una frase, o
+   * perder la red un segundo, no cuesten lo escrito.
+   */
+  async vaciar(consultaId: string): Promise<void> {
+    const texto = pendiente.get(consultaId)
+    if (texto === undefined) return
+    pendiente.delete(consultaId)
+    poner(consultaId, { estado: "guardando" })
+    try {
+      await guardarEnLaBase(consultaId, texto)
+      poner(consultaId, { estado: "guardado" })
+    } catch (e) {
+      pendiente.set(consultaId, texto)
+      poner(consultaId, { estado: "error" })
+      console.error("[cuaderno] no se pudo guardar:", e)
+    }
+  },
+
+  /** Cancela el guardado en espera de una consulta. Se usa al desmontar, antes de vaciar. */
+  cancelarEspera(consultaId: string): void {
+    const t = temporizadores.get(consultaId)
+    if (t) {
+      clearTimeout(t)
+      temporizadores.delete(consultaId)
+    }
+  },
 }
 
-/**
- * El cuaderno de una consulta, con autoguardado.
- *
- * `consultaId` en null (no hay consulta viva) devuelve un cuaderno inerte: sin lecturas, sin
- * escrituras y con el texto vacío.
- */
-export function useCuaderno(consultaId: string | null) {
-  const [texto, setTexto] = useState<string>(() =>
-    consultaId ? (enMemoria.get(consultaId) ?? "") : "",
-  )
-  const [estado, setEstado] = useState<EstadoDelCuaderno>("limpio")
-  const temporizador = useRef<ReturnType<typeof setTimeout> | null>(null)
-
-  // Lectura inicial. Sólo pisa lo que haya en memoria si la base trae algo: el vet pudo haber
-  // escrito y minimizado antes de que esta lectura volviera, y sobrescribirlo con lo de la base
-  // sería borrarle lo que acaba de teclear.
-  useEffect(() => {
-    if (!consultaId) return
-    let vivo = true
-    void createClient()
-      .from("consultations")
-      .select("notebook")
-      .eq("id", consultaId)
-      .maybeSingle()
-      .then(({ data }) => {
-        if (!vivo) return
-        const guardado = (data as { notebook: string | null } | null)?.notebook ?? ""
-        if (!enMemoria.has(consultaId) && guardado) {
-          enMemoria.set(consultaId, guardado)
-          setTexto(guardado)
-        }
-      })
-    return () => {
-      vivo = false
-    }
-  }, [consultaId])
-
-  // Al desmontar: cancelar el temporizador y vaciar lo pendiente. Es lo que hace que minimizar el
-  // panel a mitad de una frase no pierda nada.
-  //
-  // Depende de `consultaId` y no de `[]`: así también vacía al CAMBIAR de consulta. Con `[]` la
-  // limpieza sólo corría al desmontar, y para entonces el id ya era el de la consulta nueva —
-  // lo pendiente de la anterior no se guardaba nunca. El cierre captura el id de su propio render,
-  // que es justamente el que hay que vaciar.
-  useEffect(() => {
-    return () => {
-      if (temporizador.current) clearTimeout(temporizador.current)
-      if (consultaId) vaciar(consultaId)
-    }
-  }, [consultaId])
-
-  const escribir = useCallback(
-    (nuevo: string) => {
-      setTexto(nuevo)
-      if (!consultaId) return
-      enMemoria.set(consultaId, nuevo)
-      pendiente.set(consultaId, nuevo)
-      setEstado("escribiendo")
-      if (temporizador.current) clearTimeout(temporizador.current)
-      temporizador.current = setTimeout(() => {
-        const porGuardar = pendiente.get(consultaId)
-        if (porGuardar === undefined) return
-        pendiente.delete(consultaId)
-        setEstado("guardando")
-        void guardar(consultaId, porGuardar)
-          .then(() => setEstado("guardado"))
-          .catch((e) => {
-            console.error("[cuaderno] no se pudo guardar:", e)
-            // Vuelve a la cola: el próximo guardado lo reintenta y el aviso queda en pantalla.
-            pendiente.set(consultaId, porGuardar)
-            setEstado("error")
-          })
-      }, ESPERA_MS)
-    },
-    [consultaId],
-  )
-
-  return { texto, escribir, estado }
+/** Sólo para los tests: devuelve el módulo a cero entre casos. */
+export function _reiniciarCuaderno(): void {
+  entradas.clear()
+  pendiente.clear()
+  for (const t of temporizadores.values()) clearTimeout(t)
+  temporizadores.clear()
+  cargadas.clear()
+  oyentes.clear()
 }

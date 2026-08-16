@@ -1,20 +1,13 @@
 // El cuaderno guarda lo que el veterinario escribe DURANTE la consulta. Lo que se prueba acá es lo
-// único que de verdad puede doler: que no se pierda lo tecleado.
+// único que de verdad puede doler: que no se pierda lo tecleado, y que los dos cuadros de texto que
+// lo pintan muestren lo mismo.
 //
-// Se ejercita el módulo a través de su hook con un React mínimo simulado, porque la lógica que
-// importa —el rebote, el vaciado al desmontar y el reintento tras un fallo— vive en él y no en el
-// componente. Montar React entero para eso sería probar el framework.
-//
-// SE APAGA `react-hooks/globals` EN ESTE ARCHIVO, y no por comodidad: `vi.mock("react")` reemplaza
-// React entero por las cuatro funciones de abajo, así que acá no hay render ni componentes que esa
-// regla pueda proteger — el contador de llamadas que marca como "efecto durante el render" ES el
-// mecanismo del doble. En `cuaderno.ts`, que es el código de verdad, las reglas siguen puestas, y
-// ahí sí encontraron un defecto real: un ref mutado durante el render.
-/* eslint-disable react-hooks/globals */
+// El módulo no toca React —igual que `sesion.ts`— así que se ejercita directo, sin simular hooks.
+// La versión anterior de este archivo tenía que falsear `useState`/`useEffect` enteros; con la
+// lógica fuera de React eso desaparece.
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
-// ── El doble de Supabase ────────────────────────────────────────────────────────────────────────
 const guardados: { id: string; texto: string }[] = []
 let fallaElGuardado = false
 let notebookEnLaBase: string | null = null
@@ -30,134 +23,130 @@ vi.mock("@/lib/supabase/client", () => ({
         },
       }),
       select: () => ({
-        eq: () => ({
-          maybeSingle: async () => ({ data: { notebook: notebookEnLaBase } }),
-        }),
+        eq: () => ({ maybeSingle: async () => ({ data: { notebook: notebookEnLaBase } }) }),
       }),
     }),
   }),
 }))
 
-// ── Un React mínimo: sólo lo que el hook usa ────────────────────────────────────────────────────
-//
-// `useState` guarda por índice de llamada, `useRef` persiste entre renders, y `useEffect` corre su
-// cuerpo una vez y expone su limpieza para poder "desmontar" a mano.
-let estados: unknown[] = []
-let refs: { current: unknown }[] = []
-let limpiezas: (() => void)[] = []
-let i = 0
-let r = 0
-
-vi.mock("react", () => ({
-  useState: (inicial: unknown) => {
-    const j = i++
-    if (!(j in estados)) estados[j] = typeof inicial === "function" ? (inicial as () => unknown)() : inicial
-    return [estados[j], (v: unknown) => { estados[j] = typeof v === "function" ? (v as (p: unknown) => unknown)(estados[j]) : v }]
-  },
-  useRef: (inicial: unknown) => {
-    const j = r++
-    if (!refs[j]) refs[j] = { current: inicial }
-    return refs[j]
-  },
-  useEffect: (fn: () => void | (() => void)) => {
-    const limpieza = fn()
-    if (typeof limpieza === "function") limpiezas.push(limpieza)
-  },
-  useCallback: (fn: unknown) => fn,
-}))
-
-const { useCuaderno } = await import("@/lib/consulta-viva/cuaderno")
-
-/**
- * Un "render" del hook. Devuelve su API y una forma de desmontarlo.
- *
- * El nombre empieza por `use` para la regla de hooks: esto ES una llamada a un hook, sólo que
- * contra el React simulado de arriba en vez de contra un componente montado.
- */
-function useMontar(consultaId: string | null) {
-  i = 0
-  r = 0
-  limpiezas = []
-  const api = useCuaderno(consultaId)
-  const propias = [...limpiezas]
-  return { ...api, desmontar: () => propias.forEach((f) => f()) }
-}
+const { cuaderno, _reiniciarCuaderno } = await import("@/lib/consulta-viva/cuaderno")
 
 beforeEach(() => {
   guardados.length = 0
   fallaElGuardado = false
   notebookEnLaBase = null
-  estados = []
-  refs = []
-  limpiezas = []
+  _reiniciarCuaderno()
   vi.useFakeTimers()
 })
 afterEach(() => vi.useRealTimers())
 
-describe("el cuaderno no pierde lo escrito", () => {
+describe("una sola fuente de verdad", () => {
+  it("los DOS cuadros del mismo cuaderno leen lo mismo, sin remontar", () => {
+    // Es el defecto que motivó el refactor: la pantalla de la consulta y el panel flotante pintaban
+    // el mismo cuaderno con dos `useState` distintos, así que escribir en uno no movía el otro.
+    cuaderno.escribir("x1", "Peso 12,4")
+    expect(cuaderno.leer("x1").texto).toBe("Peso 12,4")
+  })
+
+  it("avisa a los suscriptos en cada tecla", () => {
+    const visto: string[] = []
+    const desuscribir = cuaderno.suscribir(() => visto.push(cuaderno.leer("x1").texto))
+    cuaderno.escribir("x1", "Pes")
+    cuaderno.escribir("x1", "Peso")
+    desuscribir()
+    cuaderno.escribir("x1", "Peso 12")
+    expect(visto).toEqual(["Pes", "Peso"]) // después de desuscribir no llega nada
+  })
+
+  it("cada consulta tiene su propio texto", () => {
+    // La pantalla puede estar en la consulta A mientras se graba la B.
+    cuaderno.escribir("x1", "lo de A")
+    cuaderno.escribir("x2", "lo de B")
+    expect(cuaderno.leer("x1").texto).toBe("lo de A")
+    expect(cuaderno.leer("x2").texto).toBe("lo de B")
+  })
+
+  it("devuelve la MISMA referencia mientras nada cambie", () => {
+    // `useSyncExternalStore` compara por referencia: si esto devolviera un objeto nuevo en cada
+    // llamada, React entraría en bucle infinito.
+    cuaderno.escribir("x1", "algo")
+    expect(cuaderno.leer("x1")).toBe(cuaderno.leer("x1"))
+    expect(cuaderno.leer(null)).toBe(cuaderno.leer("otra-sin-nada"))
+  })
+})
+
+describe("no se pierde lo escrito", () => {
   it("guarda tras dejar de escribir, no en cada tecla", async () => {
-    const c = useMontar("x1")
-    c.escribir("Pes")
-    c.escribir("Peso ")
-    c.escribir("Peso 12,4")
-    expect(guardados).toHaveLength(0) // todavía no: sigue tecleando
+    cuaderno.escribir("x1", "Pes")
+    cuaderno.escribir("x1", "Peso ")
+    cuaderno.escribir("x1", "Peso 12,4")
+    expect(guardados).toHaveLength(0)
 
     await vi.advanceTimersByTimeAsync(1300)
-    expect(guardados).toEqual([{ id: "x1", texto: "Peso 12,4" }]) // UNA escritura, la última
+    expect(guardados).toEqual([{ id: "x1", texto: "Peso 12,4" }])
+    expect(cuaderno.leer("x1").estado).toBe("guardado")
   })
 
   it("AL MINIMIZAR guarda lo tecleado, aunque el rebote no haya vencido", async () => {
-    // Es el caso que motivó todo esto: el panel se DESMONTA al minimizar, y sin vaciar en la
-    // limpieza se perdía lo escrito desde el último guardado.
-    const c = useMontar("x1")
-    c.escribir("Pedir hemograma")
+    // El panel se DESMONTA al minimizar. Sin vaciar en la limpieza se perdía lo escrito desde la
+    // última pausa.
+    cuaderno.escribir("x1", "Pedir hemograma")
     expect(guardados).toHaveLength(0)
 
-    c.desmontar()
-    await vi.advanceTimersByTimeAsync(0)
+    cuaderno.cancelarEspera("x1")
+    await cuaderno.vaciar("x1")
     expect(guardados).toEqual([{ id: "x1", texto: "Pedir hemograma" }])
-  })
-
-  it("al CAMBIAR de consulta vacía la anterior, no la nueva", async () => {
-    // Con la limpieza atada a `[]` el id ya era el de la consulta nueva cuando corría, y lo
-    // pendiente de la anterior no se guardaba nunca.
-    const a = useMontar("x1")
-    a.escribir("lo de la primera")
-    a.desmontar()
-    await vi.advanceTimersByTimeAsync(0)
-    expect(guardados).toEqual([{ id: "x1", texto: "lo de la primera" }])
   })
 
   it("si el guardado falla, lo escrito NO se descarta: el siguiente lo reintenta", async () => {
     fallaElGuardado = true
-    const c = useMontar("x1")
-    c.escribir("no se pierde")
+    cuaderno.escribir("x1", "no se pierde")
     await vi.advanceTimersByTimeAsync(1300)
-    expect(guardados).toHaveLength(0) // falló
+    expect(guardados).toHaveLength(0)
+    expect(cuaderno.leer("x1").estado).toBe("error")
 
     fallaElGuardado = false
-    c.desmontar() // el vaciado del desmontaje encuentra lo que quedó pendiente
-    await vi.advanceTimersByTimeAsync(0)
+    await cuaderno.vaciar("x1")
     expect(guardados).toEqual([{ id: "x1", texto: "no se pierde" }])
   })
 
-  it("sin consulta viva no escribe nada en la base", async () => {
-    const c = useMontar(null)
-    c.escribir("esto no va a ningún lado")
+  it("sin consulta viva no escribe nada", async () => {
+    cuaderno.escribir(null, "esto no va a ningún lado")
     await vi.advanceTimersByTimeAsync(2000)
-    c.desmontar()
-    await vi.advanceTimersByTimeAsync(0)
     expect(guardados).toHaveLength(0)
   })
 
-  it("no guarda de nuevo si nada cambió desde el último guardado", async () => {
-    const c = useMontar("x1")
-    c.escribir("una sola vez")
+  it("no guarda de nuevo si nada cambió", async () => {
+    cuaderno.escribir("x1", "una sola vez")
     await vi.advanceTimersByTimeAsync(1300)
     expect(guardados).toHaveLength(1)
 
-    c.desmontar() // sin teclas nuevas, el desmontaje no tiene nada que vaciar
-    await vi.advanceTimersByTimeAsync(0)
+    await cuaderno.vaciar("x1")
     expect(guardados).toHaveLength(1)
+  })
+})
+
+describe("la lectura inicial", () => {
+  it("trae lo guardado", async () => {
+    notebookEnLaBase = "lo de la vez pasada"
+    await cuaderno.cargar("x1")
+    expect(cuaderno.leer("x1").texto).toBe("lo de la vez pasada")
+  })
+
+  it("NO pisa lo que el vet ya escribió", async () => {
+    // Puede escribir y minimizar antes de que la lectura vuelva; sobrescribirlo sería borrarle lo
+    // que acaba de teclear.
+    notebookEnLaBase = "lo viejo"
+    cuaderno.escribir("x1", "lo que acabo de escribir")
+    await cuaderno.cargar("x1")
+    expect(cuaderno.leer("x1").texto).toBe("lo que acabo de escribir")
+  })
+
+  it("se pide UNA sola vez aunque el cuaderno se monte en dos lugares", async () => {
+    notebookEnLaBase = "algo"
+    await cuaderno.cargar("x1")
+    notebookEnLaBase = "otra cosa"
+    await cuaderno.cargar("x1")
+    expect(cuaderno.leer("x1").texto).toBe("algo")
   })
 })

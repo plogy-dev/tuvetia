@@ -56,6 +56,15 @@ export type EstadoConsultaViva = {
   fase: FaseGrabacion
   consultaId: string | null
   pacienteNombre: string | null
+  /**
+   * El motivo de la consulta (`consultations.chief_complaint`).
+   *
+   * Va en el estado de la sesión y no se relee de la base porque el panel del Modo Fantasma flota
+   * sobre CUALQUIER pantalla: pedirlo por su cuenta sería una consulta por apertura para un dato
+   * que ya se conoce al arrancar. El cliente lo pidió expreso — «el iniciar consulta me dice motivo
+   * de la consulta … y aquí me suelta el transcripto».
+   */
+  motivo: string | null
   segundos: number
   /** Texto confirmado por el proveedor de transcripción. */
   estable: string
@@ -70,6 +79,7 @@ const INACTIVA: EstadoConsultaViva = {
   fase: "inactiva",
   consultaId: null,
   pacienteNombre: null,
+  motivo: null,
   segundos: 0,
   estable: "",
   provisional: "",
@@ -81,6 +91,8 @@ type Parametros = {
   consultaId: string
   clinicId: string
   pacienteNombre?: string | null
+  /** Motivo de la consulta, para mostrarlo mientras se graba. */
+  motivo?: string | null
   /** Se llama cuando la transcripción quedó guardada. Puede correr con el vet en otra pantalla. */
   alTranscribir?: () => void
 }
@@ -252,6 +264,7 @@ export const consultaViva = {
         fase: "grabando",
         consultaId: p.consultaId,
         pacienteNombre: p.pacienteNombre ?? null,
+        motivo: p.motivo ?? null,
         segundos: 0,
         estable: "",
         provisional: "",

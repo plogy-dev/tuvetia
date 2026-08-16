@@ -75,6 +75,15 @@ export function PanelModoFantasma({ abierto, alCerrar }: { abierto: boolean; alC
               {estado.pacienteNombre}
             </span>
           )}
+          {/* EL MOTIVO DE LA CONSULTA, que el cliente pidió expreso: «el iniciar consulta me dice
+              motivo de la consulta … y aquí me suelta el transcripto».
+              Es lo que contesta "¿de qué estábamos hablando?" sin salir del panel — y el vet lo
+              escribió hace veinte minutos, cuando arrancó. */}
+          {estado.motivo?.trim() && (
+            <span className="min-w-0 truncate text-xs text-fg-muted">
+              · {estado.motivo}
+            </span>
+          )}
 
           <span className="ml-auto flex items-center gap-2">
             {grabando && (
