@@ -74,15 +74,33 @@ $$;
 
 -- ── Poder leerse a uno mismo, siempre ───────────────────────────────────────────────────────────
 
-drop policy if exists "profiles_select" on public.profiles;
-create policy "profiles_select" on public.profiles
-  for select using (
-    -- Tu propia fila, pase lo que pase: es lo que permite decirte que tu cuenta está desactivada
-    -- en vez de dejarte ver una app vacía sin explicación.
-    id = auth.uid()
-    -- Y los perfiles de tu clínica, como siempre.
-    or clinic_id = private.my_clinic_id()
-  );
+-- `ALTER POLICY` y NO `drop` + `create`, que es lo que decía la primera versión de este archivo.
+--
+-- Drop y create son DOS sentencias, y `psql -f` sin `-1` las corre en autocommit: entre una y otra
+-- queda una ventana —corta, pero real— con RLS habilitada y SIN policy de lectura sobre `profiles`,
+-- o sea con todas las lecturas denegadas. En una tabla que la app consulta en cada carga de página,
+-- esa ventana son errores para quien esté usando el producto en ese instante.
+--
+-- `ALTER POLICY` es una sola sentencia atómica: no hay instante intermedio, se aplique como se
+-- aplique. El `DO` es sólo para cubrir el caso de que la policy no exista (una base recién
+-- bootstrapeada), donde hay que crearla.
+do $$
+begin
+  if exists (
+    select 1 from pg_policies
+    where schemaname = 'public' and tablename = 'profiles' and policyname = 'profiles_select'
+  ) then
+    execute $q$
+      alter policy "profiles_select" on public.profiles
+        using (id = auth.uid() or clinic_id = private.my_clinic_id())
+    $q$;
+  else
+    execute $q$
+      create policy "profiles_select" on public.profiles
+        for select using (id = auth.uid() or clinic_id = private.my_clinic_id())
+    $q$;
+  end if;
+end $$;
 
 comment on function private.my_clinic_id() is
   'La clínica del usuario actual, o NULL si su perfil está inactivo. Es el gate de la desactivación '
