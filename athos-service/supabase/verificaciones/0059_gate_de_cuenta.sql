@@ -12,6 +12,16 @@
 -- RLS. Verificarlo exige hablarle a Postgres como un usuario `authenticated` con un `auth.uid()`
 -- puesto, que es lo que hace este script con `set local request.jwt.claims`.
 --
+-- DOS ROLES, Y NO ES UN CAPRICHO. Medido al correrlo: `authenticated` NO tiene USAGE sobre el
+-- esquema `private`, así que un `select private.my_clinic_id()` desde ese rol da
+-- «permission denied for schema private». Y está BIEN que sea así: las funciones son SECURITY
+-- DEFINER y se usan DENTRO de las policies, donde la evaluación no exige que el usuario alcance el
+-- esquema. Un veterinario no debería poder llamarlas a mano.
+--
+-- Por eso el script mira las funciones como `postgres` (con el claim del JWT puesto, que es lo que
+-- lee `auth.uid()`) y el COMPORTAMIENTO REAL como `authenticated`. Lo segundo es la prueba que
+-- importa: que el inactivo no vea una sola fila.
+--
 -- QUÉ COMPRUEBA, y las tres son la razón de existir de la 0059:
 --   1. Un perfil ACTIVO ve su clínica y sus pacientes. (Que el gate no rompa lo que funciona.)
 --   2. Un perfil INACTIVO no ve NI UN paciente de su propia clínica.
