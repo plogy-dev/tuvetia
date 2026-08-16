@@ -71,7 +71,14 @@ export function AthosWidget() {
     const t = texto.trim()
     if (!t || busy) return
     setInput("")
-    void sendMessage({ text: t }, { body: { patientId: ctx!.patientId, source: "widget" } })
+    // El CONTEXTO ENTERO, no sólo el paciente. `derivarContexto` distingue ocho pantallas y el
+    // widget ya las conoce —las pinta abajo, en "Estás en {ctx.descripcion}"— pero al agente le
+    // mandaba nada más el `patientId`, que es `null` en cinco de las ocho. Parado en la agenda o en
+    // una factura, Athos no sabía dónde estaba.
+    void sendMessage(
+      { text: t },
+      { body: { patientId: ctx!.patientId, contexto: ctx!.contexto, source: "widget" } },
+    )
   }
 
   if (!abierto) {

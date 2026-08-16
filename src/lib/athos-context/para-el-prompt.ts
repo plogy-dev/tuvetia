@@ -1,0 +1,78 @@
+// Traduce "qué está mirando el vet" a una línea del prompt del agente.
+//
+// EL HUECO QUE CIERRA. `derivarContexto` distingue OCHO contextos —paciente, consulta, agenda,
+// facturación con su `facturaId`, comunicaciones, titulares…— y el widget hasta pinta la frase en
+// pantalla ("Estás en la ficha de un paciente"). Pero al modelo sólo le llegaba el `patientId`, y
+// sólo para dos de los ocho: para consulta, agenda, factura y comunicaciones llegaba `null`.
+//
+// El comentario de `describirContexto` decía que la frase va "en la etiqueta del widget y en el
+// prompt del agente". Al prompt nunca llegó. Esto lo cumple.
+//
+// LA REGLA QUE ORDENA ESTE ARCHIVO: sólo se nombra una herramienta cuando EXISTE y cuando el
+// contexto trae lo que esa herramienta necesita. Decirle al modelo "usá get_invoice" cuando no hay
+// ninguna herramienta de facturas no lo vuelve más capaz: lo vuelve más propenso a inventar la
+// respuesta. Por eso el caso `facturacion` dice dónde está el vet y admite que no puede leerla.
+//
+// Función pura, sin React ni Next, para probarla con una tabla de casos.
+
+import type { AthosContexto } from "@/lib/athos-context/derivar"
+
+/**
+ * La línea que se agrega al bloque «Contexto runtime» del system prompt.
+ *
+ * Devuelve `null` cuando no hay nada útil que decir — el chat de Athos a pantalla completa y la
+ * navegación general no aportan contexto, y una línea que dice "estás en la plataforma" sólo gasta
+ * tokens.
+ */
+export function contextoParaElPrompt(c: AthosContexto): string | null {
+  switch (c.tipo) {
+    case "paciente":
+      return (
+        `El vet está viendo la FICHA de un paciente (id interno: ${c.patientId}). ` +
+        `Si la pregunta es sobre "este paciente" o no nombra a nadie, es éste: usá get_patient_summary.`
+      )
+
+    case "consulta":
+      return (
+        `El vet está en una CONSULTA abierta (id interno: ${c.consultaId}). ` +
+        `Usá get_consultation_details para saber de qué paciente es, qué se transcribió y qué dice la nota.`
+      )
+
+    // El chat a pantalla completa: el paciente del selector ya viaja aparte, en `patientId`, y
+    // repetir "estás en el chat" no le dice nada al modelo que no sepa.
+    case "asistente":
+      return null
+
+    case "agenda":
+      return (
+        "El vet está en la AGENDA. Si pregunta por citas sin decir de qué día, se refiere a hoy: " +
+        "usá list_appointments_on_day, y list_available_slots si busca un espacio libre."
+      )
+
+    case "comunicaciones":
+      return (
+        "El vet está en la BANDEJA de conversaciones con titulares. Si pide responderle a alguien " +
+        "sin decir a quién, preguntale de qué conversación habla antes de proponer un mensaje."
+      )
+
+    case "titulares":
+      return (
+        "El vet está en el listado de TITULARES. Ojo: la única herramienta de titulares busca por " +
+        "TELÉFONO (get_owner_by_phone), así que si te nombra a alguien sin dar el número, pediselo."
+      )
+
+    // NO SE NOMBRA NINGUNA HERRAMIENTA acá, y es a propósito: no existe ninguna que lea facturas.
+    // Decir que el vet está viendo la factura X e insinuar que se puede consultar terminaría en un
+    // saldo inventado, que en una pantalla de cobranza es peor que no responder.
+    case "facturacion":
+      return c.facturaId
+        ? `El vet está viendo una FACTURA (id interno: ${c.facturaId}). No tenés ninguna herramienta ` +
+            "para leer facturas: si necesitás su contenido —saldo, vencimiento, ítems— pedíselo al vet " +
+            "en vez de suponerlo."
+        : "El vet está en VENTAS (facturación). No tenés herramientas de facturación: si la pregunta " +
+            "es sobre una factura concreta, pedile los datos."
+
+    case "general":
+      return null
+  }
+}

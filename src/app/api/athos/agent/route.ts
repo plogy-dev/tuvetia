@@ -18,6 +18,7 @@ import { registrarUso } from "@/lib/athos-agent/usage"
 import { rateLimit } from "@/lib/athos-agent/rate-limit"
 import { consultarPresupuesto, mensajeSinCupo } from "@/lib/athos-agent/presupuesto"
 import { clinicaDeLaSesion } from "@/lib/api/clinica-de-la-sesion"
+import { bloqueDeContextoRuntime } from "@/lib/athos-agent/contexto-runtime"
 import type { AgentContext } from "@/lib/athos-agent/actions"
 
 export const runtime = "nodejs"
@@ -36,6 +37,23 @@ const BodySchema = z.object({
   // "chat" mintiendo.
   source: z.enum(["chat", "inbox", "widget", "onboarding"]).default("chat"),
   conversationKey: z.string().nullable().optional(),
+  // QUÉ PANTALLA ESTÁ MIRANDO EL VET. Lo deriva el cliente de la ruta (`derivarContexto`), así que
+  // llega del navegador y NO se le cree: se valida con la misma forma del tipo y los ids se exigen
+  // uuid. Lo peor que puede pasar con un contexto falseado es que el modelo mire una pantalla que
+  // no es — no da acceso a nada, porque toda lectura sigue pasando por la RLS de la sesión.
+  contexto: z
+    .discriminatedUnion("tipo", [
+      z.object({ tipo: z.literal("paciente"), patientId: z.string().uuid() }),
+      z.object({ tipo: z.literal("consulta"), consultaId: z.string().uuid() }),
+      z.object({ tipo: z.literal("asistente"), patientId: z.string().uuid().nullable() }),
+      z.object({ tipo: z.literal("titulares") }),
+      z.object({ tipo: z.literal("agenda") }),
+      z.object({ tipo: z.literal("comunicaciones") }),
+      z.object({ tipo: z.literal("facturacion"), facturaId: z.string().uuid().nullable() }),
+      z.object({ tipo: z.literal("general") }),
+    ])
+    .nullable()
+    .optional(),
 })
 
 export async function POST(req: Request) {
@@ -55,7 +73,7 @@ export async function POST(req: Request) {
 
   const parsed = BodySchema.safeParse(await req.json().catch(() => null))
   if (!parsed.success) return new Response("Bad request", { status: 400 })
-  const { messages, patientId, source, conversationKey } = parsed.data
+  const { messages, patientId, source, conversationKey, contexto } = parsed.data
 
   // Resuelve la clínica Y comprueba que la cuenta siga activa, en el mismo select. Antes esto sólo
   // sacaba `clinic_id`, y una cuenta desactivada llegaba hasta acá con su JWT todavía válido y
@@ -122,17 +140,18 @@ export async function POST(req: Request) {
       ? `\n- ⚠️ El vet dio POCOS datos clínicos (${densidad.datos}: ${densidad.señales.join(", ") || "ninguno"}). NO desarrolles diferenciales, protocolos ni dosis: haz 2-3 preguntas de clarificación y nada más.`
       : ""
 
-  const system = `${ATHOS_AGENT_SYSTEM_PROMPT}\n\n# Contexto runtime\n\n- Fecha de hoy: ${todayISO} (hora de Colombia, UTC-5).${
-    clinicName
-      ? `\n- Clínica: **${clinicName}**. Es el nombre con el que firmás los correos y el que va en el asunto cuando ayuda — nunca "Veterinaria" a secas.`
-      : ""
-  }${
-    sesion.fullName
-      ? `\n- Hablás con ${sesion.fullName}. Los correos salen de SU cuenta: la firma lleva su nombre y debajo el de la clínica.`
-      : ""
-  }${
-    patientId ? `\n- Hay un paciente en contexto (id interno: ${patientId}) — usa get_patient_summary si lo necesitas.` : ""
-  }${source === "inbox" ? "\n- Estás en la bandeja de WhatsApp: el objetivo típico es proponer una respuesta con send_whatsapp_message." : ""}${avisoDensidad}`
+  // El bloque salió a `lib/athos-agent/contexto-runtime.ts`: era un template literal de once líneas
+  // acá adentro, imposible de probar sin levantar la ruta. Y es justo lo que hay que poder probar —
+  // si una línea deja de llegar al prompt, el modelo pierde una capacidad y no falla nada.
+  const system = `${ATHOS_AGENT_SYSTEM_PROMPT}\n\n${bloqueDeContextoRuntime({
+    hoyISO: todayISO,
+    clinica: clinicName,
+    vet: sesion.fullName,
+    patientId,
+    contexto,
+    source,
+    avisoDensidad,
+  })}`
 
   const result = streamText({
     model: elegido.model,
