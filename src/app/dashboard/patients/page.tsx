@@ -6,6 +6,7 @@ import { HelpTip } from "@/components/help-tip"
 import { PatientsExplorer, type PatientRow } from "@/components/patients-explorer"
 import { Button } from "@/components/ui/button"
 import { PageHeader, PageShell } from "@/components/ui/page-shell"
+import { VistaPacientesTitulares } from "@/components/patients/vista-pacientes-titulares"
 import { StatCard } from "@/components/ui/stat-card"
 import { createClient } from "@/lib/supabase/server"
 
@@ -97,6 +98,8 @@ export default async function PatientsPage({
           </>
         }
       />
+
+      <VistaPacientesTitulares activa="/dashboard/patients" />
 
       <div className="mb-5 grid grid-cols-2 gap-3 lg:grid-cols-4">
         {metrics.map((m) => (

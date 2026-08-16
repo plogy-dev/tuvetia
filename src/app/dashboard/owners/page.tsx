@@ -6,6 +6,7 @@ import { SearchBar } from "@/components/search-bar"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { Button } from "@/components/ui/button"
 import { PageHeader, PageShell } from "@/components/ui/page-shell"
+import { VistaPacientesTitulares } from "@/components/patients/vista-pacientes-titulares"
 import {
   Table,
   TableBody,
@@ -67,6 +68,7 @@ export default async function OwnersPage({
         }${q ? ` que coinciden con «${q}»` : ""}`}
         actions={<CreateOwnerDrawer />}
       />
+      <VistaPacientesTitulares activa="/dashboard/owners" />
       <div className="mb-4">
         <SearchBar defaultValue={q ?? ""} placeholder="Buscar titular..." />
       </div>

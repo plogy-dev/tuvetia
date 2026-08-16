@@ -21,7 +21,6 @@ import {
   BotIcon,
   CalendarIcon,
   CircleHelpIcon,
-  ContactIcon,
   GhostIcon,
   LayoutDashboardIcon,
   MessageCircleIcon,
@@ -69,13 +68,21 @@ const data = {
     { title: "Athos", url: "/dashboard/asistente", icon: <BotIcon /> },
     { title: "Modo Fantasma", url: "/dashboard/consultas", icon: <GhostIcon /> },
   ],
+  // EL ORDEN LO PIDIÓ EL CLIENTE en la grabación del 12-ago: «primero Pacientes, luego Ventas,
+  // luego Comunicaciones». Antes abría con Dashboard, que es una superficie de LECTURA — se mira,
+  // no se trabaja en ella. Agenda queda pegada a Pacientes porque son la misma jornada; Dashboard y
+  // Conexiones bajan al final por lo mismo: una se consulta y la otra se toca una vez.
+  //
+  // TITULARES YA NO ESTÁ ACÁ. No se borró: pasó a ser una vista dentro de Pacientes
+  // (`components/patients/vista-pacientes-titulares.tsx`), que es la fusión que pidió el cliente.
+  // La ruta `/dashboard/owners` sigue existiendo y sigue siendo el único lugar donde vive el
+  // consentimiento de grabación del titular — por eso la vista se conserva y no se disuelve.
   crm: [
-    { title: "Dashboard", url: "/dashboard/tablero", icon: <LayoutDashboardIcon /> },
     { title: "Pacientes", url: "/dashboard/patients", icon: <UsersIcon /> },
-    { title: "Titulares", url: "/dashboard/owners", icon: <ContactIcon /> },
     { title: "Agenda", url: "/dashboard/calendario", icon: <CalendarIcon /> },
     { title: "Ventas", url: "/dashboard/facturacion", icon: <ReceiptIcon /> },
     { title: "Comunicaciones", url: "/dashboard/comunicaciones", icon: <MessageCircleIcon /> },
+    { title: "Dashboard", url: "/dashboard/tablero", icon: <LayoutDashboardIcon /> },
     { title: "Conexiones", url: "/dashboard/conexiones", icon: <PlugIcon /> },
   ],
   navSecondary: [
