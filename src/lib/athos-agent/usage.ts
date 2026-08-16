@@ -26,6 +26,8 @@ export type SuperficieDeUso =
   | "cartera_inbound"
   | "vision_recipe"
   | "vision_purchase"
+  // El briefing diario: gasto que ocurre SIN que ningun vet lo haya pedido, asi que se mide aparte.
+  | "briefing"
 
 /** Lo que devuelve `result.usage` del AI SDK (`LanguageModelUsage`). */
 type UsoDeTokens = { inputTokens?: number; outputTokens?: number } | undefined
