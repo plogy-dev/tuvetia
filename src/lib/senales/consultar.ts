@@ -24,10 +24,42 @@ import { pendientesDeLaClinica, type MensajeParaSenal, type Pendiente } from "@/
  */
 const MENSAJES_A_MIRAR = 400
 
+/** Qué señales no se pudieron leer en esta pasada. Vacío = todas respondieron. */
+export type SenalesCaidas = string[]
+
+/**
+ * Degrada a `[]` como antes, pero DEJANDO RASTRO.
+ *
+ * El silencio puro ya costó caro: el 2026-08-16, en el primer disparo real del briefing, dos
+ * clínicas con notas pendientes se saltaron como "nada que contar" y no hubo forma de saber por
+ * qué — el error existió y se descartó sin registrarlo. Con dos consultas a la base no se podía
+ * distinguir "esta clínica está al día" de "la consulta se cayó".
+ *
+ * La degradación SIGUE SIENDO LA CORRECTA: un riel al que le falta una línea es mejor que una
+ * pantalla de inicio rota. Lo que cambia es que ahora se sabe.
+ */
+function oVacio<T>(tabla: string, clinicId: string, caidas: SenalesCaidas) {
+  return (r: { data: unknown; error: { message: string } | null }): T[] => {
+    if (r.error) {
+      console.error(`[senales] ${tabla} no respondió para la clínica ${clinicId}: ${r.error.message}`)
+      caidas.push(tabla)
+      return []
+    }
+    return (r.data ?? []) as T[]
+  }
+}
+
 export type SenalesDeLaClinica = {
   pendientes: Pendiente[]
   /** Para el riel, que ya los mostraba antes de que esto existiera. */
   cobrosVencidos: { cuantas: number; totalCents: number }
+  /**
+   * Qué consultas fallaron. Vacío en el caso normal.
+   *
+   * Existe para que el LLAMADOR pueda distinguir "no hay nada pendiente" de "no pude averiguarlo",
+   * que es exactamente lo que faltaba cuando el briefing se saltó dos clínicas sin explicación.
+   */
+  caidas: SenalesCaidas
 }
 
 /**
@@ -46,13 +78,15 @@ export async function senalesDeLaClinica(
   const limiteVacunas = new Date(`${hoyISO}T00:00:00-05:00`)
   limiteVacunas.setUTCDate(limiteVacunas.getUTCDate() + 30)
 
+  const caidas: SenalesCaidas = []
+
   const [notas, mensajes, vacunas, tareas, facturas] = await Promise.all([
     supabase
       .from("clinical_notes")
       .select("status")
       .eq("clinic_id", clinicId)
       .eq("status", "draft")
-      .then((r) => (r.error ? [] : ((r.data ?? []) as { status: string }[]))),
+      .then(oVacio<{ status: string }>("clinical_notes", clinicId, caidas)),
 
     supabase
       .from("whatsapp_messages")
@@ -60,7 +94,7 @@ export async function senalesDeLaClinica(
       .eq("clinic_id", clinicId)
       .order("created_at", { ascending: false })
       .limit(MENSAJES_A_MIRAR)
-      .then((r) => (r.error ? [] : ((r.data ?? []) as MensajeParaSenal[]))),
+      .then(oVacio<MensajeParaSenal>("whatsapp_messages", clinicId, caidas)),
 
     supabase
       .from("vaccines")
@@ -68,14 +102,14 @@ export async function senalesDeLaClinica(
       .eq("clinic_id", clinicId)
       .not("next_dose_at", "is", null)
       .lte("next_dose_at", limiteVacunas.toISOString().slice(0, 10))
-      .then((r) => (r.error ? [] : ((r.data ?? []) as { next_dose_at: string | null }[]))),
+      .then(oVacio<{ next_dose_at: string | null }>("vaccines", clinicId, caidas)),
 
     supabase
       .from("human_tasks")
       .select("status")
       .eq("clinic_id", clinicId)
       .eq("status", "open")
-      .then((r) => (r.error ? [] : ((r.data ?? []) as { status: string }[]))),
+      .then(oVacio<{ status: string }>("human_tasks", clinicId, caidas)),
 
     // Las vencidas se calculan acá y no en SQL porque el "hoy" es el de BOGOTÁ, no el del servidor:
     // con `due_date < now()` en UTC, una factura que vence hoy aparecería vencida desde las 19:00
@@ -86,9 +120,7 @@ export async function senalesDeLaClinica(
       .eq("clinic_id", clinicId)
       .eq("status", "EMITIDA")
       .gt("balance_cents", 0)
-      .then((r) =>
-        r.error ? [] : ((r.data ?? []) as { balance_cents: number | null; due_date: string | null }[]),
-      ),
+      .then(oVacio<{ balance_cents: number | null; due_date: string | null }>("invoices", clinicId, caidas)),
   ])
 
   const vencidas = facturas.filter((f) => (f.balance_cents ?? 0) > 0 && f.due_date && f.due_date < hoyISO)
@@ -100,5 +132,6 @@ export async function senalesDeLaClinica(
   return {
     pendientes: pendientesDeLaClinica({ hoyISO, notas, mensajes, vacunas, tareas, cobros }),
     cobrosVencidos: cobros,
+    caidas,
   }
 }

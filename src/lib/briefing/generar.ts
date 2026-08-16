@@ -35,7 +35,20 @@ export type ResultadoDelBriefing = {
   clinicas: number
   redactados: number
   /** Apagadas, ya escritas hoy, o sin nada que contar. Cada una es un token NO gastado. */
-  omitidos: { clinicId: string; motivo: "apagado" | "ya-existe" | "nada-que-contar" }[]
+  /**
+   * Por qué NO se redactó. Los motivos están separados a propósito:
+   *
+   *   · `sin-senales`    la clínica está al día. Es el caso bueno.
+   *   · `senales-caidas` NO SE PUDO AVERIGUAR: alguna consulta falló. Se ve igual desde afuera pero
+   *                      significa lo contrario, y conflarlos fue lo que hizo indiagnosticable que
+   *                      dos clínicas con notas pendientes se saltaran el 2026-08-16.
+   *   · `modelo-vacio`   se llamó al modelo —o sea que SE PAGÓ— y devolvió texto vacío.
+   */
+  omitidos: {
+    clinicId: string
+    motivo: "apagado" | "ya-existe" | "sin-senales" | "senales-caidas" | "modelo-vacio"
+    detalle?: string
+  }[]
   fallidos: { clinicId: string; error: string }[]
 }
 
@@ -68,7 +81,7 @@ export async function generarBriefings(hoyISO = bogotaTodayISO()): Promise<Resul
         continue
       }
 
-      const { pendientes } = await senalesDeLaClinica(admin, c.id, hoyISO)
+      const { pendientes, caidas } = await senalesDeLaClinica(admin, c.id, hoyISO)
 
       const finDeHoy = finDelDiaBogota(hoyISO)
       const { data: citasData } = await admin
@@ -93,9 +106,23 @@ export async function generarBriefings(hoyISO = bogotaTodayISO()): Promise<Resul
       const insumos: InsumosDelBriefing = { pendientes, citas, clinica: c.name }
 
       // GUARDA 3: sin nada que contar, no se llama al modelo.
+      //
+      // "No hay nada" y "no pude averiguarlo" se ven IGUAL desde acá —los dos dan cero señales— y
+      // significan lo contrario. Se reportan distinto para que un fallo no se lea como una clínica
+      // al día: eso fue exactamente lo que pasó en el primer disparo real.
       if (!valeLaPenaRedactar(insumos)) {
-        res.omitidos.push({ clinicId: c.id, motivo: "nada-que-contar" })
+        res.omitidos.push(
+          caidas.length > 0
+            ? { clinicId: c.id, motivo: "senales-caidas", detalle: caidas.join(", ") }
+            : { clinicId: c.id, motivo: "sin-senales" },
+        )
         continue
+      }
+
+      // Con señales caídas SÍ se sigue si algo quedó: el briefing va a estar incompleto, pero un
+      // resumen parcial es mejor que ninguno. Queda anotado en la fila para poder explicarlo.
+      if (caidas.length > 0) {
+        console.warn(`[briefing] la clínica ${c.id} se redacta con señales incompletas: ${caidas.join(", ")}`)
       }
 
       const elegido = agentModel()
@@ -108,7 +135,9 @@ export async function generarBriefings(hoyISO = bogotaTodayISO()): Promise<Resul
 
       const texto = limpiarBriefing(salida.text)
       if (!texto) {
-        res.omitidos.push({ clinicId: c.id, motivo: "nada-que-contar" })
+        // OJO: acá el modelo YA SE PAGÓ. Por eso no comparte motivo con las guardas de arriba, que
+        // son las que evitan el gasto.
+        res.omitidos.push({ clinicId: c.id, motivo: "modelo-vacio" })
         continue
       }
 
