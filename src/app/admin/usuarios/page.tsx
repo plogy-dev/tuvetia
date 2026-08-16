@@ -1,8 +1,11 @@
 import { loadPlatformUsers } from "@/lib/admin/users"
 import { platformEmailConfigurado } from "@/lib/email/platform-sender"
+import { createClient } from "@/lib/supabase/server"
 import { TOPE_ENVIO_MASIVO } from "@/lib/admin/limites"
+import { DIAS_PARA_DORMIDA, ordenarPorRiesgo } from "@/lib/admin/riesgo"
 import { ExportCsvButton } from "@/components/export-csv-button"
 import { SendEmailDialog } from "@/components/admin/send-email-dialog"
+import { ToggleActivacion } from "@/components/admin/toggle-activacion"
 import { BulkEmailPanel } from "@/components/admin/bulk-email-panel"
 import { Badge } from "@/components/ui/badge"
 import {
@@ -26,8 +29,20 @@ export const maxDuration = 120
 const fecha = (iso: string | null) => (iso ? iso.slice(0, 10) : "—")
 
 export default async function AdminUsuariosPage() {
-  const { users, pending } = await loadPlatformUsers()
+  const { users: sinOrdenar, pending } = await loadPlatformUsers()
   const configurado = platformEmailConfigurado()
+
+  // ORDENADA PARA REVISAR, no por fecha de alta. Con 17 cuentas da igual; con 300 el orden ES la
+  // revisión, porque nadie baja hasta el final. Ver `lib/admin/riesgo.ts`, que también documenta
+  // qué NO puede ver este puntaje.
+  const users = ordenarPorRiesgo(sinOrdenar)
+
+  // Quién está mirando. Sólo se usa para apagar el botón en su propia fila — el servidor lo vuelve
+  // a comprobar en `cambiarActivacion`, porque una server action es un endpoint propio y esconder
+  // un botón no protege nada.
+  const {
+    data: { user: admin },
+  } = await (await createClient()).auth.getUser()
 
   const sinCorreo = users.filter((u) => !u.email).length
   const nuncaEntraron = users.filter((u) => u.nuncaEntro).length
@@ -55,6 +70,16 @@ export default async function AdminUsuariosPage() {
             Perfiles de <code>public.profiles</code> cruzados con el correo de <code>auth.users</code>{" "}
             y con <code>memberships</code> (todas sus clínicas, no sólo la activa).
             {conTelefono === 0 && " Ningún perfil tiene teléfono cargado: hoy el contacto es el correo."}
+          </p>
+          {/* EL ORDEN NO ES POR FECHA. Decirlo acá y no con una insignia por fila: las columnas ya
+              muestran los hechos —"nunca" en último acceso, "—" en correo y en clínica— y repetirlos
+              al lado del nombre sería decir lo mismo dos veces en la misma fila. Lo que hacía falta
+              explicar era el criterio, no el dato. */}
+          <p className="mt-1 text-xs text-muted-foreground">
+            Ordenados <b className="font-medium text-foreground">por lo que conviene revisar antes</b>{" "}
+            —nunca entró, sin clínica, sin correo, +{DIAS_PARA_DORMIDA} días sin entrar— y no por
+            fecha de alta. Las desactivadas van al fondo. No mide consumo de IA: eso está en{" "}
+            <code>/admin/uso</code>.
           </p>
         </div>
         <ExportCsvButton
@@ -146,9 +171,19 @@ export default async function AdminUsuariosPage() {
                   {u.nuncaEntro ? "nunca" : fecha(u.lastSignInAt)}
                 </TableCell>
                 <TableCell className="relative">
-                  {u.email && (
-                    <SendEmailDialog to={u.email} nombre={u.fullName} configurado={configurado} />
-                  )}
+                  <div className="flex items-center justify-end gap-0.5">
+                    {u.email && (
+                      <SendEmailDialog to={u.email} nombre={u.fullName} configurado={configurado} />
+                    )}
+                    <ToggleActivacion
+                      userId={u.id}
+                      nombre={u.fullName}
+                      // `null` en la base cuenta como activa: la columna se agregó después de que
+                      // existieran perfiles, y los viejos la tienen sin valor.
+                      activo={u.isActive !== false}
+                      esUnoMismo={u.id === admin?.id}
+                    />
+                  </div>
                 </TableCell>
               </TableRow>
             ))}
