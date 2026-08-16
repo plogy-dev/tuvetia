@@ -93,7 +93,11 @@ function outputError(output: unknown): string | null {
  */
 function sinMarcas(texto: string): string {
   return texto
-    .replace(/\s*\[\[propuesto:[a-z_,]+\]\]/g, "")
+    // `[^\]]*` y no `[a-z_,]+`: el patrón estricto sólo tapaba las marcas que escribe el servidor,
+    // y las que escribe el MODELO no respetan ese formato. En producción quedó a la vista del vet
+    // `[[propuesto:send_email, send_email]]` — el espacio rompía el patrón y la marca se pintó como
+    // texto. `turnoAGuardar` ya no las persiste, pero las filas viejas siguen guardadas.
+    .replace(/\s*\[\[propuesto:[^\]]*\]\]/g, "")
     // `sanearHistorial` agrega esta segunda marca a los turnos VIEJOS que afirmaban una propuesta
     // sin haberla registrado. Igual que la otra: contexto para el modelo, invisible para el vet.
     .replace(/\s*\[\[sin-propuesta:[^\]]*\]\]/g, "")

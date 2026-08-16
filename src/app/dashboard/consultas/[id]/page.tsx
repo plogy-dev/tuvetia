@@ -633,7 +633,12 @@ export default function NotaConsultaPage({ params }: { params: Promise<{ id: str
                     <span className="text-xs text-muted-foreground">{f.hint}</span>
                   </div>
                   {approved ? (
-                    <p className="text-sm leading-relaxed whitespace-pre-wrap">
+                    // ANCHO DE LECTURA. Sin el tope esto corría a 84 caracteres por línea medidos
+                    // en producción a 1440px — y como no tenía `max-width`, seguía creciendo con el
+                    // monitor. Es el mismo defecto que se corrigió en el hilo del chat, sobre el
+                    // texto que más se lee del producto: la nota que el vet revisa antes de firmar.
+                    // 70ch queda dentro del rango cómodo y cerca de los 75ch de la transcripción.
+                    <p className="max-w-[70ch] text-sm leading-relaxed whitespace-pre-wrap">
                       {soap[f.key] ? (
                         f.key === "plan" ? (
                           renderPlan(soap[f.key], citations, f.key, alergias)
