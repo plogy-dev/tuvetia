@@ -12,6 +12,7 @@
 
 import { contextoParaElPrompt } from "@/lib/athos-context/para-el-prompt"
 import type { AthosContexto } from "@/lib/athos-context/derivar"
+import { pendientesParaElPrompt, type Pendiente } from "@/lib/senales/pendientes"
 
 export type InsumosDelContexto = {
   /** Fecha de hoy en Bogotá, YYYY-MM-DD. */
@@ -28,6 +29,14 @@ export type InsumosDelContexto = {
   source?: string
   /** Aviso de densidad clínica, ya redactado por `densidadClinica`. Vacío si no aplica. */
   avisoDensidad?: string
+  /**
+   * Qué está esperando en la clínica: notas sin aprobar, titulares sin respuesta, cobros vencidos.
+   *
+   * Sale de `lib/senales/pendientes.ts` y NO cuesta un token: son consultas a la base. Entra al
+   * prompt para que el modelo llegue sabiendo, en vez de tener que salir a buscarlo con
+   * herramientas cuando el vet pregunta "¿qué tengo pendiente?".
+   */
+  pendientes?: Pendiente[]
 }
 
 /**
@@ -64,6 +73,11 @@ export function bloqueDeContextoRuntime(i: InsumosDelContexto): string {
   // agrega línea: una que diga "estás en la plataforma" se paga en tokens todos los turnos.
   const pantalla = i.contexto ? contextoParaElPrompt(i.contexto) : null
   if (pantalla) lineas.push(pantalla)
+
+  // QUÉ ESTÁ ESPERANDO EN LA CLÍNICA. Va después de la pantalla y antes del objetivo de la bandeja:
+  // primero dónde estás, después qué hay pendiente, después qué se espera de vos acá.
+  const pendientes = i.pendientes ? pendientesParaElPrompt(i.pendientes) : null
+  if (pendientes) lineas.push(pendientes)
 
   if (i.source === "inbox") {
     lineas.push(

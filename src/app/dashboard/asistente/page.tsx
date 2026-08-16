@@ -13,6 +13,7 @@ import {
   type PendienteDelRiel,
 } from "@/components/athos/riel-clinica"
 import { consultarPresupuesto, type Presupuesto } from "@/lib/athos-agent/presupuesto"
+import { senalesDeLaClinica } from "@/lib/senales/consultar"
 import { RielConfiguracion } from "@/components/onboarding/riel-configuracion"
 import { progresoDeConfiguracion } from "@/lib/onboarding/consultar"
 import { Assistant, type AssistantPatient } from "./assistant"
@@ -167,9 +168,9 @@ export default async function AsistentePage({
       carteraVencidaCents = filas
         .filter((f) => (f.balance_cents ?? 0) > 0 && f.due_date && f.due_date < hoy)
         .reduce((s, f) => s + (f.balance_cents ?? 0), 0)
-      const vencidas = filas.filter(
-        (f) => (f.balance_cents ?? 0) > 0 && f.due_date && f.due_date < hoy,
-      ).length
+      // `vencidas` (el CONTEO) se fue con la lista armada a mano: ahora lo calcula
+      // `senalesDeLaClinica`. `carteraVencidaCents` se queda porque el riel muestra el MONTO en su
+      // propia fila, aparte de los pendientes.
 
       type CitaFila = {
         id: string
@@ -188,16 +189,17 @@ export default async function AsistentePage({
         }
       })
 
-      if (vencidas > 0) {
-        pendientes = [
-          {
-            id: "cartera",
-            etiqueta: vencidas === 1 ? "1 cobro vencido" : `${vencidas} cobros vencidos`,
-            detalle: `$ ${Math.trunc(carteraVencidaCents / 100)
-              .toString()
-              .replace(/\B(?=(\d{3})+(?!\d))/g, ".")}`,
-          },
-        ]
+      // LAS SEÑALES DE LA CLÍNICA, no sólo cartera. Acá había una lista armada a mano con un único
+      // pendiente —los cobros vencidos— y el propio `TiraClinica` lo admitía en un comentario:
+      // «hoy `pendientes` trae como mucho cartera». Ahora vienen de `lib/senales/`, que es la MISMA
+      // fuente que alimenta el prompt de Athos: si el riel dice "3 notas sin aprobar", Athos dice lo
+      // mismo, porque leen del mismo lugar.
+      //
+      // Los cobros vencidos siguen calculándose acá arriba para `carteraVencidaCents`, que el riel
+      // muestra aparte; a las señales se les pasa ya contado para no repetir la consulta.
+      {
+        const { pendientes: senales } = await senalesDeLaClinica(supabase, clinicId, hoy)
+        pendientes = senales
       }
     }
   }

@@ -19,6 +19,7 @@ import { rateLimit } from "@/lib/athos-agent/rate-limit"
 import { consultarPresupuesto, mensajeSinCupo } from "@/lib/athos-agent/presupuesto"
 import { clinicaDeLaSesion } from "@/lib/api/clinica-de-la-sesion"
 import { bloqueDeContextoRuntime } from "@/lib/athos-agent/contexto-runtime"
+import { senalesDeLaClinica } from "@/lib/senales/consultar"
 import type { AgentContext } from "@/lib/athos-agent/actions"
 
 export const runtime = "nodejs"
@@ -96,16 +97,18 @@ export async function POST(req: Request) {
   // Athos firmaba los correos como "Veterinaria" a secas porque nunca supo el nombre de la clínica
   // ni el del vet. Con esto puede firmar de verdad — y un correo a un titular tiene que decir de
   // qué veterinaria viene, o parece spam.
-  const { data: clinica } = await supabase
-    .from("clinics")
-    .select("name")
-    .eq("id", clinicId)
-    .maybeSingle()
+  //
+  // Las SEÑALES van en el mismo `Promise.all` a propósito: son cuatro consultas más, y en serie
+  // sumarían round-trips antes del primer token. En paralelo con lo que ya se pedía, el costo es el
+  // de la consulta más lenta del grupo. Cero IA — todo sale de la base.
+  const todayISO = new Date(Date.now() - 5 * 3600_000).toISOString().slice(0, 10) // hora Colombia
+  const [{ data: clinica }, { data: sesionSupabase }, senales] = await Promise.all([
+    supabase.from("clinics").select("name").eq("id", clinicId).maybeSingle(),
+    supabase.auth.getSession(),
+    senalesDeLaClinica(supabase, clinicId, todayISO),
+  ])
   const clinicName = (clinica as { name: string } | null)?.name?.trim() || null
-
-  const {
-    data: { session },
-  } = await supabase.auth.getSession()
+  const session = sesionSupabase.session
 
   // UNA sola resolución del modelo para toda la petición: `elegido.model` es el que atiende y
   // `elegido.modelId` el que se persiste. Antes eran dos llamadas distintas (`agentModel()` acá y
@@ -123,8 +126,6 @@ export async function POST(req: Request) {
       return elegido.modelId
     },
   }
-
-  const todayISO = new Date(Date.now() - 5 * 3600_000).toISOString().slice(0, 10) // hora Colombia
 
   // PROPORCIONALIDAD (defecto reportado el 2026-07-31): el agente soltaba diferenciales completos
   // ante "un perro que vomita". La densidad se cuenta ACÁ, determinística, y entra al prompt como
@@ -151,6 +152,7 @@ export async function POST(req: Request) {
     contexto,
     source,
     avisoDensidad,
+    pendientes: senales.pendientes,
   })}`
 
   const result = streamText({
