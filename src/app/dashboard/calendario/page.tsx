@@ -103,11 +103,14 @@ export default async function CalendarioPage() {
 
   return (
     <div className="flex flex-col gap-6 p-[clamp(16px,3vw,32px)]">
-      {/* El encabezado de la página, sólo para lectores de pantalla: el calendario se explica solo
-          a la vista —tiene su propio selector de mes y el bloque "hoy"— y meterle un título encima
-          le robaría alto a lo único que importa acá, que es la grilla. Pero sin ningún <h1> la
-          pantalla quedaba sin encabezado desde que el del topbar dejó de serlo. */}
-      <h1 className="sr-only">Agenda</h1>
+      {/* SIN <h1> ACÁ, y es a propósito. Le puse uno `sr-only` en el PR #98 dando por hecho que la
+          pantalla se quedaba sin encabezado, porque `page.tsx` no tenía ninguno. Medido después en
+          producción: sí lo tiene — `AppointmentCalendar` renderiza <h1>Calendario</h1>. Con el mío
+          quedaban DOS, que es el defecto que ese PR venía a arreglar.
+
+          Es el mismo punto ciego que sí atrapé en `asistente` (su <h1> vive en `assistant.tsx`, no
+          en su `page.tsx`) y que acá se me pasó: contar encabezados leyendo sólo el archivo de la
+          página no alcanza cuando el título lo pone un componente hijo. */}
       {apptsError && (
         <DataError>
           No se pudieron cargar las citas; el calendario puede verse vacío. Recargá la página.
