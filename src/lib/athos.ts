@@ -1,6 +1,7 @@
 // Cliente del microservicio Athos (RAG clínico). Llama /athos/chat (SSE) y /athos/phantom/suggest
 // con el JWT de Supabase del usuario. La URL base viene de NEXT_PUBLIC_ATHOS_URL.
 import { sinNombresDeProveedor } from "@/lib/sin-proveedores"
+import type { BandaDeEvidencia } from "@/lib/evidencia"
 import { createClient } from "@/lib/supabase/client"
 
 const ATHOS_URL = process.env.NEXT_PUBLIC_ATHOS_URL ?? ""
@@ -116,7 +117,17 @@ export type PhantomResponse = {
   soap: { subjective: string; objective: string; assessment: string; plan: string }
   allergy_gate_triggered: boolean
   allergy_transcript_flag: boolean
+  /**
+   * `true` sólo cuando la banda es `none`. Se mantiene por compatibilidad.
+   *
+   * NO ALCANZA, y por eso está `evidence_level` abajo: este booleano colapsa tres bandas en dos y
+   * deja `limited` —"la literatura no cubre este cuadro"— indistinguible de `sufficient`. El
+   * servicio manda las tres desde el 2026-07-28; el front declaraba sólo ésta y la nota clínica se
+   * quedaba sin la señal que el chat sí muestra.
+   */
   insufficient_evidence: boolean
+  /** La banda del juez de evidencia. `insufficient_evidence` equivale a `evidence_level === "none"`. */
+  evidence_level: BandaDeEvidencia
   citations: Citation[]
   alerts?: ConditionAlert[]
   ai_model: string
