@@ -25,6 +25,7 @@ import { Cuaderno } from "@/components/athos/cuaderno"
 import { ConsultationThread } from "@/components/athos/consultation-thread"
 import { renderInline, tramosIndivisibles } from "@/components/athos/rich-text"
 import { SourceCard } from "@/components/athos/source-card"
+import { avisoDeEvidencia, bandaDeEvidencia } from "@/lib/evidencia"
 import {
   esSevera,
   marcarAlergenos,
@@ -48,6 +49,13 @@ type Note = {
   assessment: string | null
   plan: string | null
   allergy_gate_triggered: boolean
+  /**
+   * El veredicto del juez de evidencia: `none | limited | sufficient`.
+   *
+   * Se trae porque la cabecera lo rotulaba CONTANDO CITAS, y una nota `limited` con citas salía
+   * como "Evidencia suficiente" — lo contrario de lo que el juez dijo. Ver `lib/evidencia.ts`.
+   */
+  evidence_level: string | null
   citations: Citation[] | null
   // `ai_model` (el id crudo del modelo) NO se trae a propósito: hacia el vet la nota la redacta
   // Athos, sin nombrar el motor. La columna se sigue escribiendo — es rastro de auditoría — pero
@@ -191,7 +199,7 @@ export default function NotaConsultaPage({ params }: { params: Promise<{ id: str
     const { data: n } = await supabase
       .from("clinical_notes")
       .select(
-        "id, status, subjective, objective, assessment, plan, allergy_gate_triggered, citations, ai_generated_at, alerts",
+        "id, status, subjective, objective, assessment, plan, allergy_gate_triggered, evidence_level, citations, ai_generated_at, alerts",
       )
       .eq("consultation_id", id)
       .order("created_at", { ascending: false })
@@ -329,6 +337,10 @@ export default function NotaConsultaPage({ params }: { params: Promise<{ id: str
 
   const approved = note?.status === "approved"
   const citations = note?.citations ?? []
+  // El veredicto del juez, normalizado. `bandaDeEvidencia` cae a "sufficient" ante un valor
+  // desconocido, igual que el default de la columna: una nota vieja no puede volverse dudosa sola.
+  const banda = bandaDeEvidencia(note?.evidence_level)
+  const aviso = avisoDeEvidencia(banda)
   const turns = parseTranscript(transcript)
   const pet = consultation?.patient
   const initial = (pet?.name ?? "?").charAt(0).toUpperCase()
@@ -399,10 +411,26 @@ export default function NotaConsultaPage({ params }: { params: Promise<{ id: str
               Redactada por <span className="text-foreground">Athos</span>
             </span>
           )}
+          {/* EL RÓTULO SALE DEL VEREDICTO DEL JUEZ, NO DE CONTAR CITAS.
+              Decía `citations.length > 0 ? "Evidencia suficiente" : …`, así que una nota `limited`
+              con citas se rotulaba "Evidencia suficiente" — lo contrario de lo que el juez
+              concluyó. Pasó de verdad: hay una nota así, aprobada, con 7 citas. */}
           {note && (
-            <span className="inline-flex items-center gap-1.5 rounded-md border bg-secondary px-2.5 py-1 text-xs text-muted-foreground">
-              <span className="size-1.5 rounded-full bg-muted-foreground" />
-              {citations.length > 0 ? "Evidencia suficiente" : "Sin literatura citada"}
+            <span
+              className={`inline-flex items-center gap-1.5 rounded-md border px-2.5 py-1 text-xs ${
+                aviso.tono === "grave"
+                  ? "border-destructive/40 bg-danger-soft text-destructive"
+                  : aviso.tono === "atencion"
+                    ? "border-warn/40 bg-warn-soft text-warn"
+                    : "bg-secondary text-muted-foreground"
+              }`}
+            >
+              <span
+                className={`size-1.5 rounded-full ${
+                  aviso.tono === "neutral" ? "bg-muted-foreground" : "bg-current"
+                }`}
+              />
+              {aviso.etiqueta}
             </span>
           )}
         </div>
@@ -740,10 +768,22 @@ export default function NotaConsultaPage({ params }: { params: Promise<{ id: str
           <p className="mb-3 text-[11px] font-bold uppercase tracking-[0.09em] text-muted-foreground">
             Referencias citadas ({citations.length})
           </p>
+          {/* La advertencia va acá TAMBIÉN cuando hay citas: el caso que se escapaba es justamente
+              el de una nota `limited` CON referencias, donde tener siete parece respaldo suficiente
+              y el juez dijo que no. */}
+          {aviso.advertencia && (
+            <p
+              className={`mb-3 flex items-start gap-1.5 text-sm ${
+                aviso.tono === "grave" ? "text-destructive" : "text-warn"
+              }`}
+            >
+              <AlertTriangle aria-hidden className="mt-0.5 size-4 shrink-0" />
+              <span>{aviso.advertencia}</span>
+            </p>
+          )}
           {citations.length === 0 ? (
             <p className="text-sm text-muted-foreground">
-              Sin evidencia suficiente: esta nota no cita literatura (Athos se abstiene antes que
-              inventar una fuente).
+              Esta nota no cita literatura.
             </p>
           ) : (
             <ol className="flex flex-col divide-y">
