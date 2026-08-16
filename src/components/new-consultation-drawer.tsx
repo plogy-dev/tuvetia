@@ -129,7 +129,16 @@ export function NewConsultationDrawer({
     toast.success("Consulta iniciada")
     setOpen(false)
     resetForm()
-    router.push(`/dashboard/consultas/${created.id}`)
+    // `?grabar=1` — la consulta se acaba de crear PARA grabar, así que la pantalla arranca sola.
+    //
+    // El cliente lo pidió así: «le doy iniciar consulta … y me la inicia ahí mismo». Antes había que
+    // llegar, encontrar el panel plegable de grabación y darle a un segundo botón; ese paso no
+    // decidía nada — nadie crea una consulta para no grabarla.
+    //
+    // NO se salta el consentimiento: la pantalla llama al mismo `iniciar()` de siempre, que si el
+    // titular no lo dio todavía muestra el panel para que lo lea. Lo que se quita es el clic, no el
+    // gate legal.
+    router.push(`/dashboard/consultas/${created.id}?grabar=1`)
   }
 
   return (

@@ -17,7 +17,7 @@
 // pantalla, donde el titular puede leerlo en el monitor del vet. Pedirlo desde una burbuja es peor
 // evidencia legal, no mejor.
 
-import { useCallback, useState } from "react"
+import { useCallback, useEffect, useRef, useState } from "react"
 import { AudioLines, Loader2, Mic, ShieldCheck, Square } from "lucide-react"
 import { toast } from "sonner"
 
@@ -121,6 +121,28 @@ export function ConsultationRecorder({
     }
     setPidiendoConsentimiento(true)
   }, [ownerId, supabase, insertConsent, grabar])
+
+  // ARRANQUE AUTOMÁTICO al llegar desde "Iniciar consulta".
+  //
+  // Se dispara una sola vez y sólo con `?grabar=1` en la URL, que pone el drawer al crear la
+  // consulta. Llama al MISMO `iniciar()` que el botón: si hay consentimiento vigente graba, y si no
+  // lo hay abre el panel para que el titular lo lea. El gate no se mueve.
+  //
+  // El permiso del micrófono lo pide `getUserMedia` dentro de `iniciar()`. Viene de un gesto real
+  // del vet —el clic en "Iniciar consulta"— aunque haya ocurrido en la pantalla anterior.
+  // El arranque se DIFIERE un tick en vez de llamarse en el cuerpo del efecto. `iniciar()` puede
+  // hacer `setState` de forma síncrona —cuando no hay `ownerId` abre el panel de consentimiento
+  // directo— y eso encadena renders. Con el `setTimeout` la acción ocurre después del montaje, que
+  // es cuando de verdad corresponde, y la limpieza la cancela si el componente se fue antes.
+  const yaArranco = useRef(false)
+  useEffect(() => {
+    if (yaArranco.current) return
+    if (typeof window === "undefined") return
+    if (new URLSearchParams(window.location.search).get("grabar") !== "1") return
+    yaArranco.current = true
+    const t = setTimeout(() => void iniciar(), 0)
+    return () => clearTimeout(t)
+  }, [iniciar])
 
   const aceptarConsentimiento = useCallback(async () => {
     try {
