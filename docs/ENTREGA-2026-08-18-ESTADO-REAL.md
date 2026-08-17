@@ -120,6 +120,34 @@ El wizard real (`welcome-wizard.tsx:46`):
 
 ---
 
+## 🟡 Un riesgo latente encontrado al reverificar
+
+Existe una tabla **`appointments_importadas_respaldo`** con **19.649 filas de 2 clínicas**, huérfana
+—ningún código la lee— y creada a mano durante una importación entre el 31-jul y el 2-ago. No sale
+de ninguna migración del repo.
+
+**No tiene RLS.** Pero **no es una exposición**, y conviene decirlo con precisión porque casi lo
+reporto mal:
+
+| tabla | `authenticated` | `anon` | RLS |
+|---|---|---|---|
+| `appointments` | ✅ | ✅ | ✅ |
+| **`appointments_importadas_respaldo`** | **❌** | **❌** | ❌ |
+| `patients` | ✅ | ✅ | ✅ |
+
+**Nadie puede leerla**: sin `SELECT` otorgado a ningún rol, la RLS faltante es irrelevante. El riesgo
+es *latente* — si alguien corriera un `grant select on all tables in schema public to authenticated`,
+esas 19.649 citas quedarían visibles entre clínicas.
+
+**Lo que corresponde**, y no hoy: borrarla si el respaldo ya no hace falta, o activarle RLS. No toca
+nada que esté funcionando.
+
+> Nota de método: la primera consulta que usé decía que **tampoco `appointments` era legible**, lo
+> cual es falso — la aplicación la lee todo el tiempo. Esa contradicción invalidaba el método, no los
+> permisos. La tabla de arriba sale de `has_table_privilege`, que es la función autoritativa.
+
+---
+
 ## 🟠 Riesgos para el acto de entrega
 
 ### La política de tratamiento de datos no existe
