@@ -29,8 +29,30 @@ export type SuperficieDeUso =
   // El briefing diario: gasto que ocurre SIN que ningun vet lo haya pedido, asi que se mide aparte.
   | "briefing"
 
-/** Lo que devuelve `result.usage` del AI SDK (`LanguageModelUsage`). */
-type UsoDeTokens = { inputTokens?: number; outputTokens?: number } | undefined
+/**
+ * Lo que devuelve `result.usage` del AI SDK (`LanguageModelUsage`).
+ *
+ * EL DESGLOSE DE CACHÉ SE LEE DE `inputTokenDetails`, NO de `cachedInputTokens`. Ese último existe
+ * y funciona, pero el SDK v6 lo marca **@deprecated** justamente en favor de éste. Usar el campo
+ * viejo dejaría un cambio nuevo naciendo con deuda.
+ *
+ * `inputTokens` es el TOTAL —así lo define el SDK— y el desglose son sus partes, así que las
+ * cacheadas ya están adentro y no se suman aparte.
+ *
+ * Todo opcional porque no todos los proveedores reportan todo: DeepSeek cachea automáticamente y
+ * Anthropic sólo cuando se lo pide, así que un `undefined` acá es un estado normal, no un fallo.
+ */
+type UsoDeTokens =
+  | {
+      inputTokens?: number
+      outputTokens?: number
+      inputTokenDetails?: {
+        noCacheTokens?: number
+        cacheReadTokens?: number
+        cacheWriteTokens?: number
+      }
+    }
+  | undefined
 
 /**
  * Deja una fila de consumo. **Nunca lanza**: un fallo del registro no puede tumbar la respuesta que
@@ -68,6 +90,11 @@ export async function registrarUso(entrada: {
         // cortados). Se guarda null antes que un 0 que se sumaría como si no hubiera costado nada.
         tokens_in: usage?.inputTokens ?? null,
         tokens_out: usage?.outputTokens ?? null,
+        // El desglose de caché. Sin esto no se puede saber si el prefijo se está cacheando, y un
+        // ahorro que no se mide es indistinguible de uno que no ocurre. Leer y escribir el caché
+        // tienen precios distintos, por eso van separados (ver migración 0065).
+        tokens_cache_read: usage?.inputTokenDetails?.cacheReadTokens ?? null,
+        tokens_cache_write: usage?.inputTokenDetails?.cacheWriteTokens ?? null,
       })
     if (error) {
       console.error(`[athos/usage] la base rechazó el consumo de ${surface}:`, error.message)
