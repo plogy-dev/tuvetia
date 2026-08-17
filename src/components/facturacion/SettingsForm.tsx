@@ -121,7 +121,7 @@ export function SettingsForm({ settings }: { settings: BillingSettingsRow | null
               required
               defaultValue={settings?.fiscal_name ?? ''}
               placeholder="Dra. Ana Pérez / Veterinaria Pérez SAS"
-              className="mt-1 w-full rounded-lg border border-line bg-surface px-3 py-2 text-sm text-fg placeholder:text-fg-faint focus:border-brand focus:outline-none"
+              className="mt-1 w-full rounded-lg border border-line bg-surface px-3 py-2 text-sm text-fg placeholder:text-fg-faint outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
             />
           </div>
           <div>
@@ -132,7 +132,7 @@ export function SettingsForm({ settings }: { settings: BillingSettingsRow | null
               id="fiscalIdType"
               name="fiscalIdType"
               defaultValue={settings?.fiscal_id_type ?? 'NIT'}
-              className="mt-1 w-full rounded-lg border border-line bg-surface px-3 py-2 text-sm text-fg focus:border-brand focus:outline-none"
+              className="mt-1 w-full rounded-lg border border-line bg-surface px-3 py-2 text-sm text-fg outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
             >
               <option value="NIT">NIT</option>
               <option value="CC">Cédula de ciudadanía</option>
@@ -149,7 +149,7 @@ export function SettingsForm({ settings }: { settings: BillingSettingsRow | null
               required
               defaultValue={settings?.fiscal_id_number ?? ''}
               placeholder="900123456-7"
-              className="mt-1 w-full rounded-lg border border-line bg-surface px-3 py-2 text-sm text-fg placeholder:text-fg-faint focus:border-brand focus:outline-none"
+              className="mt-1 w-full rounded-lg border border-line bg-surface px-3 py-2 text-sm text-fg placeholder:text-fg-faint outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
             />
           </div>
           <div>
@@ -160,7 +160,7 @@ export function SettingsForm({ settings }: { settings: BillingSettingsRow | null
               id="fiscalRegime"
               name="fiscalRegime"
               defaultValue={settings?.fiscal_regime ?? 'COMUN'}
-              className="mt-1 w-full rounded-lg border border-line bg-surface px-3 py-2 text-sm text-fg focus:border-brand focus:outline-none"
+              className="mt-1 w-full rounded-lg border border-line bg-surface px-3 py-2 text-sm text-fg outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
             >
               <option value="COMUN">Responsable de IVA (común)</option>
               <option value="SIMPLE">Régimen SIMPLE</option>
@@ -176,7 +176,7 @@ export function SettingsForm({ settings }: { settings: BillingSettingsRow | null
               name="municipalityCode"
               defaultValue={settings?.municipality_code ?? ''}
               placeholder="11001 (Bogotá)"
-              className="mt-1 w-full rounded-lg border border-line bg-surface px-3 py-2 text-sm text-fg placeholder:text-fg-faint focus:border-brand focus:outline-none"
+              className="mt-1 w-full rounded-lg border border-line bg-surface px-3 py-2 text-sm text-fg placeholder:text-fg-faint outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
             />
           </div>
           <div className="sm:col-span-2">
@@ -188,7 +188,7 @@ export function SettingsForm({ settings }: { settings: BillingSettingsRow | null
               name="fiscalAddress"
               defaultValue={settings?.fiscal_address ?? ''}
               placeholder="Cra 7 # 12-34, Bogotá"
-              className="mt-1 w-full rounded-lg border border-line bg-surface px-3 py-2 text-sm text-fg placeholder:text-fg-faint focus:border-brand focus:outline-none"
+              className="mt-1 w-full rounded-lg border border-line bg-surface px-3 py-2 text-sm text-fg placeholder:text-fg-faint outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
             />
           </div>
         </div>
@@ -211,7 +211,7 @@ export function SettingsForm({ settings }: { settings: BillingSettingsRow | null
             id="defaultDocKind"
             name="defaultDocKind"
             defaultValue={settings?.default_doc_kind ?? 'POS'}
-            className="mt-1 w-full max-w-sm rounded-lg border border-line bg-surface px-3 py-2 text-sm text-fg focus:border-brand focus:outline-none"
+            className="mt-1 w-full max-w-sm rounded-lg border border-line bg-surface px-3 py-2 text-sm text-fg outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
           >
             <option value="POS">Tiquete POS electrónico (ventas del día a día)</option>
             <option value="FACTURA_VENTA">Factura electrónica de venta</option>

@@ -32,7 +32,7 @@ export function InventorySearch() {
   }
 
   const inputCls =
-    'rounded-lg border border-line bg-surface px-3 py-2 text-sm text-fg placeholder:text-fg-faint focus:border-brand focus:outline-none';
+    'rounded-lg border border-line bg-surface px-3 py-2 text-sm text-fg placeholder:text-fg-faint outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50';
 
   return (
     <div className="flex flex-wrap items-center gap-2">

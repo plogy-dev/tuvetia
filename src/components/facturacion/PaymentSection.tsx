@@ -183,7 +183,7 @@ export function PaymentSection({
             <select
               value={plan.method}
               onChange={(e) => set({ method: e.target.value as PaymentPlan['method'] })}
-              className="mt-1 rounded-lg border border-line bg-surface px-3 py-2 text-sm text-fg focus:border-brand focus:outline-none"
+              className="mt-1 rounded-lg border border-line bg-surface px-3 py-2 text-sm text-fg outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
             >
               <option value="EFECTIVO">Efectivo</option>
               <option value="TRANSFERENCIA">Transferencia</option>
@@ -196,7 +196,7 @@ export function PaymentSection({
                 value={plan.reference}
                 onChange={(e) => set({ reference: e.target.value })}
                 placeholder="Nº de comprobante"
-                className="mt-1 w-40 rounded-lg border border-line bg-surface px-3 py-2 text-sm text-fg focus:border-brand focus:outline-none"
+                className="mt-1 w-40 rounded-lg border border-line bg-surface px-3 py-2 text-sm text-fg outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
               />
             </div>
           )}
@@ -208,7 +208,7 @@ export function PaymentSection({
                 value={plan.amountPesos}
                 onChange={(e) => set({ amountPesos: e.target.value })}
                 placeholder="0"
-                className="mt-1 w-36 rounded-lg border border-line bg-surface px-3 py-2 text-right text-sm text-fg focus:border-brand focus:outline-none"
+                className="mt-1 w-36 rounded-lg border border-line bg-surface px-3 py-2 text-right text-sm text-fg outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
               />
             </div>
           )}
@@ -228,7 +228,7 @@ export function PaymentSection({
               type="date"
               value={plan.dueDate}
               onChange={(e) => set({ dueDate: e.target.value })}
-              className="mt-1 rounded-lg border border-line bg-surface px-3 py-2 text-sm text-fg focus:border-brand focus:outline-none"
+              className="mt-1 rounded-lg border border-line bg-surface px-3 py-2 text-sm text-fg outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
             />
           </div>
           <label className="mb-1.5 flex items-center gap-2 text-sm text-fg-muted">

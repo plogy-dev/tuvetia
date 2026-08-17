@@ -149,7 +149,7 @@ export function RecipeEditor({
   }
 
   const selCls =
-    'rounded-md border border-line bg-surface px-2 py-1 text-sm text-fg focus:border-brand focus:outline-none';
+    'rounded-md border border-line bg-surface px-2 py-1 text-sm text-fg outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50';
 
   if (!loaded) return <p className="px-1 py-2 text-xs text-fg-faint">Cargando receta…</p>;
 
@@ -225,7 +225,7 @@ export function RecipeEditor({
               onChange={(e) => setText(e.target.value)}
               rows={2}
               placeholder="…o escribe la receta: 2 gasas, 1 sutura 3-0, 0.5 ml ketamina"
-              className="flex-1 rounded-lg border border-line bg-surface px-3 py-2 text-sm text-fg placeholder:text-fg-faint focus:border-brand focus:outline-none"
+              className="flex-1 rounded-lg border border-line bg-surface px-3 py-2 text-sm text-fg placeholder:text-fg-faint outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
             />
             <button
               type="button"

@@ -167,7 +167,7 @@ export function InvoiceActionsPanel({
                 <select
                   value={payMethod}
                   onChange={(e) => setPayMethod(e.target.value as 'EFECTIVO' | 'TRANSFERENCIA')}
-                  className="rounded-lg border border-line bg-surface px-3 py-2 text-sm text-fg focus:border-brand focus:outline-none"
+                  className="rounded-lg border border-line bg-surface px-3 py-2 text-sm text-fg outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
                 >
                   <option value="EFECTIVO">Efectivo</option>
                   <option value="TRANSFERENCIA">Transferencia</option>
@@ -179,7 +179,7 @@ export function InvoiceActionsPanel({
                   value={payAmount}
                   onChange={(e) => setPayAmount(e.target.value)}
                   placeholder={`${(balanceCents / 100).toFixed(0)}`}
-                  className="w-32 rounded-lg border border-line bg-surface px-3 py-2 text-sm text-fg placeholder:text-fg-faint focus:border-brand focus:outline-none"
+                  className="w-32 rounded-lg border border-line bg-surface px-3 py-2 text-sm text-fg placeholder:text-fg-faint outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
                 />
                 <button
                   type="button"

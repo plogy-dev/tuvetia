@@ -135,7 +135,7 @@ export function CatalogItemsTab({
                         value={i.category_id ?? ''}
                         onChange={(e) => setCategory(i.id, e.target.value)}
                         disabled={isPending}
-                        className="rounded-md border border-line bg-surface px-2 py-1 text-xs text-fg-muted focus:border-brand focus:outline-none"
+                        className="rounded-md border border-line bg-surface px-2 py-1 text-xs text-fg-muted outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
                         aria-label={`Categoría de ${i.name}`}
                       >
                         <option value="">Sin categoría</option>

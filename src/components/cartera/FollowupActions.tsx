@@ -80,7 +80,7 @@ export function FollowupActions({
             type="date"
             value={promiseDate}
             onChange={(e) => setPromiseDate(e.target.value)}
-            className="rounded-lg border border-line bg-surface px-2.5 py-1.5 text-xs text-fg focus:border-brand focus:outline-none"
+            className="rounded-lg border border-line bg-surface px-2.5 py-1.5 text-xs text-fg outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
           />
           <button
             type="button"
