@@ -246,7 +246,17 @@ export function CreateAppointmentDrawer({
             </div>
             <Field>
               <FieldLabel htmlFor="appt-patient">Paciente</FieldLabel>
-              <Select value={patientId} onValueChange={(v) => handlePatientChange((v as string) ?? NONE)}>
+              <Select
+                value={patientId}
+                onValueChange={(v) => handlePatientChange((v as string) ?? NONE)}
+                // `items` NO es opcional acá: Base UI documenta que sin él `<Select.Value>`
+                // renderiza el VALOR CRUDO, y el valor de estas opciones es un uuid. Sin esto el
+                // formulario mostraba "20a66a41-0244-4fb2-..." donde va el nombre del paciente.
+                items={[
+                  { label: "Elegí un paciente", value: NONE },
+                  ...patients.map((p) => ({ label: p.label, value: p.id })),
+                ]}
+              >
                 <SelectTrigger id="appt-patient" className="w-full">
                   <SelectValue />
                 </SelectTrigger>
@@ -272,6 +282,10 @@ export function CreateAppointmentDrawer({
                     setOwnerId((v as string) ?? NONE)
                     setOwnerMismatch(null)
                   }}
+                  items={[
+                    { label: "Elegí un titular", value: NONE },
+                    ...owners.map((o) => ({ label: o.label, value: o.id })),
+                  ]}
                 >
                   <SelectTrigger id="appt-owner" className="w-full">
                     <SelectValue />
@@ -291,7 +305,14 @@ export function CreateAppointmentDrawer({
               </Field>
               <Field>
                 <FieldLabel htmlFor="appt-vet">Veterinario</FieldLabel>
-                <Select value={vetId} onValueChange={(v) => setVetId((v as string) ?? NONE)}>
+                <Select
+                  value={vetId}
+                  onValueChange={(v) => setVetId((v as string) ?? NONE)}
+                  items={[
+                    { label: "Elegí un veterinario", value: NONE },
+                    ...vets.map((v) => ({ label: v.label, value: v.id })),
+                  ]}
+                >
                   <SelectTrigger id="appt-vet" className="w-full">
                     <SelectValue />
                   </SelectTrigger>
@@ -314,6 +335,10 @@ export function CreateAppointmentDrawer({
               <Select
                 value={status}
                 onValueChange={(v) => setStatus(((v as string) ?? "scheduled") as AppointmentStatus)}
+                items={APPOINTMENT_STATUS_ORDER.map((s) => ({
+                  label: APPOINTMENT_STATUS[s].label,
+                  value: s,
+                }))}
               >
                 <SelectTrigger id="appt-status" className="w-full">
                   <SelectValue />

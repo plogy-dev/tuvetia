@@ -232,7 +232,15 @@ export function TeamSettings({
               </Field>
               <Field>
                 <FieldLabel htmlFor="invite-role">Rol</FieldLabel>
-                <Select value={role} onValueChange={(v) => setRole(((v as string) ?? "vet") as "vet" | "admin")}>
+                <Select
+                  value={role}
+                  onValueChange={(v) => setRole(((v as string) ?? "vet") as "vet" | "admin")}
+                  // Sin `items`, Base UI pinta el valor crudo: "vet" en vez de "Veterinario".
+                  items={[
+                    { label: "Veterinario", value: "vet" },
+                    { label: "Administrador", value: "admin" },
+                  ]}
+                >
                   <SelectTrigger id="invite-role" className="w-full">
                     <SelectValue />
                   </SelectTrigger>
