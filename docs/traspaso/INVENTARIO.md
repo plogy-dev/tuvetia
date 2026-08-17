@@ -49,6 +49,7 @@ suponerlos.
 | 14 | **Resend** | Correo transaccional y facturas | recrear | | | |
 | 15 | **Meta WhatsApp** | Plan B, no configurado | recrear | | | |
 | 16 | **Kapso** | Legado, en retirada | recrear | | | |
+| 17 | **Calendly** `calendly.com/tuvetia` | Agenda de demos, enlazada desde la landing | recrear | | | |
 | — | **Wompi** | Pagos — **en curso, Santiago** | por definir | | | |
 | — | **Sentry** | Aplazado a propósito: cableado, sin contratar | — | — | — | $0 |
 

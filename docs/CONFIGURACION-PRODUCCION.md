@@ -5,7 +5,17 @@
 > si exige volver a desplegar.
 >
 > El termómetro de todo esto es `GET /api/health`, que responde **solo booleanos** (nunca valores) y
-> lista en `missing` lo que falta. Última revisión: **2026-07-31**.
+> lista en `missing` lo que falta.
+>
+> ⚠️ **LA FUENTE DE VERDAD ES EL ENDPOINT, NO ESTE DOCUMENTO.** Este archivo se escribió el
+> **2026-07-31** y para el 16-ago ya mentía: declaraba cuatro variables como faltantes que llevaban
+> semanas configuradas. Un documento que congela un estado envejece sin avisar; el endpoint no.
+>
+> **Para saber qué falta hoy:** correr el workflow `smoke` desde Actions. Falla si `missing` no está
+> vacío y dice exactamente qué.
+>
+> Lo que sigue vigente de este archivo, y es la mayor parte, es **de dónde sale cada valor y en qué
+> panel se pega**. Eso no caduca.
 
 ## Las tres reglas que evitan el 90 % de los errores
 
@@ -22,16 +32,26 @@
 
 ---
 
-## 1. Qué falta hoy y cómo se arregla
+## 1. Cómo saber qué falta — y por qué no hay una lista acá
 
-Estado al 2026-07-31 según el smoke E2E contra producción:
+**Este documento ya no dice qué falta.** Lo decía, y ahí estuvo el problema: la tabla original
+declaraba cuatro variables como faltantes (`WHATSAPP_TOKEN_KEY`, `NEXT_PUBLIC_SITE_URL`,
+`EVOLUTION_*` y `NEXT_PUBLIC_WA_PROVIDER`) y para el 16-ago **las cuatro estaban configuradas desde
+semanas antes**. Quien leyera esto habría salido a arreglar algo que no estaba roto.
 
-| Variable | Estado | Impacto mientras falte |
-|---|---|---|
-| `WHATSAPP_TOKEN_KEY` | ❌ falta | No se puede conectar WhatsApp por Meta, **ni guardar el correo de una clínica, ni enviar la cobranza por correo, ni leer respuestas por IMAP** |
-| `NEXT_PUBLIC_SITE_URL` | ❌ falta | No se registra el webhook de Evolution: **no hay QR y no entran mensajes** |
-| `EVOLUTION_*` (3) | ❌ faltan | Evolution no está desplegado (ver §3) |
-| `NEXT_PUBLIC_WA_PROVIDER` | ❌ falta | El botón "Conectar" **saca al veterinario de la plataforma** (cae al camino legado de Kapso) |
+**La única fuente de verdad es `GET /api/health`.** Se consulta corriendo el workflow **`smoke`**
+desde la pestaña Actions de GitHub: falla si `missing` no está vacío y dice qué falta. Verificado el
+2026-08-16 — pasó con `missing: []`, o sea las 14 variables críticas cableadas.
+
+El endpoint responde **sólo booleanos**: nunca un valor, ni un prefijo, ni una longitud. Se puede
+consultar sin miedo a filtrar nada.
+
+> **Nota sobre `WHATSAPP_TOKEN_KEY`.** Lo que sigue (§1.1) dice que cifra "todo secreto de terceros",
+> incluidas las credenciales SMTP/IMAP de cada clínica. **Eso era cierto cuando se escribió.** Hoy el
+> correo va por Composio —que guarda las conexiones en sus propios servidores— y `email_integrations`
+> quedó retirada, con **0 filas**. En la práctica esta llave protege hoy sólo
+> `whatsapp_integrations.access_token_enc`, que son **2 filas**. Sigue siendo una llave de cifrado y
+> no una API key: rotarla deja esos tokens indescifrables. Ver `docs/traspaso/RUNBOOK.md`.
 
 ### 1.1 `WHATSAPP_TOKEN_KEY` — la llave de cifrado de todos los secretos
 
