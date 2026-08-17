@@ -15,13 +15,14 @@ Léelas antes de tocar nada. Las tres están documentadas mal en algún otro sit
 
 ### 1. `supabase db push` contra el proyecto principal
 
-`athos-service/docs/MIGRACIONES.md:55` lo **recomienda**. Es un error y sigue ahí.
-
 El principal lleva su propio historial en `supabase_migrations.schema_migrations` con **55 entradas
 del equipo original** y **ninguna** con nuestra numeración `00XX`. Un `db push` no reconoce ese
 historial: intenta reconciliar dos numeraciones distintas contra una base con datos clínicos reales.
 
 **Las migraciones de este repo se aplican A MANO**, por el editor SQL. Ver la sección de migraciones.
+
+> `athos-service/docs/MIGRACIONES.md` lo **recomendaba** —contradiciendo su propia sección de reglas
+> duras dos párrafos más abajo— y se corrigió el 2026-08-17.
 
 ### 2. Rotar `WHATSAPP_TOKEN_KEY` como si fuera una API key
 
@@ -40,15 +41,31 @@ ven en rojo, que al menos avisa.
 
 ## Aplicar una migración
 
-El flujo real, el que se usó para las seis últimas:
+El flujo real, el que se usó de la `0059` en adelante:
 
-1. **Escribir el `.sql`** en `athos-service/supabase/migrations/`, numerado en secuencia.
-   **La próxima es `0065`.**
-2. **Escribir su verificación** en `athos-service/supabase/verificaciones/`. No es opcional: es lo
+1. **Reservar el número.** Mirá el último de `athos-service/supabase/migrations/` **en `master`** —
+   no en tu rama— y tomá el siguiente. Acá no se pone un número concreto a propósito: la versión
+   anterior de este documento decía "la próxima es `0065`" y para cuando alguien lo leyó ya estaba
+   tomado tres veces.
+2. **Escribir el `.sql`** con formato `NNNN_nombre_en_snake_case.sql`.
+3. **Escribir su verificación** en `athos-service/supabase/verificaciones/`. No es opcional: es lo
    único que confirma que la migración hizo lo que dice.
-3. **PR y revisión.**
-4. **Aplicar a mano**: editor SQL del proyecto principal → pegar la migración → ejecutar.
-5. **Correr la verificación** en el mismo editor.
+4. **PR y revisión.**
+5. **Aplicar a mano**: editor SQL del proyecto principal → pegar la migración → ejecutar.
+6. **Correr la verificación** en el mismo editor.
+
+### El número no puede estar repetido
+
+Ya chocó **tres veces** —`0019`, `0020` y `0065`—, la última con dos personas trabajando en paralelo
+el mismo día. Con las migraciones aplicándose a mano, dos archivos con el mismo número hacen ambiguo
+el orden: "aplicá la 65" deja de tener una respuesta.
+
+`src/lib/__tests__/numeracion-de-migraciones.test.ts` **falla en CI** si aparece un número repetido
+nuevo. Los tres históricos están declarados ahí como excepción y **no se renombran**: ya se aplicaron
+con ese nombre, y renombrarlos haría que el repo afirme algo que no ocurrió.
+
+Para **intercalar** entre dos que ya existen, usá el sufijo de letra: `0021b_…` corre después de la
+`0021` y antes de la `0022`.
 
 ### Cómo se lee el resultado de una verificación
 
