@@ -42,22 +42,59 @@
    (`/mcp` → supabase → *Authenticate*). El principal nunca queda escribible por MCP.
 
 ## Crear una nueva migración
+
+**El nombre es `NNNN_nombre_en_snake_case.sql`, con el número consecutivo.** No se usa
+`supabase migration new`: ese comando genera nombres con *timestamp* y este repo numera en
+secuencia, porque el número **es** el orden de aplicación.
+
+### 🔢 Reservá el número al abrir el PR, no al escribir el archivo
+
+Es la regla que más se incumple, y ya costó **tres choques**: `0019`, `0020` y `0065`. El último fue
+el 2026-08-17 — dos personas escribiendo en paralelo eligieron `0065` cada una, las dos migraciones
+se aplicaron, y el repo quedó con dos archivos que dicen ser la misma posición.
+
+Mirá el último número **en `master`**, no en tu rama. Si otro PR ya tomó el tuyo, renumerá antes de
+mergear.
+
+Hay una guarda que lo verifica: `src/lib/__tests__/numeracion-de-migraciones.test.ts` **falla en CI**
+si aparece un número repetido nuevo. Los tres históricos están declarados ahí como excepción y no se
+renombran — ya se aplicaron con ese nombre, y renombrarlos haría que el repo afirme algo que no pasó.
+
+**Si necesitás intercalar** una migración entre dos que ya existen, el sufijo de letra es la vía:
+`0021b_objetos_que_nadie_crea.sql` corre después de la `0021` y antes de la `0022`. Ordena bien
+porque `_` (ASCII 95) va antes que `b` (98).
+
+### El flujo
+
 ```
-supabase migration new <nombre>        # crea supabase/migrations/<timestamp>_<nombre>.sql
-# edita el SQL a mano
-supabase db push                       # la aplica al proyecto dev enlazado
-# verifica en dev, luego commitea el .sql
+# 1. Mirá el último número EN MASTER y tomá el siguiente
+# 2. Escribí athos-service/supabase/migrations/NNNN_nombre.sql a mano
+# 3. Escribí su verificación en athos-service/supabase/verificaciones/NNNN_nombre.sql
+supabase db push        # la aplica al proyecto DEV enlazado — nunca al principal
 ```
 
+La **verificación** no es opcional desde la `0059`: es lo único que confirma que la migración hizo
+lo que dice. Terminan con `raise exception '=== NNNN OK === …'`, así que **un error `P0001` con el
+texto `OK` es el éxito** — el `raise` aborta el bloque y hace rollback de los datos de prueba.
+
 ## Integrar al proyecto principal (dev → PR → principal)
-1. **PR** que incluye únicamente los **nuevos** archivos de `supabase/migrations/`. Revisión de
+
+1. **PR** con los archivos nuevos de `supabase/migrations/` y su verificación. Revisión de
    Santiago/Pipe.
-2. Al aprobar, aplicar **las mismas** migraciones al principal:
-   - Recomendado (CI o coordinado): `supabase link --project-ref <MAIN_REF> && supabase db push`,
-     con las credenciales del principal como **secretos** (nunca en el repo), **o**
-   - vía la integración de GitHub de Supabase si el equipo la usa.
+2. Al aprobar, **aplicar A MANO por el editor SQL del principal**: pegar la migración, ejecutar,
+   y después correr su verificación.
 3. **Regla de merge:** un PR que agrega una tabla **por-clínica** sin **RLS** + sin **test
    cross-tenant** NO se mergea.
+
+> ⚠️ **`supabase db push` contra el principal: NO.** Esta sección lo recomendaba y era un error —
+> contradecía además la primera de las Reglas duras de abajo.
+>
+> El principal lleva su propio historial en `supabase_migrations.schema_migrations`: **55 entradas
+> del equipo original** con versiones tipo `20260727073858`, y **ninguna** con nuestra numeración
+> `00XX`. Un `db push` no reconoce ese historial — intentaría reconciliar dos numeraciones distintas
+> sobre una base con datos clínicos reales.
+>
+> Las migraciones `0059`–`0067` se aplicaron a mano, y así se siguen aplicando.
 
 ## Reglas duras
 - Nunca `supabase db push` ni escritura directa contra el **principal** desde tu máquina de dev.
