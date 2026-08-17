@@ -15,21 +15,53 @@ son cuatro, y esa sección es la que dice cuánto vale el resto.
 
 ## Resumen
 
-| # | Hallazgo | Gravedad | Frente |
-|---|---|---|---|
-| 1 | Ninguna clínica puede facturar; 14 de 15 no pueden agendar con Athos | 🔴 | Onboarding |
-| 2 | Los canales externos se mueren sin que nadie se entere | 🔴 | Dependencias |
-| 3 | `fg-faint` reprueba contraste AA en modo claro — 216 usos | 🟠 | Diseño |
-| 4 | No hay servicio de seguimiento de errores | 🟠 | Vara de mercado |
-| 5 | El trial de 3 días no existe en el código | 🟠 | Suscripciones |
-| 6 | La traza no cubre lo que hacen las personas fuera de la nota clínica | 🟡 | Vara de mercado |
-| 7 | Tres defectos latentes en los datos de ejemplo | 🟡 | Onboarding |
-| 8 | Foco de teclado inconsistente en el módulo de facturación | 🟡 | Diseño |
-| 9 | `rateLimit` en memoria; roles binarios; una tabla sin scroll | 🟢 | Varios |
+**Estado al 2026-08-16, 21:30.** Este documento se mantiene al día a medida que se cierran los
+hallazgos — un informe que describe un pasado que ya no existe se vuelve `CONFIGURACION-PRODUCCION.md`,
+que es el hallazgo 2 de esta misma auditoría.
+
+| # | Hallazgo | Gravedad | Frente | Estado |
+|---|---|---|---|---|
+| 1 | Ninguna clínica puede facturar; 14 de 15 no pueden agendar con Athos | 🔴 | Onboarding | ✅ **cerrado** (PR #105) |
+| 2 | Los canales externos se mueren sin que nadie se entere | 🔴 | Dependencias | ✅ **cerrado** (PR #106) |
+| 3 | `fg-faint` reprueba contraste AA en modo claro — 216 usos | 🟠 | Diseño | ✅ **cerrado** (PR #107) |
+| 4 | No hay servicio de seguimiento de errores | 🟠 | Vara de mercado | 🟡 **cableado** (PR #108) — falta el DSN |
+| 5 | El trial de 3 días no existe en el código | 🟠 | Suscripciones | 👤 **Santiago** |
+| 6 | La traza no cubre lo que hacen las personas fuera de la nota clínica | 🟡 | Vara de mercado | ⏳ pendiente |
+| 7 | Tres defectos latentes en los datos de ejemplo | 🟡 | Onboarding | ⏳ pendiente |
+| 8 | Foco de teclado inconsistente en el módulo de facturación | 🟡 | Diseño | ⏳ pendiente |
+| 9 | `rateLimit` en memoria; roles binarios; una tabla sin scroll | 🟢 | Varios | ⏳ pendiente |
+| — | El corpus a 5× | 🟡 | athos-service | 👤 **Jesús (Infinity)** |
+
+### Lo que quedó cerrado, y con qué
+
+- **1 · Facturar y agendar.** Horarios y servicios entraron al wizard, que pasó de 4 a 6 pasos. Los
+  horarios llegan pre-llenos; los precios los escribe el vet, porque una cifra inventada en una
+  factura no es un placeholder sino un error. Con un solo precio la clínica ya puede facturar.
+- **2 · Canales mudos.** No hizo falta un sistema de alertas: un canal caído es "algo que espera a
+  una persona", así que entró como **señal**, y eso lo puso en cuatro superficies sin cañería nueva
+  —el riel, la tira de móvil, el prompt del agente y el briefing—. Va primero en el orden porque no
+  es una tarea sino una **precondición**.
+- **3 · Contraste.** No alcanzaba con subir un token: eso colapsaba la jerarquía de tres niveles en
+  dos. Se replicó la estructura de la paleta oscura, que ya estaba bien. El test lee `globals.css` y
+  hace la cuenta — el contraste no es algo que un test de componente pueda fallar, y por eso 216 usos
+  ilegibles sobrevivieron a 972 tests.
+- **4 · Errores.** El hueco era peor de lo que decía este informe: lo que corre solo —crons, webhooks,
+  server actions— no pasaba por ninguna costura. `onRequestError` de Next 16 cubre las cuatro
+  superficies. Sentry queda cableado e **inerte hasta que exista `NEXT_PUBLIC_SENTRY_DSN`**.
+
+### Lo que falta, en orden
+
+**Bloqueado por terceros:** el 5 (Santiago, suscripciones) y el corpus (Jesús). Cada uno tiene su
+nota en `docs/`.
+
+**Pendiente nuestro:** 6, 7, 8 y 9. Ninguno es 🔴 y ninguno bloquea el lanzamiento por sí solo; el
+6 (traza de acciones humanas) es el que más pesa para un producto que guarda historia clínica.
 
 ---
 
 ## 1 · 🔴 Ninguna clínica puede facturar; 14 de 15 no pueden agendar
+
+> ✅ **Cerrado** en el PR #105. Horarios y servicios entraron al wizard, que pasó de 4 a 6 pasos.
 
 **Qué se rompe.** Las dos capacidades insignia del producto —que Athos agende y que la clínica
 cobre— están apagadas para prácticamente todas las cuentas en producción. No por un bug: porque el
@@ -84,6 +116,8 @@ sólo el estado final.
 
 ## 2 · 🔴 Los canales externos se mueren sin que nadie se entere
 
+> ✅ **Cerrado** en el PR #106. Un canal caído entró como señal y va primero, por ser precondición.
+
 **Qué se rompe.** Una dependencia externa cae, el producto sigue mostrándose sano, y nadie recibe
 nada. Se descubre probando.
 
@@ -131,6 +165,8 @@ nunca falló" como con "no hay respaldo", y el endpoint no lo distingue a propó
 
 ## 3 · 🟠 `fg-faint` reprueba contraste AA en modo claro
 
+> ✅ **Cerrado** en el PR #107. Se replicó la estructura de la paleta oscura; hay test de regresión.
+
 **Qué se rompe.** El rótulo de sección de todo el producto es ilegible según WCAG AA, y sólo en el
 tema claro.
 
@@ -164,6 +200,9 @@ exacto para el color, pero no sustituye abrir la app.
 ---
 
 ## 4 · 🟠 No hay servicio de seguimiento de errores
+
+> 🟡 **Cableado** en el PR #108, e inerte hasta que exista `NEXT_PUBLIC_SENTRY_DSN`. La costura de
+> servidor (`onRequestError`) sí quedó activa: era la parte que faltaba del todo.
 
 **Qué se rompe.** Un fallo en producción se entera por una llamada del cliente.
 
