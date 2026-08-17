@@ -152,9 +152,22 @@
   /* `--border-strong` es para bordes de INPUT: un campo tiene que verse como un
      campo sobre blanco puro, donde el borde suave desaparece. */
   --border-strong: #7a8a82;
-  --muted: #8a9a93;
-  --text-2: #5c6d66;            /* texto secundario */
-  --text: var(--tv-graphite);   /* tinta */
+  /* LA ESCALA DE TINTA DEL MODO CLARO, ajustada el 2026-08-16 para que sus tres niveles se puedan
+     leer. Antes era 18.42 / 5.48 / 2.95 sobre blanco: el tercero reprobaba WCAG AA, que pide 4.5:1
+     para texto normal, y `fg-faint` son 216 usos —rótulos de sección de 11px, placeholders, el
+     "/500" del cupo— ninguno lo bastante grande para el umbral de 3:1 que aplica al texto grande.
+
+     El modo OSCURO ya estaba bien (17.24 / 8.00 / 5.26): se afinó esa paleta y no ésta. Así que en
+     vez de subir sólo `--muted` hasta que pasara —lo que lo habría dejado en 5.31, indistinguible
+     del 5.48 de `--text-2`, con la jerarquía de tres niveles colapsada en dos— se replicó la
+     ESTRUCTURA de la oscura: mismo paso entre niveles (1.53 contra 1.52) y los tres por encima de
+     4.5:1, también sobre `--surface-2`, que es el fondo más exigente de los dos.
+
+     Que la jerarquía sobreviva no es estética: hay sitios donde el color es el único diferenciador,
+     como el `120/500` del medidor de cupo, donde el total tiene que retroceder frente al consumo. */
+  --muted: #5d706a;             /* fg-faint — 5.26:1 sobre blanco, 4.92:1 sobre surface-2 */
+  --text-2: #46534f;            /* texto secundario — 8.04:1 sobre blanco */
+  --text: var(--tv-graphite);   /* tinta — 18.42:1 */
   --white: #ffffff;
 
   /* ── Acción ── */
@@ -216,7 +229,10 @@
   --secondary: hsl(162 35% 93%); /* #e6f2ee menta 100 */
   --secondary-foreground: hsl(165 78% 19%); /* #0b5847 */
   --ui-muted: hsl(165 16% 97%); /* #f5f8f7 nieve */
-  --ui-muted-foreground: hsl(160 8% 40%); /* #5c6d66 */
+  /* Sigue a `--text-2`, y tiene que seguirlo: `text-muted-foreground` (275 usos) y `text-fg-muted`
+     (227) son el MISMO nivel de la escala en dos sistemas de tokens. Dejarlos con tonos distintos
+     haría que el texto secundario cambiara de color según qué componente lo pinte. */
+  --ui-muted-foreground: hsl(162 8% 30%); /* #46534f — igual que --text-2 */
   --ui-accent: hsl(162 35% 93%); /* hover sutil en menta */
   --ui-accent-foreground: hsl(165 78% 19%);
   --destructive: hsl(5 62% 47%); /* #c03a2e */
