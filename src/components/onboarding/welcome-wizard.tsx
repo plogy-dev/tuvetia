@@ -53,14 +53,32 @@ const P_PACIENTE = 3
 const P_EJEMPLO = 4
 const P_EQUIPO = 5
 
+/**
+ * Lo que la clínica YA tiene, para no volver a pedirlo.
+ *
+ * El onboarding se puede repetir desde Ayuda, y ese botón promete "no borra nada de lo que ya
+ * cargaste". Sin esto, cumplir esa promesa significaría además DUPLICAR: un segundo titular con su
+ * paciente y otro juego de servicios, porque ni `create_owner` ni `catalog_items` tienen guarda de
+ * unicidad. Los horarios sí la tienen (`unique (clinic_id, weekday, opens_at)`), así que ahí el
+ * choque se maneja; los otros dos entrarían dos veces sin protestar.
+ */
+export type YaHecho = {
+  horarios: boolean
+  servicios: boolean
+  paciente: boolean
+}
+
 export function WelcomeWizard({
   clinicId,
   initialClinicName,
   initialLogoUrl,
+  yaHecho,
 }: {
   clinicId: string
   initialClinicName: string
   initialLogoUrl: string | null
+  /** Ausente = primera vez; nada está hecho. */
+  yaHecho?: YaHecho
 }) {
   const router = useRouter()
   const [supabase] = useState(() => createClient())
@@ -241,7 +259,16 @@ export function WelcomeWizard({
         />
       )}
 
-      {paso === P_HORARIOS && (
+      {paso === P_HORARIOS && yaHecho?.horarios && (
+        <YaEstaListo
+          icono={<Clock className="size-5" />}
+          titulo="Tus horarios ya están cargados"
+          sub="Athos ya puede ofrecer espacios libres y agendar con ellos."
+          onSeguir={() => setPaso(P_SERVICIOS)}
+        />
+      )}
+
+      {paso === P_HORARIOS && !yaHecho?.horarios && (
         <div className="flex flex-col gap-5">
           <Encabezado
             icono={<Clock className="size-5" />}
@@ -301,7 +328,16 @@ export function WelcomeWizard({
         </div>
       )}
 
-      {paso === P_SERVICIOS && (
+      {paso === P_SERVICIOS && yaHecho?.servicios && (
+        <YaEstaListo
+          icono={<Receipt className="size-5" />}
+          titulo="Ya tienes servicios en el catálogo"
+          sub="Con eso alcanza para facturar una consulta."
+          onSeguir={() => setPaso(P_PACIENTE)}
+        />
+      )}
+
+      {paso === P_SERVICIOS && !yaHecho?.servicios && (
         <div className="flex flex-col gap-5">
           <Encabezado
             icono={<Receipt className="size-5" />}
@@ -353,7 +389,16 @@ export function WelcomeWizard({
         </div>
       )}
 
-      {paso === P_PACIENTE && (
+      {paso === P_PACIENTE && yaHecho?.paciente && (
+        <YaEstaListo
+          icono={<PawPrint className="size-5" />}
+          titulo="Ya tienes pacientes cargados"
+          sub="No hace falta volver a empezar: los nuevos se agregan desde Pacientes."
+          onSeguir={() => setPaso(P_EJEMPLO)}
+        />
+      )}
+
+      {paso === P_PACIENTE && !yaHecho?.paciente && (
         <div className="flex flex-col gap-5">
           <Encabezado
             icono={<PawPrint className="size-5" />}
@@ -501,6 +546,39 @@ function Encabezado({ icono, titulo, sub }: { icono: React.ReactNode; titulo: st
       </div>
       <h1 className="text-xl font-bold">{titulo}</h1>
       <p className="text-sm text-muted-foreground">{sub}</p>
+    </div>
+  )
+}
+
+/**
+ * Un paso que la clínica ya resolvió.
+ *
+ * NO SE SALTA SOLO, se muestra. Avanzar en silencio dejaría al vet viendo pasar pantallas sin
+ * entender por qué, y el wizard perdería lo único que aporta sobre el riel del dashboard: contar qué
+ * hace falta y por qué. Acá el mensaje es el contenido — "esto ya está, seguimos".
+ *
+ * Tampoco ofrece editar: para eso están las pantallas de verdad, que hacen bien ese trabajo. Un
+ * segundo lugar donde tocar los horarios es un segundo lugar donde puedan quedar distintos.
+ */
+function YaEstaListo({
+  icono,
+  titulo,
+  sub,
+  onSeguir,
+}: {
+  icono: React.ReactNode
+  titulo: string
+  sub: string
+  onSeguir: () => void
+}) {
+  return (
+    <div className="flex flex-col gap-5">
+      <Encabezado icono={icono} titulo={titulo} sub={sub} />
+      <div className="flex items-center justify-center gap-2 rounded-xl border bg-muted/40 p-4 text-sm text-muted-foreground">
+        <Check aria-hidden className="size-4 shrink-0 text-primary" />
+        Lo puedes cambiar cuando quieras desde Configuración.
+      </div>
+      <Button onClick={onSeguir}>Continuar</Button>
     </div>
   )
 }
