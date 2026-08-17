@@ -280,7 +280,7 @@ export function InvoiceCart({
                           value={l.description}
                           onChange={(e) => updateLine(l.key, { description: e.target.value })}
                           placeholder="Descripción del servicio/producto"
-                          className="w-full rounded-md border border-line bg-surface px-2 py-1 text-sm text-fg placeholder:text-fg-faint focus:border-brand focus:outline-none"
+                          className="w-full rounded-md border border-line bg-surface px-2 py-1 text-sm text-fg placeholder:text-fg-faint outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
                         />
                       )}
                     </td>
@@ -291,7 +291,7 @@ export function InvoiceCart({
                         step={0.25}
                         value={l.qty}
                         onChange={(e) => updateLine(l.key, { qty: Number(e.target.value) })}
-                        className="w-20 rounded-md border border-line bg-surface px-2 py-1 text-sm text-fg focus:border-brand focus:outline-none"
+                        className="w-20 rounded-md border border-line bg-surface px-2 py-1 text-sm text-fg outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
                       />
                     </td>
                     <td className="px-2 py-2">
@@ -308,7 +308,7 @@ export function InvoiceCart({
                               unitPriceCents: Math.round(Number(e.target.value) * 100),
                             })
                           }
-                          className="w-28 rounded-md border border-line bg-surface px-2 py-1 text-sm text-fg focus:border-brand focus:outline-none"
+                          className="w-28 rounded-md border border-line bg-surface px-2 py-1 text-sm text-fg outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
                         />
                       )}
                     </td>
@@ -319,7 +319,7 @@ export function InvoiceCart({
                         <select
                           value={l.taxRate}
                           onChange={(e) => updateLine(l.key, { taxRate: Number(e.target.value) })}
-                          className="rounded-md border border-line bg-surface px-2 py-1 text-sm text-fg focus:border-brand focus:outline-none"
+                          className="rounded-md border border-line bg-surface px-2 py-1 text-sm text-fg outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
                         >
                           <option value={0}>0%</option>
                           <option value={5}>5%</option>
@@ -356,7 +356,7 @@ export function InvoiceCart({
             <select
               value={docKind}
               onChange={(e) => setDocKind(e.target.value as DocKind)}
-              className="mt-1 w-full max-w-xs rounded-lg border border-line bg-surface px-3 py-2 text-sm text-fg focus:border-brand focus:outline-none"
+              className="mt-1 w-full max-w-xs rounded-lg border border-line bg-surface px-3 py-2 text-sm text-fg outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
             >
               <option value="POS">Tiquete POS electrónico</option>
               <option value="FACTURA_VENTA">Factura electrónica de venta</option>
@@ -549,7 +549,7 @@ function CatalogPicker({
           }}
           onFocus={() => setOpen(true)}
           placeholder="Buscar en el catálogo (nombre o SKU)…"
-          className="w-full rounded-lg border border-line bg-surface py-2 pl-9 pr-3 text-sm text-fg placeholder:text-fg-faint focus:border-brand focus:outline-none"
+          className="w-full rounded-lg border border-line bg-surface py-2 pl-9 pr-3 text-sm text-fg placeholder:text-fg-faint outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
         />
       </div>
 

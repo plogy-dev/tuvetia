@@ -176,7 +176,7 @@ export default async function NuevaFacturaPage({ searchParams }: { searchParams:
                   defaultValue={q}
                   autoFocus
                   placeholder="Nombre de la mascota, del titular, cédula o celular…"
-                  className="w-full rounded-lg border border-line bg-surface py-2 pl-9 pr-3 text-sm text-fg placeholder:text-fg-faint focus:border-brand focus:outline-none"
+                  className="w-full rounded-lg border border-line bg-surface py-2 pl-9 pr-3 text-sm text-fg placeholder:text-fg-faint outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
                 />
               </div>
               <button

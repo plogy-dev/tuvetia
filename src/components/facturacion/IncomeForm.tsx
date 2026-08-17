@@ -8,7 +8,7 @@ import { upsertIncomeAction } from '@/lib/facturacion/payments/actions';
 const METHODS = ['EFECTIVO', 'TRANSFERENCIA', 'NEQUI', 'DAVIPLATA', 'TARJETA', 'OTRO'] as const;
 
 const inputCls =
-  'mt-1 w-full rounded-lg border border-line bg-surface px-3 py-2 text-sm text-fg placeholder:text-fg-faint focus:border-brand focus:outline-none';
+  'mt-1 w-full rounded-lg border border-line bg-surface px-3 py-2 text-sm text-fg placeholder:text-fg-faint outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50';
 const labelCls = 'block text-xs font-medium text-fg-muted';
 
 export interface IncomeInitial {
