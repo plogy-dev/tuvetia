@@ -50,14 +50,24 @@ beforeEach(() => {
 describe("aislamiento por clínica", () => {
   // EL TEST OBLIGATORIO. Si una señal olvidara su `clinic_id`, un vet vería las notas sin aprobar
   // de otra veterinaria en su propia pantalla de inicio.
-  it("las CUATRO señales filtran por clinic_id", async () => {
+  // La lista se escribe COMPLETA y no con un `toContain`: así, cuando alguien sume una señal, este
+  // test falla y lo obliga a declarar que la nueva consulta también filtra. Es lo que pasó el
+  // 2026-08-16 al sumar `whatsapp_integrations` para la señal de canal caído.
+  it("TODAS las señales filtran por clinic_id", async () => {
     await senalesDeLaClinica(clienteFalso(), CLINICA, HOY)
 
     const conClinica = new Set(
       filtros.filter((f) => f.columna === "clinic_id" && f.valor === CLINICA).map((f) => f.tabla),
     )
     expect(conClinica).toEqual(
-      new Set(["clinical_notes", "whatsapp_messages", "vaccines", "human_tasks", "invoices"]),
+      new Set([
+        "clinical_notes",
+        "whatsapp_messages",
+        "vaccines",
+        "human_tasks",
+        "invoices",
+        "whatsapp_integrations",
+      ]),
     )
   })
 

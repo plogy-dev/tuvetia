@@ -13,7 +13,12 @@ import "server-only"
 
 import type { SupabaseClient } from "@supabase/supabase-js"
 
-import { pendientesDeLaClinica, type MensajeParaSenal, type Pendiente } from "@/lib/senales/pendientes"
+import {
+  pendientesDeLaClinica,
+  type IntegracionParaSenal,
+  type MensajeParaSenal,
+  type Pendiente,
+} from "@/lib/senales/pendientes"
 
 /**
  * Cuántos mensajes se miran hacia atrás para decidir quién quedó sin respuesta.
@@ -80,7 +85,7 @@ export async function senalesDeLaClinica(
 
   const caidas: SenalesCaidas = []
 
-  const [notas, mensajes, vacunas, tareas, facturas] = await Promise.all([
+  const [notas, mensajes, vacunas, tareas, facturas, integraciones] = await Promise.all([
     supabase
       .from("clinical_notes")
       .select("status")
@@ -121,6 +126,14 @@ export async function senalesDeLaClinica(
       .eq("status", "EMITIDA")
       .gt("balance_cents", 0)
       .then(oVacio<{ balance_cents: number | null; due_date: string | null }>("invoices", clinicId, caidas)),
+
+    // El estado VIVO del canal, que es lo único de esta tanda que no cuenta trabajo sino que informa
+    // si el canal por el que ese trabajo se hace sigue en pie. Ver `canalCaido` en `pendientes.ts`.
+    supabase
+      .from("whatsapp_integrations")
+      .select("status, updated_at")
+      .eq("clinic_id", clinicId)
+      .then(oVacio<IntegracionParaSenal>("whatsapp_integrations", clinicId, caidas)),
   ])
 
   const vencidas = facturas.filter((f) => (f.balance_cents ?? 0) > 0 && f.due_date && f.due_date < hoyISO)
@@ -130,7 +143,7 @@ export async function senalesDeLaClinica(
   }
 
   return {
-    pendientes: pendientesDeLaClinica({ hoyISO, notas, mensajes, vacunas, tareas, cobros }),
+    pendientes: pendientesDeLaClinica({ hoyISO, notas, mensajes, vacunas, tareas, cobros, integraciones }),
     cobrosVencidos: cobros,
     caidas,
   }
