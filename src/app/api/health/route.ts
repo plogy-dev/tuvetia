@@ -166,6 +166,15 @@ export async function GET(req: Request) {
     {
       ok: missing.length === 0,
       checks,
+      // FUERA DE `checks` A PROPÓSITO. El seguimiento de errores es OPCIONAL: sin
+      // `NEXT_PUBLIC_SENTRY_DSN` la app funciona igual y los errores se quedan en consola, que es
+      // como estuvo hasta el 2026-08-16. Meterlo entre los chequeos dejaría `missing` no vacío y
+      // pondría el workflow `smoke` en rojo para siempre — un rojo permanente es un rojo que se
+      // ignora, y entonces deja de servir el día que falte algo de verdad.
+      //
+      // Igual se REPORTA, porque "no hay tracker" es exactamente la clase de cosa que conviene poder
+      // ver desde afuera en vez de deducirla.
+      seguimiento_de_errores: set("NEXT_PUBLIC_SENTRY_DSN"),
       whatsapp_providers: whatsappProviders,
       // Solo el NOMBRE del proveedor declarado (nunca un valor secreto): es lo que hace depurable
       // el caso "todo cableado pero el botón ofrece otro camino".
