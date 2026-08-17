@@ -17,7 +17,7 @@ import { clasificarFallo } from "@/lib/athos-agent/cascada"
 import { registrarUso } from "@/lib/athos-agent/usage"
 import { rateLimit } from "@/lib/athos-agent/rate-limit"
 import { consultarPresupuesto, mensajeSinCupo } from "@/lib/athos-agent/presupuesto"
-import { clinicaDeLaSesion } from "@/lib/api/clinica-de-la-sesion"
+import { clinicaDeLaSesion, requiereCapacidad } from "@/lib/api/clinica-de-la-sesion"
 import { bloqueDeContextoRuntime } from "@/lib/athos-agent/contexto-runtime"
 import { senalesDeLaClinica } from "@/lib/senales/consultar"
 import type { AgentContext } from "@/lib/athos-agent/actions"
@@ -82,6 +82,22 @@ export async function POST(req: Request) {
   const sesion = await clinicaDeLaSesion(supabase, user.id)
   if (!sesion.ok) return new Response(sesion.mensaje, { status: sesion.status })
   const { clinicId } = sesion
+
+  // EL PLAN, ANTES QUE EL TOPE Y ANTES QUE TODO LO DEMÁS. Athos es de Pro; una clínica free no
+  // llega a armar el pedido. Va acá arriba y no más abajo por el mismo motivo por el que existe la
+  // comprobación de cuenta activa: lo que se corta es el GASTO, no la respuesta.
+  //
+  // La cabecera `X-Requiere-Plan` es lo que le permite al compositor distinguir este 402 —"tu plan
+  // no lo incluye", que abre la ventana de invitación a Pro— del 402 de más abajo, que es "se te
+  // acabó el cupo del mes" y se resuelve esperando. El cuerpo es texto plano porque esta ruta
+  // responde un stream, no JSON.
+  const conPlan = requiereCapacidad(sesion.plan, "athos")
+  if (!conPlan.ok) {
+    return new Response(conPlan.mensaje, {
+      status: conPlan.status,
+      headers: { "X-Requiere-Plan": "pro", "X-Capacidad": conPlan.capacidad },
+    })
+  }
 
   // TOPE MENSUAL DE LA CLÍNICA. Distinto del `rateLimit` de arriba: aquél corta la ráfaga de UN
   // usuario en memoria, éste corta el consumo acumulado de la CLÍNICA contra la base — que es lo

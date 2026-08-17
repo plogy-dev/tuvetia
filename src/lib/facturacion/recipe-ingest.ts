@@ -17,6 +17,8 @@ import { z } from 'zod';
 import { visionModel } from '@/lib/athos-agent/model';
 import { registrarUso } from '@/lib/athos-agent/usage';
 import { consultarPresupuesto, mensajeSinCupo } from '@/lib/athos-agent/presupuesto';
+import { MENSAJE_REQUIERE_PRO } from '@/lib/planes';
+import { clinicaPuede } from '@/lib/planes/servidor';
 import type { RecipeDraft } from '@/lib/facturacion/domain/recipes';
 import { parseSpreadsheetDraft, spreadsheetToCsv } from '@/lib/facturacion/domain/recipe-parse';
 
@@ -96,14 +98,37 @@ export async function extractRecipeDraft(
   if (input.kind === 'excel') {
     const parsed = parseSpreadsheetDraft(input.base64);
     if (parsed) return parsed;
+    // Un Excel SIN columnas claras cae al modelo, así que también es de Pro. El de columnas claras
+    // salió arriba sin gastar nada y sigue siendo gratis: el corte es por gasto, no por formato.
+    await exigirPlanPro(opts.clinicId);
     // Sin columnas claras: el modelo lee el CSV crudo como texto.
     return extractWithModel({ kind: 'text', text: spreadsheetToCsv(input.base64) }, opts.clinicId);
   }
   if (input.kind === 'image') {
+    await exigirPlanPro(opts.clinicId);
     return extractWithModel(
       { kind: 'image', base64: input.base64, mediaType: input.mediaType },
       opts.clinicId,
     );
   }
+  await exigirPlanPro(opts.clinicId);
   return extractWithModel({ kind: 'text', text: input.text }, opts.clinicId);
+}
+
+/**
+ * Corta la lectura por IA cuando la clínica no es Pro.
+ *
+ * LANZA, a diferencia de los otros gates de este trabajo, y es por dónde se llama: acá hay una
+ * persona esperando frente a una pantalla que acaba de subir una foto. Devolver un borrador vacío
+ * en silencio se leería como "la foto no se entendió" y la haría reintentar. La excepción sube
+ * hasta la acción, que le muestra la ventana de invitación a Pro.
+ *
+ * `RequierePlanPro` se distingue por su `name`, no por el texto del mensaje: quien la atrapa tiene
+ * que poder separarla de un fallo real del modelo sin leer strings.
+ */
+async function exigirPlanPro(clinicId: string): Promise<void> {
+  if (await clinicaPuede(clinicId, 'receta-por-foto')) return;
+  const e = new Error(`${MENSAJE_REQUIERE_PRO['receta-por-foto']} Subí de plan para usarlo.`);
+  e.name = 'RequierePlanPro';
+  throw e;
 }

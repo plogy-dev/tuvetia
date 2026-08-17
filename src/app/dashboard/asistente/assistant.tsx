@@ -9,7 +9,7 @@ import {
   type ToolUIPart,
   type UIMessage,
 } from "ai"
-import { Bot, Loader2, Send } from "lucide-react"
+import { Bot, Loader2, Send, Sparkles } from "lucide-react"
 import { toast } from "sonner"
 
 import { renderInline, splitBlocks } from "@/components/athos/rich-text"
@@ -29,6 +29,8 @@ import {
 
 import type { StoredThreads } from "@/lib/athos-history"
 import { CONEXION_CORREO } from "@/lib/athos-agent/conversacion"
+import { useCapacidad } from "@/components/planes/plan-provider"
+import { useModalPro } from "@/components/planes/modal-subir-a-pro"
 
 export type AssistantPatient = { id: string; name: string; species: string }
 
@@ -292,6 +294,11 @@ export function Assistant({
 
   const busy = status === "submitted" || status === "streaming"
 
+  // El plan de la clínica llega resuelto desde el layout: sin consulta y sin instante de "no sé
+  // todavía" en el que el compositor dejaría pasar un mensaje.
+  const { puede: puedeUsarAthos } = useCapacidad("athos")
+  const { pedirPro, ventana } = useModalPro("athos")
+
   useEffect(() => {
     threadRef.current?.scrollTo({ top: threadRef.current.scrollHeight })
   }, [messages, status])
@@ -306,6 +313,21 @@ export function Assistant({
       return
     }
     if (busy) return
+
+    // EL GATE DEL PLAN, ANTES DE MANDAR NADA. Una clínica en free escribe, aprieta Enter y recibe
+    // la ventana de invitación a Pro.
+    //
+    // **NO SE BORRA LO ESCRITO.** `setInput("")` queda del otro lado del corte a propósito: el vet
+    // redactó una pregunta y perderla al chocar contra el muro de pago es castigarlo por intentar.
+    // Si sube de plan, vuelve y la pregunta sigue ahí.
+    //
+    // Esto es interfaz, no seguridad: la ruta corta igual con 402. Lo que evita es el viaje y el
+    // mensaje de error crudo.
+    if (!puedeUsarAthos) {
+      pedirPro()
+      return
+    }
+
     setInput("")
     // El agente deriva la clínica de la sesión; aquí solo viaja el contexto de paciente.
     void sendMessage(
@@ -525,11 +547,28 @@ export function Assistant({
             {busy ? <Loader2 className="size-4 animate-spin" /> : <Send className="size-4" />}
           </Button>
         </div>
-        <p className="mt-2 text-[11px] text-fg-faint">
-          Athos propone — tú apruebas. Ninguna acción se ejecuta sin tu confirmación.
-        </p>
+        {/* LA ADVERTENCIA APARECE AL ESCRIBIR, no al cargar la pantalla.
+            Un aviso permanente de "esto es de pago" convierte la pantalla entera en un cartel y se
+            deja de leer a los dos días. Enganchado a que haya texto, aparece en el único momento en
+            que sirve: cuando el vet está por mandar algo y conviene que sepa qué va a pasar antes
+            de apretar Enter, en vez de descubrirlo con una ventana en la cara.
+
+            Ocupa el lugar de la nota de "Athos propone — tú apruebas" en vez de sumarse: dos líneas
+            de letra chica bajo el compositor no las lee nadie, y con el plan en free la que importa
+            es ésta. */}
+        {!puedeUsarAthos && input.trim() ? (
+          <p className="mt-2 flex items-center gap-1.5 text-[11px] text-brand-text">
+            <Sparkles className="size-3 shrink-0" aria-hidden />
+            Athos es parte del plan Pro. Al enviar te vamos a mostrar cómo activarlo.
+          </p>
+        ) : (
+          <p className="mt-2 text-[11px] text-fg-faint">
+            Athos propone — tú apruebas. Ninguna acción se ejecuta sin tu confirmación.
+          </p>
+        )}
        </div>
       </div>
+      {ventana}
     </div>
   )
 }

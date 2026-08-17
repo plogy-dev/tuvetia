@@ -21,6 +21,7 @@ import { buildAutoReplyTools } from "@/lib/athos-agent/auto-tools"
 import { autoModel } from "@/lib/athos-agent/model"
 import { registrarUso } from "@/lib/athos-agent/usage"
 import { consultarPresupuesto } from "@/lib/athos-agent/presupuesto"
+import { clinicaPuede } from "@/lib/planes/servidor"
 import { sendWhatsAppText } from "./send-message"
 const DEBOUNCE_MS = 5_000
 const MAX_PER_HOUR_PER_CONVERSATION = 8
@@ -133,6 +134,20 @@ export async function maybeAutoReply(input: {
   //
   //    Sin cupo, silencio — que es el comportamiento normal de este camino cuando decide no
   //    responder: el mensaje queda sin leer para el vet, que lo contesta él.
+  // 0. EL PLAN, ANTES QUE EL CUPO. El modo automático es de Pro. Se comprueba acá —y no sólo en la
+  //    pantalla donde se enciende el interruptor— porque este camino arranca desde el webhook del
+  //    proveedor, sin sesión y sin nadie mirando: una clínica que baje a free con el interruptor
+  //    encendido seguiría respondiendo con IA en cada mensaje entrante hasta que alguien lo notara.
+  //
+  //    Silencio, igual que sin cupo: el mensaje queda sin leer y lo contesta el vet. Es lo correcto
+  //    incluso desde el lado del titular — mejor una respuesta humana tarde que ninguna.
+  if (!(await clinicaPuede(clinicId, "whatsapp-automatico"))) {
+    console.info(
+      `[auto-reply] clínica ${clinicId} en plan free: el modo automático no responde y el mensaje queda para el vet.`,
+    )
+    return
+  }
+
   const presupuesto = await consultarPresupuesto(clinicId)
   if (!presupuesto.permitido) {
     console.warn(

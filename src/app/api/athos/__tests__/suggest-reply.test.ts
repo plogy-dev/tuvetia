@@ -51,10 +51,31 @@ const pedir = (phone = "+57 300 1234567") =>
 beforeEach(() => {
   vi.clearAllMocks()
   getUser.mockResolvedValue({ data: { user: { id: "u1" } } })
-  perfil.mockResolvedValue({ data: { clinic_id: "c1" } })
+  // `clinic: { plan: "pro" }` es el embed que `clinicaDeLaSesion` pide en el mismo select. Sin él,
+  // el plan cae a `free` —que es lo correcto: ante la duda, negar— y la ruta cortaría con 402 antes
+  // de llegar a lo que estos tests miden.
+  perfil.mockResolvedValue({ data: { clinic_id: "c1", clinic: { plan: "pro" } } })
 })
 
 describe("POST /api/athos/suggest-reply", () => {
+  // EL GATE DEL PLAN, Y LO QUE MIDE ES QUE NO SE GASTE.
+  //
+  // Una clínica free tiene que cortar ANTES del modelo. Si este test se cayera —porque alguien
+  // mueve el gate más abajo, o lo saca— el síntoma en producción sería una factura de IA de
+  // clínicas que no pagan, y nadie lo notaría hasta cerrar el mes.
+  it("plan free: 402 sin llamar al modelo, y dice que es de Pro", async () => {
+    perfil.mockResolvedValue({ data: { clinic_id: "c1", clinic: { plan: "free" } } })
+    contarMensajes.mockResolvedValue({ count: 3 })
+
+    const res = await pedir()
+    const body = (await res.json()) as { error: string; requierePlan?: string }
+
+    expect(res.status).toBe(402) // 402 y no 403: le falta plan, no permiso
+    expect(body.requierePlan).toBe("pro") // lo que le permite a la bandeja abrir la ventana
+    expect(body.error).toMatch(/pro/i)
+    expect(generateTextMock).not.toHaveBeenCalled()
+  })
+
   it("conversación sin mensajes: explica por qué y NO llama al modelo", async () => {
     contarMensajes.mockResolvedValue({ count: 0 })
 

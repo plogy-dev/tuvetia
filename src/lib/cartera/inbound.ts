@@ -31,6 +31,7 @@ import {
   renderReply,
   type CarteraIntent,
 } from './intents';
+import { clinicaPuede } from '@/lib/planes/servidor';
 import { revokeAuthorization } from './authorizations';
 import { openHumanTask } from './tasks';
 
@@ -57,6 +58,17 @@ export async function classifyCarteraIntent(
   // Sin cupo se degrada a `OTRO`, que es exactamente lo mismo que hace cuando el clasificador
   // falla: escala a una persona y no se responde nada automático. El cobro no se pierde — lo
   // atiende un humano.
+  // EL PLAN PRIMERO. La clasificación de intents es de Pro: corre en el barrido diario, sin sesión
+  // y sin nadie delante, y gasta una llamada al modelo por cada respuesta de cliente.
+  //
+  // Degrada a `OTRO` en vez de romper, igual que sin cupo. **Cartera sigue funcionando en free**:
+  // los recordatorios salen, la antigüedad se calcula, los cobros se registran. Lo único que se
+  // pierde es que una máquina lea la respuesta primero — la lee una persona, que es como funcionaba
+  // antes de que existiera el clasificador.
+  if (!(await clinicaPuede(opts.clinicId, 'cartera-ia'))) {
+    return { intent: 'OTRO', promiseDate: null };
+  }
+
   const presupuesto = await consultarPresupuesto(opts.clinicId);
   if (!presupuesto.permitido) {
     console.warn(

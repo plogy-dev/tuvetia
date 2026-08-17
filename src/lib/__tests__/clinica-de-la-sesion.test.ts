@@ -31,6 +31,8 @@ const PERFIL = {
   full_name: "Dra. Ruiz",
   role: "vet",
   is_active: true,
+  // El embed de la clínica: PostgREST lo devuelve como objeto en una relación a-uno.
+  clinic: { plan: "pro" },
 }
 
 describe("clinicaDeLaSesion", () => {
@@ -39,7 +41,13 @@ describe("clinicaDeLaSesion", () => {
 
     const r = await clinicaDeLaSesion(cliente, "u-1")
 
-    expect(r).toEqual({ ok: true, clinicId: "c-1", fullName: "Dra. Ruiz", role: "vet" })
+    expect(r).toEqual({
+      ok: true,
+      clinicId: "c-1",
+      fullName: "Dra. Ruiz",
+      role: "vet",
+      plan: "pro",
+    })
   })
 
   // EL TEST QUE JUSTIFICA EL ARCHIVO.
@@ -85,14 +93,32 @@ describe("clinicaDeLaSesion", () => {
   })
 
   // Si `is_active` se cayera del select, la guarda quedaría siempre en `undefined` y no bloquearía
-  // a nadie — en silencio, y sin que ningún otro test lo note.
-  it("pide is_active en el MISMO select, sin round-trip extra", async () => {
+  // a nadie — en silencio, y sin que ningún otro test lo note. Con `plan` pasa lo mismo pero al
+  // revés: si se cayera, `comoPlan(undefined)` da `free` y TODAS las clínicas perderían Athos.
+  it("pide is_active y el plan en el MISMO select, sin round-trip extra", async () => {
     const { cliente, select } = clienteQueDevuelve(PERFIL)
 
     await clinicaDeLaSesion(cliente, "u-1")
 
     expect(select).toHaveBeenCalledTimes(1)
     expect(select.mock.calls[0][0]).toContain("is_active")
+    expect(select.mock.calls[0][0]).toContain("clinics(plan)")
+  })
+
+  // ── El plan ──────────────────────────────────────────────────────────────────────────────────
+
+  it("devuelve el plan de la clínica", async () => {
+    const { cliente } = clienteQueDevuelve({ ...PERFIL, clinic: { plan: "free" } })
+
+    expect(await clinicaDeLaSesion(cliente, "u-1")).toMatchObject({ ok: true, plan: "free" })
+  })
+
+  // Si la RLS niega el embed —o la columna llega vacía— el resultado tiene que ser free, no pro.
+  // Al revés, un fallo de lectura regalaría el producto y sería explotable a voluntad.
+  it("sin el embed de la clínica, el plan cae a free", async () => {
+    const { cliente } = clienteQueDevuelve({ ...PERFIL, clinic: null })
+
+    expect(await clinicaDeLaSesion(cliente, "u-1")).toMatchObject({ ok: true, plan: "free" })
   })
 
   // El mensaje lo lee un veterinario, no un desarrollador: no dice "is_active=false" ni "403".

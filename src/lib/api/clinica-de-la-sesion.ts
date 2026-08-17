@@ -25,11 +25,18 @@ import "server-only"
 // Lo que la RLS no puede hacer es impedir que se gaste dinero ANTES de tocar la base.
 
 import type { createClient } from "@/lib/supabase/server"
+import {
+  MENSAJE_REQUIERE_PRO,
+  comoPlan,
+  tieneAcceso,
+  type Capacidad,
+  type Plan,
+} from "@/lib/planes"
 
 type ClienteDeSesion = Awaited<ReturnType<typeof createClient>>
 
 export type ClinicaDeLaSesion =
-  | { ok: true; clinicId: string; fullName: string | null; role: string | null }
+  | { ok: true; clinicId: string; fullName: string | null; role: string | null; plan: Plan }
   | { ok: false; status: 400 | 403; mensaje: string }
 
 /** Lo que se le dice a una cuenta desactivada. Sin detalle: no es información que le sirva. */
@@ -42,7 +49,10 @@ export async function clinicaDeLaSesion(
 ): Promise<ClinicaDeLaSesion> {
   const { data } = await supabase
     .from("profiles")
-    .select("clinic_id, full_name, role, is_active")
+    // `clinic:clinics(plan)` viaja EMBEBIDO y no en una consulta aparte, por el mismo motivo que
+    // `is_active`: son las nueve rutas de siempre, y una lectura suelta en cada una es una lectura
+    // que la ruta número diez no va a tener. PostgREST lo resuelve en el mismo round-trip.
+    .select("clinic_id, full_name, role, is_active, clinic:clinics(plan)")
     .eq("id", userId)
     .maybeSingle()
 
@@ -51,6 +61,8 @@ export async function clinicaDeLaSesion(
     full_name: string | null
     role: string | null
     is_active: boolean | null
+    // El embed llega como objeto (relación a-uno) o `null` si la RLS lo niega.
+    clinic: { plan: string | null } | null
   } | null
 
   // `is_active` es `not null default true` en el esquema, pero se compara contra `false` explícito:
@@ -69,5 +81,32 @@ export async function clinicaDeLaSesion(
     clinicId: perfil.clinic_id,
     fullName: perfil.full_name,
     role: perfil.role,
+    // `comoPlan` cae a `free` ante cualquier cosa que no sea exactamente `"pro"`, incluido el
+    // `null` de un embed que la RLS negó. La dirección importa: un plan ilegible tiene que negar.
+    plan: comoPlan(perfil.clinic?.plan),
+  }
+}
+
+/**
+ * El corte por plan, para las rutas que gastan IA.
+ *
+ * Se usa DESPUÉS de `clinicaDeLaSesion` y antes de llamar al modelo — ese orden es el punto entero:
+ * lo que se corta acá es el gasto, no la respuesta. Una ruta que valide el plan después de haber
+ * llamado al modelo devuelve un 402 correcto y una factura igual de cara.
+ *
+ * Devuelve **402 Payment Required**, que existe justamente para esto y le permite al navegador
+ * distinguirlo de un 403 por permisos: la interfaz abre la ventana de invitación a Pro sólo con el
+ * 402. Con un 403 tendría que adivinar si al vet le falta plan o le falta rol.
+ */
+export function requiereCapacidad(
+  plan: Plan,
+  capacidad: Capacidad,
+): { ok: true } | { ok: false; status: 402; mensaje: string; capacidad: Capacidad } {
+  if (tieneAcceso(plan, capacidad)) return { ok: true }
+  return {
+    ok: false,
+    status: 402,
+    mensaje: `${MENSAJE_REQUIERE_PRO[capacidad]} Subí de plan para usarlo.`,
+    capacidad,
   }
 }

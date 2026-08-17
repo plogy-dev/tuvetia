@@ -12,6 +12,9 @@ import { createClient } from "@/lib/supabase/server"
 import { progresoDeConfiguracion } from "@/lib/onboarding/consultar"
 import { AthosProvider } from "@/components/athos/athos-provider"
 import { AthosDock } from "@/components/athos/athos-dock"
+import { PlanProvider } from "@/components/planes/plan-provider"
+import { comoPlan } from "@/lib/planes"
+import { precioProCentavos } from "@/lib/planes/precio"
 
 export default async function DashboardLayout({
   children,
@@ -61,10 +64,13 @@ export default async function DashboardLayout({
   // sin ninguna pista. No hay lazo: /bienvenida ya NO rebota acá cuando falta la clínica.
   if (user && acceso !== "activo") redirect("/bienvenida")
 
+  // `plan` viaja en el MISMO select que el nombre y el logo: la barra lateral y el widget de Athos
+  // necesitan saberlo en cada carga, y una consulta aparte por algo que ya se está trayendo es un
+  // round-trip regalado en la ruta más caliente de la app.
   const { data: clinic } = p?.clinic_id
-    ? await supabase.from("clinics").select("name, logo_url").eq("id", p.clinic_id).maybeSingle()
+    ? await supabase.from("clinics").select("name, logo_url, plan").eq("id", p.clinic_id).maybeSingle()
     : { data: null }
-  const c = clinic as { name: string; logo_url: string | null } | null
+  const c = clinic as { name: string; logo_url: string | null; plan: string | null } | null
 
   const sidebarUser = {
     name: profile?.full_name || user?.email || "Usuario",
@@ -98,6 +104,17 @@ export default async function DashboardLayout({
           re-renderiza igual — nada mutable vive acá. El estado del widget vive en `AthosDock`, que
           es HERMANO de `{children}` y por eso abrirlo no re-renderiza ninguna pantalla.
           `clinic_id` y el nombre ya están resueltos arriba: el widget arranca sin una sola query. */}
+      {/* El plan baja como dato desde acá y no lo consulta nadie más: el compositor de Athos y el
+          botón de iniciar consulta están hundidos en el árbol y son de cliente. Sin esto, cada uno
+          haría su propia consulta y tendría un instante de "todavía no sé" en el que dejaría pasar.
+
+          `precioCentavos` es sólo para PINTAR. El monto que se le manda a Wompi lo vuelve a
+          resolver el servidor cuando cobra; la interfaz nunca elige cuánto se cobra. */}
+      <PlanProvider
+        plan={comoPlan(c?.plan)}
+        precioCentavos={precioProCentavos()}
+        esAdmin={p?.role === "admin"}
+      >
       <AthosProvider clinicId={p?.clinic_id ?? null} clinicName={sidebarClinic.name}>
         {/* `progresoDeConfiguracion()` está envuelto en `cache()` de React: el dashboard lo vuelve
             a llamar para pintar el riel completo y comparten el mismo round-trip, en vez de correr
@@ -122,6 +139,7 @@ export default async function DashboardLayout({
         </SidebarInset>
         <AthosDock />
       </AthosProvider>
+      </PlanProvider>
     </SidebarProvider>
   )
 }

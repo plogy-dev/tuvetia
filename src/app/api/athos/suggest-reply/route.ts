@@ -3,7 +3,7 @@ import { NextResponse } from "next/server"
 import { z } from "zod"
 
 import { createClient } from "@/lib/supabase/server"
-import { clinicaDeLaSesion } from "@/lib/api/clinica-de-la-sesion"
+import { clinicaDeLaSesion, requiereCapacidad } from "@/lib/api/clinica-de-la-sesion"
 import { ATHOS_AGENT_SYSTEM_PROMPT } from "@/lib/athos-agent/system-prompt"
 import { buildAthosTools } from "@/lib/athos-agent/tools"
 import { agentModel } from "@/lib/athos-agent/model"
@@ -42,6 +42,19 @@ export async function POST(req: Request) {
   const sesion = await clinicaDeLaSesion(supabase, user.id)
   if (!sesion.ok) return NextResponse.json({ error: sesion.mensaje }, { status: sesion.status })
   const { clinicId } = sesion
+
+  // La sugerencia de respuesta ES Athos, aunque viva dentro de Comunicaciones. Va a Pro por lo
+  // mismo que el chat: cuesta una llamada al modelo cada vez que alguien la pide.
+  //
+  // `requierePlan` en el cuerpo es lo que le permite a la bandeja abrir la ventana de invitación en
+  // vez de mostrar el error como un fallo de envío.
+  const conPlan = requiereCapacidad(sesion.plan, "sugerencia-whatsapp")
+  if (!conPlan.ok) {
+    return NextResponse.json(
+      { error: conPlan.mensaje, requierePlan: "pro", capacidad: conPlan.capacidad },
+      { status: conPlan.status },
+    )
+  }
 
   // El mismo tope mensual de la clínica que en `/api/athos/agent`: es UN cupo compartido entre
   // todas las superficies, no uno por pantalla. Sugerir una respuesta en la bandeja cuesta una

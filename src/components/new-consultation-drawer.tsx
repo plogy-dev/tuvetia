@@ -27,6 +27,8 @@ import {
 } from "@/components/ui/select"
 import { useIsMobile } from "@/hooks/use-mobile"
 import { CirclePlusIcon, Loader2Icon } from "lucide-react"
+import { useCapacidad } from "@/components/planes/plan-provider"
+import { useModalPro } from "@/components/planes/modal-subir-a-pro"
 
 type Patient = { id: string; name: string; species: string; owner_id: string | null }
 
@@ -41,6 +43,12 @@ export function NewConsultationDrawer({
 } = {}) {
   const isMobile = useIsMobile()
   const router = useRouter()
+
+  // El Modo Fantasma es de Pro. Acá sólo se decide qué mostrar: el corte de verdad es el trigger
+  // `consultations_requiere_pro` de la migración 0065, porque este cajón inserta la consulta
+  // DIRECTO contra la base y no pasa por ninguna ruta de API.
+  const { puede: puedeGrabar } = useCapacidad("modo-fantasma")
+  const { pedirPro, ventana } = useModalPro("modo-fantasma")
 
   const [open, setOpen] = useState(false)
   const [loading, setLoading] = useState(false)
@@ -58,6 +66,18 @@ export function NewConsultationDrawer({
   }
 
   async function handleOpenChange(nextOpen: boolean) {
+    // EL GATE VA AL ABRIR, no al enviar el formulario.
+    //
+    // La consigna era frenar en «Iniciar consulta», y este cajón ES ese botón: se abre desde el
+    // botón primario del sidebar, desde la pantalla de Consultas y desde el estado vacío. Cortando
+    // acá, la ventana de Pro aparece con un solo clic en vez de después de elegir paciente y
+    // escribir el motivo — hacerle llenar un formulario a alguien para decirle al final que no
+    // puede es la peor versión de este muro.
+    if (nextOpen && !puedeGrabar) {
+      pedirPro()
+      return
+    }
+
     setOpen(nextOpen)
     if (!nextOpen) {
       resetForm()
@@ -142,6 +162,7 @@ export function NewConsultationDrawer({
   }
 
   return (
+    <>
     <Drawer
       open={open}
       onOpenChange={handleOpenChange}
@@ -232,5 +253,9 @@ export function NewConsultationDrawer({
         </DrawerFooter>
       </DrawerContent>
     </Drawer>
+    {/* Hermana del cajón y no hija: cuando el plan no alcanza, el cajón nunca llega a abrirse, así
+        que la ventana no puede colgar de su árbol. */}
+    {ventana}
+    </>
   )
 }

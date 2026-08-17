@@ -56,12 +56,22 @@ export async function generarBriefings(hoyISO = bogotaTodayISO()): Promise<Resul
   const admin = createAdminClient()
   const res: ResultadoDelBriefing = { clinicas: 0, redactados: 0, omitidos: [], fallidos: [] }
 
-  // GUARDA 1: sólo las encendidas. El filtro va en SQL y no en el bucle — una clínica apagada no
-  // tiene que costar ni siquiera la consulta de sus señales.
+  // GUARDA 1: sólo las encendidas Y las de plan Pro. Los dos filtros van en SQL y no en el bucle —
+  // una clínica apagada, o en free, no tiene que costar ni siquiera la consulta de sus señales.
+  //
+  // El plan se filtra acá y no dentro del bucle a propósito: es el mismo criterio que
+  // `briefing_enabled`, y con la mayoría de las clínicas en free traer todas para descartarlas una
+  // por una sería recorrer la tabla entera todos los días para no hacer nada.
+  //
+  // OJO CON LO QUE ESTO NO ROMPE: las señales del riel de Athos (notas sin aprobar, titulares sin
+  // respuesta, refuerzos por vencer) se calculan con consultas a la base y CERO IA — ésas siguen
+  // siendo gratis. Lo que es de Pro es el párrafo redactado por el modelo, que es lo único que
+  // cuesta.
   const { data: clinicas, error } = await admin
     .from("clinics")
     .select("id, name")
     .eq("briefing_enabled", true)
+    .eq("plan", "pro")
   if (error) throw new Error(`No se pudieron leer las clínicas: ${error.message}`)
 
   const filas = (clinicas ?? []) as { id: string; name: string | null }[]
