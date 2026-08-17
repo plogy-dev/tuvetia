@@ -24,7 +24,7 @@ que es el hallazgo 2 de esta misma auditoría.
 | 1 | Ninguna clínica puede facturar; 14 de 15 no pueden agendar con Athos | 🔴 | Onboarding | ✅ **cerrado** (PR #105) |
 | 2 | Los canales externos se mueren sin que nadie se entere | 🔴 | Dependencias | ✅ **cerrado** (PR #106) |
 | 3 | `fg-faint` reprueba contraste AA en modo claro — 216 usos | 🟠 | Diseño | ✅ **cerrado** (PR #107) |
-| 4 | No hay servicio de seguimiento de errores | 🟠 | Vara de mercado | 🟡 **cableado** (PR #108) — falta el DSN |
+| 4 | No hay servicio de seguimiento de errores | 🟠 | Vara de mercado | ✅ **la costura, cerrada** (PR #108) · el tracker, **aplazado a propósito** |
 | 5 | El trial de 3 días no existe en el código | 🟠 | Suscripciones | 👤 **Santiago** |
 | 6 | La traza no cubre lo que hacen las personas fuera de la nota clínica | 🟡 | Vara de mercado | ✅ **cerrado** (PR #110 + 0063) |
 | 7 | Tres defectos latentes en los datos de ejemplo | 🟡 | Onboarding | ✅ **cerrado** (PR #111 + 0064) |
@@ -63,8 +63,9 @@ que es el hallazgo 2 de esta misma auditoría.
 **Bloqueado por terceros:** el 5 (Santiago, suscripciones) y el corpus (Jesús). Cada uno tiene su
 nota en `docs/`.
 
-**Nuestro:** sólo el DSN de Sentry, que es de Felipe y toma dos minutos. Nada más queda abierto de
-esta auditoría.
+**Nuestro: nada.** El único cabo era el DSN de Sentry, y se decidió **aplazarlo hasta el
+lanzamiento** — no es trabajo a medias: sin la variable el código se comporta exactamente como antes
+y no hay nada roto esperando. Ver el hallazgo 4.
 
 **Planteado, sin resolver, y a propósito:** los roles. Hoy hay `admin` y `vet`; una clínica de ocho
 personas necesitaría más, pero definir qué puede hacer cada uno tiene consecuencias legales —
@@ -215,8 +216,10 @@ exacto para el color, pero no sustituye abrir la app.
 
 ## 4 · 🟠 No hay servicio de seguimiento de errores
 
-> 🟡 **Cableado** en el PR #108, e inerte hasta que exista `NEXT_PUBLIC_SENTRY_DSN`. La costura de
-> servidor (`onRequestError`) sí quedó activa: era la parte que faltaba del todo.
+> ✅ **Cerrado en lo que importaba** (PR #108): la costura de servidor, `onRequestError`, quedó
+> activa — era la parte que no existía. El TRACKER (Sentry) queda **aplazado a propósito**, decidido
+> el 2026-08-16: mientras los usuarios sean el equipo, un fallo lo ve la misma persona que puede
+> mirar los logs. Empieza a pagar cuando se rompa en la máquina de un cliente que no va a llamar.
 
 **Qué se rompe.** Un fallo en producción se entera por una llamada del cliente.
 
