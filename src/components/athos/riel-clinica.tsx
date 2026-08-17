@@ -271,15 +271,27 @@ export function RielClinica({
           </ul>
           {/* El botón que cierra el circuito: ver el problema y resolverlo sin cambiar de pantalla.
               Es lo que el mockup pone al pie del riel, y es la diferencia entre un tablero que
-              informa y uno desde el que se trabaja. */}
-          <Button
-            variant="outline"
-            size="sm"
-            className="mt-1 w-full"
-            render={<Link href="/dashboard/asistente?pedir=cobros" />}
-          >
-            Resolverlo con Athos
-          </Button>
+              informa y uno desde el que se trabaja.
+
+              ADÓNDE LLEVA DEPENDE DEL PRIMER PENDIENTE. Con el canal caído arriba, "Resolverlo con
+              Athos" sería una promesa falsa: Athos no puede reconectar WhatsApp — de hecho es lo
+              que MENOS puede hacer, porque sin canal su propia herramienta de mensajes falla. Un
+              botón que ofrece un arreglo que no existe es peor que no tener botón. */}
+          {(() => {
+            const canalCaido = pendientes[0]?.id === "canal-caido"
+            return (
+              <Button
+                variant="outline"
+                size="sm"
+                className="mt-1 w-full"
+                render={
+                  <Link href={canalCaido ? "/dashboard/conexiones" : "/dashboard/asistente?pedir=cobros"} />
+                }
+              >
+                {canalCaido ? "Reconectar WhatsApp" : "Resolverlo con Athos"}
+              </Button>
+            )
+          })()}
         </section>
       )}
     </aside>

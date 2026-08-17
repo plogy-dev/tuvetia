@@ -2,6 +2,7 @@
 import { describe, expect, it } from "vitest"
 
 import {
+  canalCaido,
   cobrosVencidos,
   conversacionesSinResponder,
   notasSinAprobar,
@@ -136,11 +137,100 @@ describe("cobros y tareas", () => {
   })
 })
 
+describe("el canal que se murió", () => {
+  // EL CASO REAL, medido contra el principal el 2026-08-16: las dos integraciones llevaban 5 y 6
+  // días en `disconnected`, con el tráfico cayendo de ~370 mensajes diarios a cero de un día para
+  // el otro, y NADA se lo dijo a nadie. El estado se escribía con el comentario "(aviso en
+  // Configuración)" — o sea, visible sólo para quien entrara a esa pantalla.
+  it("una integración desconectada es una señal", () => {
+    const p = canalCaido([{ status: "disconnected", updated_at: "2026-08-11T14:00:00Z" }], HOY)
+    expect(p?.id).toBe("canal-caido")
+    expect(p?.etiqueta).toBe("WhatsApp desconectado")
+  })
+
+  it("conectada no es señal", () => {
+    expect(canalCaido([{ status: "connected", updated_at: "2026-08-11T14:00:00Z" }], HOY)).toBeNull()
+  })
+
+  // LA DISTINCIÓN QUE MÁS IMPORTA. `pending` es una conexión que se empezó y no se terminó (se
+  // mostró el QR y nadie lo escaneó): eso es configuración a medias y ya lo cubre el riel con el
+  // paso "WhatsApp conectado". Llamarle "caído" manda a buscar una avería que no existe, y repetir
+  // el mismo pendiente en dos superficies es cómo un tablero empieza a ignorarse.
+  it("pending NO es un canal caído: nunca estuvo en pie", () => {
+    expect(canalCaido([{ status: "pending", updated_at: "2026-08-11T14:00:00Z" }], HOY)).toBeNull()
+  })
+
+  it("sin integraciones no hay nada que reportar", () => {
+    expect(canalCaido([], HOY)).toBeNull()
+  })
+
+  // Si algo entrega mensajes, el canal vive — aunque otra integración esté caída.
+  it("con una conectada y otra caída, no hay señal", () => {
+    const p = canalCaido(
+      [
+        { status: "disconnected", updated_at: "2026-08-11T14:00:00Z" },
+        { status: "connected", updated_at: "2026-08-15T14:00:00Z" },
+      ],
+      HOY,
+    )
+    expect(p).toBeNull()
+  })
+
+  describe("cuánto lleva caído — es lo que lo hace accionable", () => {
+    it("hace varios días lo dice con el número", () => {
+      const p = canalCaido([{ status: "disconnected", updated_at: "2026-08-11T14:00:00Z" }], HOY)
+      expect(p?.detalle).toBe("Hace 5 días · sin mensajes")
+    })
+
+    it("ayer se dice ayer", () => {
+      const p = canalCaido([{ status: "disconnected", updated_at: "2026-08-15T14:00:00Z" }], HOY)
+      expect(p?.detalle).toBe("Desde ayer · sin mensajes")
+    })
+
+    it("hoy se dice hoy", () => {
+      const p = canalCaido([{ status: "disconnected", updated_at: "2026-08-16T14:00:00Z" }], HOY)
+      expect(p?.detalle).toBe("Desde hoy · sin mensajes")
+    })
+
+    // Sin fecha se dice lo que se sabe y nada más: inventar "hace 0 días" sería peor que omitirlo.
+    it("sin fecha, la señal sigue apareciendo pero sin contar días", () => {
+      const p = canalCaido([{ status: "disconnected", updated_at: null }], HOY)
+      expect(p?.detalle).toBe("Sin mensajes hasta reconectar")
+    })
+
+    it("una fecha ilegible no rompe la pantalla de inicio", () => {
+      const p = canalCaido([{ status: "disconnected", updated_at: "no es una fecha" }], HOY)
+      expect(p?.detalle).toBe("Sin mensajes hasta reconectar")
+    })
+
+    // Un reloj adelantado no puede producir "hace -1 días".
+    it("una caída en el futuro se trata como hoy", () => {
+      const p = canalCaido([{ status: "disconnected", updated_at: "2026-08-20T14:00:00Z" }], HOY)
+      expect(p?.detalle).toBe("Desde hoy · sin mensajes")
+    })
+
+    it("con varias caídas manda la más reciente", () => {
+      const p = canalCaido(
+        [
+          { status: "disconnected", updated_at: "2026-08-01T14:00:00Z" },
+          { status: "disconnected", updated_at: "2026-08-15T14:00:00Z" },
+        ],
+        HOY,
+      )
+      expect(p?.detalle).toBe("Desde ayer · sin mensajes")
+    })
+  })
+})
+
 describe("todo junto, y en qué orden", () => {
   // EL CRITERIO: primero lo que tiene a una PERSONA DE AFUERA esperando. Un titular que escribió
   // espera ahora; una nota sin firmar es trabajo del vet consigo mismo; una vacuna que vence en tres
   // semanas no es de hoy.
-  it("lo que tiene gente esperando va primero", () => {
+  //
+  // `canal-caido` rompe ese criterio a propósito y va antes que todo: no es una tarea, es una
+  // PRECONDICIÓN. Mandar a responder tres conversaciones por un canal muerto es mandar a hacer algo
+  // que no se puede hacer.
+  it("el canal caído va antes que todo, y después lo que tiene gente esperando", () => {
     const ps = pendientesDeLaClinica({
       hoyISO: HOY,
       notas: [{ status: "draft" }],
@@ -148,8 +238,10 @@ describe("todo junto, y en qué orden", () => {
       vacunas: [{ next_dose_at: "2026-08-20" }],
       tareas: [{ status: "open" }],
       cobros: { cuantas: 1, totalCents: 50_000 },
+      integraciones: [{ status: "disconnected", updated_at: "2026-08-11T14:00:00Z" }],
     })
     expect(ps.map((p) => p.id)).toEqual([
+      "canal-caido",
       "conversaciones",
       "tareas-cartera",
       "notas-sin-aprobar",
