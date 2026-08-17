@@ -13,7 +13,7 @@
 
 import { useState } from "react"
 import { useRouter } from "next/navigation"
-import { Check, Copy, Loader2, PawPrint, Sparkles, UserPlus } from "lucide-react"
+import { Check, Clock, Copy, Loader2, PawPrint, Receipt, Sparkles, UserPlus } from "lucide-react"
 import { toast } from "sonner"
 
 import { createClient } from "@/lib/supabase/client"
@@ -21,8 +21,37 @@ import { Button } from "@/components/ui/button"
 import { Field, FieldDescription, FieldLabel } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
 import { WorkspaceSetup } from "@/components/onboarding/workspace-setup"
+import {
+  SERVICIOS_SUGERIDOS,
+  cuantosServicios,
+  filasDeCatalogo,
+} from "@/lib/onboarding/catalogo-sugerido"
+import {
+  HORARIO_SUGERIDO,
+  NOMBRE_DEL_DIA,
+  filasDeHorario,
+  type DiaSugerido,
+} from "@/lib/onboarding/horarios-sugeridos"
 
-const PASOS = ["Clínica", "Primer paciente", "Ejemplo", "Equipo"] as const
+// HORARIOS Y SERVICIOS ENTRARON ACÁ EL 2026-08-16, y son la mitad del wizard que faltaba.
+//
+// La auditoría midió las 15 clínicas del principal: 1 de 15 tenía horarios y **0 de 15 tenían un
+// servicio**. O sea que ninguna podía facturar y 14 no podían agendar con Athos — las dos
+// capacidades insignia, apagadas. La causa no era un fallo: los tres pasos que las habilitan estaban
+// FUERA de este wizard, en el riel plegable del dashboard. Lo que el wizard acompaña se hace (de 9
+// que lo vieron, 8 lo terminaron); lo que queda en el riel, no.
+//
+// Van en 2º y 3º lugar, pegados a "Clínica", porque son la misma cosa —configurar la clínica— y
+// porque el abandono crece con la profundidad: lo que más desbloquea tiene que ir arriba.
+const PASOS = ["Clínica", "Horarios", "Servicios", "Primer paciente", "Ejemplo", "Equipo"] as const
+
+/** Índices de los pasos. Con seis, contarlos a mano en cada `setPaso` es cómo se desincronizan. */
+const P_CLINICA = 0
+const P_HORARIOS = 1
+const P_SERVICIOS = 2
+const P_PACIENTE = 3
+const P_EJEMPLO = 4
+const P_EQUIPO = 5
 
 export function WelcomeWizard({
   clinicId,
@@ -38,13 +67,22 @@ export function WelcomeWizard({
   const [paso, setPaso] = useState(0)
   const [busy, setBusy] = useState(false)
 
-  // Paso 2 — primer paciente
+  // Paso 2 — horarios. Arrancan LLENOS con la sugerencia: el caso común es confirmar, no escribir.
+  const [dias, setDias] = useState<DiaSugerido[]>(() => HORARIO_SUGERIDO.map((d) => ({ ...d })))
+  const [diasActivos, setDiasActivos] = useState<Set<number>>(
+    () => new Set(HORARIO_SUGERIDO.map((d) => d.weekday)),
+  )
+
+  // Paso 3 — servicios. Los nombres los propone el módulo; los PRECIOS los escribe el vet, siempre.
+  const [precios, setPrecios] = useState<Record<string, number | null>>({})
+
+  // Paso 4 — primer paciente
   const [ownerName, setOwnerName] = useState("")
   const [ownerPhone, setOwnerPhone] = useState("")
   const [petName, setPetName] = useState("")
   const [petSpecies, setPetSpecies] = useState("Perro")
 
-  // Paso 4 — invitación
+  // Paso 6 — invitación
   const [inviteEmail, setInviteEmail] = useState("")
   const [inviteLink, setInviteLink] = useState<string | null>(null)
 
@@ -60,6 +98,65 @@ export function WelcomeWizard({
     }
     router.push("/dashboard")
     router.refresh()
+  }
+
+  /** Marca o desmarca un día. Desmarcado = ese día no se guarda; la clínica no abre. */
+  function alternarDia(weekday: number) {
+    setDiasActivos((prev) => {
+      const siguiente = new Set(prev)
+      if (siguiente.has(weekday)) siguiente.delete(weekday)
+      else siguiente.add(weekday)
+      return siguiente
+    })
+  }
+
+  function cambiarHora(weekday: number, campo: "opens_at" | "closes_at", valor: string) {
+    setDias((prev) => prev.map((d) => (d.weekday === weekday ? { ...d, [campo]: valor } : d)))
+  }
+
+  async function guardarHorarios() {
+    const filas = filasDeHorario(clinicId, dias.filter((d) => diasActivos.has(d.weekday)))
+    if (!filas.length) {
+      // Sin días válidos no hay nada que guardar, pero tampoco es un error del vet: puede haber
+      // desmarcado todo a propósito. Se sigue, como con "Ahora no".
+      setPaso(P_SERVICIOS)
+      return
+    }
+    setBusy(true)
+    const { error } = await supabase.from("clinic_hours").insert(filas)
+    setBusy(false)
+    if (error) {
+      // `unique (clinic_id, weekday, opens_at)`: si ya los había cargado en Configuración, esto choca.
+      // No es un fallo que deba frenar el onboarding — significa que el paso ya está hecho.
+      if (/duplicate key|unique/i.test(error.message)) {
+        toast.success("Ya tenías horarios cargados")
+        setPaso(P_SERVICIOS)
+        return
+      }
+      toast.error(`No se pudieron guardar los horarios: ${error.message}`)
+      return
+    }
+    toast.success(`Horarios guardados — Athos ya puede ofrecer citas`)
+    setPaso(P_SERVICIOS)
+  }
+
+  async function crearServicios() {
+    const filas = filasDeCatalogo(clinicId, precios)
+    if (!filas.length) {
+      setPaso(P_PACIENTE)
+      return
+    }
+    setBusy(true)
+    const { error } = await supabase.from("catalog_items").insert(filas)
+    setBusy(false)
+    if (error) {
+      toast.error(`No se pudieron crear los servicios: ${error.message}`)
+      return
+    }
+    toast.success(
+      filas.length === 1 ? "Servicio creado — ya puedes facturar" : `${filas.length} servicios creados — ya puedes facturar`,
+    )
+    setPaso(P_PACIENTE)
   }
 
   async function crearPrimerPaciente() {
@@ -78,7 +175,7 @@ export function WelcomeWizard({
       })
       if (pErr) throw new Error(pErr.message)
       toast.success(`${petName.trim()} quedó registrado 🐾`)
-      setPaso(2)
+      setPaso(P_EJEMPLO)
     } catch (e) {
       toast.error(`No se pudo crear el paciente: ${(e as Error).message}`)
     } finally {
@@ -95,7 +192,7 @@ export function WelcomeWizard({
       const j = (await res.json().catch(() => ({}))) as { error?: string }
       if (!res.ok) throw new Error(j.error ?? `HTTP ${res.status}`)
       toast.success("Paciente de ejemplo creado — explóralo en Pacientes")
-      setPaso(3)
+      setPaso(P_EQUIPO)
     } catch (e) {
       toast.error(`No se pudo crear el ejemplo: ${(e as Error).message}`)
     } finally {
@@ -135,16 +232,128 @@ export function WelcomeWizard({
         ))}
       </div>
 
-      {paso === 0 && (
+      {paso === P_CLINICA && (
         <WorkspaceSetup
           clinicId={clinicId}
           initialClinicName={initialClinicName}
           initialLogoUrl={initialLogoUrl}
-          onSaved={() => setPaso(1)}
+          onSaved={() => setPaso(P_HORARIOS)}
         />
       )}
 
-      {paso === 1 && (
+      {paso === P_HORARIOS && (
+        <div className="flex flex-col gap-5">
+          <Encabezado
+            icono={<Clock className="size-5" />}
+            titulo="¿Cuándo atiendes?"
+            sub="Es lo que le permite a Athos ofrecer un espacio libre y agendar. Ya está lleno con lo habitual: ajusta lo que no cuadre."
+          />
+          <div className="flex flex-col gap-2">
+            {dias.map((d) => {
+              const activo = diasActivos.has(d.weekday)
+              return (
+                <div
+                  key={d.weekday}
+                  className="flex items-center gap-3 rounded-lg border border-line px-3 py-2"
+                >
+                  <label className="flex min-w-0 flex-1 items-center gap-2.5 text-sm">
+                    <input
+                      type="checkbox"
+                      checked={activo}
+                      onChange={() => alternarDia(d.weekday)}
+                      className="size-4 shrink-0 accent-primary"
+                    />
+                    <span className={activo ? "" : "text-muted-foreground line-through"}>
+                      {NOMBRE_DEL_DIA[d.weekday]}
+                    </span>
+                  </label>
+                  <Input
+                    type="time"
+                    aria-label={`${NOMBRE_DEL_DIA[d.weekday]}: abre`}
+                    value={d.opens_at}
+                    disabled={!activo}
+                    onChange={(e) => cambiarHora(d.weekday, "opens_at", e.target.value)}
+                    className="w-28 shrink-0"
+                  />
+                  <Input
+                    type="time"
+                    aria-label={`${NOMBRE_DEL_DIA[d.weekday]}: cierra`}
+                    value={d.closes_at}
+                    disabled={!activo}
+                    onChange={(e) => cambiarHora(d.weekday, "closes_at", e.target.value)}
+                    className="w-28 shrink-0"
+                  />
+                </div>
+              )
+            })}
+          </div>
+          <FieldDescription>
+            El domingo y los turnos partidos se agregan después en Configuración.
+          </FieldDescription>
+          <Acciones
+            onSaltar={() => setPaso(P_SERVICIOS)}
+            principal={
+              <Button onClick={guardarHorarios} disabled={busy || diasActivos.size === 0}>
+                {busy && <Loader2 className="size-4 animate-spin" />} Guardar horarios
+              </Button>
+            }
+          />
+        </div>
+      )}
+
+      {paso === P_SERVICIOS && (
+        <div className="flex flex-col gap-5">
+          <Encabezado
+            icono={<Receipt className="size-5" />}
+            titulo="¿Qué cobras?"
+            sub="Sin al menos un servicio no se puede facturar una consulta. Pon el precio de los que uses; el resto déjalos vacíos."
+          />
+          <div className="flex flex-col gap-2">
+            {SERVICIOS_SUGERIDOS.map((s) => (
+              <div
+                key={s.id}
+                className="flex items-center gap-3 rounded-lg border border-line px-3 py-2"
+              >
+                <span className="min-w-0 flex-1 truncate text-sm">{s.nombre}</span>
+                <div className="flex shrink-0 items-center gap-1.5">
+                  <span className="text-sm text-muted-foreground">$</span>
+                  <Input
+                    type="number"
+                    inputMode="numeric"
+                    min={0}
+                    step={1000}
+                    aria-label={`Precio de ${s.nombre} en pesos`}
+                    placeholder="0"
+                    value={precios[s.id] ?? ""}
+                    onChange={(e) => {
+                      const v = e.target.value
+                      setPrecios((prev) => ({ ...prev, [s.id]: v === "" ? null : Number(v) }))
+                    }}
+                    className="w-32"
+                  />
+                </div>
+              </div>
+            ))}
+          </div>
+          <FieldDescription>
+            Se crean con IVA 19% (gravado), que es el valor por defecto del catálogo. Puedes cambiarlo
+            —y agregar productos y medicamentos— en Facturación → Catálogo.
+          </FieldDescription>
+          <Acciones
+            onSaltar={() => setPaso(P_PACIENTE)}
+            principal={
+              <Button onClick={crearServicios} disabled={busy || cuantosServicios(precios) === 0}>
+                {busy && <Loader2 className="size-4 animate-spin" />}
+                {cuantosServicios(precios) === 1
+                  ? "Crear 1 servicio"
+                  : `Crear ${cuantosServicios(precios)} servicios`}
+              </Button>
+            }
+          />
+        </div>
+      )}
+
+      {paso === P_PACIENTE && (
         <div className="flex flex-col gap-5">
           <Encabezado
             icono={<PawPrint className="size-5" />}
@@ -190,7 +399,7 @@ export function WelcomeWizard({
             </Field>
           </div>
           <Acciones
-            onSaltar={() => setPaso(2)}
+            onSaltar={() => setPaso(P_EJEMPLO)}
             principal={
               <Button onClick={crearPrimerPaciente} disabled={busy || !ownerName.trim() || !petName.trim()}>
                 {busy && <Loader2 className="size-4 animate-spin" />} Registrar paciente
@@ -200,7 +409,7 @@ export function WelcomeWizard({
         </div>
       )}
 
-      {paso === 2 && (
+      {paso === P_EJEMPLO && (
         <div className="flex flex-col gap-5">
           <Encabezado
             icono={<Sparkles className="size-5" />}
@@ -208,7 +417,7 @@ export function WelcomeWizard({
             sub="Creamos a “Luna (ejemplo)” con una consulta ya transcrita y su nota SOAP en borrador, para que veas el Modo Fantasma sin grabar nada. Se borra de un clic cuando quieras."
           />
           <Acciones
-            onSaltar={() => setPaso(3)}
+            onSaltar={() => setPaso(P_EQUIPO)}
             principal={
               <Button onClick={crearDatosDeEjemplo} disabled={busy}>
                 {busy && <Loader2 className="size-4 animate-spin" />} Crear ejemplo
@@ -218,7 +427,7 @@ export function WelcomeWizard({
         </div>
       )}
 
-      {paso === 3 && (
+      {paso === P_EQUIPO && (
         <div className="flex flex-col gap-5">
           <Encabezado
             icono={<UserPlus className="size-5" />}
@@ -270,7 +479,7 @@ export function WelcomeWizard({
       )}
 
       {/* Salida rápida, siempre visible salvo en el último paso (que ya tiene su botón). */}
-      {paso > 0 && paso < 3 && (
+      {paso > P_CLINICA && paso < P_EQUIPO && (
         <button
           type="button"
           onClick={terminar}
