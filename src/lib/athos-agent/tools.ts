@@ -191,12 +191,23 @@ export function buildAthosTools(supabase: SB, ctx: AgentContext) {
 
     list_available_slots: tool({
       description:
-        "Cupos DISPONIBLES para citas en un día: horarios de la clínica menos citas existentes. Úsala SIEMPRE antes de proponer una cita — nunca inventes disponibilidad.",
+        "Cupos DISPONIBLES para citas en un día: horarios de la clínica menos las citas del veterinario. " +
+        "Úsala SIEMPRE antes de proponer una cita — nunca inventes disponibilidad. " +
+        "Pasá `vet_id`: la agenda es de UNA persona, y sin él se restan las citas de TODOS y la clínica " +
+        "parece llena cuando sólo un veterinario está ocupado.",
       inputSchema: z.object({
         date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
         duration_min: z.number().int().min(5).max(240).optional().describe("Duración deseada (default: slot de la clínica)"),
+        vet_id: z
+          .string()
+          .uuid()
+          .optional()
+          .describe(
+            "De quién es la agenda. Omitirlo devuelve los cupos libres para TODOS a la vez, que es más " +
+              "restrictivo de lo real en una clínica con varios veterinarios.",
+          ),
       }),
-      execute: async ({ date, duration_min }) => {
+      execute: async ({ date, duration_min, vet_id }) => {
         const day = localRange(date, "00:00", 24 * 60)
         // Sin la guarda, un `2026-02-30` daba weekday=NaN y una consulta con rango inválido:
         // el vet recibía "no hay horarios" en vez de saber que la fecha no existe.
@@ -208,12 +219,19 @@ export function buildAthosTools(supabase: SB, ctx: AgentContext) {
             .select("opens_at, closes_at, slot_minutes")
             .eq("weekday", weekday)
             .order("opens_at"),
-          supabase
-            .from("appointments")
-            .select("starts_at, ends_at, status")
+          // LA AGENDA ES DE UNA PERSONA, no de la clínica. Sin filtrar por vet, una clínica con tres
+          // veterinarios aparece ocupada cuando sólo uno lo está — y ya hay clínicas con más de uno.
+          //
+          // Los estados son los MISMOS que `ESTADOS_VIVOS` de `calendario/page.tsx` y que el trigger
+          // de la 0067. Antes esto excluía sólo `canceled`, así que un `no_show` seguía tapando un
+          // cupo que en realidad quedó libre.
+          (vet_id
+            ? supabase.from("appointments").select("starts_at, ends_at, status").eq("vet_id", vet_id)
+            : supabase.from("appointments").select("starts_at, ends_at, status")
+          )
             .gte("starts_at", day.from)
             .lt("starts_at", day.to)
-            .neq("status", "canceled"),
+            .in("status", ["scheduled", "confirmed", "in_progress"]),
         ])
         if (hErr) return { error: hErr.message }
         if (!hours?.length)
