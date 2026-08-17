@@ -102,7 +102,53 @@ describe("clinicaDeLaSesion", () => {
 
     expect(select).toHaveBeenCalledTimes(1)
     expect(select.mock.calls[0][0]).toContain("is_active")
-    expect(select.mock.calls[0][0]).toContain("clinics(plan)")
+    expect(select.mock.calls[0][0]).toContain("clinics!profiles_clinic_id_fkey(plan)")
+  })
+
+  // EL TEST QUE HABRÍA EVITADO UNA CAÍDA EN PRODUCCIÓN.
+  //
+  // Hay DOS claves foráneas entre `profiles` y `clinics` (`profiles.clinic_id → clinics.id` y
+  // `clinics.owner_id → profiles.id`), así que un `clinics(plan)` sin desambiguar hace que PostgREST
+  // devuelva PGRST201 y **falle el select entero**. Verificado contra el REST real: sin el nombre
+  // del FK, `Could not embed because more than one relationship was found`.
+  //
+  // El síntoma fue de los peores: las nueve rutas respondiendo «El usuario no tiene clínica» a gente
+  // que sí la tenía. Este test no puede ejecutar PostgREST, pero sí puede exigir que el nombre del
+  // FK esté escrito — que es lo único que hace falta para que no se caiga otra vez.
+  it("DESAMBIGUA el embed por nombre de FK: sin eso, PostgREST falla el select entero", async () => {
+    const { cliente, select } = clienteQueDevuelve(PERFIL)
+
+    await clinicaDeLaSesion(cliente, "u-1")
+
+    const cols = select.mock.calls[0][0] as string
+    expect(cols).not.toMatch(/clinic:clinics\(/)
+    expect(cols).toContain("!profiles_clinic_id_fkey")
+  })
+
+  // ── Un fallo de consulta NO es "no tenés clínica" ────────────────────────────────────────────
+  //
+  // Confundirlos fue lo que hizo que el defecto de arriba costara una tarde: el error de PostgREST
+  // se descartaba, `data` volvía null, y el 400 de "sin clínica" mandaba a mirar el lugar
+  // equivocado. Ahora se distinguen.
+  it("un error de la consulta responde 500, no el 400 de 'sin clínica'", async () => {
+    const cliente = {
+      from: () => ({
+        select: () => ({
+          eq: () => ({
+            maybeSingle: async () => ({
+              data: null,
+              error: { code: "PGRST201", message: "Could not embed" },
+            }),
+          }),
+        }),
+      }),
+    } as never
+
+    const r = await clinicaDeLaSesion(cliente, "u-1")
+
+    expect(r).toMatchObject({ ok: false, status: 500 })
+    // Y el mensaje NO puede decir "no tenés clínica": es exactamente la mentira que se está tapando.
+    expect((r as { mensaje: string }).mensaje).not.toMatch(/no tiene clínica/i)
   })
 
   // ── El plan ──────────────────────────────────────────────────────────────────────────────────

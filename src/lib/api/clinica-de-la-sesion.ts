@@ -37,7 +37,8 @@ type ClienteDeSesion = Awaited<ReturnType<typeof createClient>>
 
 export type ClinicaDeLaSesion =
   | { ok: true; clinicId: string; fullName: string | null; role: string | null; plan: Plan }
-  | { ok: false; status: 400 | 403; mensaje: string }
+  // 400 = no tiene clínica · 403 = cuenta desactivada · 500 = la consulta falló (ver abajo).
+  | { ok: false; status: 400 | 403 | 500; mensaje: string }
 
 /** Lo que se le dice a una cuenta desactivada. Sin detalle: no es información que le sirva. */
 export const MENSAJE_DESACTIVADA =
@@ -47,14 +48,40 @@ export async function clinicaDeLaSesion(
   supabase: ClienteDeSesion,
   userId: string,
 ): Promise<ClinicaDeLaSesion> {
-  const { data } = await supabase
+  const { data, error } = await supabase
     .from("profiles")
     // `clinic:clinics(plan)` viaja EMBEBIDO y no en una consulta aparte, por el mismo motivo que
     // `is_active`: son las nueve rutas de siempre, y una lectura suelta en cada una es una lectura
     // que la ruta número diez no va a tener. PostgREST lo resuelve en el mismo round-trip.
-    .select("clinic_id, full_name, role, is_active, clinic:clinics(plan)")
+    //
+    // ⚠️ EL `!profiles_clinic_id_fkey` NO ES ADORNO Y NO SE PUEDE QUITAR.
+    //
+    // Hay DOS claves foráneas entre estas tablas —`profiles.clinic_id → clinics.id` y
+    // `clinics.owner_id → profiles.id`— así que un `clinics(plan)` a secas es ambiguo: PostgREST no
+    // sabe por cuál de los dos caminos embeber y **falla el select ENTERO**, no sólo el embed.
+    //
+    // Cómo se vio en producción: `data` volvía null, el perfil entero se perdía, y las nueve rutas
+    // respondían «El usuario no tiene clínica» a usuarios que sí la tenían. Athos, el envío de
+    // WhatsApp, las invitaciones y el pago, todos caídos por un embed sin desambiguar.
+    .select("clinic_id, full_name, role, is_active, clinic:clinics!profiles_clinic_id_fkey(plan)")
     .eq("id", userId)
     .maybeSingle()
+
+  // UN FALLO DE CONSULTA NO ES "NO TENÉS CLÍNICA", y confundirlos fue lo que hizo que el defecto de
+  // arriba costara una tarde. Sin este bloque, cualquier error de PostgREST —un embed ambiguo, una
+  // columna que no existe todavía, la caché de esquema sin recargar— sale por el mismo 400 que
+  // significa "este usuario no está en ninguna clínica", y manda a mirar el lugar equivocado.
+  //
+  // 500 y no 400: el problema es del servidor, no de quien llama. Y el detalle va al log, no al
+  // navegador.
+  if (error) {
+    console.error("clinicaDeLaSesion: falló la lectura del perfil", error)
+    return {
+      ok: false,
+      status: 500,
+      mensaje: "No pudimos leer tu perfil. Recargá la página; si sigue, escribinos.",
+    }
+  }
 
   const perfil = data as {
     clinic_id: string | null
