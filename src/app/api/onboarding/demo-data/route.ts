@@ -2,6 +2,7 @@ import { NextResponse } from "next/server"
 
 import { createClient } from "@/lib/supabase/server"
 import { createAdminClient } from "@/lib/supabase/admin"
+import { clinicaPuede } from "@/lib/planes/servidor"
 
 // Datos de ejemplo del onboarding: paciente "Luna (ejemplo)" con consulta transcrita y nota SOAP
 // draft, para que el vet explore el Modo Fantasma sin grabar nada. Marcador: el titular
@@ -108,6 +109,31 @@ export async function POST() {
       .select("id")
       .single()
     if (pErr) throw new Error(pErr.message)
+
+    // ── DE ACÁ EN ADELANTE ES DEMO DEL MODO FANTASMA, Y ESO ES DE PRO ─────────────────────────
+    //
+    // Los tres inserts que siguen —consulta, transcripción y nota SOAP— existen para que el vet
+    // vea cómo queda una consulta grabada sin tener que grabar una. En una clínica free eso es
+    // demostrar algo que no puede usar, y además **el trigger `consultations_requiere_pro` de la
+    // 0065 lo rechaza**: los triggers se disparan aunque el cliente sea `service_role`, que sólo
+    // se salta la RLS.
+    //
+    // Sin este corte, la siembra reventaría en el insert de la consulta, el `catch` desharía el
+    // titular y el veterinario terminaría el onboarding SIN datos de ejemplo y con el mensaje
+    // "El Modo Fantasma es parte del plan Pro" en la cara, sin haber pedido nada de eso. Un muro
+    // de pago que aparece solo, en el peor momento y rompiendo otra cosa.
+    //
+    // Con el corte, una clínica free igual se lleva a Luna y a su titular: puede recorrer la ficha,
+    // la lista de pacientes y la agenda, que es lo que SÍ tiene. Se le muestra lo que compró.
+    //
+    // LO QUE SE ACEPTA A CAMBIO: la guarda de idempotencia de arriba pregunta sólo por el titular,
+    // así que una clínica que siembre en free y después suba a Pro no recibe la consulta de
+    // ejemplo al reintentar — le responde `already: true`. Es un demo de onboarding, de una sola
+    // vez; agregarle una segunda guarda por consulta complicaría el deshacer a cambio de un caso
+    // que se resuelve borrando el ejemplo y volviéndolo a cargar.
+    if (!(await clinicaPuede(clinicId, "modo-fantasma"))) {
+      return NextResponse.json({ ok: true, parcial: "sin-modo-fantasma" })
+    }
 
     const { data: consultation, error: cErr } = await admin
       .from("consultations")

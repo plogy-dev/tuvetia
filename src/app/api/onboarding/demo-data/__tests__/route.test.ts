@@ -77,6 +77,9 @@ beforeEach(() => {
     "profiles:select": { data: { clinic_id: CLINICA, is_active: true } },
     // No hay demo previo.
     "owners:select": { data: null },
+    // El plan de la clínica, que `clinicaPuede` lee para decidir si siembra el Modo Fantasma.
+    // Por defecto Pro: es el caso que ejercita la siembra completa de cinco filas.
+    "clinics:select": { data: { plan: "pro" } },
   }
 })
 
@@ -170,5 +173,54 @@ describe("las guardas que ya existían siguen en pie", () => {
     expect(cuerpo).toEqual({ ok: true, already: true })
     expect(insertados).toEqual([])
     expect(borrados).toEqual([])
+  })
+})
+
+// ── El plan (0065) ──────────────────────────────────────────────────────────────────────────────
+//
+// EL DAÑO COLATERAL QUE ESTOS TESTS EVITAN. El trigger `consultations_requiere_pro` rechaza el
+// insert de una consulta cuando la clínica no es Pro — y los triggers se disparan aunque el cliente
+// sea `service_role`, que sólo se salta la RLS. Sin el corte previo, la siembra reventaría en la
+// tercera fila, el catch desharía el titular, y el veterinario terminaría el onboarding SIN datos de
+// ejemplo y con "El Modo Fantasma es parte del plan Pro" en la cara, sin haber pedido nada de eso.
+
+describe("una clínica free no recibe el demo del Modo Fantasma", () => {
+  beforeEach(() => {
+    respuestas["clinics:select"] = { data: { plan: "free" } }
+  })
+
+  it("siembra el titular y el paciente, y se detiene antes de la consulta", async () => {
+    const res = await POST()
+
+    expect(res.status).toBe(200)
+    // Se lleva a Luna y a su titular: puede recorrer la ficha, la lista y la agenda, que es lo que
+    // SÍ tiene. Lo que no se le muestra es una demo de lo que no compró.
+    expect(insertados).toEqual(["owners", "patients"])
+  })
+
+  it("NO deshace lo sembrado: no es un fallo, es una siembra más corta", async () => {
+    // Es la diferencia entre las dos ramas. Si esto entrara por el `catch`, el titular se borraría
+    // y la clínica free se quedaría sin ningún dato de ejemplo.
+    await POST()
+
+    expect(borrados).toEqual([])
+  })
+
+  it("lo dice en la respuesta, para que la interfaz no prometa lo que no sembró", async () => {
+    const res = await POST()
+    const cuerpo = (await res.json()) as { ok: boolean; parcial?: string }
+
+    expect(cuerpo.ok).toBe(true)
+    expect(cuerpo.parcial).toBe("sin-modo-fantasma")
+  })
+
+  // Ante la duda, NEGAR: un plan ilegible tiene que comportarse como free. Al revés, un valor raro
+  // en la columna intentaría el insert y volvería el error crudo del trigger.
+  it("un plan ilegible se trata como free", async () => {
+    respuestas["clinics:select"] = { data: { plan: "PRO" } }
+
+    await POST()
+
+    expect(insertados).toEqual(["owners", "patients"])
   })
 })
