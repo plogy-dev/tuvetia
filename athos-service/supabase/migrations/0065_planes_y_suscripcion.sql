@@ -249,3 +249,19 @@ create trigger consultations_requiere_pro
 comment on function public.consulta_requiere_plan_pro() is
   'Corta "iniciar consulta" cuando la clínica no es Pro. Vive en un trigger y no en la app porque '
   'el insert se hace DIRECTO desde el navegador, sin pasar por ninguna ruta de API.';
+
+-- Y NO SE PUBLICA COMO RPC.
+--
+-- Lo detectó el linter de seguridad de Supabase al aplicar esto: al ser `security definer` y vivir
+-- en `public`, PostgREST la expone en `/rest/v1/rpc/consulta_requiere_plan_pro` y la puede invocar
+-- hasta el rol `anon`, sin sesión.
+--
+-- No es explotable hoy —una función que devuelve `trigger` falla sola si se la llama fuera de un
+-- trigger— pero es superficie regalada, y el día que alguien la edite y le cambie el tipo de
+-- retorno el agujero nace hecho, sin que nadie lo relacione con este descuido.
+--
+-- Los triggers NO pasan por estos permisos: corren con los del dueño de la tabla. Revocar EXECUTE
+-- no toca en nada el corte del Modo Fantasma (verificado contra el principal después de aplicarlo).
+revoke execute on function public.consulta_requiere_plan_pro() from public;
+revoke execute on function public.consulta_requiere_plan_pro() from anon;
+revoke execute on function public.consulta_requiere_plan_pro() from authenticated;
