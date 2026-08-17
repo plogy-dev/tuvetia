@@ -142,7 +142,11 @@ export default async function CarteraPage() {
                 Sin saldos pendientes. Toda la cartera está al día.
               </p>
             ) : (
-              <div className="overflow-hidden rounded-xl border border-line">
+              // `overflow-x-auto` y no `overflow-hidden`: con siete columnas en un teléfono, la
+              // tabla se aprieta hasta ser ilegible en vez de poder desplazarse. Es lo que hacen las
+              // otras trece tablas del repo; ésta era la única distinta. El radio del borde se
+              // sigue respetando igual.
+              <div className="overflow-x-auto rounded-xl border border-line">
                 <table className="w-full text-sm">
                   <thead className="bg-surface-2 text-left text-xs text-fg-faint">
                     <tr>
