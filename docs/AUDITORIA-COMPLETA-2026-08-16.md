@@ -26,10 +26,10 @@ que es el hallazgo 2 de esta misma auditoría.
 | 3 | `fg-faint` reprueba contraste AA en modo claro — 216 usos | 🟠 | Diseño | ✅ **cerrado** (PR #107) |
 | 4 | No hay servicio de seguimiento de errores | 🟠 | Vara de mercado | 🟡 **cableado** (PR #108) — falta el DSN |
 | 5 | El trial de 3 días no existe en el código | 🟠 | Suscripciones | 👤 **Santiago** |
-| 6 | La traza no cubre lo que hacen las personas fuera de la nota clínica | 🟡 | Vara de mercado | ⏳ pendiente |
-| 7 | Tres defectos latentes en los datos de ejemplo | 🟡 | Onboarding | ⏳ pendiente |
-| 8 | Foco de teclado inconsistente en el módulo de facturación | 🟡 | Diseño | ⏳ pendiente |
-| 9 | `rateLimit` en memoria; roles binarios; una tabla sin scroll | 🟢 | Varios | ⏳ pendiente |
+| 6 | La traza no cubre lo que hacen las personas fuera de la nota clínica | 🟡 | Vara de mercado | ✅ **cerrado** (PR #110 + 0063) |
+| 7 | Tres defectos latentes en los datos de ejemplo | 🟡 | Onboarding | ✅ **cerrado** (PR #111 + 0064) |
+| 8 | Foco de teclado inconsistente en el módulo de facturación | 🟡 | Diseño | ✅ **cerrado** (PR #112) |
+| 9 | `rateLimit` en memoria; roles binarios; una tabla sin scroll | 🟢 | Varios | ✅ **cerrado** (PR #113) — 2 de 3 no eran defectos |
 | — | El corpus a 5× | 🟡 | athos-service | 👤 **Jesús (Infinity)** |
 
 ### Lo que quedó cerrado, y con qué
@@ -49,13 +49,27 @@ que es el hallazgo 2 de esta misma auditoría.
   server actions— no pasaba por ninguna costura. `onRequestError` de Next 16 cubre las cuatro
   superficies. Sentry queda cableado e **inerte hasta que exista `NEXT_PUBLIC_SENTRY_DSN`**.
 
-### Lo que falta, en orden
+- **6 · La traza.** Un trigger registra cada UPDATE y DELETE de pacientes, titulares, consultas y
+  citas, con el antes y el después de los campos que cambiaron. Un trigger y no llamadas desde la
+  app, porque los caminos de escritura están repartidos y una traza con agujeros es peor que ninguna:
+  invita a concluir "no pasó nada" donde lo correcto es "no lo registramos".
+- **7 · El demo.** La siembra parcial ya no sobrevive, el wizard no vuelve a pedir lo que la clínica
+  ya tiene, y borrar un titular dejó de poder fallar con un error de llave foránea.
+- **8 · El foco.** 34 campos pasan al anillo del sistema, con un test que impide que el patrón vuelva.
+- **9 · Los menores.** De los tres, **sólo uno era un defecto** (la tabla de cartera). Ver la sección.
+
+### Lo que falta
 
 **Bloqueado por terceros:** el 5 (Santiago, suscripciones) y el corpus (Jesús). Cada uno tiene su
 nota en `docs/`.
 
-**Pendiente nuestro:** 6, 7, 8 y 9. Ninguno es 🔴 y ninguno bloquea el lanzamiento por sí solo; el
-6 (traza de acciones humanas) es el que más pesa para un producto que guarda historia clínica.
+**Nuestro:** sólo el DSN de Sentry, que es de Felipe y toma dos minutos. Nada más queda abierto de
+esta auditoría.
+
+**Planteado, sin resolver, y a propósito:** los roles. Hoy hay `admin` y `vet`; una clínica de ocho
+personas necesitaría más, pero definir qué puede hacer cada uno tiene consecuencias legales —
+*"¿quién puede aprobar una nota clínica?"* no es una pregunta de implementación. Es una decisión de
+producto, no un arreglo pendiente.
 
 ---
 
@@ -234,6 +248,9 @@ Ver la nota para Santiago al final: el mecanismo de corte ya existe y sólo hay 
 
 ## 6 · 🟡 La traza no cubre lo que hacen las personas
 
+> ✅ **Cerrado** en el PR #110 (migración 0063, aplicada y verificada). Un trigger registra cada
+> UPDATE y DELETE de pacientes, titulares, consultas y citas.
+
 **Qué se rompe.** "¿Quién editó el peso de este paciente?" y "¿quién borró este titular?" no se
 pueden contestar.
 
@@ -254,6 +271,9 @@ desde el MCP; hay que mirarlo en el panel de Supabase.
 ---
 
 ## 7 · 🟡 Tres defectos latentes en los datos de ejemplo
+
+> ✅ **Cerrado** en el PR #111 (migración 0064, aplicada y verificada). Y uno de los tres resultó
+> más grande de lo que decía este informe: yo mismo lo amplié en el PR #105.
 
 Ninguno ocurrió: los dos demos en producción están íntegros (1 paciente, 1 consulta, 1 transcript,
 1 nota cada uno). Se listan porque son alcanzables.
@@ -276,6 +296,9 @@ se puede probar un DELETE ahí. Es análisis de las reglas de PostgreSQL, no una
 
 ## 8 · 🟡 Foco de teclado inconsistente en facturación
 
+> ✅ **Cerrado** en el PR #112. 34 campos pasan al anillo del sistema, con un test que impide que
+> el patrón vuelva.
+
 **Evidencia.** 18 archivos, casi todos de `facturacion/`, sustituyen el anillo del sistema por
 `focus:border-brand focus:outline-none` — un tinte de borde de 1px, cuando el `button.tsx` del propio
 sistema usa `focus-visible:ring-3`.
@@ -288,13 +311,33 @@ está por debajo del área que pide WCAG 2.2 §2.4.11.
 
 ## 9 · 🟢 Menores
 
-- **`rateLimit` en memoria por lambda** (`src/lib/athos-agent/rate-limit.ts:4`, un `Map`). Está
-  honestamente documentado como *"primer freno contra loops/doble-click"*. No es un tope por clínica.
-- **Roles binarios**: sólo `admin` (12 perfiles) y `vet` (5), con tres puntos de aplicación. Para una
-  clínica de ocho personas —recepción, auxiliar, peluquería— no alcanza.
-- **Tabla de cartera sin scroll**: `dashboard/facturacion/cartera/page.tsx:145` usa `overflow-hidden`
-  donde las otras 13 tablas usan `overflow-x-auto`. Verificado que **no clipea** (ninguna celda tiene
-  `nowrap`, `tabular-nums` ni `font-mono`, así que encogen): en móvil se aprieta, no se rompe.
+> ✅ **Cerrado** en el PR #113 — pero de los tres, sólo uno era un defecto.
+
+**Tabla de cartera sin scroll.** `dashboard/facturacion/cartera/page.tsx:145` usaba `overflow-hidden`
+donde las otras 13 tablas usan `overflow-x-auto`. Con siete columnas en un teléfono se apretaba hasta
+ser ilegible en vez de poder desplazarse. Verificado que **no clipeaba** (ninguna celda tiene
+`nowrap`, `tabular-nums` ni `font-mono`, así que encogen). Arreglado.
+
+**`rateLimit` en memoria: NO era un defecto, y este informe lo dijo mal.** Escribí *"no es un tope por
+clínica"*, que es cierto, pero la implicación —que el gasto queda desprotegido— es falsa. El orden
+real en `api/athos/agent/route.ts` es:
+
+1. `rateLimit` (línea 67) — freno de ráfaga en memoria, por usuario
+2. **`consultarPresupuesto(clinicId)`** (línea 92) — tope mensual **contra la base**, responde 402
+3. `streamText` (línea 158) — el gasto
+
+O sea que el dinero está protegido por un tope persistido que se comprueba **antes de cada llamada**,
+y el propio código ya explica la diferencia en la línea 86. Que el `rateLimit` sea por instancia
+significa que una ráfaga puede colarse N veces con N lambdas concurrentes — pero el techo mensual
+sigue en pie, así que el radio del daño está acotado. Construir un limitador distribuido para esto
+sería agregar un servicio (Redis) y una ida a la base en el camino caliente del chat, a cambio de
+nada que el tope mensual no cubra ya.
+
+**Roles binarios: es una decisión de producto, no un arreglo.** Hay `admin` (12 perfiles) y `vet` (5),
+con tres puntos de aplicación —invitar gente, y dos de configuración—. Para una clínica de ocho
+personas (recepción, auxiliar, peluquería) haría falta más, pero definir qué puede hacer cada rol
+tiene consecuencias legales: *"¿quién puede aprobar una nota clínica?"* no es una pregunta de
+implementación. Queda planteado, sin inventar una matriz de permisos.
 
 ---
 
