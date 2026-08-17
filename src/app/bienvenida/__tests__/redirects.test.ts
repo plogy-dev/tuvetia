@@ -33,6 +33,21 @@ vi.mock("@/lib/supabase/server", () => ({
   }),
 }))
 
+// El progreso de configuración entró a esta página el 2026-08-16, para que el wizard no vuelva a
+// pedir lo que la clínica ya tiene (repetir el onboarding duplicaba titular, paciente y servicios).
+// Tiene sus propias consultas y sus propios tests; acá se mockea porque este archivo decide RUTEO, y
+// emular la forma de seis consultas más sólo lo haría frágil sin comprobar nada nuevo.
+vi.mock("@/lib/onboarding/consultar", () => ({
+  progresoDeConfiguracion: async () => ({
+    pasos: [],
+    hechos: 0,
+    total: 6,
+    porcentaje: 0,
+    completo: false,
+    siguiente: null,
+  }),
+}))
+
 // Los componentes cliente no se renderizan acá: sólo interesa la decisión de ruteo.
 vi.mock("@/components/onboarding/welcome-wizard", () => ({ WelcomeWizard: () => null }))
 vi.mock("@/components/onboarding/onboarding-athos", () => ({ OnboardingAthos: () => null }))

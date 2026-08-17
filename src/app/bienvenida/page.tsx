@@ -6,6 +6,7 @@ import { OnboardingAthos } from "@/components/onboarding/onboarding-athos"
 import { SinClinica } from "@/components/onboarding/sin-clinica"
 import { CuentaDesactivada } from "@/components/cuenta-desactivada"
 import { estadoDeAcceso } from "@/lib/acceso"
+import { progresoDeConfiguracion } from "@/lib/onboarding/consultar"
 
 export const metadata = { title: "Configura tu clínica · Tuvetia" }
 
@@ -61,6 +62,20 @@ export default async function BienvenidaPage() {
     .maybeSingle()
   const c = clinic as { name: string; logo_url: string | null } | null
 
+  // QUÉ TIENE YA LA CLÍNICA, para que el wizard no vuelva a pedir lo que ya está.
+  //
+  // El onboarding SE PUEDE REPETIR (`RepetirOnboarding`, en Ayuda) y ese botón promete "no borra
+  // nada de lo que ya cargaste". Es verdad — pero sin esto, volver a pasar por los pasos crearía un
+  // SEGUNDO titular con su paciente y un catálogo de servicios duplicado, porque ni `create_owner`
+  // ni `catalog_items` tienen guarda de unicidad. Prometer que no se borra nada y a cambio duplicar
+  // todo es la misma clase de sorpresa.
+  //
+  // Se reusa `progresoDeConfiguracion` en vez de contar acá: define "tiene servicios" con su
+  // sutileza (`item_type='SERVICIO'` y `active`), y dos sitios que interpreten eso distinto
+  // terminarían discrepando — que es el defecto que esta auditoría ya encontró dos veces.
+  const progreso = await progresoDeConfiguracion()
+  const hecho = (id: string) => progreso.pasos.some((paso) => paso.id === id && paso.hecho)
+
   return (
     <main className="mx-auto grid min-h-svh w-full max-w-6xl gap-6 px-6 py-10 lg:grid-cols-[minmax(0,1fr)_360px]">
       <div className="flex w-full max-w-md flex-col justify-center justify-self-center">
@@ -68,6 +83,11 @@ export default async function BienvenidaPage() {
           clinicId={p.clinic_id}
           initialClinicName={c?.name ?? ""}
           initialLogoUrl={c?.logo_url ?? null}
+          yaHecho={{
+            horarios: hecho("horarios"),
+            servicios: hecho("servicios"),
+            paciente: hecho("paciente"),
+          }}
         />
       </div>
       {/* El panel de Athos es acompañamiento, no camino crítico: en pantallas chicas se oculta y el

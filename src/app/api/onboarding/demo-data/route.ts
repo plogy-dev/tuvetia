@@ -61,10 +61,22 @@ export async function POST() {
   } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: "No autenticado" }, { status: 401 })
 
-  try {
-    const { admin, clinicId } = await clinicOf(user.id)
-    if (!clinicId) return NextResponse.json({ error: "El usuario no tiene clínica" }, { status: 400 })
+  const { admin, clinicId } = await clinicOf(user.id)
+  if (!clinicId) return NextResponse.json({ error: "El usuario no tiene clínica" }, { status: 400 })
 
+  // EL TITULAR CREADO EN ESTA LLAMADA, para poder deshacer si algo falla a mitad de camino.
+  //
+  // POR QUÉ HACE FALTA. La siembra son cinco inserts y NO es transaccional: si el cuarto falla, los
+  // tres primeros ya están escritos. Y como la guarda de idempotencia de abajo pregunta sólo por el
+  // TITULAR, el reintento lo encuentra y responde `{ ok: true, already: true }` — o sea que el demo
+  // queda roto para siempre y encima reportando éxito. Es el peor final posible: un fallo que se
+  // presenta como un acierto.
+  //
+  // Deshacer restaura la invariante de la que depende la guarda: **si el titular demo existe,
+  // el demo está completo**. Los FK en cascada se llevan paciente, consulta, transcript y nota.
+  let titularSembrado: string | null = null
+
+  try {
     // Idempotente: si el demo ya existe, no duplicar.
     const { data: existing } = await admin
       .from("owners")
@@ -80,6 +92,7 @@ export async function POST() {
       .select("id")
       .single()
     if (oErr) throw new Error(oErr.message)
+    titularSembrado = (owner as { id: string }).id
 
     const { data: patient, error: pErr } = await admin
       .from("patients")
@@ -133,6 +146,26 @@ export async function POST() {
 
     return NextResponse.json({ ok: true })
   } catch (e) {
+    // DESHACER lo sembrado a medias. Sin esto, el reintento encuentra al titular, lo da por completo
+    // y devuelve éxito sobre un demo que no tiene ni consulta ni nota.
+    //
+    // El borrado va con su `clinic_id` además del id: es `service_role`, que se salta la RLS, y la
+    // regla de la casa es que toda consulta con esa credencial lleve su filtro de clínica explícito.
+    if (titularSembrado) {
+      const { error: limpieza } = await admin
+        .from("owners")
+        .delete()
+        .eq("id", titularSembrado)
+        .eq("clinic_id", clinicId)
+      // Si NI SIQUIERA se pudo limpiar, se dice: es el único caso en que sí queda un demo a medias,
+      // y callarlo lo volvería indiagnosticable — que es el defecto que este bloque vino a cerrar.
+      if (limpieza) {
+        console.error(
+          `[onboarding/demo-data] siembra fallida Y limpieza fallida en la clínica ${clinicId}:`,
+          limpieza.message,
+        )
+      }
+    }
     return NextResponse.json({ error: (e as Error).message }, { status: 500 })
   }
 }
