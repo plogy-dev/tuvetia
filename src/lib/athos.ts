@@ -151,6 +151,54 @@ export async function athosPhantomSuggest(params: {
   return (await res.json()) as PhantomResponse
 }
 
+export type LiveResponse = {
+  texto: string
+  /** Todavía no hay con qué. Se pinta como "escuchando", NO como un error. */
+  sin_material: boolean
+  /** El guard de dosis tapó cifras por peso (regla 4): la ficha está incompleta. */
+  dosis_redactadas: boolean
+  alergias_severas: string[]
+}
+
+/**
+ * Notas y sugerencias MIENTRAS la consulta pasa.
+ *
+ * NO ESCRIBE NADA en la historia clínica: lo que devuelve es un cuaderno que se mira y se descarta.
+ * La nota que entra a la historia sigue siendo la del cierre, con aprobación humana.
+ *
+ * EL TRANSCRIPT VIAJA DESDE ACÁ y no se lee de la base porque durante la consulta todavía no está
+ * persistido — se guarda al cerrar. La FICHA, en cambio, la resuelve el servidor: el peso y la
+ * especie gobiernan el guard de dosis y no pueden venir del cliente.
+ *
+ * CUÁNDO SE LLAMA lo decide `lib/consulta-viva/disparador.ts`, por contenido nuevo y con techo por
+ * consulta. Acá no hay ninguna cadencia.
+ */
+export async function athosLive(params: {
+  consultationId: string
+  clinicId: string
+  patientId?: string | null
+  transcript: string
+  motivo?: string | null
+  modo: "notas" | "sugerencias"
+  signal?: AbortSignal
+}): Promise<LiveResponse> {
+  const res = await fetch(`${ATHOS_URL}/athos/live`, {
+    method: "POST",
+    headers: await authHeaders(),
+    body: JSON.stringify({
+      consultation_id: params.consultationId,
+      clinic_id: params.clinicId,
+      patient_id: params.patientId || null,
+      transcript: params.transcript,
+      motivo: params.motivo || null,
+      modo: params.modo,
+    }),
+    signal: params.signal,
+  })
+  if (!res.ok) throw new Error(await mensajeDeError(res))
+  return (await res.json()) as LiveResponse
+}
+
 export type TranscribeResponse = {
   transcript_id: string
   full_text: string

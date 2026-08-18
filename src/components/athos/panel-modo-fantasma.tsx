@@ -20,12 +20,14 @@
 // Inventar etiquetas de hablante sería adivinar quién dijo qué en una historia clínica.
 
 import Link from "next/link"
-import { Loader2, TriangleAlert, X } from "lucide-react"
+import { Loader2, Pause, Play, TriangleAlert, X } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
+import { AthosEnVivo } from "@/components/athos/athos-en-vivo"
 import { Cuaderno } from "@/components/athos/cuaderno"
 import { consultaViva } from "@/lib/consulta-viva/sesion"
 import { useConsultaViva } from "@/lib/consulta-viva/usar"
+import { useInteligenciaViva } from "@/lib/consulta-viva/usar-inteligencia-viva"
 
 function mmss(total: number): string {
   return `${String(Math.floor(total / 60)).padStart(2, "0")}:${String(total % 60).padStart(2, "0")}`
@@ -34,6 +36,15 @@ function mmss(total: number): string {
 export function PanelModoFantasma({ abierto, alCerrar }: { abierto: boolean; alCerrar: () => void }) {
   const estado = useConsultaViva()
 
+  // ANTES DEL RETURN TEMPRANO, y no sólo por la regla de los hooks. El panel se MINIMIZA todo el
+  // tiempo —es el uso que pidió el cliente— y este componente sigue montado cuando `abierto` es
+  // false. Si la inteligencia dependiera de que el panel esté abierto, al volver a abrirlo estaría
+  // en blanco y habría que esperar otro tramo de consulta para ver algo.
+  //
+  // Se ata a que HAYA GRABACIÓN, no a que se esté mirando: las notas se acumulan mientras el vet
+  // atiende y están ahí cuando las busca.
+  const vivo = useInteligenciaViva(estado.fase === "grabando")
+
   if (!abierto || estado.fase === "inactiva") return null
 
   const grabando = estado.fase === "grabando"
@@ -41,7 +52,9 @@ export function PanelModoFantasma({ abierto, alCerrar }: { abierto: boolean; alC
   const fallo = estado.fase === "perdida"
 
   const titular = grabando
-    ? "Escuchando la consulta"
+    ? estado.pausada
+      ? "En pausa"
+      : "Escuchando la consulta"
     : estado.fase === "subiendo"
       ? "Guardando el audio"
       : estado.fase === "transcribiendo"
@@ -58,7 +71,14 @@ export function PanelModoFantasma({ abierto, alCerrar }: { abierto: boolean; alC
       <div className="flex max-h-[82%] flex-col overflow-hidden border-b border-line bg-surface shadow-popover">
         <div className="flex flex-wrap items-center gap-x-3 gap-y-2 border-b border-line px-4 py-3.5 md:px-6">
           {grabando && (
-            <span aria-hidden className="size-2.5 shrink-0 rounded-full bg-brand motion-safe:animate-pulse" />
+            // En pausa el punto deja de latir y se apaga: un indicador que sigue pulsando mientras
+            // no se captura nada le está mintiendo al vet sobre si lo que dice queda registrado.
+            <span
+              aria-hidden
+              className={`size-2.5 shrink-0 rounded-full ${
+                estado.pausada ? "bg-fg-faint" : "bg-brand motion-safe:animate-pulse"
+              }`}
+            />
           )}
           {cerrando && <Loader2 aria-hidden className="size-4 shrink-0 animate-spin text-fg-faint" />}
           {fallo && <TriangleAlert aria-hidden className="size-4 shrink-0 text-danger" />}
@@ -86,8 +106,25 @@ export function PanelModoFantasma({ abierto, alCerrar }: { abierto: boolean; alC
           )}
 
           <span className="ml-auto flex items-center gap-2">
+            {/* PAUSAR, que el cliente pidió con captura de pantalla. El caso es la jornada real: el
+                titular sale a buscar el carnet, entra alguien, suena el teléfono. Sin esto había que
+                grabar eso o cerrar la consulta y perder el hilo.
+
+                Va ANTES de "Terminar" y con más peso visual: pausar es reversible y terminar no. */}
+            {grabando &&
+              (estado.pausada ? (
+                <Button size="sm" onClick={() => consultaViva.reanudar()}>
+                  <Play className="size-3.5" aria-hidden />
+                  Reanudar
+                </Button>
+              ) : (
+                <Button size="sm" variant="outline" onClick={() => consultaViva.pausar()}>
+                  <Pause className="size-3.5" aria-hidden />
+                  Pausar
+                </Button>
+              ))}
             {grabando && (
-              <Button size="sm" variant="outline" onClick={() => void consultaViva.detener()}>
+              <Button size="sm" variant="ghost" onClick={() => void consultaViva.detener()}>
                 Terminar
               </Button>
             )}
@@ -108,14 +145,14 @@ export function PanelModoFantasma({ abierto, alCerrar }: { abierto: boolean; alC
           </span>
         </div>
 
-        {/* DOS COLUMNAS EN ESCRITORIO: lo que se oye a la izquierda, lo que el vet escribe a la
-            derecha. Es la forma que hace del panel un cuaderno y no un visor — la transcripción
-            corre sola y el cuaderno es lo único con lo que se interactúa mientras se atiende.
+        {/* TRES COLUMNAS EN PANTALLA ANCHA: lo que se oye, lo que Athos aporta, y lo que el vet
+            escribe. En `lg` caben dos y Athos comparte columna con el cuaderno; en un teléfono se
+            apilan.
 
-            En un teléfono se apilan, y el CUADERNO VA PRIMERO: ahí no hay lugar para las dos, y
-            entre leer lo que se acaba de decir y poder anotar, lo segundo es lo que no se puede
-            hacer en ningún otro lado. */}
-        <div className="flex flex-1 flex-col-reverse gap-4 overflow-auto px-4 py-4 md:px-6 lg:grid lg:grid-cols-[1fr_minmax(0,22rem)] lg:gap-6">
+            EL ORDEN AL APILARSE ESTÁ INVERTIDO A PROPÓSITO (`flex-col-reverse`): en un teléfono lo
+            primero tiene que ser con lo que se INTERACTÚA —el cuaderno y lo que Athos sugiere—, no
+            la transcripción, que corre sola y no se lee mientras se atiende. */}
+        <div className="flex flex-1 flex-col-reverse gap-4 overflow-auto px-4 py-4 md:px-6 lg:grid lg:grid-cols-[1fr_minmax(0,22rem)] lg:gap-6 xl:grid-cols-[1fr_minmax(0,20rem)_minmax(0,20rem)]">
           <div className="min-w-0">
             {fallo ? (
               <p className="text-sm text-danger">{estado.error ?? "La grabación falló."}</p>
@@ -135,13 +172,18 @@ export function PanelModoFantasma({ abierto, alCerrar }: { abierto: boolean; alC
             )}
           </div>
 
+          <AthosEnVivo vivo={vivo} className="lg:border-l lg:border-line lg:pl-6" />
+
           <Cuaderno consultaId={estado.consultaId} filas={8} className="min-w-0 lg:border-l lg:border-line lg:pl-6" />
         </div>
 
         {grabando && (
           <p className="border-t border-line px-4 py-3 text-[13px] text-fg-muted md:px-6">
-            Grabando con el micrófono del dispositivo. La transcripción se guarda sólo si usted
-            aprueba la nota.
+            {estado.pausada
+              ? // Decirlo explícito importa: el micrófono sigue tomado —el navegador lo sigue
+                // mostrando— y el vet tiene que saber que eso NO significa que se esté grabando.
+                "En pausa: no se está capturando nada. El micrófono sigue tomado para poder reanudar sin volver a pedir permiso."
+              : "Grabando con el micrófono del dispositivo. La transcripción se guarda sólo si usted aprueba la nota."}
           </p>
         )}
       </div>
