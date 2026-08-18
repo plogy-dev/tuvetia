@@ -114,9 +114,12 @@ export default async function AsistentePage({
       const arranqueDeHoy = `${hoy}T00:00:00-05:00`
 
       const [pts, msgs, consultas, facturas, citasData, billing] = await Promise.all([
+        // El TITULAR viaja con cada paciente porque el buscador de contexto lo necesita: con dos
+        // mascotas llamadas "Manchita", de quién son es lo único que las distingue. Es un embed y
+        // no una segunda consulta — cuesta lo mismo que traer sólo el nombre.
         supabase
           .from("patients")
-          .select("id,name,species")
+          .select("id,name,species,owner:owners(full_name)")
           .eq("clinic_id", clinicId)
           .order("name")
           .limit(500),
@@ -153,7 +156,20 @@ export default async function AsistentePage({
         supabase.from("billing_settings").select("module_status").maybeSingle(),
       ])
 
-      patients = (pts.data as AssistantPatient[] | null) ?? []
+      // El embed llega como objeto (o null si el paciente no tiene titular); el cliente sólo quiere
+      // el nombre. Se aplana acá para que `AssistantPatient` siga siendo plano y serializable.
+      type FilaPaciente = {
+        id: string
+        name: string
+        species: string
+        owner: { full_name: string } | null
+      }
+      patients = (((pts.data as unknown as FilaPaciente[] | null) ?? []).map((p) => ({
+        id: p.id,
+        name: p.name,
+        species: p.species,
+        owner: p.owner?.full_name ?? null,
+      })) satisfies AssistantPatient[])
       threads = agruparPorPaciente((msgs.data as MensajeFila[] | null) ?? [])
       consultasHoy = consultas.count ?? 0
       facturacionActiva =
