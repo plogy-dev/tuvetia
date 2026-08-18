@@ -155,12 +155,16 @@ def analizar(
     except Exception as e:  # noqa: BLE001 — el vivo nunca rompe la consulta
         log.warning("vivo: falló la generación (%s): %s", modo, e)
         return {"texto": "", "sin_material": True, "dosis_redactadas": False,
-                "alergias_severas": list(patient.severe_allergies) if patient else []}
+                "alergias_severas": list(patient.severe_allergies) if patient else [],
+                "modelo": s.llm_light_model, "gasto": False}
 
     texto = (crudo or "").strip()
     if not texto or texto.upper().startswith(SIN_MATERIAL):
+        # `gasto=True` aunque no haya texto: la llamada al modelo YA ocurrió y ya se pagó. Contar
+        # sólo lo que devuelve algo dejaría fuera del presupuesto justo el caso que más se repite.
         return {"texto": "", "sin_material": True, "dosis_redactadas": False,
-                "alergias_severas": list(patient.severe_allergies) if patient else []}
+                "alergias_severas": list(patient.severe_allergies) if patient else [],
+                "modelo": s.llm_light_model, "gasto": True}
 
     # REGLA 4, SOBRE EL TEXTO Y NO EN EL PROMPT. El prompt ya lo pide; medido, el prompt no alcanza.
     redactado = False
@@ -178,4 +182,9 @@ def analizar(
         "sin_material": False,
         "dosis_redactadas": redactado,
         "alergias_severas": list(patient.severe_allergies) if patient else [],
+        #: Qué modelo respondió y si hubo llamada. Next lo necesita para dejar la fila de consumo:
+        #: el presupuesto por clínica vive allá, y una fila que no dice el modelo no sirve para
+        #: costear después.
+        "modelo": s.llm_light_model,
+        "gasto": True,
     }

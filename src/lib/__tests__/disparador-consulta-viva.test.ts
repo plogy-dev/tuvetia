@@ -108,10 +108,24 @@ describe("el techo por consulta", () => {
     expect(SUGERENCIAS.maxPorConsulta).toBeLessThan(NOTAS.maxPorConsulta)
   })
 
-  // El número que hay que poder decir en voz alta cuando se discuta el precio.
-  it("el techo por consulta es explícito y acotado", () => {
+  // EL NÚMERO QUE HAY QUE PODER DECIR EN VOZ ALTA cuando se discuta el precio, y el que el cliente
+  // fijó el 2026-08-18: "duplica las consultas al mes".
+  //
+  // Se lee al revés de como se elige normalmente — no es cuánta inteligencia lleva una consulta,
+  // sino cuántas consultas tienen que caber en el mes:
+  //
+  //     1000 llamadas/mes ÷ techo por consulta = consultas al mes por clínica
+  //
+  // Este test es el que impide que alguien suba el techo "un poquito" y baje esa cuenta sin querer.
+  it("caben al menos 62 consultas al mes por clínica", () => {
     expect(techoDeLlamadas()).toBe(NOTAS.maxPorConsulta + SUGERENCIAS.maxPorConsulta)
-    expect(techoDeLlamadas()).toBeLessThanOrEqual(32)
+
+    const TOPE_MENSUAL = 1000 // `athos-agent/presupuesto.ts :: TOPE_DE_SEGURIDAD`
+    const consultasAlMes = Math.floor(TOPE_MENSUAL / techoDeLlamadas())
+    expect(
+      consultasAlMes,
+      "subir el techo por consulta baja cuántas consultas entran en el mes: era 31, el cliente pidió duplicarlo",
+    ).toBeGreaterThanOrEqual(62)
   })
 })
 

@@ -163,31 +163,35 @@ export type LiveResponse = {
 /**
  * Notas y sugerencias MIENTRAS la consulta pasa.
  *
+ * VA POR `/api/athos/live` Y NO DIRECTO AL MICROSERVICIO, a diferencia del resto de este archivo.
+ * El tope mensual por clínica vive en Next (`athos_agent_usage`), así que un gasto que no pasa por
+ * una ruta nuestra no se cuenta — y éste es el que más hay que contar: se dispara solo, decenas de
+ * veces por consulta, mientras el veterinario atiende y sin que nadie apriete nada.
+ *
  * NO ESCRIBE NADA en la historia clínica: lo que devuelve es un cuaderno que se mira y se descarta.
  * La nota que entra a la historia sigue siendo la del cierre, con aprobación humana.
  *
  * EL TRANSCRIPT VIAJA DESDE ACÁ y no se lee de la base porque durante la consulta todavía no está
  * persistido — se guarda al cerrar. La FICHA, en cambio, la resuelve el servidor: el peso y la
- * especie gobiernan el guard de dosis y no pueden venir del cliente.
+ * especie gobiernan el guard de dosis y no pueden venir del cliente. El `clinic_id` también sale de
+ * la sesión del lado servidor, no de acá.
  *
  * CUÁNDO SE LLAMA lo decide `lib/consulta-viva/disparador.ts`, por contenido nuevo y con techo por
  * consulta. Acá no hay ninguna cadencia.
  */
 export async function athosLive(params: {
   consultationId: string
-  clinicId: string
   patientId?: string | null
   transcript: string
   motivo?: string | null
   modo: "notas" | "sugerencias"
   signal?: AbortSignal
 }): Promise<LiveResponse> {
-  const res = await fetch(`${ATHOS_URL}/athos/live`, {
+  const res = await fetch("/api/athos/live", {
     method: "POST",
-    headers: await authHeaders(),
+    headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
       consultation_id: params.consultationId,
-      clinic_id: params.clinicId,
       patient_id: params.patientId || null,
       transcript: params.transcript,
       motivo: params.motivo || null,
@@ -195,7 +199,7 @@ export async function athosLive(params: {
     }),
     signal: params.signal,
   })
-  if (!res.ok) throw new Error(await mensajeDeError(res))
+  if (!res.ok) throw new Error(`Athos respondió ${res.status}`)
   return (await res.json()) as LiveResponse
 }
 

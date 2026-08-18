@@ -35,10 +35,31 @@
 // consulta de 90 minutos hablando sin parar los cumple cientos de veces. Es la misma lección que
 // `presupuesto.ts` ya dejó escrita: un techo que depende de que el uso sea razonable no es un techo.
 //
-// ⚠️ **EL SOBRE DE COSTO SIGUE SIENDO UNA DECISIÓN DE NEGOCIO.** Estos números contienen el bucle;
-// no dicen cuánto debería incluir la suscripción. Con el techo de acá, una consulta gasta hasta 32
-// llamadas y el tope de 1000 da para ~31 consultas al mes por clínica. Eso alcanza para las pruebas
-// cerradas y NO alcanza para una clínica en producción — hay que fijarlo antes de vender esto.
+// ── EL TECHO POR CONSULTA SALE DE CUÁNTAS CONSULTAS TIENEN QUE CABER EN EL MES ──────────────────
+//
+// Es el sentido en el que hay que leerlo, y es al revés de como se elige normalmente: no es "cuánta
+// inteligencia le doy a una consulta" sino "cuántas consultas al mes tiene que aguantar una
+// clínica", y el techo por consulta es lo que queda despejando.
+//
+//     1000 llamadas/mes ÷ 16 por consulta = ~62 consultas al mes por clínica
+//
+// **Estaba en 32 por consulta —o sea ~31 al mes— y el cliente pidió duplicarlo el 2026-08-18.**
+// Se duplicó bajando el techo por consulta a la mitad y NO subiendo el tope mensual: así el gasto
+// máximo de la clínica no se mueve. Subir el tope habría duplicado la factura para conseguir lo
+// mismo, y `TOPE_DE_SEGURIDAD` está documentado como contención, no como número comercial.
+//
+// QUÉ SE PIERDE, dicho con todas las letras: en una consulta LARGA y hablada de corrido, el techo
+// ahora se alcanza antes y las últimas notas no se generan. En una consulta normal —con exploración,
+// esperas y silencios— el disparo por contenido no llega a 12 notas, así que no se nota. El techo
+// muerde en el caso raro, que es exactamente lo que tiene que hacer un techo.
+//
+// ⚠️ **EL NÚMERO COMERCIAL SIGUE SIN FIJARSE.** 62 consultas al mes es lo que la contención permite,
+// no lo que la suscripción incluye. Eso se define con `ATHOS_TOPE_MENSUAL_POR_CLINICA` y es una
+// decisión de negocio.
+//
+// Y ESTO SE CUENTA DE VERDAD: cada llamada deja una fila en `athos_agent_usage` con superficie
+// `consulta_viva`, vía `/api/athos/live`. Hasta el 2026-08-18 el vivo iba directo al microservicio y
+// no gastaba cupo — o sea que este cálculo describía algo que no se estaba midiendo.
 //
 // SÓLO CUENTA EL TEXTO ESTABLE. Lo provisional el proveedor todavía puede reemplazarlo, y generar
 // una nota clínica desde algo que puede cambiar es escribir sobre arena. Es el mismo criterio con el
@@ -66,7 +87,7 @@ export const NOTAS: Cadencia = {
   nombre: "notas",
   minSegundos: 15,
   minPalabrasNuevas: 40,
-  maxPorConsulta: 24,
+  maxPorConsulta: 12,
 }
 
 /**
@@ -79,7 +100,7 @@ export const SUGERENCIAS: Cadencia = {
   nombre: "sugerencias",
   minSegundos: 45,
   minPalabrasNuevas: 120,
-  maxPorConsulta: 8,
+  maxPorConsulta: 4,
 }
 
 /** Lo que hay que recordar entre disparos. Inmutable: se reemplaza, no se muta. */

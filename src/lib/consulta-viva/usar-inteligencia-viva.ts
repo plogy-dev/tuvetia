@@ -76,7 +76,7 @@ export function useInteligenciaViva(activo: boolean): InteligenciaViva {
   const enVuelo = useRef(false)
   const consultaRef = useRef<string | null>(null)
 
-  const { fase, pausada, segundos, estable, consultaId, clinicId, pacienteId, motivo } = estado
+  const { fase, pausada, segundos, estable, consultaId, pacienteId, motivo } = estado
 
   useEffect(() => {
     // Consulta nueva = cuenta nueva. Sin esto, los contadores de la consulta anterior dejarían a la
@@ -91,7 +91,9 @@ export function useInteligenciaViva(activo: boolean): InteligenciaViva {
   useEffect(() => {
     if (!activo) return
     if (fase !== "grabando" || pausada) return
-    if (!consultaId || !clinicId) return
+    // La clínica NO se manda: la resuelve `/api/athos/live` desde la sesión. Es lo que evita que el
+    // navegador pueda gastarle el cupo a otra clínica diciendo que es de ella.
+    if (!consultaId) return
     if (enVuelo.current) return
 
     // Las notas tienen prioridad: son lo barato y lo que el vet mira primero. Si las dos cadencias
@@ -114,7 +116,6 @@ export function useInteligenciaViva(activo: boolean): InteligenciaViva {
     const corte = new AbortController()
     void athosLive({
       consultationId: consultaId,
-      clinicId,
       patientId: pacienteId,
       transcript: textoAnalizado,
       motivo,
@@ -159,7 +160,7 @@ export function useInteligenciaViva(activo: boolean): InteligenciaViva {
     return () => corte.abort()
     // `segundos` es la dependencia que hace latir esto: cambia una vez por segundo y en cada tick se
     // vuelve a preguntar si toca. El disparador es quien decide, no este efecto.
-  }, [activo, fase, pausada, segundos, estable, consultaId, clinicId, pacienteId, motivo])
+  }, [activo, fase, pausada, segundos, estable, consultaId, pacienteId, motivo])
 
   return vivo
 }
