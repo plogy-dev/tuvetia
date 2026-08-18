@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input"
 import { Separator } from "@/components/ui/separator"
 import { SidebarTrigger } from "@/components/ui/sidebar"
 import { ThemeToggle } from "@/components/theme-toggle"
+import { FormularioDeFiltros } from "@/components/ui/formulario-de-filtros"
 
 // `/dashboard/facturacion` faltaba acá, así que sus DIECISÉIS páginas se titulaban "Dashboard":
 // `titleFor` caía al valor por defecto. Cada sección que aparece en el sidebar tiene que tener su
@@ -55,7 +56,12 @@ export function SiteHeader() {
         {/* Buscador global, igual que el del cliente: un <form> GET, sin estado ni JS. Escribir no
             dispara nada; sólo al enviar se navega. El destino es Pacientes porque su explorador ya
             filtra por mascota, titular y teléfono — es decir, por lo que promete el placeholder. */}
-        <form action="/dashboard/patients" method="get" className="ml-auto hidden md:block">
+        {/* NAVEGA POR EL CLIENTE, y acá es lo que más importa: este buscador está en la cabecera de
+            TODAS las pantallas. Enviándolo de forma nativa recargaba el documento desde cualquier
+            sitio — con una grabación en curso, eso es el aviso de «¿salir del sitio?» y la consulta
+            perdida. Es el camino que hacía ver el fallo como intermitente después de arreglar el
+            menú lateral. Ver `lib/busqueda-en-la-url.ts`. */}
+        <FormularioDeFiltros action="/dashboard/patients" className="ml-auto hidden md:block">
           <div className="relative w-[260px] lg:w-[300px]">
             <SearchIcon
               className="pointer-events-none absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground"
@@ -69,7 +75,7 @@ export function SiteHeader() {
               className="h-8 pl-8"
             />
           </div>
-        </form>
+        </FormularioDeFiltros>
 
         <ThemeToggle className="ml-auto size-8 md:ml-0" />
       </div>

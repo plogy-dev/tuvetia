@@ -9,6 +9,7 @@ import {
 import { DEFAULT_UVT_VALUE_CENTS } from '@/lib/facturacion/constants';
 import { fmtDate } from '@/lib/facturacion/format';
 import { InvoiceCart } from '@/components/facturacion/InvoiceCart';
+import { FormularioDeFiltros } from "@/components/ui/formulario-de-filtros"
 
 export const metadata = { title: "Nueva factura · Tuvetia" }
 
@@ -165,7 +166,7 @@ export default async function NuevaFacturaPage({ searchParams }: { searchParams:
           </p>
         ) : (
           <>
-            <form method="get" className="mb-4 flex items-center gap-2">
+            <FormularioDeFiltros action="/dashboard/facturacion/nueva" className="mb-4 flex items-center gap-2">
               <div className="relative flex-1">
                 <Search
                   className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-fg-faint"
@@ -185,7 +186,7 @@ export default async function NuevaFacturaPage({ searchParams }: { searchParams:
               >
                 Buscar
               </button>
-            </form>
+            </FormularioDeFiltros>
 
             <Link
               href="/dashboard/facturacion/nueva?mostrador=1"

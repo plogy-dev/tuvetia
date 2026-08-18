@@ -19,6 +19,7 @@ import { ExpenseForm, type ExpenseInitial } from '@/components/facturacion/Expen
 import { IncomeForm, type IncomeInitial } from '@/components/facturacion/IncomeForm';
 import { FinanceBars } from '@/components/facturacion/FinanceBars';
 import { FinanceTable, type FinanceItem } from '@/components/facturacion/FinanceTable';
+import { FormularioDeFiltros } from "@/components/ui/formulario-de-filtros"
 
 export const metadata = { title: "Finanzas · Tuvetia" }
 
@@ -212,7 +213,7 @@ export default async function FinanzasPage({
         </header>
 
         {/* Filtros (GET) */}
-        <form className="mb-5 flex flex-wrap items-end gap-3" method="get">
+        <FormularioDeFiltros action="/dashboard/facturacion/finanzas" className="mb-5 flex flex-wrap items-end gap-3">
           <label className="text-xs text-fg-muted">
             Desde
             <input type="date" name="from" defaultValue={from} className={`${inputCls} mt-1 block`} />
@@ -238,7 +239,7 @@ export default async function FinanzasPage({
           >
             Aplicar
           </button>
-        </form>
+        </FormularioDeFiltros>
 
         {/* KPIs del período */}
         <div className="mb-6 grid gap-3 sm:grid-cols-3">
