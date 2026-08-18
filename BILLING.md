@@ -3,8 +3,9 @@
 Todo lo que hay que saber sobre los planes, el cobro y el corte de acceso. Si vas a tocar algo de
 esto, leé al menos las tres primeras secciones: hay decisiones que parecen rarezas y no lo son.
 
-> Estado: implementado en la rama `billing`. **Nada de esto está en producción todavía.**
-> La lista de lo que falta para poder cobrar de verdad está al final.
+> **Estado: en producción y verificado de punta a punta el 2026-08-18.** Migración aplicada, cobro
+> real aprobado ($2.000 COP de prueba, MASTERCARD), webhook validado y plan activado solo en
+> **8 segundos**. Lo que todavía falta está en la §10.
 
 ---
 
@@ -374,7 +375,7 @@ URL podría regalarse Pro mandando un JSON con `status: APPROVED`.
 2xx: devolver 400 a un evento con firma mala invita a reintentos indefinidos de algo que nunca vamos
 a aceptar. La única excepción es un cuerpo que no es JSON.
 
-### ⚠️ El checksum hay que confirmarlo contra sandbox antes de producción
+### El checksum: confirmado ✅ (y por qué no hay un vector fijo)
 
 La documentación de Wompi publica un ejemplo con su cadena concatenada y su hash, pero **los dos no
 se corresponden**: el SHA256 de la cadena que ellos muestran no da el hash que ellos muestran
@@ -385,8 +386,8 @@ importa, alterar el monto invalida, otro secreto invalida, nada lanza). Pero no 
 del proveedor contra el cual anclarlo — fijar uno inventado daría la falsa sensación de estar
 verificado contra Wompi.
 
-**Cómo confirmarlo, sin adivinar:** la primera transacción en sandbox lo dice. Está construido en el
-producto:
+**Cómo se confirmó, sin adivinar:** está construido en el producto. `suscripcion_eventos.firma_valida`
+guarda el veredicto de cada webhook entrante, así que la primera transacción real lo dice sola:
 
 ```sql
 select evento, firma_valida, procesado_en, created_at
@@ -394,9 +395,12 @@ from suscripcion_eventos
 order by created_at desc limit 5;
 ```
 
-Si `firma_valida` es `false` en un evento legítimo de sandbox, la concatenación no coincide con la
-de Wompi y hay que ajustarla antes de tocar producción. **Este es el paso número uno de la puesta en
-marcha.**
+**Verificado el 2026-08-17 en sandbox y el 2026-08-18 en producción: `firma_valida = true` en los
+dos.** La concatenación es correcta; el ejemplo de la documentación es el que está mal.
+
+Si algún día `firma_valida` empieza a dar `false` en eventos legítimos, lo más probable es que hayan
+rotado el secreto de eventos y nadie haya actualizado `WOMPI_EVENTS_SECRET` — no que el algoritmo
+haya cambiado.
 
 ---
 
@@ -423,33 +427,47 @@ pagos no están habilitados. Es la regla del repo para toda integración externa
 
 ---
 
-## 10. Qué falta para poder cobrar de verdad
+## 10. Estado de la puesta en marcha
 
-En orden.
+### Lo que ya está hecho y verificado
 
-1. **Aplicar la migración 0065.** No se aplicó a ninguna base todavía.
-2. **Confirmar el checksum contra sandbox** (sección 8). Es el paso uno de verdad: sin esto, ningún
-   pago se activa solo.
-3. **Cargar las cuatro llaves de sandbox** y registrar la URL del webhook en Wompi:
-   `https://<dominio>/api/wompi/webhook`.
-4. **`CRON_SECRET` en Vercel** (ya existía para los crons de cartera y purga: el de suscripciones
-   usa el mismo, porque corre dentro del de cartera). No hace falta ningún secreto nuevo.
-5. **Probar el ciclo completo en sandbox**: alta → webhook → Pro; rechazo → `past_due` → reintento;
-   cancelar → baja al vencer.
-6. **Verificar 3D Secure.** Si el emisor pide autenticación, la fuente de pago no queda `AVAILABLE`.
-   Hoy ese camino **no está implementado**: la ruta corta con un mensaje honesto ("tu banco pidió una
-   verificación adicional") en vez de dejar una fuente a medias que falle en cada cobro mensual sin
-   explicación. Si en sandbox resulta que 3DS es obligatorio para cobros recurrentes, hay que
-   construir el flujo 3RI (polling + renderizar el desafío del banco), que es trabajo aparte y no
-   menor.
-7. **Confirmar el procesador.** El `recurrent: true` (Credential On File) sube la aprobación, pero
-   sólo aplica a VISA/Mastercard **con RBM** como procesador. Con otra combinación Wompi lo ignora
-   en silencio.
-8. **Decidir qué pasa con las clínicas de cortesía.** La migración deja a las 15 existentes en
-   `plan = 'pro'`, `subscription_status = 'cortesia'` — nadie pierde acceso el día del despliegue.
-   Pasarlas a free es un `update` de una línea, cuando se decida y después de avisarles.
-9. **Páginas legales.** Cobrar sin términos de servicio reales no es viable, y hoy siguen siendo un
+Todo esto se comprobó contra la base y contra Wompi el **17–18 de agosto de 2026**, no se da por
+supuesto:
+
+| | Cómo se verificó |
+|---|---|
+| Migración 0065 aplicada | 7 columnas, 2 tablas, trigger y policies consultadas en el principal |
+| El trigger corta de verdad | probado en los dos sentidos con rollback forzado: free rechaza, pro pasa |
+| Checksum del webhook | `firma_valida = true` en sandbox **y** en producción |
+| Cobro real | $2.000 COP aprobados, MASTERCARD, plan activado solo en **8 segundos** |
+| **3D Secure NO se exige** | `is_three_ds: false` en la transacción real → **no hay que construir el flujo 3RI** |
+| Cron sin secretos nuevos | corre dentro de `/api/cron/cartera`, que ya tenía `CRON_SECRET` |
+| Reconciliación | 7 tests; y el caso que la motiva ocurrió de verdad el 17-ago |
+
+### Lo que falta
+
+1. **Devolver `PLAN_PRO_PRECIO_CENTAVOS` a `20000000`** si se bajó para probar — y redesplegar, que
+   un cambio de variable no toma efecto hasta el deploy. Con $2.000 puestos, la primera clínica que
+   contrate paga dos mil pesos al mes para siempre.
+2. **Limpiar las tarjetas de prueba.** Una tarjeta personal que quedó registrada se cobra sola al
+   mes siguiente, por el monto que tenga la variable ese día.
+3. **Probar los tres caminos que faltan**, todos sin gastar plata: cancelación (debe quedar
+   `canceled` sin bajar el plan hasta el vencimiento), rechazo con la tarjeta `4111 1111 1111 1111`
+   de sandbox (debe quedar `past_due` con 6 días de gracia), y reconciliación (borrar la URL del
+   webhook, pagar, y disparar `/api/cron/suscripciones` a mano).
+4. **Confirmar el procesador.** El `recurrent: true` (Credential On File) sube la tasa de
+   aprobación, pero sólo aplica a VISA/Mastercard **con RBM** como procesador. Con otra combinación
+   Wompi lo ignora en silencio — no rompe nada, pero conviene saberlo.
+5. **Decidir qué pasa con las clínicas de cortesía.** La migración dejó a las 15 existentes en
+   `plan = 'pro'`, `subscription_status = 'cortesia'`: nadie perdió acceso al desplegar. Pasarlas a
+   free es un `update` de una línea, cuando se decida y **después de avisarles**.
+6. **Páginas legales.** Cobrar sin términos de servicio reales no es viable, y hoy siguen siendo un
    placeholder.
+
+> ⚠️ **La URL del webhook se configura por ambiente.** La que se guarda en modo de pruebas **no
+> viaja a producción**. Es el error que ya costó una tarde: el pago sale, Wompi lo aprueba, y el
+> plan nunca se activa porque el evento no llega a ninguna parte. Al cambiar de ambiente, volvé a
+> Programadores y confirmá que esté guardada.
 
 ### Lo que este trabajo no trae
 

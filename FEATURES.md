@@ -462,14 +462,15 @@ prometa antes de tiempo.
 - **El medidor de consumo, encendido.** El medidor de cupo de IA está construido y probado, pero hoy
   **no se muestra**: los planes ya existen, pero ninguno tiene todavía un tope de uso definido. En
   cuanto se fije uno, se enciende solo.
-- **El cobro, en producción.** Los dos planes y todo el motor de suscripción están construidos, pero
-  todavía no se cobra: faltan las credenciales de la pasarela y las pruebas en su entorno de
-  ensayo. Mientras tanto, las clínicas que ya venían usando Tuvetia quedan con **Pro de cortesía**,
-  así que nadie pierde Athos ni el Modo Fantasma de un día para el otro.
+- **Que se le cobre a las clínicas que ya existen.** El cobro funciona —está probado de punta a
+  punta con dinero real— pero las clínicas que ya venían usando Tuvetia siguen con **Pro de
+  cortesía**: nadie perdió Athos ni el Modo Fantasma de un día para el otro. Pasarlas al plan pago
+  es una decisión comercial, con aviso previo, no un efecto automático.
 - **Factura de la suscripción.** Tuvetia no emite todavía una factura por el plan Pro. El módulo de
   Ventas le factura a los *clientes de la clínica*, no a la clínica.
 - **Avisos de pago por correo.** Que un cobro se aprobó o falló solo se ve dentro de la app; no sale
-  ningún correo. Depende de la misma credencial de envío que falta arriba.
+  ningún correo. Depende de la misma credencial de envío que falta arriba. Mientras tanto, quien
+  entre a **Plan** sí ve el estado, la tarjeta registrada, el próximo cobro y el historial.
 - **Cambiar de plan a mitad de mes.** Hay alta, renovación y cancelación al final del período. No hay
   prorrateo.
 - **El período de prueba.** Se menciona un trial de 3 días, pero no existe ningún reloj que lo
