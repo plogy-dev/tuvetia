@@ -20,8 +20,9 @@ from app.generation.evidence_judge import ABSTAIN_MESSAGE, LIMITED_NOTICE, judge
 from app.generation.generate import _MAX_CHUNK_CHARS
 from app.generation.provider_cascade import REDACCION, ProviderCascade
 from app.models import EVIDENCE_NONE, EVIDENCE_SUFFICIENT, Citation, PatientContext
-from app.patient_context import load_patient_context
+from app.patient_context import load_patient_context, load_recent_assessment
 from app.retrieval.cascade import build_and_retrieve
+from app.retrieval.referencial import consulta_enriquecida, es_referencial
 from app.trace.logs import load_thread, log_message, log_retrieval
 
 CHAT_LIT_LIMIT = 12   # fuentes numeradas que se ofrecen al modelo (y de las que salen las citas)
@@ -124,10 +125,20 @@ def _thread_history(rows) -> list[dict]:
     return hist
 
 
-def _chat_prompt(question: str, literature, patient, severe_allergens) -> str:
+def _chat_prompt(question: str, literature, patient, severe_allergens, cuadro=None) -> str:
     ficha = (f"- especie: {patient.species or '?'}; peso: {patient.weight_kg or '?'} kg; "
              f"edad: {patient.age_years or '?'} años")
     alergias = ", ".join(severe_allergens) if severe_allergens else "ninguna conocida"
+    # El cuadro registrado, SÓLO cuando la pregunta no lo nombra ("¿qué piensas sobre la condición
+    # de Manchita?"). Sin esto el modelo recibiría literatura perfecta sobre vómito crónico felino y
+    # ninguna forma de saber que de eso hablaba la pregunta.
+    #
+    # Misma frontera que la historia previa: es el registro de la clínica, NO literatura. No se cita
+    # y no sostiene una afirmación — la regla "cita o se calla" se apoya sólo en lo recuperado.
+    linea_cuadro = ""
+    if cuadro:
+        linea_cuadro = (f"- cuadro registrado en su última consulta (contexto, NO es literatura: no "
+                        f"lo cites): {cuadro.strip()}\n")
     # Historia previa de ESTE paciente (patient_embeddings). Va en su propia sección y con su propia
     # regla: es memoria clínica, NO literatura — no se cita, y no puede sostener una afirmación por
     # sí sola (la regla "cita o se calla" se apoya solo en la literatura recuperada).
@@ -140,6 +151,7 @@ def _chat_prompt(question: str, literature, patient, severe_allergens) -> str:
         "CONTEXTO DEL PACIENTE:\n"
         f"{ficha}\n"
         f"- alergias severas conocidas: {alergias}\n"
+        f"{linea_cuadro}"
         f"{historia}\n"
         f"PREGUNTA DEL VETERINARIO:\n{question.strip()}\n\n"
         "LITERATURA RECUPERADA (cita SOLO estas fuentes, por su número [n]):\n"
@@ -167,6 +179,34 @@ def stream_answer(question: str, patient_id: str, clinic_id: str, user_id: str |
     # A->B y recuperación juntos: el Tier 2 (vector sobre el texto crudo) se solapa con la
     # distilación del LLM liviano en vez de esperarla.
     query, chunks, passed = build_and_retrieve(question, patient.species)
+
+    # --- Pregunta REFERENCIAL: la condición está en la ficha, no en las palabras ------------------
+    #
+    # "¿Qué piensas sobre la condición de Manchita?" no nombra ningún cuadro, así que el A->B destila
+    # ["cat", "feline", "clinical condition"], el retrieval trae 15 chunks genéricos y el juez
+    # abstiene — con razón, porque esos pasajes no fundamentan esa consulta. El caso real, con su
+    # traza, está documentado en `retrieval/referencial.py`.
+    #
+    # Cuando hay paciente y la consulta no nombra una condición concreta, se rehace la búsqueda con
+    # el cuadro registrado del paciente. SÓLO en esa rama: si el vet escribió una consulta clínica de
+    # verdad, acá no pasa nada — ni una query más ni un cambio en lo que ve el juez, que está
+    # calibrado sobre 187 casos y cuya severidad es la regla de seguridad del producto.
+    #
+    # Cuesta una segunda recuperación en esa rama. Se paga de buen grado: hoy esa rama termina en una
+    # abstención que no le sirve a nadie.
+    consulta = question
+    cuadro: str | None = None
+    if patient_id and es_referencial(list(query.concepts)):
+        try:
+            cuadro = load_recent_assessment(clinic_id, patient_id)
+        except Exception as e:  # noqa: BLE001 — el enriquecimiento nunca puede tumbar el chat
+            log.warning("chat: no se pudo leer el cuadro del paciente: %s", e)
+            cuadro = None
+        if cuadro:
+            consulta = consulta_enriquecida(question, cuadro)
+            log.info("chat: consulta referencial reformulada con el cuadro del paciente")
+            query, chunks, passed = build_and_retrieve(consulta, patient.species)
+
     if patient_id:
         # Memoria semántica DESPUÉS del retrieval: el Tier 2 ya dejó el vector de la consulta en
         # caché, así que recordar la historia del paciente no cuesta otra llamada a Cohere.
@@ -235,7 +275,11 @@ def stream_answer(question: str, patient_id: str, clinic_id: str, user_id: str |
 
     def _judge() -> None:
         try:
-            box["v"] = judge_evidence(question, literature, query_mesh=list(query.mesh))
+            # LA MISMA `consulta` QUE SE BUSCÓ, no la pregunta cruda. Si el retrieval se rehízo con
+            # el cuadro del paciente y el juez siguiera leyendo "¿qué piensas sobre la condición de
+            # Manchita?", juzgaría unos pasajes contra una consulta que nadie buscó — y abstendría
+            # igual que antes. Los dos tienen que mirar lo mismo.
+            box["v"] = judge_evidence(consulta, literature, query_mesh=list(query.mesh))
         finally:
             judged.set()
 
@@ -243,7 +287,7 @@ def stream_answer(question: str, patient_id: str, clinic_id: str, user_id: str |
     deadline = time.monotonic() + get_settings().judge_chat_timeout_s
 
     system = CHAT_SYSTEM
-    user = _chat_prompt(question, literature, patient, severe)
+    user = _chat_prompt(question, literature, patient, severe, cuadro)
     parts: list[str] = []
     held: list[str] = []       # tokens retenidos mientras no haya veredicto
     verdict = None
