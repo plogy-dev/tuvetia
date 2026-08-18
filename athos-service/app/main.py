@@ -7,6 +7,8 @@ from app.config import get_settings
 from app.auth import verify_jwt, resolve_clinic_id
 from app.models import (
     ChatRequest,
+    LiveRequest,
+    LiveResponse,
     PhantomSuggestRequest,
     PhantomSuggestResponse,
     RetrieveRequest,
@@ -17,6 +19,8 @@ from app.models import (
     WhatsappSuggestRequest,
     WhatsappSuggestResponse,
 )
+from app.live_intelligence import analizar as analizar_en_vivo
+from app.patient_context import load_patient_context
 from app.phantom import suggest as phantom_suggest_service
 from app.streaming_transcription import run_live_session
 from app.transcription import transcribe as transcribe_service
@@ -158,3 +162,25 @@ def athos_whatsapp_suggest(body: WhatsappSuggestRequest,
     _user_id, _clinic_id = _auth(authorization, body.clinic_id)
     draft = suggest_reply([m.model_dump() for m in body.messages], body.owner_name)
     return WhatsappSuggestResponse(draft=draft)
+
+
+@app.post("/athos/live", response_model=LiveResponse)
+def athos_live(body: LiveRequest, authorization: str | None = Header(default=None)):
+    """Notas y sugerencias MIENTRAS la consulta pasa. Ver `app/live_intelligence.py`.
+
+    NO ESCRIBE NADA. Ni `clinical_notes`, ni `transcripts`, ni traza de respuesta: lo que sale de acá
+    es un cuaderno que se mira y se descarta, no un documento clínico. La nota que entra a la
+    historia sigue siendo la del cierre, con su aprobación humana (regla 5).
+
+    EL TRANSCRIPT VIENE DEL NAVEGADOR y no de la base, porque durante la consulta todavía no está
+    persistido — se guarda al cerrar. Pedirlo por `consultation_id` devolvería vacío justo mientras
+    esto sirve. Lo que sí se resuelve del lado servidor es la FICHA (`clinic_id` explícito, regla 7):
+    el peso y la especie gobiernan el guard de dosis, así que no pueden venir del cliente.
+
+    LA CADENCIA NO SE DECIDE ACÁ. La decide el navegador por contenido nuevo
+    (`lib/consulta-viva/disparador.ts`), con techo por consulta.
+    """
+    _user_id, _clinic_id = _auth(authorization, body.clinic_id)
+    patient = load_patient_context(body.clinic_id, body.patient_id) if body.patient_id else None
+    r = analizar_en_vivo(body.transcript, body.modo, patient=patient, motivo=body.motivo)
+    return LiveResponse(**r)

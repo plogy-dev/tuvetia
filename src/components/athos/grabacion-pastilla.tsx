@@ -40,7 +40,7 @@ export function GrabacionPastilla({ alAbrir }: { alAbrir?: () => void }) {
       // la app inusable para quien lo necesita.
       aria-label={
         enCurso
-          ? `Grabando la consulta${estado.pacienteNombre ? ` de ${estado.pacienteNombre}` : ""}`
+          ? `${estado.pausada ? "Consulta en pausa" : "Grabando la consulta"}${estado.pacienteNombre ? ` de ${estado.pacienteNombre}` : ""}`
           : cerrando
             ? "Guardando la grabación"
             : "La grabación falló"
@@ -57,9 +57,14 @@ export function GrabacionPastilla({ alAbrir }: { alAbrir?: () => void }) {
         //
         // Con eso desaparece la última clase de paleta cruda de la app, y la pastilla deja de
         // parecer una alerta cuando está haciendo exactamente lo que se le pidió.
+        //
+        // EN PAUSA NO LATE. Un punto pulsando mientras no se captura nada es la pastilla mintiendo
+        // sobre lo único que se le pregunta: ¿esto está quedando grabado?
         <span
           aria-hidden
-          className="size-2 shrink-0 rounded-full bg-brand motion-safe:animate-pulse"
+          className={`size-2 shrink-0 rounded-full ${
+            estado.pausada ? "bg-fg-faint" : "bg-brand motion-safe:animate-pulse"
+          }`}
         />
       )}
       {cerrando && <Loader2 aria-hidden className="size-3.5 shrink-0 animate-spin text-fg-faint" />}
@@ -68,7 +73,7 @@ export function GrabacionPastilla({ alAbrir }: { alAbrir?: () => void }) {
       <span className="min-w-0 text-xs">
         {enCurso && (
           <>
-            <span className="hidden sm:inline">Grabando</span>
+            <span className="hidden sm:inline">{estado.pausada ? "En pausa" : "Grabando"}</span>
             {estado.pacienteNombre && (
               <span className="font-medium"> {estado.pacienteNombre}</span>
             )}

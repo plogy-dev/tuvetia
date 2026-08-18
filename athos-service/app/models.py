@@ -145,6 +145,37 @@ class WhatsappSuggestResponse(BaseModel):
     draft: str
 
 
+class LiveRequest(BaseModel):
+    """Análisis de una consulta EN CURSO. Ver `app/live_intelligence.py`.
+
+    El transcript llega DEL NAVEGADOR y no de la base a propósito: el texto en vivo todavía no está
+    persistido —se guarda al cerrar, con la aprobación del vet— así que pedirlo por `consultation_id`
+    devolvería vacío durante toda la consulta, que es justo cuando esto sirve.
+    """
+    clinic_id: str
+    consultation_id: str
+    patient_id: str | None = None
+    transcript: str
+    motivo: str | None = None
+    #: `notas` (barato, sin literatura) o `sugerencias` (lo caro). Ver el módulo.
+    modo: str = "notas"
+
+
+class LiveResponse(BaseModel):
+    texto: str
+    #: Todavía no hay con qué. La interfaz lo pinta como "escuchando", no como un error.
+    sin_material: bool
+    #: El guard de dosis tapó cifras por peso (regla 4). Se declara para poder mostrarlo.
+    dosis_redactadas: bool = False
+    #: Alergias bloqueantes del paciente. Viajan aparte para poder pintarlas como aviso.
+    alergias_severas: list[str] = Field(default_factory=list)
+    #: El modelo que respondió. Next lo guarda en `athos_agent_usage`: el presupuesto por clínica
+    #: vive allá, y una fila de consumo sin modelo no sirve para costear después.
+    modelo: str = ""
+    #: ¿Hubo llamada al modelo? Es lo que decide si se cuenta contra el cupo. False sólo si falló.
+    gasto: bool = False
+
+
 class RetrieveRequest(BaseModel):
     """Retrieval determinístico (sin LLM de redacción) para el agente de Next.
 

@@ -92,6 +92,9 @@ export function ConsultationRecorder({
       await consultaViva.iniciar({
         consultaId: consultationId,
         clinicId,
+        // Con el paciente en la sesión, Athos puede leer su ficha mientras la consulta pasa: es lo
+        // que gobierna el guard de dosis y el aviso de alergias severas en las sugerencias en vivo.
+        pacienteId: patientId,
         pacienteNombre: patientName ?? null,
         motivo: motivo ?? null,
         alTranscribir: onTranscribed,
@@ -100,7 +103,7 @@ export function ConsultationRecorder({
     } catch (e) {
       toast.error((e as Error).message)
     }
-  }, [consultationId, clinicId, patientName, motivo, onTranscribed])
+  }, [consultationId, clinicId, patientId, patientName, motivo, onTranscribed])
 
   // Arranque: si el titular YA dio su consentimiento (vigente, no revocado), no se re-pregunta —
   // se registra la fila de esta consulta citando ese consentimiento y se graba directo.

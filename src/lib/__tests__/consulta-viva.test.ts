@@ -42,6 +42,13 @@ class FakeRecorder {
   start() {
     this.estado = "recording"
   }
+  /** Un navegador de verdad deja de emitir `dataavailable` en pausa, sin soltar el micrófono. */
+  pause() {
+    this.estado = "paused"
+  }
+  resume() {
+    this.estado = "recording"
+  }
   /**
    * El flush final va en una TAREA, no síncrono — que es lo que hace un navegador de verdad:
    * `stop()` encola una tarea que dispara `dataavailable` y después `stop`.
@@ -267,5 +274,127 @@ describe("consultaViva", () => {
     const { consultaViva } = await import("../consulta-viva/sesion")
     await consultaViva.detener()
     expect(upload).not.toHaveBeenCalled()
+  })
+})
+
+// ── Pausar la consulta ──────────────────────────────────────────────────────────────────────────
+//
+// Lo pidió el cliente con captura de pantalla: "posibilidad de pausar la consulta". El caso es la
+// jornada real — el titular sale a buscar el carnet, entra alguien, suena el teléfono. Sin pausa,
+// las opciones eran grabar eso o cerrar la consulta y perder el hilo.
+
+describe("pausa", () => {
+  it("pausa y reanuda, sin cerrar la consulta", async () => {
+    const { consultaViva } = await import("../consulta-viva/sesion")
+    await consultaViva.iniciar(params)
+
+    consultaViva.pausar()
+    expect(consultaViva.leer().pausada).toBe(true)
+    // Sigue siendo una grabación en curso: mantiene el cerrojo y sigue teniendo audio que perder.
+    expect(consultaViva.leer().fase).toBe("grabando")
+    expect(consultaViva.estaGrabando()).toBe(true)
+
+    consultaViva.reanudar()
+    expect(consultaViva.leer().pausada).toBe(false)
+  })
+
+  it("le dice al grabador que pare de capturar, sin soltar el micrófono", async () => {
+    const { consultaViva } = await import("../consulta-viva/sesion")
+    await consultaViva.iniciar(params)
+
+    consultaViva.pausar()
+    expect(FakeRecorder.ultima!.estado).toBe("paused")
+    // EL MICRÓFONO SIGUE TOMADO, y tiene que seguirlo: `getUserMedia` exige un gesto del usuario,
+    // así que soltarlo haría que reanudar pidiera permiso otra vez.
+    expect(pista.track.stop).not.toHaveBeenCalled()
+
+    consultaViva.reanudar()
+    expect(FakeRecorder.ultima!.estado).toBe("recording")
+  })
+
+  it("el cronómetro visible se congela en pausa", async () => {
+    const { consultaViva } = await import("../consulta-viva/sesion")
+    await consultaViva.iniciar(params)
+
+    await vi.advanceTimersByTimeAsync(5000)
+    expect(consultaViva.leer().segundos).toBe(5)
+
+    consultaViva.pausar()
+    await vi.advanceTimersByTimeAsync(60_000)
+    expect(consultaViva.leer().segundos, "en pausa no se está grabando: el reloj no avanza").toBe(5)
+
+    consultaViva.reanudar()
+    await vi.advanceTimersByTimeAsync(3000)
+    expect(consultaViva.leer().segundos).toBe(8)
+  })
+
+  // EL AGUJERO QUE ABRE LA PAUSA, y por qué hay dos contadores. El tope de 90 minutos no mide la
+  // consulta: existe porque un micrófono tomado toda la tarde es audio de terceros que nadie
+  // consintió. Si contara sólo lo grabado, pausar y olvidarse lo dejaría abierto para siempre.
+  it("el tope de 90 minutos cuenta el reloj de pared, no lo grabado", async () => {
+    const { consultaViva } = await import("../consulta-viva/sesion")
+    await consultaViva.iniciar(params)
+
+    consultaViva.pausar()
+    // Una tarde entera en pausa. Con el cronómetro visible congelado en cero.
+    await vi.advanceTimersByTimeAsync(91 * 60 * 1000)
+
+    expect(consultaViva.leer().segundos).toBe(0)
+    expect(
+      consultaViva.leer().fase,
+      "una consulta pausada y olvidada tiene que cerrarse sola igual",
+    ).not.toBe("grabando")
+  })
+
+  it("no se pausa lo que no está grabando", async () => {
+    const { consultaViva } = await import("../consulta-viva/sesion")
+    consultaViva.pausar()
+    expect(consultaViva.leer().pausada).toBe(false)
+    expect(consultaViva.leer().fase).toBe("inactiva")
+  })
+
+  it("pausar dos veces no hace nada raro, y reanudar sin pausa tampoco", async () => {
+    const { consultaViva } = await import("../consulta-viva/sesion")
+    await consultaViva.iniciar(params)
+
+    consultaViva.pausar()
+    const tras = consultaViva.leer()
+    consultaViva.pausar()
+    expect(consultaViva.leer(), "una pausa repetida no debería emitir un estado nuevo").toBe(tras)
+
+    consultaViva.reanudar()
+    const activa = consultaViva.leer()
+    consultaViva.reanudar()
+    expect(consultaViva.leer()).toBe(activa)
+  })
+
+  it("se puede cerrar la consulta estando en pausa", async () => {
+    const { consultaViva } = await import("../consulta-viva/sesion")
+    await consultaViva.iniciar(params)
+    consultaViva.pausar()
+
+    await detenerYEsperar(consultaViva)
+
+    expect(consultaViva.leer().fase).toBe("terminada")
+    // El flag no se arrastra: la pastilla diría "en pausa" mientras sube el audio.
+    expect(consultaViva.leer().pausada).toBe(false)
+    expect(upload).toHaveBeenCalled()
+  })
+
+  // Si el navegador no soporta pause (no debería pasar, pero es una API que no está en todos lados),
+  // lo honesto es no anunciar una pausa que no ocurrió: el vet creería que dejó de grabarse.
+  it("si el grabador no sabe pausar, NO se anuncia una pausa falsa", async () => {
+    class SinPausa extends FakeRecorder {
+      override pause() {
+        throw new Error("no soportado")
+      }
+    }
+    vi.stubGlobal("MediaRecorder", SinPausa)
+
+    const { consultaViva } = await import("../consulta-viva/sesion")
+    await consultaViva.iniciar(params)
+    consultaViva.pausar()
+
+    expect(consultaViva.leer().pausada).toBe(false)
   })
 })
