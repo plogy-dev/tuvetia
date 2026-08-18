@@ -11,6 +11,7 @@ import { createClient } from "@/lib/supabase/server"
 import { bogotaDate } from "@/lib/date-utils"
 import { DataError } from "@/components/data-error"
 import { NewConsultationDrawer } from "@/components/new-consultation-drawer"
+import { FormularioDeFiltros } from "@/components/ui/formulario-de-filtros"
 
 export const metadata = { title: "Modo Fantasma · Tuvetia" }
 
@@ -146,7 +147,10 @@ export default async function ConsultasPage({
 
       {/* Filtros: buscador por paciente · estado de la nota · orden por fecha */}
       <div className="mb-5 flex flex-wrap items-center gap-x-4 gap-y-2">
-        <form action="/dashboard/consultas" className="relative">
+        {/* NAVEGA POR EL CLIENTE. Un `<form method="get">` nativo recarga el documento, y esta es
+            LA PANTALLA DEL MODO FANTASMA: buscar una consulta anterior mientras se graba mataba la
+            grabación con el aviso de «¿salir del sitio?». Ver `lib/busqueda-en-la-url.ts`. */}
+        <FormularioDeFiltros action="/dashboard/consultas" className="relative">
           {asc && <input type="hidden" name="orden" value="asc" />}
           {notaF && <input type="hidden" name="nota" value={notaF} />}
           <SearchIcon className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground" />
@@ -157,7 +161,7 @@ export default async function ConsultasPage({
             className="h-8 w-56 pl-8"
             aria-label="Buscar paciente"
           />
-        </form>
+        </FormularioDeFiltros>
 
         <FilterChips label="Nota:">
           {NOTA_FILTERS.map((f) => (
