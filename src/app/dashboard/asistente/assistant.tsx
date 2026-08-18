@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useRef, useState } from "react"
+import { useEffect, useMemo, useRef, useState } from "react"
 import { useChat } from "@ai-sdk/react"
 import {
   DefaultChatTransport,
@@ -16,23 +16,21 @@ import { renderInline, splitBlocks } from "@/components/athos/rich-text"
 import { ActionApprovalCard } from "@/components/athos/action-approval-card"
 import { ConnectEmailCard } from "@/components/athos/connect-email-card"
 import { PendingActions } from "@/components/athos/pending-actions"
-import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select"
+import { SelectorDeContexto } from "@/components/athos/selector-de-contexto"
+import { pacienteDetectado } from "@/lib/athos-context/detectado"
 
 import type { StoredThreads } from "@/lib/athos-history"
 import { CONEXION_CORREO } from "@/lib/athos-agent/conversacion"
 import { useCapacidad } from "@/components/planes/plan-provider"
 import { useModalPro } from "@/components/planes/modal-subir-a-pro"
 
-export type AssistantPatient = { id: string; name: string; species: string }
+// `owner` es el nombre del titular, y no es decoración: es lo que distingue a dos mascotas que se
+// llaman igual en el buscador de contexto. Es la objeción que Jesús puso en la reunión del 17-ago
+// —"si tú tienes 7 perros que tienen leucemia… la característica específica se te llega a escapar"—
+// resuelta donde se elige el paciente.
+export type AssistantPatient = { id: string; name: string; species: string; owner?: string | null }
 
 const GENERAL = "__general__" // valor del selector para "Consulta general (sin paciente)"
 
@@ -306,6 +304,12 @@ export function Assistant({
   const patient = patients.find((p) => p.id === patientId)
   const isGeneral = !patient // consulta general: sin ficha ni memoria de paciente
 
+  // QUÉ PACIENTE RESOLVIÓ ATHOS POR SU CUENTA. Sale de sus propias llamadas a herramientas
+  // (`search_patients`, `get_patient_summary`), que ya viajan en los `parts` de cada mensaje: no
+  // cuesta ni un canal nuevo ni una query. Es el punto que abrió la reunión del 17-ago — Athos
+  // detectaba el contexto desde hacía rato y el veterinario no tenía forma de verlo.
+  const detectado = useMemo(() => pacienteDetectado(messages), [messages])
+
   function send() {
     const text = input.trim()
     if (!text) {
@@ -354,38 +358,17 @@ export function Assistant({
             {contexto ?? "Athos propone — tú apruebas. Tu criterio decide."}
           </p>
         </div>
-        <div className="flex items-center gap-2">
-          {patient ? (
-            <Badge variant="secondary">Contexto · {patient.name}</Badge>
-          ) : (
-            <Badge variant="outline">Consulta general</Badge>
-          )}
-          <Select
-            value={patientId}
-            onValueChange={(v) => {
-              const nv = v ?? GENERAL
-              if (nv === patientId) return // re-seleccionar lo mismo no borra el hilo
-              void stop() // si había un stream en curso, córtalo antes de resetear
-              setPatientId(nv) // el cambio de id de useChat resetea el hilo
-            }}
-            items={[
-              { label: "Consulta general (sin paciente)", value: GENERAL },
-              ...patients.map((p) => ({ label: `${p.name} · ${p.species}`, value: p.id })),
-            ]}
-          >
-            <SelectTrigger size="sm" className="min-w-52">
-              <SelectValue placeholder="Contexto" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value={GENERAL}>Consulta general (sin paciente)</SelectItem>
-              {patients.map((p) => (
-                <SelectItem key={p.id} value={p.id}>
-                  {p.name} · {p.species}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
+        {/* El contexto: lo elegido Y lo que Athos detectó solo. Ver `selector-de-contexto.tsx`. */}
+        <SelectorDeContexto
+          pacientes={patients}
+          patientId={isGeneral ? null : patientId}
+          detectado={detectado}
+          hayConversacion={messages.length > 0}
+          onElegir={(id) => {
+            void stop() // si había un stream en curso, córtalo antes de resetear
+            setPatientId(id ?? GENERAL) // el cambio de id de useChat cambia el hilo
+          }}
+        />
       </div>
 
       {tiraClinica}
