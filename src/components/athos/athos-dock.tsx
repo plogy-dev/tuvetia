@@ -70,27 +70,63 @@ export function AthosDock() {
   )
 
   return (
-    <div
-      role="region"
-      aria-label="Athos"
-      // En móvil sube por encima del tab bar (`tab-bar-movil.tsx`): sin este despeje la pastilla de
-      // grabación y la burbuja de Athos quedaban DEBAJO de la barra, o sea invisibles y sin poder
-      // tocarse justo mientras hay un micrófono abierto. El `5rem` cubre la altura de la barra
-      // (48px de ítem + padding) más el área segura del sistema.
-      //
-      // El corte es `md:` y NO `sm:` porque el tab bar es `md:hidden` y `useIsMobile` usa 768px. Con
-      // `sm:` había una franja de 640 a 767px donde la barra seguía visible y el dock ya había vuelto
-      // abajo — o sea solapados, en el único rango de anchos que nadie prueba.
-      className="pointer-events-none fixed bottom-[calc(env(safe-area-inset-bottom)+5rem)] right-3 z-40 flex flex-col items-end gap-2 md:bottom-4 md:right-4"
-    >
-      {!enSuPropiaConsulta && <GrabacionPastilla alAbrir={() => setPanelAbierto(true)} />}
-      {!ocultarBurbuja && <AthosWidget />}
-      {/* El panel es hermano de la pastilla dentro del dock, pero se posiciona solo con su propio
-          `fixed inset-0`: el `bottom/right` del dock no lo afecta. */}
-      <PanelModoFantasma
-        abierto={panelAbierto && !enSuPropiaConsulta}
-        alCerrar={() => setPanelAbierto(false)}
-      />
+    <>
+      {/* LA CONSULTA EN CURSO VA ARRIBA AL CENTRO, la burbuja abajo a la derecha. Son dos cosas
+          distintas y por eso son dos contenedores: una es estado del sistema, la otra es donde
+          Athos espera a que lo llamen. */}
+      {!enSuPropiaConsulta && (
+        <NotchDeLaConsulta
+          abierto={panelAbierto}
+          alAlternar={() => setPanelAbierto((v) => !v)}
+          alCerrar={() => setPanelAbierto(false)}
+        />
+      )}
+
+      <div
+        role="region"
+        aria-label="Athos"
+        // En móvil sube por encima del tab bar (`tab-bar-movil.tsx`): sin este despeje la burbuja de
+        // Athos quedaba DEBAJO de la barra, o sea invisible y sin poder tocarse. El `5rem` cubre la
+        // altura de la barra (48px de ítem + padding) más el área segura del sistema.
+        //
+        // El corte es `md:` y NO `sm:` porque el tab bar es `md:hidden` y `useIsMobile` usa 768px.
+        // Con `sm:` había una franja de 640 a 767px donde la barra seguía visible y el dock ya había
+        // vuelto abajo — o sea solapados, en el único rango de anchos que nadie prueba.
+        className="pointer-events-none fixed bottom-[calc(env(safe-area-inset-bottom)+5rem)] right-3 z-40 flex flex-col items-end gap-2 md:bottom-4 md:right-4"
+      >
+        {!ocultarBurbuja && <AthosWidget />}
+      </div>
+    </>
+  )
+}
+
+/**
+ * El notch de la consulta, ARRIBA Y AL CENTRO.
+ *
+ * SE SEPARÓ DEL DOCK, y no por orden. El dock es un `fixed` anclado abajo a la derecha con
+ * `flex-col items-end`: para poner el notch arriba al centro había que anularle la posición al hijo,
+ * y un hijo que pelea con el layout de su padre es el tipo de cosa que se rompe en el primer ancho
+ * que nadie probó.
+ *
+ * Además son dos cosas distintas. El dock es donde Athos ESPERA a que lo llamen; esto es una consulta
+ * EN CURSO, que es estado del sistema y va donde el sistema pone lo que está pasando.
+ *
+ * z-40, igual que el dock: por encima del sidebar (z-10) y por debajo de los modales (z-50). Que un
+ * drawer tape la consulta es correcto — durante un flujo modal el vet no debería poder tocarla.
+ */
+function NotchDeLaConsulta({
+  abierto,
+  alAlternar,
+  alCerrar,
+}: {
+  abierto: boolean
+  alAlternar: () => void
+  alCerrar: () => void
+}) {
+  return (
+    <div className="pointer-events-none fixed left-1/2 top-3 z-40 flex -translate-x-1/2 flex-col items-center">
+      <GrabacionPastilla abierto={abierto} alAlternar={alAlternar} />
+      <PanelModoFantasma abierto={abierto} alCerrar={alCerrar} />
     </div>
   )
 }

@@ -429,6 +429,26 @@
   color: var(--on-brand);
 }
 
+/* Las barras del ecualizador del notch de grabación.
+ *
+ * NO ES ADORNO, aunque lo parezca. Es lo que distingue "el micrófono está tomado" de "te estoy
+ * escuchando": un punto encendido no dice si algo está entrando. Las barras se DETIENEN en pausa —
+ * `[animation-play-state:paused]` — y ahí comunican el estado sin una palabra.
+ *
+ * Se anima `transform` y no la altura: la altura recalcula layout en cada cuadro, cuatro veces por
+ * segundo y encima de una app que está grabando. `scaleY` corre en el compositor.
+ *
+ * `motion-safe:` lo aplica el componente, que es donde se sabe si hay que animar. */
+@keyframes eq {
+  0%,
+  100% {
+    transform: scaleY(0.4);
+  }
+  50% {
+    transform: scaleY(1);
+  }
+}
+
 @layer base {
   * {
     @apply border-border outline-ring/50;
