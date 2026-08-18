@@ -1,6 +1,7 @@
 "use client"
 
 import * as React from "react"
+import Link from "next/link"
 
 import { AthosSidebarSection } from "@/components/athos/athos-sidebar-section"
 import { NavClinic } from "@/components/nav-clinic"
@@ -51,9 +52,11 @@ function BrandGlyph({ className }: { className?: string }) {
 // separa dos modos de trabajo distintos: lo que se usa CON UN PACIENTE DELANTE y lo que se usa
 // entre consultas.
 //
-// El Modo Fantasma queda en Consultorio, que es su lugar natural, y sigue siendo un <a href> real:
-// `onboarding-tour.tsx` engancha su tercer paso en `a[href="/dashboard/consultas"]`, y sacarlo o
-// convertirlo en botón rompería el tour EN SILENCIO. Hay test que lo cubre.
+// El Modo Fantasma queda en Consultorio, que es su lugar natural, y sigue emitiendo un <a href>
+// real en el DOM: `onboarding-tour.tsx` engancha su tercer paso en `a[href="/dashboard/consultas"]`,
+// y sacarlo o convertirlo en botón rompería el tour EN SILENCIO. Hay test que lo cubre.
+//
+// Ese <a> lo pone `<Link>`, que es lo que hay que usar y no un ancla cruda: ver `nav-main.tsx`.
 //
 // SE RENOMBRAN DOS ETIQUETAS, NO LAS RUTAS. "Calendario" → "Agenda" y "Facturación" → "Ventas" son
 // los nombres del mockup. Las URLs siguen siendo `/dashboard/calendario` y `/dashboard/facturacion`:
@@ -125,7 +128,7 @@ function ChipConfiguracion({ porcentaje }: { porcentaje: number }) {
   return (
     <SidebarMenuButton
       tooltip={`Puesta a punto de la clínica: ${porcentaje}% completo`}
-      render={<a href="/dashboard" />}
+      render={<Link href="/dashboard" />}
       className="text-fg-muted"
     >
       <SlidersHorizontalIcon />
@@ -162,7 +165,7 @@ export function AppSidebar({
           <SidebarMenuItem>
             <SidebarMenuButton
               className="data-[slot=sidebar-menu-button]:p-1.5!"
-              render={<a href="/dashboard" />}
+              render={<Link href="/dashboard" />}
             >
               <BrandGlyph className="size-5!" />
               <span className="font-display text-base font-bold tracking-[-0.02em]">Tuvetia</span>
