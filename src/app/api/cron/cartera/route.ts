@@ -1,5 +1,7 @@
 import { runCarteraForAllClinics } from "@/lib/cartera/run-all"
 import { leerRespuestasDeCorreo } from "@/lib/cartera/respuestas-correo"
+import { barrerSuscripciones } from "@/lib/suscripcion/barrido"
+import { reconciliarCobrosColgados } from "@/lib/suscripcion/reconciliar"
 
 // Barrido de cartera: recorre las clínicas con recordatorios activos, programa los pasos que
 // falten y despacha los vencidos. El motor ya existía y estaba cubierto por tests, pero no tenía
@@ -34,6 +36,38 @@ export async function GET(req: Request) {
   }
 
   try {
+    // ── SUSCRIPCIONES, PRIMERO ────────────────────────────────────────────────────────────────
+    //
+    // Cobra lo que vence, reintenta lo que falló, baja lo cancelado, y reconcilia los cobros que
+    // quedaron colgados porque no llegó su webhook.
+    //
+    // VIVE ACÁ Y NO EN SU PROPIO CRON por lo mismo que la lectura de correo de abajo: el plan Hobby
+    // de Vercel permite 2 crons diarios y los dos cupos están usados (éste y purge-audio). La
+    // alternativa era un workflow de GitHub Actions —así estuvo un día— pero eso reparte la
+    // operación entre dos sitios y el horario deja de estar en el repo. Acá el agendamiento es el
+    // de `vercel.json`, versionado, y no hay ningún secreto más que administrar.
+    //
+    // VA ANTES QUE CARTERA a propósito: si una clínica cae a free por falta de pago, conviene que
+    // caiga antes de que el motor de cartera intente usar la IA que ya no tiene. Corriendo dentro
+    // del mismo endpoint el orden está garantizado — con dos crons separados era una carrera.
+    //
+    // AISLADO, como el correo: un fallo cobrando no puede impedir que salgan los recordatorios de
+    // cobranza, ni al revés. Se reporta aparte y el barrido sigue.
+    let suscripciones:
+      | { cobros: Awaited<ReturnType<typeof barrerSuscripciones>>; reconciliacion: Awaited<ReturnType<typeof reconciliarCobrosColgados>> }
+      | { error: string }
+    try {
+      const cobros = await barrerSuscripciones()
+      // La reconciliación va DESPUÉS de cobrar: así los cobros que se acaban de disparar quedan
+      // para la corrida de mañana (todavía están dentro de su ventana de gracia) y ésta se ocupa
+      // sólo de los de días anteriores, que es donde está el problema real.
+      const reconciliacion = await reconciliarCobrosColgados()
+      suscripciones = { cobros, reconciliacion }
+    } catch (e) {
+      suscripciones = { error: e instanceof Error ? e.message : "barrido de suscripciones fallido" }
+      console.error("cron/cartera suscripciones:", suscripciones.error)
+    }
+
     const result = await runCarteraForAllClinics()
 
     // Lectura de respuestas por correo, EN EL MISMO CRON a propósito: el plan Hobby de Vercel
@@ -52,7 +86,7 @@ export async function GET(req: Request) {
       console.error("cron/cartera email-sync:", email.error)
     }
 
-    return Response.json({ ok: true, ...result, email })
+    return Response.json({ ok: true, ...result, email, suscripciones })
   } catch (e) {
     // Incluye el aborto por zona horaria incorrecta (assertBusinessTimezone): preferimos un 500
     // ruidoso y ningún envío, antes que despachar cobranzas en el horario equivocado.
