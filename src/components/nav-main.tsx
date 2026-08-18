@@ -117,14 +117,18 @@ function Items({ items, grupo }: { items: NavItem[]; grupo: "consulta" | "crm" }
     <SidebarMenu>
       {items.map((item) => (
         <SidebarMenuItem key={item.title}>
-          {/* OJO: `onboarding-tour.tsx` engancha sus pasos con selectores CSS sobre
+          {/* `<Link>` Y NO `<a href>`, Y NO ES COSMÉTICO — ver el comentario largo de `NavMain`.
+              Un ancla cruda a una ruta interna recarga el documento entero y mata la grabación
+              en curso.
+
+              OJO: `onboarding-tour.tsx` engancha sus pasos con selectores CSS sobre
               `a[href="/dashboard/..."]`, y hay un test que lo cubre
-              (`__tests__/onboarding-tour-anclas.test.ts`). Estos ítems tienen que seguir
-              renderizando un <a href> de verdad y visible. */}
+              (`__tests__/onboarding-tour-anclas.test.ts`). `<Link>` renderiza un `<a href>` de
+              verdad en el DOM, así que el selector sigue valiendo. */}
           <SidebarMenuButton
             tooltip={item.title}
             isActive={isNavActive(pathname, item.url)}
-            render={<a href={item.url} />}
+            render={<Link href={item.url} />}
           >
             <Indicador grupo={grupo} />
             {/* El icono SÓLO existe en la barra colapsada. Ahí el punto no sirve —serían siete
@@ -163,6 +167,23 @@ function Items({ items, grupo }: { items: NavItem[]; grupo: "consulta" | "crm" }
  * apuntan al `svg` como hijo. Un `<span>` de por medio con display propio agregaría una caja al
  * flex y descuadraría el centrado de 32×32 de la barra colapsada; con `contents` el envoltorio no
  * genera caja y el svg queda como hijo directo a efectos de layout.
+ *
+ * SE NAVEGA CON `<Link>`, NUNCA CON `<a href>`. Es la causa raíz de que el notch de grabación
+ * desapareciera, reportada en vivo en la reunión del 17-ago: se empezaba a grabar, se tocaba
+ * cualquier ítem de esta barra, el navegador preguntaba «¿salir del sitio?» y la sesión moría.
+ *
+ * En Next, un `<a href>` a una ruta interna NO navega por el cliente: descarga el documento de
+ * nuevo. Y una grabación no sobrevive a eso —`MediaRecorder` y los blobs mueren con el documento,
+ * y `getUserMedia` no se re-adquiere sin un gesto del usuario; está escrito en `sesion.ts`—. El
+ * diálogo que veía el cliente era el `beforeunload` que la propia sesión engancha para avisar.
+ *
+ * El store de `consulta-viva` YA estaba hecho para sobrevivir a la navegación: su cerrojo de sesión
+ * única existe porque «antes navegar cortaba la grabación, así que no podía haber dos». Esa
+ * persistencia nunca llegó a funcionar porque esta barra recargaba la página. Con `<Link>` la
+ * navegación es del cliente, el módulo no se reinicia y la sesión sigue viva.
+ *
+ * De paso deja de recargarse la app entera en cada clic del menú, que era el costo que esto tenía
+ * incluso sin grabar.
  */
 export function NavMain({ consultorio, crm }: { consultorio: NavItem[]; crm: NavItem[] }) {
   return (
