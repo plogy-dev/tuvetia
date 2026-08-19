@@ -84,11 +84,21 @@ Reglas estrictas:
 3. Máximo 4 viñetas, una línea cada una. Español. Directo, sin explicar lo obvio: tu interlocutor
    es veterinario y tiene al animal delante.
 4. Si la consulta todavía no da para nada útil, responde exactamente: SIN MATERIAL
+5. Si ALGUNA de tus viñetas es de las que no pueden esperar —un signo de alarma, una urgencia, algo
+   que contradice lo que se está por hacer—, escribe URGENTE en la PRIMERA línea, sola. Si no,
+   no escribas esa línea. Reservala de verdad: si todo es urgente, nada lo es.
 
 Responde solo las viñetas, sin encabezados ni preámbulo."""
 
 #: Lo que el modelo responde cuando no hay con qué. Se compara tal cual, así que va acá.
 SIN_MATERIAL = "SIN MATERIAL"
+
+#: Marca de urgencia en la primera línea de las sugerencias.
+#:
+#: SE PARSEA Y SE BORRA. La marca es para el SISTEMA —enciende la luz del notch— y no para el vet:
+#: dejarla en el texto sería un "URGENTE" suelto arriba de una lista, que grita sin decir cuál.
+#: Es el mismo criterio que el aviso de evidencia limitada: la regla la impone el código.
+URGENTE = "URGENTE"
 
 
 def _ficha(patient: PatientContext | None) -> str:
@@ -156,15 +166,22 @@ def analizar(
         log.warning("vivo: falló la generación (%s): %s", modo, e)
         return {"texto": "", "sin_material": True, "dosis_redactadas": False,
                 "alergias_severas": list(patient.severe_allergies) if patient else [],
-                "modelo": s.llm_light_model, "gasto": False}
+                "urgente": False, "modelo": s.llm_light_model, "gasto": False}
 
     texto = (crudo or "").strip()
+
+    # La marca de urgencia se lee y se saca del texto ANTES de cualquier otra cosa.
+    urgente = False
+    if texto.upper().startswith(URGENTE):
+        urgente = True
+        texto = texto[len(URGENTE):].lstrip(" :\n-–—").strip()
+
     if not texto or texto.upper().startswith(SIN_MATERIAL):
         # `gasto=True` aunque no haya texto: la llamada al modelo YA ocurrió y ya se pagó. Contar
         # sólo lo que devuelve algo dejaría fuera del presupuesto justo el caso que más se repite.
         return {"texto": "", "sin_material": True, "dosis_redactadas": False,
                 "alergias_severas": list(patient.severe_allergies) if patient else [],
-                "modelo": s.llm_light_model, "gasto": True}
+                "urgente": False, "modelo": s.llm_light_model, "gasto": True}
 
     # REGLA 4, SOBRE EL TEXTO Y NO EN EL PROMPT. El prompt ya lo pide; medido, el prompt no alcanza.
     redactado = False
@@ -182,6 +199,8 @@ def analizar(
         "sin_material": False,
         "dosis_redactadas": redactado,
         "alergias_severas": list(patient.severe_allergies) if patient else [],
+        #: ¿Hay algo que no puede esperar? Enciende la luz del notch (ver `grabacion-pastilla.tsx`).
+        "urgente": urgente,
         #: Qué modelo respondió y si hubo llamada. Next lo necesita para dejar la fila de consumo:
         #: el presupuesto por clínica vive allá, y una fila que no dice el modelo no sirve para
         #: costear después.
