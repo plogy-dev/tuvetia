@@ -103,6 +103,8 @@ export function WelcomeWizard({
   // Paso 6 — invitación
   const [inviteEmail, setInviteEmail] = useState("")
   const [inviteLink, setInviteLink] = useState<string | null>(null)
+  /** ¿Salió el correo? `null` mientras no se sabe. Decide qué se le promete al vet en pantalla. */
+  const [inviteEnviado, setInviteEnviado] = useState<boolean | null>(null)
 
   /** Cierra el onboarding: marca el flag y manda al dashboard. Único punto de salida. */
   async function terminar() {
@@ -218,21 +220,69 @@ export function WelcomeWizard({
     }
   }
 
+  /**
+   * Crea la invitación Y LA MANDA POR CORREO.
+   *
+   * EL DEFECTO QUE ESTO CIERRA. Acá se llamaba sólo al RPC `create_invitation`, que escribe la fila
+   * y devuelve el token — pero nadie llamaba a `/api/team/invite-email`, que es lo que la envía. La
+   * invitación quedaba creada y el correo no salía nunca, mientras la pantalla decía «También le
+   * llega por correo» tres líneas más abajo. El colega esperaba un mail que nadie había mandado.
+   *
+   * Pasaba SÓLO acá: el mismo flujo en Configuración (`team-settings.tsx`) sí llama a la ruta.
+   *
+   * POR QUÉ ACÁ SE MANDA SOLO Y EN CONFIGURACIÓN ES UN BOTÓN APARTE. No es incoherencia. En
+   * Configuración el admin ya tiene la invitación creada delante y decide qué hacer con ella —el
+   * comentario de ese archivo explica que el envío se separó a propósito, para poder reintentar—.
+   * Acá el vet está en un wizard de un solo paso: escribió un correo y apretó un botón que dice
+   * «invitar». Pedirle un segundo clic para que el correo salga es justamente el paso que nadie da.
+   *
+   * LO QUE NO CAMBIA: el resultado se DICE. Si el correo no sale, no se traga el error — se avisa y
+   * el enlace queda igual en pantalla, que es el camino garantizado. Eso es lo que sí hay que
+   * conservar del diseño de Configuración.
+   */
   async function invitarColega(e: React.FormEvent) {
     e.preventDefault()
     if (!inviteEmail.trim()) return
+    const correo = inviteEmail.trim()
     setBusy(true)
+
     const { data: token, error } = await supabase.rpc("create_invitation", {
-      p_email: inviteEmail.trim(),
+      p_email: correo,
       p_role: "vet",
     })
-    setBusy(false)
+
     if (error || !token) {
+      setBusy(false)
       toast.error(`No se pudo invitar: ${error?.message ?? "error desconocido"}`)
       return
     }
+
+    // El enlace se muestra ANTES de intentar el correo: ya es utilizable, y si el envío falla o
+    // tarda, el vet igual tiene con qué invitar. Nada de lo que sigue puede quitárselo.
     setInviteLink(`${window.location.origin}/invitar/${token}`)
-    toast.success("Invitación creada — comparte el enlace")
+
+    const res = await fetch("/api/team/invite-email", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ token }),
+    }).catch(() => null)
+    const cuerpo = (await res?.json().catch(() => ({}))) as { sent?: boolean; reason?: string }
+    setBusy(false)
+
+    if (cuerpo.sent) {
+      setInviteEnviado(true)
+      toast.success(`Invitación enviada a ${correo}`)
+      return
+    }
+
+    // La invitación EXISTE aunque el correo no haya salido, así que esto no es un fallo total y no
+    // se cuenta como tal: se dice qué pasó y se señala el enlace, que sigue funcionando.
+    setInviteEnviado(false)
+    toast.error(
+      cuerpo.reason
+        ? `Invitación creada, pero el correo no salió: ${cuerpo.reason}. Compartí el enlace.`
+        : "Invitación creada, pero el correo no salió. Compartí el enlace.",
+    )
   }
 
   return (
@@ -496,8 +546,16 @@ export function WelcomeWizard({
                   <Copy className="size-4" />
                 </Button>
               </div>
+              {/* ANTES DECÍA SIEMPRE «También le llega por correo», pasara lo que pasara — y como
+                  el correo no se mandaba nunca, era literalmente falso. Ahora la frase depende de
+                  lo que ocurrió de verdad: si salió lo dice, y si no salió lo dice también, en vez
+                  de dejar al vet esperando un mail que no existe. */}
               <FieldDescription>
-                También le llega por correo. El enlace vence en unos días.
+                {inviteEnviado === true
+                  ? "Ya le llegó por correo. El enlace vence en unos días."
+                  : inviteEnviado === false
+                    ? "El correo no salió — pasale este enlace por WhatsApp o donde prefieras. Vence en unos días."
+                    : "El enlace vence en unos días."}
               </FieldDescription>
             </div>
           ) : (
@@ -513,7 +571,7 @@ export function WelcomeWizard({
                 />
               </Field>
               <Button type="submit" variant="outline" disabled={busy || !inviteEmail.trim()}>
-                {busy && <Loader2 className="size-4 animate-spin" />} Crear invitación
+                {busy && <Loader2 className="size-4 animate-spin" />} Enviar invitación
               </Button>
             </form>
           )}
