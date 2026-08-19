@@ -441,8 +441,11 @@ export function Assistant({
       {tiraClinica}
 
 
-      {/* Aviso de contexto: memoria del hilo (con paciente) o consulta general */}
-      <div className="flex items-center gap-2 rounded-lg border border-line-soft bg-brand-soft px-3 py-2 text-xs text-fg-muted">
+      {/* Aviso de contexto: memoria del hilo (con paciente) o consulta general.
+          EN LA MISMA COLUMNA que el hilo y el compositor: era uno de los dos bloques que seguían a
+          ancho completo, así que en un monitor ancho quedaba una franja de 1300px sobre una
+          conversación de 780. */}
+      <div className="mx-auto flex w-full max-w-[780px] items-center gap-2 rounded-lg border border-line-soft bg-brand-soft px-3 py-2 text-xs text-fg-muted">
         <span className="size-1.5 shrink-0 animate-pulse rounded-full bg-brand" />
         {patient ? (
           <span>

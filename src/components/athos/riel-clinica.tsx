@@ -154,7 +154,10 @@ export function TiraClinica({
   else if (estado === "escaso") partes.push(`quedan ${presupuesto?.restantes} consultas con IA`)
 
   return (
-    <div className="flex items-center gap-2 rounded-lg border border-line-soft px-3 py-2 text-xs xl:hidden">
+    // Misma columna que el hilo y el compositor de Athos. Es la pieza que se pinta por debajo de
+    // `xl`, o sea justo donde el ancho ya escasea: suelta a ancho completo se desalineaba de todo
+    // lo demás de esa pantalla.
+    <div className="mx-auto flex w-full max-w-[780px] items-center gap-2 rounded-lg border border-line-soft px-3 py-2 text-xs xl:hidden">
       <span className="shrink-0 font-semibold uppercase tracking-[0.08em] text-fg-faint">
         La clínica hoy
       </span>
