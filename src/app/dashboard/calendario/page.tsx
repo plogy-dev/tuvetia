@@ -123,6 +123,7 @@ export default async function CalendarioPage() {
         patients={patients}
         owners={owners}
         vets={vets}
+        miId={user?.id ?? null}
       />
     </div>
   )
