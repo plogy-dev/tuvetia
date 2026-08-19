@@ -12,6 +12,7 @@ import { createClient } from "@/lib/supabase/server"
 import { progresoDeConfiguracion } from "@/lib/onboarding/consultar"
 import { AthosProvider } from "@/components/athos/athos-provider"
 import { AthosDock } from "@/components/athos/athos-dock"
+import { NotchDeConsulta } from "@/components/athos/notch-de-consulta"
 import { PlanProvider } from "@/components/planes/plan-provider"
 import { comoPlan } from "@/lib/planes"
 import { precioProCentavos } from "@/lib/planes/precio"
@@ -128,6 +129,11 @@ export default async function DashboardLayout({
         <OnboardingTour onboarded={Boolean((profile as { onboarded_at?: string | null } | null)?.onboarded_at)} />
         <SidebarInset>
           <SiteHeader />
+          {/* EL NOTCH DE LA CONSULTA VA ACÁ DENTRO, y no suelto como el dock. `SidebarInset` es
+              `relative`, así que el notch se posiciona contra el ÁREA DE CONTENIDO: se centra sobre
+              ella —no sobre el viewport, que con el sidebar abierto está 144px corrido— y queda
+              debajo de la cabecera en vez de taparle el título y el buscador. */}
+          <NotchDeConsulta />
           <div className="flex flex-1 flex-col">
             <div className="@container/main flex flex-1 flex-col gap-2">
               {children}
