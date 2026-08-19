@@ -28,15 +28,33 @@ import { useState } from "react"
 import Link from "next/link"
 
 import { AthosEnVivo } from "@/components/athos/athos-en-vivo"
+import { CasosParecidos } from "@/components/athos/casos-parecidos"
 import { Cuaderno } from "@/components/athos/cuaderno"
 import { useConsultaViva } from "@/lib/consulta-viva/usar"
 import { useInteligenciaViva } from "@/lib/consulta-viva/usar-inteligencia-viva"
 
-/** Las tres cosas que se miran durante una consulta, en el orden en que se miran. */
+/**
+ * Las cinco pestañas del prototipo, en su orden.
+ *
+ * Eran tres —Athos, Mis notas, Transcripción— y el cliente pidió las suyas: "sugerencias, casos
+ * parecidos, etc., eso también debe estar". No es una lista más larga por gusto; separa cosas que
+ * estaban amontonadas:
+ *
+ *   · TRANSCRIPCIÓN — lo que se está diciendo, crudo.
+ *   · LIVE NOTES    — lo que Athos va ordenando de eso.
+ *   · CASOS PARECIDOS — la memoria de la propia clínica: "esto ya lo viste en marzo".
+ *   · SUGERENCIAS   — qué preguntar y qué no dejar pasar, con literatura detrás.
+ *   · MIS NOTAS     — la hoja en blanco del vet.
+ *
+ * Antes "Athos" mezclaba live notes y sugerencias en una sola pestaña, que son dos cosas con
+ * cadencias, costos y grados de certeza distintos.
+ */
 const PESTANAS = [
-  { id: "athos", rotulo: "Athos" },
-  { id: "cuaderno", rotulo: "Mis notas" },
   { id: "transcripcion", rotulo: "Transcripción" },
+  { id: "notas", rotulo: "Live notes" },
+  { id: "casos", rotulo: "Casos parecidos" },
+  { id: "sugerencias", rotulo: "Sugerencias" },
+  { id: "cuaderno", rotulo: "Mis notas" },
 ] as const
 
 type Pestana = (typeof PESTANAS)[number]["id"]
@@ -48,7 +66,7 @@ type Pestana = (typeof PESTANAS)[number]["id"]
 
 export function PanelModoFantasma({ abierto, alCerrar }: { abierto: boolean; alCerrar: () => void }) {
   const estado = useConsultaViva()
-  const [pestana, setPestana] = useState<Pestana>("athos")
+  const [pestana, setPestana] = useState<Pestana>("transcripcion")
 
   // ANTES DEL RETURN TEMPRANO, y no sólo por la regla de los hooks. El panel se contrae todo el
   // tiempo —es el uso que pidió el cliente— y este componente sigue montado cuando `abierto` es
@@ -112,7 +130,16 @@ export function PanelModoFantasma({ abierto, alCerrar }: { abierto: boolean; alC
         {/* Alto acotado CON UN MÍNIMO: sin el mínimo, el panel salta de tamaño cada vez que llega una
             nota nueva, y saltar es lo último que puede hacer algo que se mira de reojo. */}
         <div className="max-h-[55svh] min-h-[180px] overflow-y-auto p-3.5">
-          {pestana === "athos" && <AthosEnVivo vivo={vivo} />}
+          {pestana === "notas" && <AthosEnVivo vivo={vivo} soloNotas />}
+
+          {pestana === "sugerencias" && <AthosEnVivo vivo={vivo} soloSugerencias />}
+
+          {pestana === "casos" && (
+            <CasosParecidos
+              consultaId={estado.consultaId}
+              transcripcion={`${estado.estable} ${estado.provisional}`.trim()}
+            />
+          )}
 
           {pestana === "cuaderno" && <Cuaderno consultaId={estado.consultaId} filas={10} />}
 
