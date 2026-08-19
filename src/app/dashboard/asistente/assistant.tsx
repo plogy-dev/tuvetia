@@ -256,7 +256,6 @@ export function Assistant({
   initialPatientId,
   saludo,
   contexto,
-  riel,
   tiraClinica,
   textoInicial,
 }: {
@@ -270,9 +269,6 @@ export function Assistant({
   saludo?: string
   /** "Miércoles 5 de agosto · 9 citas · 2 cobros vencidos". Datos del día, no un eslogan. */
   contexto?: string
-  /** El riel de configuración de la clínica. Se recibe ya renderizado desde el server component
-   *  porque calcula el progreso con datos, y este componente es de cliente. */
-  riel?: React.ReactNode
   /** `TiraClinica`, el riel de la derecha aplastado a una línea. Se pinta sola por debajo de `xl`,
    *  que es justo donde el riel grande desaparece. Va acá dentro y no envolviendo esta pantalla
    *  porque el alto es `h-[calc(100svh-var(--header-height))]`: cualquier cosa apilada por fuera
@@ -444,7 +440,6 @@ export function Assistant({
 
       {tiraClinica}
 
-      {riel}
 
       {/* Aviso de contexto: memoria del hilo (con paciente) o consulta general */}
       <div className="flex items-center gap-2 rounded-lg border border-line-soft bg-brand-soft px-3 py-2 text-xs text-fg-muted">

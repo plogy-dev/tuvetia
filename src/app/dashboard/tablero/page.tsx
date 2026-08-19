@@ -7,6 +7,8 @@ import { PageHeader, PageShell } from "@/components/ui/page-shell"
 import { StatCard } from "@/components/ui/stat-card"
 import { ConsultationsChartLazy as ConsultationsChart } from "@/components/dashboard/consultations-chart-lazy"
 import { BorrarEjemplo } from "@/components/onboarding/borrar-ejemplo"
+import { RielConfiguracion } from "@/components/onboarding/riel-configuracion"
+import { progresoDeConfiguracion } from "@/lib/onboarding/consultar"
 import {
   UpcomingAppointments,
   type UpcomingAppointment,
@@ -130,6 +132,14 @@ export default async function DashboardPage() {
           Algunas métricas no se pudieron cargar y pueden verse en cero. Recargá la página.
         </DataError>
       )}
+      {/* EL RIEL DE CONFIGURACIÓN VUELVE ACÁ, ARRIBA DE TODO.
+          Estuvo un tiempo en la pantalla de Athos, cuando ésa era la puerta de entrada. Se movió
+          por dos razones: abierto empujaba hacia abajo el chat entero —la conversación arrancaba
+          fuera de la pantalla, que es lo peor que le podés hacer a la superficie principal— y
+          además el Dashboard volvió a ser lo primero que se ve al entrar, así que acá vuelve a
+          cumplir su función de recordar.
+          Es el MISMO componente y la misma lógica: sólo cambió de lugar. */}
+      <RielConfiguracion progreso={await progresoDeConfiguracion()} />
       {/* `auto-fit` + `minmax(220px,1fr)` es la grilla del mockup: las tarjetas se acomodan solas
           según el ancho en vez de saltar de 2 a 4 columnas en un breakpoint fijo. */}
       <div className="grid gap-4 [grid-template-columns:repeat(auto-fit,minmax(220px,1fr))]">

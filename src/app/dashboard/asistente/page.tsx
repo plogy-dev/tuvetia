@@ -6,6 +6,7 @@ import {
   type StoredThreads,
 } from "@/lib/athos-history"
 import { bogotaTimeOf, bogotaTodayISO, finDelDiaBogota } from "@/lib/date-utils"
+import { saludoCompleto } from "@/lib/saludo"
 import {
   RielClinica,
   TiraClinica,
@@ -14,8 +15,6 @@ import {
 } from "@/components/athos/riel-clinica"
 import { consultarPresupuesto, type Presupuesto } from "@/lib/athos-agent/presupuesto"
 import { senalesDeLaClinica } from "@/lib/senales/consultar"
-import { RielConfiguracion } from "@/components/onboarding/riel-configuracion"
-import { progresoDeConfiguracion } from "@/lib/onboarding/consultar"
 import { Assistant, type AssistantPatient } from "./assistant"
 
 export const metadata = { title: "Athos · Tuvetia" }
@@ -56,12 +55,6 @@ function peticionDeHueco(desde?: string, minutos?: string): string | undefined {
   const n = Number(minutos)
   if (!Number.isInteger(n) || n <= 0 || n > 12 * 60) return undefined
   return `Tengo ${n} minutos libres a las ${desde} de hoy. ¿A quién le vendría bien y qué le escribirías para ofrecérselo?`
-}
-
-function saludo(hora: number): string {
-  if (hora < 12) return "Buenos días"
-  if (hora < 19) return "Buenas tardes"
-  return "Buenas noches"
 }
 
 export default async function AsistentePage({
@@ -170,7 +163,21 @@ export default async function AsistentePage({
         species: p.species,
         owner: p.owner?.full_name ?? null,
       })) satisfies AssistantPatient[])
-      threads = agruparPorPaciente((msgs.data as MensajeFila[] | null) ?? [])
+      // ── CHAT NUEVO AL ABRIR LA APP ──────────────────────────────────────────────────────────
+      //
+      // El historial completo SÓLO se siembra cuando se viene del historial del sidebar, o sea
+      // cuando la URL trae `?patient=`. Entrar a Athos por la barra abre una conversación limpia.
+      //
+      // POR QUÉ. Antes se sembraba siempre, así que la app abría con la última conversación —de
+      // ayer, de otro paciente, a medio terminar— y el vet tenía que leer de qué estaba hablando
+      // antes de poder preguntar. Un asistente que arranca a mitad de una charla vieja obliga a
+      // recordar en vez de a usar.
+      //
+      // NO SE BORRA NADA. Las conversaciones siguen en `athos_messages` y el historial del sidebar
+      // las abre igual; lo único que cambia es con qué arranca la pantalla cuando nadie pidió una
+      // conversación en particular.
+      const historial = agruparPorPaciente((msgs.data as MensajeFila[] | null) ?? [])
+      threads = patientParam ? historial : {}
       consultasHoy = consultas.count ?? 0
       facturacionActiva =
         (billing.data as { module_status: string } | null)?.module_status === "ACTIVO"
@@ -239,9 +246,9 @@ export default async function AsistentePage({
   const initialPatientId =
     patientParam && patients.some((p) => p.id === patientParam) ? patientParam : undefined
 
-  // El nombre de pila alcanza y sobra: "Buenos días, María" se lee como alguien hablándole, que es
-  // el tono del mockup. El apellido lo vuelve una notificación del sistema.
-  const primerNombre = nombreVet?.trim().split(/\s+/)[0] ?? null
+  // El saludo se mudó a `lib/saludo.ts`: acá eran dos cortes —antes de las 12 y antes de las 19— y
+  // el resultado práctico era que casi siempre decía "buenos días". Ahora son cinco franjas y cada
+  // frontera tiene test, que es donde se rompen estas cosas: nadie prueba a mano qué dice a las 00:00.
   const horaBogota = Number(bogotaTimeOf(new Date().toISOString()).slice(0, 2))
 
   return (
@@ -251,7 +258,7 @@ export default async function AsistentePage({
         patients={patients}
         threads={threads}
         initialPatientId={initialPatientId}
-        saludo={`${saludo(horaBogota)}${primerNombre ? `, ${primerNombre}` : ""}`}
+        saludo={saludoCompleto(horaBogota, nombreVet)}
         contexto={resumenDelDia({ citas: citas.length, consultasHoy, pendientes })}
         // Por debajo de `xl` el riel de la derecha no se pinta. Sin esto, en un teléfono la app
         // abría sin decir cuántas citas hay hoy ni que hay cobros vencidos.
@@ -264,11 +271,6 @@ export default async function AsistentePage({
         textoInicial={
           pedir === "hueco" ? peticionDeHueco(desde, minutos) : pedir ? PETICIONES[pedir] : undefined
         }
-        // El riel de configuración se mudó acá desde el tablero: ésta pasó a ser la pantalla de
-        // inicio, y un recordatorio de "te falta configurar la clínica" en una pantalla que ya nadie
-        // abre primero no recuerda nada. Va en la COLUMNA y no en el `aside` porque el aside es
-        // `xl:` para arriba, y en un portátil de 13" desaparecería justo para quien recién empieza.
-        riel={<RielConfiguracion progreso={await progresoDeConfiguracion()} />}
       />
       <RielClinica
         consultasHoy={consultasHoy}
