@@ -58,14 +58,38 @@ function Bloque({
   )
 }
 
-export function AthosEnVivo({ vivo, className }: { vivo: InteligenciaViva; className?: string }) {
-  const hayAlgo = vivo.notas.trim() || vivo.sugerencias.trim()
+export function AthosEnVivo({
+  vivo,
+  soloNotas,
+  soloSugerencias,
+  className,
+}: {
+  vivo: InteligenciaViva
+  /** Sólo "lo que se dijo". Lo usa la pestaña Live notes del notch. */
+  soloNotas?: boolean
+  /** Sólo "qué mirar". Lo usa la pestaña Sugerencias. */
+  soloSugerencias?: boolean
+  className?: string
+}) {
+  // SE PARTIÓ EN DOS PESTAÑAS, siguiendo el prototipo. Antes las notas y las sugerencias vivían en
+  // el mismo panel, y son dos cosas distintas: las notas son lo que SE DIJO —barato, cada ~15 s— y
+  // las sugerencias son criterio clínico con literatura detrás —caro, cada ~45 s—. Mezcladas, el
+  // vet no sabía cuál de las dos estaba leyendo, que es justo lo que no puede pasar con una y no
+  // con la otra.
+  //
+  // Sin ninguno de los dos flags se pintan las dos, que es como se usa fuera del notch.
+  const verNotas = !soloSugerencias
+  const verSugerencias = !soloNotas
+  const hayAlgo =
+    (verNotas && vivo.notas.trim()) || (verSugerencias && vivo.sugerencias.trim())
 
   return (
     <div className={`flex min-w-0 flex-col gap-4 ${className ?? ""}`}>
       <div className="flex items-center gap-2">
         <Stethoscope className="size-3.5 shrink-0 text-fg-faint" aria-hidden />
-        <span className="text-sm font-semibold">Athos en vivo</span>
+        <span className="text-sm font-semibold">
+          {soloSugerencias ? "Qué mirar" : soloNotas ? "Lo que se dijo" : "Athos en vivo"}
+        </span>
         {vivo.pensando && (
           <Loader2 aria-hidden className="size-3.5 shrink-0 animate-spin text-fg-faint" />
         )}
@@ -97,8 +121,8 @@ export function AthosEnVivo({ vivo, className }: { vivo: InteligenciaViva; class
         </p>
       )}
 
-      <Bloque titulo="Qué mirar" texto={vivo.sugerencias} acento />
-      <Bloque titulo="Lo que se dijo" texto={vivo.notas} />
+      {verSugerencias && <Bloque titulo="Qué mirar" texto={vivo.sugerencias} acento />}
+      {verNotas && <Bloque titulo="Lo que se dijo" texto={vivo.notas} />}
 
       {!hayAlgo && (
         <p className="text-[13px] leading-snug text-fg-muted">
