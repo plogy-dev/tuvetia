@@ -158,6 +158,8 @@ export type LiveResponse = {
   /** El guard de dosis tapó cifras por peso (regla 4): la ficha está incompleta. */
   dosis_redactadas: boolean
   alergias_severas: string[]
+  /** Hay algo que no puede esperar. Enciende la luz del notch sin abrir el panel solo. */
+  urgente: boolean
 }
 
 /**

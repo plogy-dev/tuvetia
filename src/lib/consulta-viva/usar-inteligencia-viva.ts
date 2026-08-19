@@ -23,7 +23,7 @@
 //      atendiendo, y un toast de error por cada intento fallido cada 15 segundos es peor que no
 //      tener la función.
 
-import { useEffect, useRef, useState } from "react"
+import { useCallback, useEffect, useRef, useState } from "react"
 
 import { athosLive, type LiveResponse } from "@/lib/athos"
 import {
@@ -51,6 +51,16 @@ export type InteligenciaViva = {
   /** Cuántas llamadas lleva esta consulta, y cuántas admite. El techo se muestra, no se esconde. */
   llamadas: number
   techo: number
+  /**
+   * Hay una sugerencia urgente que el vet TODAVÍA NO MIRÓ.
+   *
+   * Es el mecanismo del prototipo —"las urgentes prenden la luz del notch"— y resuelve bien un
+   * problema real: algo que no puede esperar tiene que avisar, pero abrir el panel solo encima de
+   * lo que el vet está haciendo con un animal delante es peor que el problema.
+   *
+   * SE APAGA AL MIRARLA, no al llegar la siguiente. Una luz que se apaga sola es una que nadie vio.
+   */
+  alerta: boolean
 }
 
 const VACIO: InteligenciaViva = {
@@ -61,9 +71,10 @@ const VACIO: InteligenciaViva = {
   pensando: false,
   llamadas: 0,
   techo: NOTAS.maxPorConsulta + SUGERENCIAS.maxPorConsulta,
+  alerta: false,
 }
 
-export function useInteligenciaViva(activo: boolean): InteligenciaViva {
+export function useInteligenciaViva(activo: boolean): InteligenciaViva & { vistoLaAlerta: () => void } {
   const estado = useConsultaViva()
   const [vivo, setVivo] = useState<InteligenciaViva>(VACIO)
 
@@ -137,6 +148,8 @@ export function useInteligenciaViva(activo: boolean): InteligenciaViva {
             cadencia.nombre === SUGERENCIAS.nombre && !r.sin_material ? r.texto : v.sugerencias,
           alergias: r.alergias_severas.length ? r.alergias_severas : v.alergias,
           dosisRedactadas: v.dosisRedactadas || r.dosis_redactadas,
+          // Sólo las sugerencias encienden. Las notas son lo que se dijo, y nada de eso es alarma.
+          alerta: v.alerta || (cadencia.nombre === SUGERENCIAS.nombre && r.urgente),
           pensando: false,
           llamadas:
             disparos.current[NOTAS.nombre].disparos + disparos.current[SUGERENCIAS.nombre].disparos,
@@ -162,5 +175,10 @@ export function useInteligenciaViva(activo: boolean): InteligenciaViva {
     // vuelve a preguntar si toca. El disparador es quien decide, no este efecto.
   }, [activo, fase, pausada, segundos, estable, consultaId, pacienteId, motivo])
 
-  return vivo
+  // Lo llama la pestaña de sugerencias al abrirse: mirar la alerta es lo que la apaga.
+  const vistoLaAlerta = useCallback(() => {
+    setVivo((v) => (v.alerta ? { ...v, alerta: false } : v))
+  }, [])
+
+  return { ...vivo, vistoLaAlerta }
 }

@@ -81,10 +81,20 @@ function Accion({
 
 export function GrabacionPastilla({
   abierto,
+  alerta,
   alAlternar,
 }: {
   /** ¿El panel está desplegado? Cambia el galón y deja de redondear el borde de abajo. */
   abierto?: boolean
+  /**
+   * Hay una sugerencia urgente sin mirar.
+   *
+   * ES EL MECANISMO DEL PROTOTIPO —"las urgentes prenden la luz del notch"— y resuelve bien un
+   * problema real: algo que no puede esperar tiene que avisar, pero abrir el panel solo encima de
+   * lo que el vet está haciendo con un animal delante es peor que el problema. Un aro ámbar avisa
+   * sin interrumpir, y se apaga cuando el vet abre la pestaña.
+   */
+  alerta?: boolean
   alAlternar?: () => void
 }) {
   const estado = useConsultaViva()
@@ -121,7 +131,7 @@ export function GrabacionPastilla({
       }
       className={`consulta pointer-events-auto flex h-[42px] max-w-[calc(100vw-24px)] items-center gap-2 border border-line bg-ink pl-[13px] pr-2 text-fg shadow-popover ${
         abierto ? "rounded-t-[18px]" : "rounded-full"
-      }`}
+      } ${alerta ? "ring-[3px] ring-warn/40" : ""}`}
     >
       {/* El punto de estado. MENTA Y NO ROJO: el prototipo usa su brasa, pero acá el rojo está
           reservado para lo que salió mal —esta misma pastilla lo usa para el fallo— y el menta es el
@@ -130,7 +140,11 @@ export function GrabacionPastilla({
         <span
           aria-hidden
           className={`inline-flex size-2 shrink-0 rounded-full ${
-            pausada ? "bg-fg-faint" : "bg-brand motion-safe:animate-pulse"
+            alerta
+              ? "bg-warn motion-safe:animate-pulse"
+              : pausada
+                ? "bg-fg-faint"
+                : "bg-brand motion-safe:animate-pulse"
           }`}
         />
       )}

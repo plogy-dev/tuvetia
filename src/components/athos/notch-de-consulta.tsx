@@ -28,6 +28,7 @@ import { usePathname } from "next/navigation"
 import { GrabacionPastilla } from "@/components/athos/grabacion-pastilla"
 import { PanelModoFantasma } from "@/components/athos/panel-modo-fantasma"
 import { useConsultaViva } from "@/lib/consulta-viva/usar"
+import { useInteligenciaViva } from "@/lib/consulta-viva/usar-inteligencia-viva"
 
 export function NotchDeConsulta() {
   const pathname = usePathname()
@@ -38,6 +39,12 @@ export function NotchDeConsulta() {
   // grabación. Meterlo en `consultaViva` lo haría sobrevivir la navegación, y entonces el panel
   // reaparecería solo al cambiar de pantalla.
   const [abierto, setAbierto] = useState(false)
+
+  // LA INTELIGENCIA VIVE ACÁ, no dentro del panel. El panel se desmonta al contraerse, y con él se
+  // perdían las notas acumuladas y la alerta — justo lo que tiene que sobrevivir a que el vet
+  // minimice, que es el uso normal. Acá el gancho vive mientras haya consulta, y las dos piezas
+  // —pastilla y panel— leen el mismo estado.
+  const vivo = useInteligenciaViva(estado.fase === "grabando")
 
   // EN LA PANTALLA DE SU PROPIA CONSULTA NO SE PINTA. Esa pantalla ya tiene el grabador con su
   // cronómetro, su transcripción en vivo y su botón de detener; sin esto había TRES superficies de
@@ -57,8 +64,12 @@ export function NotchDeConsulta() {
       // del notch no puede robarle clicks al contenido de abajo.
       className="pointer-events-none absolute left-1/2 top-[calc(var(--header-height)+0.5rem)] z-40 flex -translate-x-1/2 flex-col items-center"
     >
-      <GrabacionPastilla abierto={abierto} alAlternar={() => setAbierto((v) => !v)} />
-      <PanelModoFantasma abierto={abierto} alCerrar={() => setAbierto(false)} />
+      <GrabacionPastilla
+        abierto={abierto}
+        alerta={vivo.alerta}
+        alAlternar={() => setAbierto((v) => !v)}
+      />
+      <PanelModoFantasma vivo={vivo} abierto={abierto} alCerrar={() => setAbierto(false)} />
     </div>
   )
 }
