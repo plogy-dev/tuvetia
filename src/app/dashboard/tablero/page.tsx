@@ -83,26 +83,38 @@ export default async function DashboardPage() {
     (r) => r.error,
   )
 
+  // CADA CIFRA LLEVA A SU DETALLE. Es lo que el cliente pidió el 17-ago —«hacer clic en "Citas de
+  // hoy" para ver la lista»— y repitió el 18: «las pastillas de datos en todos los módulos deben ser
+  // interactivas». Una cifra que despierta una pregunta y no la contesta obliga a ir a buscarla por
+  // el menú, que es donde se pierde.
+  //
+  // Las que llevan filtro puesto van MÁS LEJOS que la sección: "Notas por revisar" abre la lista ya
+  // filtrada por borradores, no la lista entera. Llevar a la sección y que el vet vuelva a filtrar
+  // es la mitad del camino.
   const metrics = [
     {
       label: "Consultas este mes",
       value: consultasMes.count ?? 0,
       hint: "Consultas registradas en la clínica",
+      href: "/dashboard/consultas",
     },
     {
       label: "Pacientes",
       value: pacientes.count ?? 0,
       hint: "Fichas activas en la clínica",
+      href: "/dashboard/patients",
     },
     {
       label: "Citas (próx. 7 días)",
       value: citas7d.count ?? 0,
       hint: "Agenda de la semana",
+      href: "/dashboard/calendario",
     },
     {
       label: "Notas por revisar",
       value: notasRevisar.count ?? 0,
       hint: "Borradores del Modo Fantasma pendientes de aprobar",
+      href: "/dashboard/consultas?nota=draft",
     },
   ]
 
@@ -144,7 +156,7 @@ export default async function DashboardPage() {
           según el ancho en vez de saltar de 2 a 4 columnas en un breakpoint fijo. */}
       <div className="grid gap-4 [grid-template-columns:repeat(auto-fit,minmax(220px,1fr))]">
         {metrics.map((m) => (
-          <StatCard key={m.label} label={m.label} value={String(m.value)} sub={m.hint} />
+          <StatCard key={m.label} label={m.label} value={String(m.value)} sub={m.hint} href={m.href} />
         ))}
       </div>
       <div className="grid gap-6 lg:grid-cols-5">

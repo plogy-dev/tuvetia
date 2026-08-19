@@ -1,4 +1,6 @@
 import * as React from "react"
+import Link from "next/link"
+import { ArrowUpRight } from "lucide-react"
 
 import { cn } from "@/lib/utils"
 
@@ -13,14 +15,33 @@ export function StatCard({
   label,
   value,
   sub,
+  href,
   className,
 }: {
   label: React.ReactNode
   value: React.ReactNode
   /** Pista bajo la cifra: comparación, periodo, unidad. Opcional. */
   sub?: React.ReactNode
+  /**
+   * A dónde lleva la cifra. Con `href` la tarjeta pasa a ser un ENLACE y muestra la flecha.
+   *
+   * EL CLIENTE LO PIDIÓ DOS VECES. El 17-ago: «hacer que los widgets de estadísticas sean
+   * interactivos — hacer clic en "Citas de hoy" para ver la lista». El 18-ago: «las pastillas de
+   * datos en todos los módulos deben ser interactivas, permitiendo profundizar en los datos».
+   *
+   * Y es lo que hace el competidor: en su tablero cada métrica lleva una flecha al detalle. Sin
+   * eso, una cifra que despierta una pregunta —"¿cuáles son esas 9 citas?"— obliga a ir a buscarla
+   * por el menú, que es donde se pierde.
+   *
+   * SIN `href` LA TARJETA SE QUEDA COMO ESTABA. Hay métricas que no tienen a dónde llevar, y
+   * fingir que sí —cursor de mano, hover que reacciona— es una promesa que no se cumple al tocar.
+   */
+  href?: string
   className?: string
 }) {
+  // `Link` o `div` según haya destino. El `as` es porque las dos firmas no coinciden y TypeScript
+  // no puede unificarlas sin ayuda; el `href` se pasa condicionalmente más abajo.
+  const Contenedor = (href ? Link : "div") as React.ElementType
   return (
     // Forma del `.tv-stat` del mockup: radio de card (12px), padding 24, SIN SOMBRA —el sistema
     // sólo permite una, la de popovers— y la cifra en MONO, no en display. Que el número vaya en
@@ -42,14 +63,32 @@ export function StatCard({
     //
     // EL RADIO Y EL PADDING NO SE TOCAN: los 12px de card y el padding 24 salen del mockup de David
     // y siguen valiendo. Lo que cambia es el MARCO, que es donde estaba el problema.
-    <div className={cn("flex flex-col gap-2 rounded-xl bg-surface-2 p-6", className)}>
-      <p className="text-[13px] font-medium text-fg-muted">{label}</p>
+    <Contenedor
+      {...(href ? { href } : {})}
+      className={cn(
+        "group flex flex-col gap-2 rounded-xl bg-surface-2 p-6",
+        // El hover sólo existe si hay a dónde ir: una superficie que reacciona al pasar el mouse y
+        // no hace nada al tocarla es peor que una que no reacciona.
+        href &&
+          "transition-colors hover:bg-brand-soft focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none",
+        className,
+      )}
+    >
+      <p className="flex items-center gap-1.5 text-[13px] font-medium text-fg-muted">
+        {label}
+        {href && (
+          <ArrowUpRight
+            aria-hidden
+            className="size-3.5 shrink-0 text-fg-faint transition-colors group-hover:text-brand-text"
+          />
+        )}
+      </p>
       <p className="font-mono text-[28px] font-medium leading-[1.1] tracking-[-0.02em] tabular-nums text-fg">
         {value}
       </p>
       {sub ? (
         <p className="flex items-center gap-1.5 text-[13px] text-fg-muted">{sub}</p>
       ) : null}
-    </div>
+    </Contenedor>
   )
 }
