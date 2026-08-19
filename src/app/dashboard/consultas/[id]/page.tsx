@@ -18,6 +18,7 @@ import {
 import { toast } from "sonner"
 
 import { athosPhantomSuggest, type Citation, type ConditionAlert } from "@/lib/athos"
+import { tituloDeLaConsulta } from "@/lib/consultas/titulo"
 import { createClient } from "@/lib/supabase/client"
 import { parseTranscript } from "@/lib/transcript"
 import { ConsultationRecorder } from "@/components/consultation-recorder"
@@ -397,7 +398,17 @@ export default function NotaConsultaPage({ params }: { params: Promise<{ id: str
             </h1>
             <div className="mt-0.5 flex flex-wrap gap-x-4 gap-y-1 text-sm text-muted-foreground">
               {pet?.species && <span className="font-medium text-foreground">{pet.species}</span>}
-              <span>{consultation?.chief_complaint ?? "Consulta"}</span>
+              {/* EL TÍTULO SALE DE LA NOTA cuando no hay motivo escrito a mano. El motivo dejó de
+                  pedirse al iniciar (17-ago) y la consulta se nombra por lo que resultó ser — que
+                  acá se lee del SOAP en vivo, así que el rótulo se actualiza a medida que el vet
+                  edita la nota, antes incluso de aprobarla. Ver `lib/consultas/titulo.ts`. */}
+              <span>
+                {tituloDeLaConsulta({
+                  chiefComplaint: consultation?.chief_complaint,
+                  assessment: soap.assessment,
+                  subjective: soap.subjective,
+                })}
+              </span>
             </div>
           </div>
         </div>

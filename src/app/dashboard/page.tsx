@@ -1,21 +1,22 @@
 import { redirect } from "next/navigation"
 
-// ATHOS PRIMERO. `/dashboard` ya no es el tablero de métricas: es la puerta, y la puerta abre en
-// Athos. Es la idea central del mockup v2 del cliente —se llama literalmente "Tuvetia · Athos
-// primero"— y lo que su brief describe: el consultorio antes que el CRM.
+// LA PUERTA ABRE EN EL TABLERO. Abría en Athos —"Athos primero", del mockup v2— y el cliente lo
+// revirtió en la reunión del 17-ago: fue el PRIMER punto que planteó Luciano, entrar al dashboard y
+// no al asistente.
 //
-// POR QUÉ UN REDIRECT Y NO PINTAR ATHOS ACÁ. El ítem "Athos" del sidebar apunta a
-// `/dashboard/asistente`, y `onboarding-tour.tsx` ancla uno de sus pasos en
-// `a[href="/dashboard/asistente"]`. Si Athos viviera en `/dashboard`, el ancla tendría que ser
-// `a[href="/dashboard"]` — que también matchea el enlace del logo en la cabecera de la barra, y
-// `document.querySelector` devuelve el PRIMERO del DOM. El tour terminaría señalando el logo en vez
-// del ítem, sin fallar ningún test.
+// La razón es de jornada, no de gusto: al llegar a la clínica lo primero es cuántas citas hay hoy y
+// qué quedó pendiente, no una caja de texto en blanco. Athos sigue a un clic en la barra, y ahora
+// además hay una consulta en curso visible desde cualquier pantalla.
 //
-// Con el redirect, la pantalla de Athos tiene una sola URL, el ancla queda sin ambigüedad, y los
-// enlaces viejos a `/dashboard` siguen llegando a algún lado sensato.
+// SE REDIRIGE A `/dashboard/tablero` Y NO SE PINTA EL TABLERO ACÁ, por lo mismo que antes:
 //
-// El tablero completo no desaparece: vive en `/dashboard/tablero` y se llega desde el riel derecho
-// de Athos ("La clínica hoy → Dashboard") y desde el sidebar.
+// cada pantalla tiene UNA sola URL. `onboarding-tour.tsx` ancla sus pasos en selectores como
+// `a[href="/dashboard/tablero"]`, y el enlace del logo de la barra apunta a `/dashboard`: si el
+// tablero viviera en las dos, `document.querySelector` devolvería el logo —es el primero del DOM— y
+// el tour señalaría el sitio equivocado sin fallar ningún test.
+//
+// Con el redirect el ancla queda sin ambigüedad y los enlaces viejos a `/dashboard` siguen llegando
+// a algún lado sensato.
 export default function DashboardPage() {
-  redirect("/dashboard/asistente")
+  redirect("/dashboard/tablero")
 }

@@ -17,7 +17,6 @@ import {
   DrawerTrigger,
 } from "@/components/ui/drawer"
 import { Field, FieldDescription, FieldGroup, FieldLabel } from "@/components/ui/field"
-import { Input } from "@/components/ui/input"
 import {
   Select,
   SelectContent,
@@ -57,11 +56,9 @@ export function NewConsultationDrawer({
   const [patients, setPatients] = useState<Patient[] | null>(null)
   const [patientsLoading, setPatientsLoading] = useState(false)
   const [patientId, setPatientId] = useState<string>("")
-  const [chiefComplaint, setChiefComplaint] = useState("")
 
   function resetForm() {
     setPatientId("")
-    setChiefComplaint("")
     setError(null)
   }
 
@@ -133,7 +130,6 @@ export function NewConsultationDrawer({
         patient_id: patientId,
         owner_id: patient?.owner_id ?? null,
         vet_id: user.id,
-        chief_complaint: chiefComplaint.trim() || null,
         status: "open",
       })
       .select("id")
@@ -226,15 +222,15 @@ export function NewConsultationDrawer({
                 </FieldDescription>
               )}
             </Field>
-            <Field>
-              <FieldLabel htmlFor="consultation-complaint">Motivo de consulta</FieldLabel>
-              <Input
-                id="consultation-complaint"
-                placeholder="Opcional — p.ej. vómito y decaimiento"
-                value={chiefComplaint}
-                onChange={(e) => setChiefComplaint(e.target.value)}
-              />
-            </Field>
+            {/* EL MOTIVO SALE DE ACÁ. Decisión del 17-ago: el motivo que el titular declara en la
+                puerta —"viene decaído"— casi nunca es de lo que terminó tratándose, y escribirlo es
+                un formulario entre el veterinario y un animal que ya está sobre la mesa.
+
+                La consulta se titula DESPUÉS, desde la nota SOAP (propuesta de Jesús): cuando
+                terminó ya se sabe de qué fue. Ver `lib/consultas/titulo.ts`.
+
+                La columna `chief_complaint` NO se borra: hay meses de consultas con el motivo
+                escrito a mano y, si existe, sigue mandando sobre el derivado. */}
             {error && (
               <FieldDescription className="text-destructive">{error}</FieldDescription>
             )}

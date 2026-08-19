@@ -281,9 +281,21 @@ export function Assistant({
   /** Petición ya redactada que otra pantalla dejó lista (`?pedir=`). Se escribe, no se envía. */
   textoInicial?: string
 }) {
-  const [patientId, setPatientId] = useState<string>(
-    initialPatientId ?? patients[0]?.id ?? GENERAL,
-  )
+  // ENTRAR SIN `?patient=` ABRE UN HILO NUEVO. Antes caía a `patients[0]`, o sea que al entrar se
+  // seleccionaba solo el PRIMER paciente de la clínica y se cargaba su conversación guardada. Es
+  // exactamente lo que reportó David el 17-ago:
+  //
+  //     "yo cerré la aplicación ayer, volví a entrar hoy y estaba en el mismo chat.
+  //      Que siempre que uno entre sea un chat nuevo."
+  //
+  // Y no era sólo molesto: el paciente elegido dependía del orden alfabético de la clínica, así que
+  // el vet entraba con el contexto de un animal que no había pedido — y Athos respondía con su
+  // ficha cargada.
+  //
+  // EL HISTORIAL NO SE PIERDE. Se llega por el `?patient=` que pone el historial del sidebar, y
+  // cambiar de paciente en el selector sigue trayendo su hilo: las dos son acciones EXPLÍCITAS. Lo
+  // que deja de pasar es que la app elija por su cuenta.
+  const [patientId, setPatientId] = useState<string>(initialPatientId ?? GENERAL)
   const [input, setInput] = useState<string>(textoInicial ?? "")
   const threadRef = useRef<HTMLDivElement>(null)
 

@@ -12,6 +12,7 @@ import { bogotaDate } from "@/lib/date-utils"
 import { DataError } from "@/components/data-error"
 import { NewConsultationDrawer } from "@/components/new-consultation-drawer"
 import { FormularioDeFiltros } from "@/components/ui/formulario-de-filtros"
+import { tituloDeLaConsulta } from "@/lib/consultas/titulo"
 
 export const metadata = { title: "Modo Fantasma · Tuvetia" }
 
@@ -41,7 +42,9 @@ type ConsultationRow = {
   // PostgREST devuelve el embed to-one (patient_id -> patients.id) como objeto,
   // pero el query builder no tipado lo infiere como arreglo.
   patient: { id: string; name: string; species: string } | null
-  notes: { id: string; status: string }[] | null
+  // `assessment` y `subjective` son para TITULAR la consulta cuando no hay motivo escrito a mano:
+  // ver `lib/consultas/titulo.ts`. No se muestran acá, sólo alimentan el título.
+  notes: { id: string; status: string; assessment: string | null; subjective: string | null }[] | null
 }
 
 type PatientGroup = {
@@ -88,7 +91,9 @@ export default async function ConsultasPage({
   const { data, error: listError } = await supabase
     .from("consultations")
     .select(
-      "id, status, chief_complaint, started_at, patient:patients(id, name, species), notes:clinical_notes(id, status)"
+      // `assessment` y `subjective` vienen para poder titular la consulta desde la nota cuando no
+      // hay motivo escrito: son dos columnas de una tabla que ya se estaba trayendo.
+      "id, status, chief_complaint, started_at, patient:patients(id, name, species), notes:clinical_notes(id, status, assessment, subjective)"
     )
     .order("started_at", { ascending: false })
     // notes[0] debe ser la nota MÁS RECIENTE: sin esto, PostgREST no garantiza orden y una
@@ -256,7 +261,11 @@ export default async function ConsultasPage({
                       {fmtDate(c.started_at)}
                     </span>
                     <span className="min-w-0 flex-1 truncate text-sm text-muted-foreground">
-                      {c.chief_complaint ?? "—"}
+                      {tituloDeLaConsulta({
+                        chiefComplaint: c.chief_complaint,
+                        assessment: note?.assessment,
+                        subjective: note?.subjective,
+                      })}
                     </span>
                     <span className="hidden shrink-0 text-xs text-muted-foreground sm:block">
                       {CONSULTATION_STATUS[c.status] ?? c.status}
