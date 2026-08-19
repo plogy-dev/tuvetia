@@ -19,6 +19,9 @@ import { toast } from "sonner"
 
 import { athosPhantomSuggest, type Citation, type ConditionAlert } from "@/lib/athos"
 import { tituloDeLaConsulta } from "@/lib/consultas/titulo"
+import { Cockpit, type PestanaDelCockpit } from "@/components/athos/cockpit"
+import { useConsultaViva } from "@/lib/consulta-viva/usar"
+import { useRouter } from "next/navigation"
 import { createClient } from "@/lib/supabase/client"
 import { parseTranscript } from "@/lib/transcript"
 import { ConsultationRecorder } from "@/components/consultation-recorder"
@@ -153,6 +156,21 @@ export default function NotaConsultaPage({ params }: { params: Promise<{ id: str
   const [transcript, setTranscript] = useState<string>("")
   const [soap, setSoap] = useState<Soap>({ subjective: "", objective: "", assessment: "", plan: "" })
   const [captureOpen, setCaptureOpen] = useState(true) // panel colapsable de grabación/transcripción
+
+  // ── EL COCKPIT ────────────────────────────────────────────────────────────────────────────────
+  //
+  // Mientras se está grabando ESTA consulta, la pantalla es otra: el cockpit. Esta de acá está
+  // armada para DESPUÉS —transcripción tomada, nota SOAP, aprobar— y durante la grabación nada de
+  // eso existe todavía. Mostrar los formularios vacíos de lo que va a haber al terminar es
+  // exactamente el ruido del que se quejó el cliente ("mucha fricción en el Modo Fantasma").
+  //
+  // Al terminar deja de haber grabación y esta pantalla vuelve sola, con el material ya listo. No
+  // hay navegación de por medio: es la misma ruta cambiando de forma según lo que esté pasando.
+  const router = useRouter()
+  const consultaEnVivo = useConsultaViva()
+  const [pestanaCockpit, setPestanaCockpit] = useState<PestanaDelCockpit>("consulta")
+  const grabandoEsta =
+    consultaEnVivo.fase === "grabando" && consultaEnVivo.consultaId === id
 
   const load = useCallback(async () => {
     const { data: c, error: cErr } = await supabase
@@ -345,6 +363,22 @@ export default function NotaConsultaPage({ params }: { params: Promise<{ id: str
   const turns = parseTranscript(transcript)
   const pet = consultation?.patient
   const initial = (pet?.name ?? "?").charAt(0).toUpperCase()
+
+  // MINIMIZAR SALE DE ACÁ, no esconde el cockpit dejando esta pantalla debajo. El notch existe para
+  // cuando el vet SE FUE a otra parte con el micrófono abierto; quedarse en la consulta con el
+  // cockpit escondido dejaría dos superficies de grabación en la misma pantalla, que es lo que se
+  // quitó hace poco.
+  if (grabandoEsta) {
+    return (
+      <div className="consulta flex flex-1 flex-col">
+        <Cockpit
+          pestana={pestanaCockpit}
+          alCambiarPestana={setPestanaCockpit}
+          alMinimizar={() => router.push("/dashboard/consultas")}
+        />
+      </div>
+    )
+  }
 
   return (
     // `consulta` = superficie GRAFITO. Es el segundo contexto del sistema de diseño v2: el CRM va en
