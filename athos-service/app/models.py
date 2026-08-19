@@ -169,6 +169,8 @@ class LiveResponse(BaseModel):
     dosis_redactadas: bool = False
     #: Alergias bloqueantes del paciente. Viajan aparte para poder pintarlas como aviso.
     alergias_severas: list[str] = Field(default_factory=list)
+    #: ¿Alguna sugerencia no puede esperar? Enciende la luz del notch sin abrir el panel solo.
+    urgente: bool = False
     #: El modelo que respondió. Next lo guarda en `athos_agent_usage`: el presupuesto por clínica
     #: vive allá, y una fila de consumo sin modelo no sirve para costear después.
     modelo: str = ""

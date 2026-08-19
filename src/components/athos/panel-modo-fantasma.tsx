@@ -31,7 +31,7 @@ import { AthosEnVivo } from "@/components/athos/athos-en-vivo"
 import { CasosParecidos } from "@/components/athos/casos-parecidos"
 import { Cuaderno } from "@/components/athos/cuaderno"
 import { useConsultaViva } from "@/lib/consulta-viva/usar"
-import { useInteligenciaViva } from "@/lib/consulta-viva/usar-inteligencia-viva"
+import type { InteligenciaViva } from "@/lib/consulta-viva/usar-inteligencia-viva"
 
 /**
  * Las cinco pestañas del prototipo, en su orden.
@@ -64,18 +64,19 @@ type Pestana = (typeof PESTANAS)[number]["id"]
 // subárbol. Así el panel no lleva un solo color crudo y sus hijos, que están escritos con tokens
 // semánticos, se resuelven solos.
 
-export function PanelModoFantasma({ abierto, alCerrar }: { abierto: boolean; alCerrar: () => void }) {
+export function PanelModoFantasma({
+  vivo,
+  abierto,
+  alCerrar,
+}: {
+  /** Lo trae `NotchDeConsulta`: el gancho vive allá para que las notas sobrevivan al contraer. */
+  vivo: InteligenciaViva & { vistoLaAlerta: () => void }
+  abierto: boolean
+  alCerrar: () => void
+}) {
   const estado = useConsultaViva()
   const [pestana, setPestana] = useState<Pestana>("transcripcion")
 
-  // ANTES DEL RETURN TEMPRANO, y no sólo por la regla de los hooks. El panel se contrae todo el
-  // tiempo —es el uso que pidió el cliente— y este componente sigue montado cuando `abierto` es
-  // false. Si la inteligencia dependiera de tenerlo abierto, al volver estaría en blanco y habría
-  // que esperar otro tramo de consulta para ver algo.
-  //
-  // Se ata a que HAYA GRABACIÓN, no a que se esté mirando: las notas se acumulan mientras el vet
-  // atiende y están ahí cuando las busca.
-  const vivo = useInteligenciaViva(estado.fase === "grabando")
 
   if (!abierto || estado.fase === "inactiva") return null
 
@@ -105,13 +106,24 @@ export function PanelModoFantasma({ abierto, alCerrar }: { abierto: boolean; alC
               <button
                 key={p.id}
                 type="button"
-                onClick={() => setPestana(p.id)}
+                onClick={() => {
+                  setPestana(p.id)
+                  // MIRAR LA ALERTA ES LO QUE LA APAGA. Si se apagara sola al llegar la siguiente,
+                  // sería una luz que nadie vio.
+                  if (p.id === "sugerencias") vivo.vistoLaAlerta()
+                }}
                 aria-current={activa ? "page" : undefined}
                 className={`-mb-px shrink-0 border-b-2 px-2.5 py-2 text-[12.5px] font-medium transition-colors ${
                   activa ? "border-brand text-fg" : "border-transparent text-fg-muted hover:text-fg"
                 }`}
               >
                 {p.rotulo}
+                {/* El punto en la pestaña, además del aro del notch: con el panel ya abierto, el
+                    aro de afuera no se ve, y sin esto la sugerencia urgente quedaría escondida
+                    detrás de una pestaña que no llama. */}
+                {p.id === "sugerencias" && vivo.alerta && (
+                  <span aria-hidden className="ml-1.5 inline-block size-1.5 rounded-full bg-warn" />
+                )}
               </button>
             )
           })}

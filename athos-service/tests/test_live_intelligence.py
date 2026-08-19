@@ -189,3 +189,63 @@ class TestModos:
         from app.config import get_settings
 
         assert visto["model"] == get_settings().llm_light_model
+
+
+# ── La luz del notch ────────────────────────────────────────────────────────────────────────────
+#
+# Del prototipo del cliente, texto literal de su pestaña de sugerencias: "las urgentes prenden la
+# luz del notch". Es un buen mecanismo — avisa de algo que no puede esperar SIN abrir el panel solo
+# encima de lo que el vet está haciendo.
+#
+# La marca la pone el modelo y la LEE EL CÓDIGO, que es la regla de la casa: el prompt pide, el
+# sistema decide. Y se borra del texto antes de mostrarlo: un "URGENTE" suelto arriba de una lista
+# grita sin decir cuál.
+
+class TestUrgencia:
+    def test_la_marca_enciende_la_luz_y_no_se_ve(self, responde):
+        responde("URGENTE\n- Mucosas pálidas: descartar hemorragia antes de sedar")
+        r = analizar(TRANSCRIPT, "sugerencias", patient=COMPLETO)
+
+        assert r["urgente"] is True
+        assert "URGENTE" not in r["texto"]
+        assert "Mucosas pálidas" in r["texto"]
+
+    def test_sin_marca_no_hay_luz(self, responde):
+        responde("- Preguntar si hubo acceso a hilos o cuerdas")
+        assert analizar(TRANSCRIPT, "sugerencias")["urgente"] is False
+
+    # El separador que el modelo ponga entre la marca y la primera viñeta no puede quedar colgando.
+    def test_limpia_lo_que_quede_entre_la_marca_y_el_texto(self, responde):
+        for separador in ["\n- ", ": ", " — ", "\n"]:
+            responde(f"URGENTE{separador}Revisar perfusión")
+            r = analizar(TRANSCRIPT, "sugerencias")
+            assert r["urgente"] is True
+            assert r["texto"].startswith("Revisar perfusión"), r["texto"]
+
+    def test_la_marca_sola_no_deja_sugerencia(self, responde):
+        # Sin nada detrás no hay qué mostrar: se trata como "sin material", no como una urgencia
+        # vacía que encienda la luz y no diga nada al abrirla.
+        responde("URGENTE")
+        r = analizar(TRANSCRIPT, "sugerencias")
+        assert r["sin_material"] is True
+
+    # Que el prompt la pida no alcanza; que se reserve de verdad es lo que la hace útil.
+    def test_el_prompt_pide_reservarla(self):
+        assert "URGENTE" in vivo.SUGERENCIAS_SYSTEM
+        assert "si todo es urgente, nada lo es" in vivo.SUGERENCIAS_SYSTEM
+
+    def test_las_notas_no_encienden_la_luz(self, responde):
+        # Las notas son lo que SE DIJO. Nada de eso es una alarma, y el prompt no la ofrece.
+        responde("- El titular refiere vómito desde hace dos semanas")
+        assert analizar(TRANSCRIPT, "notas")["urgente"] is False
+
+    def test_si_el_proveedor_falla_no_hay_luz(self, monkeypatch):
+        class Explota:
+            def __init__(self, *a, **k):
+                pass
+
+            def complete(self, *a, **k):
+                raise RuntimeError("caído")
+
+        monkeypatch.setattr(vivo, "LLMClient", Explota)
+        assert analizar(TRANSCRIPT, "sugerencias")["urgente"] is False
