@@ -7,10 +7,15 @@
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist), "Geist", "Segoe UI", system-ui, sans-serif;
-  --font-mono: var(--font-geist-mono), "Geist Mono", ui-monospace, Consolas, monospace;
-  --font-heading: var(--font-newsreader), "Newsreader", Georgia, "Times New Roman", serif;
-  --font-display: var(--font-newsreader), "Newsreader", Georgia, "Times New Roman", serif;
+  /* LA TIPOGRAFÍA DEL MOCKUP DE LUCIANO (19-ago). Reemplaza a Geist + Newsreader.
+     El cambio de fondo es el TÍTULO: de una serif a una grotesca. Una serif de titular le da a la
+     pantalla un aire editorial, de revista, y lo que el cliente pide es una herramienta de trabajo.
+     La regla de reparto no cambia: display para títulos, sans para el cuerpo, mono SÓLO para lo que
+     se lee como dato. */
+  --font-sans: var(--font-inter-tight), "Inter Tight", "Segoe UI", system-ui, sans-serif;
+  --font-mono: var(--font-jetbrains), "JetBrains Mono", ui-monospace, Consolas, monospace;
+  --font-heading: var(--font-bricolage), "Bricolage Grotesque", system-ui, sans-serif;
+  --font-display: var(--font-bricolage), "Bricolage Grotesque", system-ui, sans-serif;
   --color-sidebar-ring: var(--sidebar-ring);
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
@@ -189,7 +194,7 @@
   --maxw: 1320px;
   --pad: clamp(1.1rem, 4vw, 2.75rem);
   --ease: cubic-bezier(0.2, 0, 0, 1);
-  --font-display: var(--font-newsreader), "Newsreader", Georgia, serif;
+  --font-display: var(--font-bricolage), "Bricolage Grotesque", system-ui, sans-serif;
 
   /* ── Estados ──
      Los `-soft` son SÓLIDOS, como en el sistema del cliente (`--tv-danger-soft: var(--tv-red-100)`,
@@ -387,13 +392,13 @@
   -webkit-tap-highlight-color: transparent;
 }
 
-/* Titulares en Newsreader (serif); el cuerpo queda en Geist. Sigue scoped a
-   .app-theme para NO pisar la landing, que trae su propia tipografía (Archivo)
-   y estiliza h1/h2 por herencia.
+/* Titulares en Bricolage Grotesque; el cuerpo queda en Inter Tight. Sigue scoped a `.app-theme`
+   para NO pisar la landing, que trae su propia tipografía (Archivo) y estiliza h1/h2 por herencia.
 
-   El peso baja a 500 y el tracking se afloja a -0.01em: -0.015em y el bold
-   estaban calibrados para Bricolage, un grotesco. Un serif apretado y en
-   negrita se empasta. */
+   VUELVE EL PESO 600 Y EL TRACKING -0.015em. Se habían aflojado a 500 / -0.01em cuando el titular
+   pasó a una serif, y con razón: un serif apretado y en negrita se empasta. Con la grotesca de
+   vuelta, esos valores dejan el titular blando — es la calibración que Bricolage pedía desde el
+   principio, y la que usa el mockup. */
 /* EL CUERPO DE 15px/1.55 DEL SISTEMA DEL CLIENTE.
  *
  * Va en `.app-theme` y NO en `body`: la landing fija su propio `body` (Archivo, en `landing.css`)
@@ -418,8 +423,8 @@
 .app-theme h2,
 .sec-title {
   font-family: var(--font-display);
-  font-weight: 500;
-  letter-spacing: -0.01em;
+  font-weight: 600;
+  letter-spacing: -0.015em;
 }
 
 /* `--text` era legible sobre el brasa; sobre el menta 500 no. La selección usa
