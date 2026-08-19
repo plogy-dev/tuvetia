@@ -71,21 +71,26 @@ const data = {
     { title: "Athos", url: "/dashboard/asistente", icon: <BotIcon /> },
     { title: "Modo Fantasma", url: "/dashboard/consultas", icon: <GhostIcon /> },
   ],
-  // EL ORDEN LO PIDIÓ EL CLIENTE en la grabación del 12-ago: «primero Pacientes, luego Ventas,
-  // luego Comunicaciones». Antes abría con Dashboard, que es una superficie de LECTURA — se mira,
-  // no se trabaja en ella. Agenda queda pegada a Pacientes porque son la misma jornada; Dashboard y
-  // Conexiones bajan al final por lo mismo: una se consulta y la otra se toca una vez.
+  // EL ORDEN LO DICTÓ LUCIANO EL 19-AGO, y es el de la JORNADA: «como en el orden en el que tú
+  // empezarías el día… el dashboard primero y que sea la vista predeterminada, después pacientes,
+  // agenda, ventas».
+  //
+  // Y DASHBOARD VUELVE A ENCABEZAR. El 12-ago se lo había bajado con el argumento de que es una
+  // superficie de LECTURA —se mira, no se trabaja en ella— y de que abrir en métricas no es abrir
+  // en trabajo. El cliente decidió lo contrario por una razón mejor: al llegar a la clínica lo
+  // primero no es actuar, es SABER CÓMO ESTÁ EL DÍA — cuántas citas, qué quedó pendiente. Es
+  // también la pantalla en la que ahora se aterriza al entrar.
   //
   // TITULARES YA NO ESTÁ ACÁ. No se borró: pasó a ser una vista dentro de Pacientes
   // (`components/patients/vista-pacientes-titulares.tsx`), que es la fusión que pidió el cliente.
   // La ruta `/dashboard/owners` sigue existiendo y sigue siendo el único lugar donde vive el
   // consentimiento de grabación del titular — por eso la vista se conserva y no se disuelve.
   crm: [
+    { title: "Dashboard", url: "/dashboard/tablero", icon: <LayoutDashboardIcon /> },
     { title: "Pacientes", url: "/dashboard/patients", icon: <UsersIcon /> },
     { title: "Agenda", url: "/dashboard/calendario", icon: <CalendarIcon /> },
     { title: "Ventas", url: "/dashboard/facturacion", icon: <ReceiptIcon /> },
     { title: "Comunicaciones", url: "/dashboard/comunicaciones", icon: <MessageCircleIcon /> },
-    { title: "Dashboard", url: "/dashboard/tablero", icon: <LayoutDashboardIcon /> },
   ],
   // «CONEXIONES» SE FUE DE ACÁ, y con otro nombre. David lo pidió el 12-ago: «el tema de
   // comunicaciones y conexiones, que le quede muy claro al usuario».
