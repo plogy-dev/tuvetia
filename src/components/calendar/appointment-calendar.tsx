@@ -43,6 +43,8 @@ import {
   type AppointmentFormInitial,
 } from "./create-appointment-drawer"
 import { HelpTip } from "@/components/help-tip"
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
+import { citasVisibles, deOtros, sinAsignar, type FiltroDeAgenda } from "@/lib/agenda/filtro"
 import { IcsFeedButton } from "./ics-feed-button"
 import {
   AgendaEventContent,
@@ -97,15 +99,22 @@ export function AppointmentCalendar({
   patients,
   owners,
   vets,
+  miId,
 }: {
   initialAppointments: AppointmentRow[]
   initialRange: { start: string; end: string }
   patients: PatientOption[]
   owners: SelectOption[]
   vets: SelectOption[]
+  /** Quién está mirando. Es lo que hace posible separar "mi agenda" de la de la clínica. */
+  miId: string | null
 }) {
   const [supabase] = useState(() => createClient())
   const [events, setEvents] = useState<CalendarEvent[]>(() => initialAppointments.map(toEvent))
+  // ARRANCA EN "MI AGENDA". La pantalla cargaba las citas de TODA la clínica mezcladas: con cuatro
+  // veterinarios, cada uno veía tres agendas ajenas encima de la suya y el propio día quedaba
+  // ilegible justo en la pantalla que existe para leerlo.
+  const [filtro, setFiltro] = useState<FiltroDeAgenda>("mia")
   const [range, setRange] = useState<{ start: Date; end: Date }>(() => ({
     start: new Date(initialRange.start),
     end: new Date(initialRange.end),
@@ -272,6 +281,17 @@ export function AppointmentCalendar({
     openDrawer({ starts_at: start.toISOString(), ends_at: end.toISOString() })
   }
 
+  // Se filtra al PINTAR y no al cargar: las citas de los demás siguen en memoria, así que cambiar de
+  // vista es instantáneo y no dispara otra consulta. Y el solapamiento se sigue detectando contra la
+  // agenda completa — esconder una cita no puede volver libre un horario que está ocupado.
+  const visibles = citasVisibles(
+    events.map((e) => ({ ...e, vet_id: e.resource.vet_id })),
+    filtro,
+    miId,
+  )
+  const ocultas = filtro === "mia" ? deOtros(events.map((e) => e.resource), miId) : 0
+  const huerfanas = sinAsignar(events.map((e) => e.resource))
+
   return (
     <div className="flex flex-col gap-3">
       <div className="flex flex-wrap items-center justify-between gap-2">
@@ -285,6 +305,43 @@ export function AppointmentCalendar({
           </HelpTip>
         </h1>
         <div className="flex flex-wrap items-center gap-2">
+          {/* EL INTERRUPTOR. Dice cuántas citas está escondiendo: filtrar sin decirlo es ocultar, y
+              en una agenda clínica eso se paga con alguien que no fue a una cita. */}
+          {miId && (
+            <ToggleGroup
+              // Base UI maneja el valor como ARREGLO aunque la selección sea única. `?? filtro`
+              // ignora el intento de des-seleccionar: la agenda siempre muestra algo — quedarse sin
+              // ninguna de las dos vistas dejaría la pantalla en blanco sin que nadie lo pidiera.
+              value={[filtro]}
+              onValueChange={(v) => setFiltro(((v as string[])[0] as FiltroDeAgenda) ?? filtro)}
+              variant="outline"
+              size="sm"
+              aria-label="De quién son las citas que se ven"
+            >
+              <ToggleGroupItem value="mia">Mi agenda</ToggleGroupItem>
+              <ToggleGroupItem value="clinica">
+                Toda la clínica
+                {ocultas > 0 && (
+                  <span className="ml-1.5 font-mono text-[11px] tabular-nums text-fg-faint">
+                    +{ocultas}
+                  </span>
+                )}
+              </ToggleGroupItem>
+            </ToggleGroup>
+          )}
+          {/* LAS QUE NO SON DE NADIE se dicen en voz alta. Aparecen en las dos vistas —esconderlas
+              en "mi agenda" las dejaría fuera de la pantalla por defecto de TODAS las personas de la
+              clínica, y una cita que nadie mira es una cita a la que no va nadie— pero mostrarlas
+              sin más las vuelve indistinguibles de las propias. Este contador es lo que pide que
+              alguien las reclame. */}
+          {huerfanas > 0 && (
+            <span
+              className="rounded-full border border-warn/40 bg-warn-soft px-2 py-0.5 text-[11.5px] font-medium text-fg"
+              title="Citas sin veterinario asignado. Se ven en las dos vistas hasta que alguien las tome."
+            >
+              {huerfanas} sin asignar
+            </span>
+          )}
           <IcsFeedButton />
           <Button onClick={newAppointment}>
             <PlusIcon /> Nueva cita
@@ -298,7 +355,7 @@ export function AppointmentCalendar({
           culture="es"
           messages={MESSAGES}
           formats={FORMATS}
-          events={events}
+          events={visibles}
           view={view}
           onView={setView}
           date={date}
