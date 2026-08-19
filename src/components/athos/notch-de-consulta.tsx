@@ -28,7 +28,7 @@ import { usePathname } from "next/navigation"
 import { GrabacionPastilla } from "@/components/athos/grabacion-pastilla"
 import { PanelModoFantasma } from "@/components/athos/panel-modo-fantasma"
 import { useConsultaViva } from "@/lib/consulta-viva/usar"
-import { useInteligenciaViva } from "@/lib/consulta-viva/usar-inteligencia-viva"
+import { useVivo } from "@/lib/consulta-viva/proveedor"
 
 export function NotchDeConsulta() {
   const pathname = usePathname()
@@ -40,11 +40,11 @@ export function NotchDeConsulta() {
   // reaparecería solo al cambiar de pantalla.
   const [abierto, setAbierto] = useState(false)
 
-  // LA INTELIGENCIA VIVE ACÁ, no dentro del panel. El panel se desmonta al contraerse, y con él se
-  // perdían las notas acumuladas y la alerta — justo lo que tiene que sobrevivir a que el vet
-  // minimice, que es el uso normal. Acá el gancho vive mientras haya consulta, y las dos piezas
-  // —pastilla y panel— leen el mismo estado.
-  const vivo = useInteligenciaViva(estado.fase === "grabando")
+  // EL ESTADO VIENE DEL PROVEEDOR, que vive en el layout. No se crea acá por dos razones: el panel
+  // se desmonta al contraerse —y con él se perdían las notas, que es justo lo que tiene que
+  // sobrevivir a minimizar— y porque el cockpit muestra lo mismo desde otra rama del árbol. Dos
+  // ganchos serían dos relojes disparando contra el mismo presupuesto.
+  const vivo = useVivo()
 
   // EN LA PANTALLA DE SU PROPIA CONSULTA NO SE PINTA. Esa pantalla ya tiene el grabador con su
   // cronómetro, su transcripción en vivo y su botón de detener; sin esto había TRES superficies de
