@@ -37,7 +37,38 @@ comment on column public.clinic_hours.vet_id is
 -- contra un proyecto cuya versión no controlamos. Dos índices parciales dicen lo mismo y corren en
 -- cualquier versión: uno para las filas de la clínica, otro para las de cada persona.
 
-alter table public.clinic_hours drop constraint if exists clinic_hours_clinic_id_weekday_opens_at_key;
+-- SE BUSCA POR FORMA Y NO POR NOMBRE. `clinic_hours_clinic_id_weekday_opens_at_key` es el nombre
+-- que Postgres le pone AUTOMÁTICAMENTE a un `unique (...)` dentro de un `create table`, y casi
+-- seguro es el que tiene. Pero esta migración se aplica a mano contra un proyecto que arrastra 55
+-- entradas del equipo original: si allá la restricción se llama distinto, un `drop ... if exists`
+-- con el nombre equivocado no falla — no hace nada. Y entonces la vieja restricción seguiría
+-- impidiendo que alguien cargue su horario personal a la misma hora que abre la clínica, que es el
+-- caso más común que existe.
+--
+-- Buscarla por las columnas que cubre no tiene esa forma de fallar en silencio.
+do $$
+declare
+  nombre text;
+begin
+  select con.conname into nombre
+  from pg_constraint con
+  join pg_class rel on rel.oid = con.conrelid
+  join pg_namespace nsp on nsp.oid = rel.relnamespace
+  where nsp.nspname = 'public'
+    and rel.relname = 'clinic_hours'
+    and con.contype = 'u'
+    and (
+      select array_agg(att.attname order by att.attname)
+      from unnest(con.conkey) k
+      join pg_attribute att on att.attrelid = con.conrelid and att.attnum = k
+    ) = array['clinic_id', 'opens_at', 'weekday'];
+
+  if nombre is not null then
+    execute format('alter table public.clinic_hours drop constraint %I', nombre);
+    raise notice 'Se quitó la restricción única vieja: %', nombre;
+  end if;
+end
+$$;
 
 create unique index if not exists clinic_hours_unico_de_la_clinica
   on public.clinic_hours (clinic_id, weekday, opens_at)
