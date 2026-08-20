@@ -91,6 +91,9 @@ export function buildAutoReplyTools(admin: SB, ctx: AutoReplyContext) {
             .select("opens_at, closes_at, slot_minutes")
             .eq("clinic_id", clinicId)
             .eq("weekday", localWeekday(date))
+            // EL DE LA CLÍNICA (0069): esta herramienta la maneja un titular por WhatsApp y no
+            // elige veterinario, así que la ventana que se le ofrece es la de la puerta abierta.
+            .is("vet_id", null)
             .order("opens_at"),
           admin
             .from("appointments")

@@ -41,6 +41,13 @@ function crearAdmin(datos: Record<string, unknown[]>) {
         filtros[col] = val
         return chain
       },
+      // `is` se registra igual que `eq`: desde la 0069 el filtro que separa el horario de la
+      // clínica del de una persona es `.is("vet_id", null)`, y si no se registra no se puede
+      // afirmar sobre él — que es todo lo que este archivo hace.
+      is: (col: string, val: unknown) => {
+        filtros[col] = val
+        return chain
+      },
       neq: () => chain,
       gte: () => chain,
       lt: () => chain,
@@ -100,6 +107,22 @@ describe("aislamiento por clínica — no hay RLS que respalde", () => {
     // clínica taparan cupos que sí están libres.
     expect(consultas.map((c) => c.tabla).sort()).toEqual(["appointments", "clinic_hours"])
     for (const c of consultas) expect(c.filtros.clinic_id, c.tabla).toBe("clinic-A")
+  })
+
+  it("los cupos que se le ofrecen a un titular salen del horario de la CLÍNICA", async () => {
+    // Migración 0069. Del otro lado de esta herramienta hay un titular por WhatsApp, que no elige
+    // veterinario: sin el filtro, el horario personal de quien sea se mezclaría con el de la
+    // puerta y la clínica pasaría a "abrir" a las 2 porque ese día ese vet entra a las 2.
+    const { admin, consultas } = crearAdmin({
+      clinic_hours: [{ opens_at: "09:00:00", closes_at: "11:00:00", slot_minutes: 30 }],
+      appointments: [],
+    })
+    const tools = buildAutoReplyTools(admin, CTX)
+    await tomar(tools, "list_available_slots").execute({ date: manana() })
+
+    const horarios = consultas.find((c) => c.tabla === "clinic_hours")
+    expect(horarios!.filtros).toHaveProperty("vet_id")
+    expect(horarios!.filtros.vet_id).toBeNull()
   })
 
   it("las mascotas se filtran por clínica Y por titular", async () => {
