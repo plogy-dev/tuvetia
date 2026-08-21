@@ -13,60 +13,17 @@ import { toast } from "sonner"
 
 import { createClient } from "@/lib/supabase/client"
 import { Button } from "@/components/ui/button"
-
-type Field = {
-  key: string
-  label: string
-  required?: boolean
-  synonyms: string[]
-}
-
-// Campos destino + sinónimos de encabezado (normalizados) para auto-mapear.
-const FIELDS: Field[] = [
-  { key: "name", label: "Nombre de la mascota", required: true, synonyms: ["mascota", "nombre", "paciente", "pet", "name"] },
-  { key: "species", label: "Especie", synonyms: ["especie", "tipo", "species", "animal"] },
-  { key: "breed", label: "Raza", synonyms: ["raza", "breed"] },
-  { key: "sex", label: "Sexo", synonyms: ["sexo", "genero", "sex", "gender"] },
-  { key: "birth_date", label: "Fecha de nacimiento", synonyms: ["nacimiento", "fecha nac", "fecha de nacimiento", "birth", "birthdate", "nac"] },
-  { key: "age", label: "Edad (si no hay fecha)", synonyms: ["edad", "age"] },
-  { key: "weight_kg", label: "Peso (kg)", synonyms: ["peso", "weight", "kg"] },
-  { key: "owner_name", label: "Titular (nombre)", synonyms: ["titular", "dueno", "propietario", "cliente", "owner", "responsable"] },
-  { key: "owner_phone", label: "Teléfono del titular", synonyms: ["telefono", "celular", "tel", "phone", "movil", "contacto"] },
-  { key: "owner_email", label: "Email del titular", synonyms: ["email", "correo", "mail", "e-mail"] },
-  { key: "owner_document", label: "Documento del titular", synonyms: ["documento", "cedula", "dni", "cc", "identificacion", "nit"] },
-]
-
-const NONE = "__none__"
-
-function norm(s: string): string {
-  return (s ?? "")
-    .toString()
-    .normalize("NFD")
-    .replace(/[̀-ͯ]/g, "")
-    .trim()
-    .toLowerCase()
-}
-
-function autoMap(headers: string[]): Record<string, string> {
-  const map: Record<string, string> = {}
-  const used = new Set<string>()
-  for (const f of FIELDS) {
-    const hit = headers.find((h) => {
-      const n = norm(h)
-      return !used.has(h) && f.synonyms.some((s) => n === s || n.includes(s))
-    })
-    if (hit) {
-      map[f.key] = hit
-      used.add(hit)
-    } else {
-      map[f.key] = NONE
-    }
-  }
-  return map
-}
+import {
+  CAMPOS,
+  SIN_MAPEAR,
+  columnasDe,
+  mapearColumnas,
+  normalizar,
+  type Columna,
+} from "@/lib/pacientes/columnas-del-archivo"
 
 function normSex(v: string): "male" | "female" | "unknown" {
-  const n = norm(v)
+  const n = normalizar(v)
   if (["m", "macho", "male", "masculino"].includes(n) || n.startsWith("mach")) return "male"
   if (["h", "f", "hembra", "female", "femenino"].includes(n) || n.startsWith("hemb")) return "female"
   return "unknown"
@@ -91,7 +48,14 @@ function toISODate(v: unknown): string | null {
 // "3", "3 a", "3 años", "6m", "6 meses" -> fecha de nacimiento aproximada (para llenar birth_date).
 function ageToBirthISO(v: unknown, todayISO: string): string | null {
   if (!v) return null
-  const s = norm(String(v))
+  // SIN `normalizar` A PROPÓSITO, y con motivo: esa función convierte todo lo que no es letra ni
+  // número en espacio —hace falta para comparar ENCABEZADOS— y acá eso partiría "3,5" en "3 5",
+  // que `parseFloat` lee como 3. Una edad de tres años y medio se volvería de tres.
+  const s = String(v)
+    .normalize("NFD")
+    .replace(/[̀-ͯ]/g, "")
+    .trim()
+    .toLowerCase()
   const num = parseFloat(s.replace(",", "."))
   if (isNaN(num)) return null
   // meses si dice "mes" o la unidad es "m" pegada/junto al número ("6m", "6 m") y NO años.
@@ -108,7 +72,7 @@ export default function ImportPatientsPage() {
   const router = useRouter()
   const inputRef = useRef<HTMLInputElement>(null)
   const [fileName, setFileName] = useState<string | null>(null)
-  const [headers, setHeaders] = useState<string[]>([])
+  const [columnas, setColumnas] = useState<Columna[]>([])
   const [rows, setRows] = useState<Record<string, unknown>[]>([])
   const [mapping, setMapping] = useState<Record<string, string>>({})
   const [importing, setImporting] = useState(false)
@@ -134,18 +98,22 @@ export default function ImportPatientsPage() {
         toast.error("El archivo está vacío.")
         return
       }
-      const hs = (matrix[0] as unknown[]).map((h) => String(h ?? "").trim())
+      // LAS FILAS SE INDEXAN POR POSICIÓN, no por el texto del encabezado. Una planilla exportada
+      // trae encabezados repetidos ("Teléfono" dos veces) y encabezados vacíos: con el texto como
+      // clave, la segunda columna pisaba a la primera y los datos de una aparecían bajo el nombre
+      // de otra. Es la otra mitad de "mezcla las columnas" que reportó David.
+      const cols = columnasDe((matrix[0] as unknown[]).map((h) => String(h ?? "")))
       const body = matrix.slice(1).map((r) => {
         const obj: Record<string, unknown> = {}
-        hs.forEach((h, i) => (obj[h] = (r as unknown[])[i]))
+        cols.forEach((c, i) => (obj[c.id] = (r as unknown[])[i]))
         return obj
       })
       // descarta filas totalmente vacías
-      const clean = body.filter((r) => hs.some((h) => String(r[h] ?? "").trim() !== ""))
+      const clean = body.filter((r) => cols.some((c) => String(r[c.id] ?? "").trim() !== ""))
       setFileName(file.name)
-      setHeaders(hs)
+      setColumnas(cols)
       setRows(clean)
-      setMapping(autoMap(hs))
+      setMapping(mapearColumnas(cols))
       toast.success(`${clean.length} filas leídas de "${file.name}"`)
     } catch (e) {
       toast.error(`No se pudo leer el archivo: ${(e as Error).message}`)
@@ -154,10 +122,10 @@ export default function ImportPatientsPage() {
 
   const nameCol = mapping.name
   const mapped = useMemo(() => {
-    if (!nameCol || nameCol === NONE) return []
+    if (!nameCol || nameCol === SIN_MAPEAR) return []
     const get = (r: Record<string, unknown>, key: string) => {
       const col = mapping[key]
-      return col && col !== NONE ? r[col] : ""
+      return col && col !== SIN_MAPEAR ? r[col] : ""
     }
     const todayISO = new Date().toISOString().slice(0, 10)
     return rows.map((r) => {
@@ -193,7 +161,7 @@ export default function ImportPatientsPage() {
     const { data: existing } = await supabase.from("owners").select("id, full_name, phone")
     const ownerCache = new Map<string, string>()
     for (const o of (existing as { id: string; full_name: string; phone: string | null }[] | null) ?? []) {
-      ownerCache.set(`${norm(o.full_name)}|${norm(o.phone ?? "")}`, o.id)
+      ownerCache.set(`${normalizar(o.full_name)}|${normalizar(o.phone ?? "")}`, o.id)
     }
 
     for (let i = 0; i < validRows.length; i++) {
@@ -201,8 +169,8 @@ export default function ImportPatientsPage() {
       try {
         let ownerId: string | null = null
         if (m.owner_name) {
-          const key = `${norm(m.owner_name)}|${norm(m.owner_phone ?? "")}`
-          const keyNoPhone = `${norm(m.owner_name)}|`
+          const key = `${normalizar(m.owner_name)}|${normalizar(m.owner_phone ?? "")}`
+          const keyNoPhone = `${normalizar(m.owner_name)}|`
           ownerId = ownerCache.get(key) ?? ownerCache.get(keyNoPhone) ?? null
           if (!ownerId) {
             const { data: newOwner, error } = await supabase.rpc("create_owner", {
@@ -296,34 +264,34 @@ export default function ImportPatientsPage() {
       </button>
 
       {/* Paso 2: mapeo de columnas */}
-      {headers.length > 0 && (
+      {columnas.length > 0 && (
         <section className="rounded-xl border bg-card p-4 md:p-5">
           <div className="mb-3 flex items-center gap-2 text-sm font-semibold">
             <FileSpreadsheet className="size-4 text-muted-foreground" /> Mapeo de columnas ({rows.length}{" "}
             filas)
           </div>
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-            {FIELDS.map((f) => (
+            {CAMPOS.map((f) => (
               <label key={f.key} className="flex flex-col gap-1 text-xs">
                 <span className="font-medium">
                   {f.label} {f.required && <span className="text-destructive">*</span>}
                 </span>
                 <select
-                  value={mapping[f.key] ?? NONE}
+                  value={mapping[f.key] ?? SIN_MAPEAR}
                   onChange={(e) => setMapping((m) => ({ ...m, [f.key]: e.target.value }))}
                   className="h-9 rounded-md border border-input bg-background px-2 text-sm outline-none focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/50"
                 >
-                  <option value={NONE}>— (ninguna) —</option>
-                  {headers.map((h) => (
-                    <option key={h} value={h}>
-                      {h}
+                  <option value={SIN_MAPEAR}>— (ninguna) —</option>
+                  {columnas.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.etiqueta}
                     </option>
                   ))}
                 </select>
               </label>
             ))}
           </div>
-          {(!nameCol || nameCol === NONE) && (
+          {(!nameCol || nameCol === SIN_MAPEAR) && (
             <p className="mt-3 text-xs text-destructive">
               Asigna al menos la columna del <b>nombre de la mascota</b> para continuar.
             </p>
