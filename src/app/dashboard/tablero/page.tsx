@@ -16,6 +16,9 @@ import {
   UpcomingAppointments,
   type UpcomingAppointment,
 } from "@/components/dashboard/upcoming-appointments"
+import { BotonDePersonalizar } from "@/components/dashboard/boton-de-personalizar"
+import { NotasPorAprobar, type NotaEnBorrador } from "@/components/dashboard/notas-por-aprobar"
+import { disposicionEfectiva, visibles, type Guardado } from "@/lib/tablero/widgets"
 
 export const metadata = { title: "Dashboard · Tuvetia" }
 
@@ -46,8 +49,25 @@ export default async function DashboardPage() {
     weekStartsOn: 1,
   })
 
-  const [consultasMes, pacientes, citas7d, notasRevisar, chartData, upcomingData, demoOwner] =
-    await Promise.all([
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
+  const { data: perfil } = user
+    ? await supabase.from("profiles").select("clinic_id").eq("id", user.id).maybeSingle()
+    : { data: null }
+  const clinicId = (perfil as { clinic_id: string | null } | null)?.clinic_id ?? null
+
+  const [
+    consultasMes,
+    pacientes,
+    citas7d,
+    notasRevisar,
+    chartData,
+    upcomingData,
+    demoOwner,
+    borradores,
+    preferencia,
+  ] = await Promise.all([
       supabase
         .from("consultations")
         .select("*", { count: "exact", head: true })
@@ -79,6 +99,24 @@ export default async function DashboardPage() {
         .from("owners")
         .select("*", { count: "exact", head: true })
         .eq("full_name", "Ejemplo — TuvetIA"),
+      // Las notas en borrador, con nombre y todo: es el widget que David pidió mirar de un vistazo.
+      // Cinco alcanzan — más que eso ya es la pantalla de consultas.
+      supabase
+        .from("clinical_notes")
+        .select("id, created_at, consultation:consultations(id, patient:patients(name))")
+        .eq("status", "draft")
+        .order("created_at", { ascending: false })
+        .limit(5),
+      // CÓMO QUIERE ESTA PERSONA SU TABLERO (0072). Sin fila, sale el de fábrica: `maybeSingle` y
+      // no `single` porque no tenerla es lo normal, no un error.
+      user && clinicId
+        ? supabase
+            .from("tablero_preferencias")
+            .select("widgets")
+            .eq("user_id", user.id)
+            .eq("clinic_id", clinicId)
+            .maybeSingle()
+        : Promise.resolve({ data: null }),
     ])
 
   // Un fallo de query no debe verse como "clínica en ceros": banner de error visible.
@@ -128,37 +166,65 @@ export default async function DashboardPage() {
     timeZone: "America/Bogota",
   })
 
+  // LA DISPOSICIÓN DE ESTA PERSONA, reconciliada con los widgets que existen HOY (0072). Un id
+  // viejo se ignora y uno nuevo aparece al final: la preferencia guardada es una foto del día que
+  // se guardó, y el código sigue cambiando.
+  const disposicion = disposicionEfectiva(
+    ((preferencia as { data: { widgets: Guardado } | null } | { data: null }).data?.widgets ?? null),
+  )
+
+  // Cada bloque, ya armado. Se arma TODO y se pinta lo elegido: el costo está en las consultas —que
+  // ya corrieron arriba— y no en construir el JSX. Armar sólo lo visible obligaría a mover las
+  // consultas adentro de cada rama y a repetir la lógica de qué se pide.
+  const BLOQUES: Record<string, { nodo: React.ReactNode; ancho: string }> = {
+    riel: {
+      // EL RIEL DE CONFIGURACIÓN. Estuvo un tiempo en la pantalla de Athos, cuando ésa era la
+      // puerta de entrada; volvió acá cuando el Dashboard volvió a ser lo primero que se ve.
+      nodo: <RielConfiguracion progreso={await progresoDeConfiguracion()} />,
+      ancho: "lg:col-span-5",
+    },
+    metricas: { nodo: <PastillasDelTablero pastillas={metrics} />, ancho: "lg:col-span-5" },
+    grafico: { nodo: <ConsultationsChart data={series} />, ancho: "lg:col-span-3" },
+    citas: { nodo: <UpcomingAppointments appointments={upcoming} />, ancho: "lg:col-span-2" },
+    borradores: {
+      nodo: <NotasPorAprobar notas={(borradores.data as unknown as NotaEnBorrador[] | null) ?? []} />,
+      ancho: "lg:col-span-2",
+    },
+  }
+
   return (
     // Pasa a `PageShell` como el resto del CRM. Antes tenía su propio marco —`py-4` afuera y
     // `px-4 lg:px-6` repetido en CADA hijo—, que es de donde salía que el tablero no se alineara
     // con ninguna otra pantalla.
     <PageShell>
-      <PageHeader
-        title="Dashboard"
-        description={`${hoy.charAt(0).toUpperCase() + hoy.slice(1)} · la clínica de un vistazo`}
-      />
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <PageHeader
+          title="Dashboard"
+          description={`${hoy.charAt(0).toUpperCase() + hoy.slice(1)} · la clínica de un vistazo`}
+        />
+        <BotonDePersonalizar disposicion={disposicion} clinicId={clinicId} />
+      </div>
       {loadError && (
         <DataError>
           Algunas métricas no se pudieron cargar y pueden verse en cero. Recargá la página.
         </DataError>
       )}
-      {/* EL RIEL DE CONFIGURACIÓN VUELVE ACÁ, ARRIBA DE TODO.
-          Estuvo un tiempo en la pantalla de Athos, cuando ésa era la puerta de entrada. Se movió
-          por dos razones: abierto empujaba hacia abajo el chat entero —la conversación arrancaba
-          fuera de la pantalla, que es lo peor que le podés hacer a la superficie principal— y
-          además el Dashboard volvió a ser lo primero que se ve al entrar, así que acá vuelve a
-          cumplir su función de recordar.
-          Es el MISMO componente y la misma lógica: sólo cambió de lugar. */}
-      <RielConfiguracion progreso={await progresoDeConfiguracion()} />
-      <PastillasDelTablero pastillas={metrics} />
+
+      {/* UNA SOLA GRILLA DE 5 COLUMNAS para todo el tablero, y no una fila por bloque. Es lo que
+          permite que el orden sea libre: con contenedores fijos, mover el gráfico debajo de las
+          citas obligaría a rehacer el layout. Acá cada bloque declara cuánto ocupa y se acomoda. */}
       <div className="grid gap-6 lg:grid-cols-5">
-        <div className="lg:col-span-3">
-          <ConsultationsChart data={series} />
-        </div>
-        <div className="lg:col-span-2">
-          <UpcomingAppointments appointments={upcoming} />
-        </div>
+        {visibles(disposicion).map((p) => {
+          const b = BLOQUES[p.id]
+          if (!b) return null
+          return (
+            <div key={p.id} className={b.ancho}>
+              {b.nodo}
+            </div>
+          )
+        })}
       </div>
+
       {(demoOwner.count ?? 0) > 0 && <BorrarEjemplo />}
     </PageShell>
   )
