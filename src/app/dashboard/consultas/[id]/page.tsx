@@ -20,6 +20,7 @@ import { toast } from "sonner"
 import { athosPhantomSuggest, type Citation, type ConditionAlert } from "@/lib/athos"
 import { tituloDeLaConsulta } from "@/lib/consultas/titulo"
 import { Cockpit, type PestanaDelCockpit } from "@/components/athos/cockpit"
+import { InformeAlTitular } from "@/components/consultas/informe-al-titular"
 import { useConsultaViva } from "@/lib/consulta-viva/usar"
 import { useRouter } from "next/navigation"
 import { createClient } from "@/lib/supabase/client"
@@ -151,6 +152,7 @@ export default function NotaConsultaPage({ params }: { params: Promise<{ id: str
   const [gateAck, setGateAck] = useState(false)
   const [consultation, setConsultation] = useState<Consultation | null>(null)
   const [note, setNote] = useState<Note | null>(null)
+  const [informeAbierto, setInformeAbierto] = useState(false)
   const [alerts, setAlerts] = useState<ConditionAlert[]>([])
   const [alergias, setAlergias] = useState<AlergiaRegistrada[]>([])
   const [transcript, setTranscript] = useState<string>("")
@@ -799,6 +801,19 @@ export default function NotaConsultaPage({ params }: { params: Promise<{ id: str
                 )}
                 {approved ? "Nota aprobada" : "Revisar y aprobar"}
               </Button>
+              {/* EL PASO QUE FALTABA AL CERRAR LA CONSULTA. Antes esto terminaba con la nota
+                  aprobada y ahí moría: lo que el dueño se llevaba a la casa era lo que hubiera
+                  alcanzado a entender en el mostrador, porque la nota SOAP está escrita para otro
+                  veterinario.
+
+                  SÓLO CON LA NOTA APROBADA, y no es cortesía: el informe sale de esa nota, así que
+                  entregar uno derivado de un borrador sería saltarse la aprobación por la puerta
+                  que da a la calle. La 0071 lo impone además con un trigger — esto es lo que hace
+                  que el botón no engañe, no lo que lo garantiza. */}
+              <Button variant="outline" onClick={() => setInformeAbierto(true)} disabled={!approved}>
+                <FileText className="size-4" />
+                Informe para el titular
+              </Button>
               {note.ai_generated_at && (
                 <span className="ml-auto text-xs text-muted-foreground">Redactada por Athos</span>
               )}
@@ -806,6 +821,19 @@ export default function NotaConsultaPage({ params }: { params: Promise<{ id: str
           </div>
         )}
       </section>
+
+      {/* UNA SOLA INSTANCIA, montada sólo cuando hace falta: el diálogo pide el borrador al abrir
+          y eso cuesta una llamada al modelo. Montarlo siempre haría que el `useEffect` corriera al
+          cargar la consulta. */}
+      {consultation && informeAbierto && (
+        <InformeAlTitular
+          consultaId={consultation.id}
+          paciente={consultation.patient?.name ?? "el paciente"}
+          titular={null}
+          abierto={informeAbierto}
+          alCerrar={() => setInformeAbierto(false)}
+        />
+      )}
 
       {/* Referencias citadas — lista numerada estilo mockup */}
       {note && (
