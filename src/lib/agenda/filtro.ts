@@ -48,3 +48,51 @@ export function deOtros(citas: readonly CitaFiltrable[], miId: string | null | u
   if (!miId) return 0
   return citas.filter((c) => c.vet_id && c.vet_id !== miId).length
 }
+
+// ── Quién puede mirar la agenda de los demás ────────────────────────────────────────────────────
+//
+// LO QUE SE PIDIÓ, Luciano el 19-ago: que ver toda la agenda sea permiso de administrador — *"que
+// ese permiso se pueda otorgar"*. Las dos mitades importan: que no lo tenga cualquiera, y que un
+// admin pueda dárselo a quien corresponda **sin volverlo admin de todo**.
+//
+// EL INTERRUPTOR YA EXISTÍA, pero lo tenía todo el mundo y no escondía nada de verdad: la pantalla
+// se traía las citas de la clínica entera y el filtro las tapaba en el navegador. O sea que "mi
+// agenda" era una vista, no un límite — las citas de los demás viajaban igual en la página.
+//
+// Ahora el permiso decide DOS cosas, y ninguna sirve sin la otra: si el interruptor aparece, y qué
+// citas pide la consulta. Sin la segunda, esto sería un cartel.
+
+/** Lo que hace falta saber de quien mira para decidir qué agenda ve. */
+export type QuienMira = {
+  role: string | null | undefined
+  ve_agenda_completa?: boolean | null
+}
+
+/**
+ * ¿Puede ver la agenda de toda la clínica?
+ *
+ * UN ADMIN SIEMPRE PUEDE, sin necesidad de la bandera. Si hubiera que otorgársela también a él, la
+ * primera persona de una clínica nueva —que es admin por ser quien la creó— se quedaría sin ver la
+ * agenda de nadie y sin nadie que pudiera dárselo.
+ */
+export function puedeVerLaAgendaCompleta(quien: QuienMira | null | undefined): boolean {
+  if (!quien) return false
+  return quien.role === "admin" || quien.ve_agenda_completa === true
+}
+
+/**
+ * El filtro con el que la PANTALLA pide las citas, ya no el que las tapa después.
+ *
+ * Devuelve `null` cuando no hay que acotar nada. Quien no tiene el permiso recibe sólo las suyas y
+ * las que no son de nadie — las sin asignar siguen viajando a propósito: esconderlas las dejaría
+ * fuera de la vista por defecto de TODAS las personas de la clínica, y una cita que nadie mira es
+ * una cita a la que no va nadie.
+ */
+export function filtroDeConsulta(
+  quien: QuienMira | null | undefined,
+  miId: string | null | undefined,
+): string | null {
+  if (puedeVerLaAgendaCompleta(quien)) return null
+  if (!miId) return null
+  return `vet_id.eq.${miId},vet_id.is.null`
+}
