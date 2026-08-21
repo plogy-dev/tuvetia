@@ -32,7 +32,9 @@ import Link from "next/link"
 import {
   ChevronDown,
   ChevronUp,
+  GripVertical,
   Loader2,
+  LocateFixed,
   Maximize2,
   Pause,
   Play,
@@ -84,6 +86,9 @@ export function GrabacionPastilla({
   abierto,
   alerta,
   alAlternar,
+  asa,
+  arrastrando,
+  alCentrar,
 }: {
   /** ¿El panel está desplegado? Cambia el galón y deja de redondear el borde de abajo. */
   abierto?: boolean
@@ -97,6 +102,20 @@ export function GrabacionPastilla({
    */
   alerta?: boolean
   alAlternar?: () => void
+  /**
+   * El asa para arrastrar el notch. La pone `NotchDeConsulta` con lo que le da dnd-kit.
+   *
+   * ES UN ASA Y NO LA PASTILLA ENTERA. Arrastrar por el cuerpo suena más limpio, pero la pastilla
+   * está llena de botones —pausar, terminar, ampliar, desplegar— y la acción más urgente de la
+   * consulta no puede competir con el arrastre por el mismo gesto. Además un asa es un botón: se
+   * enfoca con Tab y se mueve con las flechas sin cablear nada, que es lo que hace que esto no sea
+   * sólo para quien usa mouse.
+   */
+  asa?: React.ComponentProps<"button">
+  /** Mientras se arrastra, para que el cursor y el fondo del asa lo digan. */
+  arrastrando?: boolean
+  /** Volver al centro. Sin esto, un notch corrido hasta un borde se recupera a puro arrastre. */
+  alCentrar?: () => void
 }) {
   const estado = useConsultaViva()
 
@@ -130,10 +149,29 @@ export function GrabacionPastilla({
             ? "Guardando la grabación"
             : "La grabación falló"
       }
-      className={`consulta pointer-events-auto flex h-[42px] max-w-[calc(100vw-24px)] items-center gap-2 border border-line bg-ink pl-[13px] pr-2 text-fg shadow-popover ${
-        abierto ? "rounded-t-[18px]" : "rounded-full"
-      } ${alerta ? "ring-[3px] ring-warn/40" : ""}`}
+      className={`consulta pointer-events-auto flex h-[42px] max-w-[calc(100vw-24px)] items-center gap-2 border border-line bg-ink ${
+        asa ? "pl-1" : "pl-[13px]"
+      } pr-2 text-fg shadow-popover ${abierto ? "rounded-t-[18px]" : "rounded-full"} ${
+        alerta ? "ring-[3px] ring-warn/40" : ""
+      }`}
     >
+      {/* EL ASA. Va primera y a la izquierda porque es donde vive el agarre en todo lo que se
+          arrastra, y separada del resto: los otros botones actúan sobre la GRABACIÓN, éste sobre
+          la ventanita. Mezclarlos invita a pausar cuando se quería correr. */}
+      {asa && (
+        <button
+          type="button"
+          {...asa}
+          aria-label="Mover el aviso de la consulta"
+          title="Arrastrá para moverlo — o usá las flechas"
+          className={`grid shrink-0 touch-none place-items-center rounded-[7px] p-[5px] text-fg-faint transition-colors hover:bg-fg/10 hover:text-fg focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none ${
+            arrastrando ? "cursor-grabbing bg-fg/10 text-fg" : "cursor-grab"
+          }`}
+        >
+          <GripVertical className="size-[13.5px]" aria-hidden />
+        </button>
+      )}
+
       {/* El punto de estado. MENTA Y NO ROJO: el prototipo usa su brasa, pero acá el rojo está
           reservado para lo que salió mal —esta misma pastilla lo usa para el fallo— y el menta es el
           color de "activo" del sistema. Late mientras entra audio; apagado y quieto en pausa. */}
@@ -213,6 +251,15 @@ export function GrabacionPastilla({
       )}
 
       <div className="ml-auto flex shrink-0 items-center gap-px pl-1">
+        {/* VOLVER AL CENTRO. Sólo aparece si el notch está corrido — ofrecerlo cuando ya está en su
+            sitio es un botón que no hace nada. Es la salida para el que lo arrastró contra un borde
+            y no quiere pelearlo de vuelta, y para el que se lo encuentra movido de otra sesión. */}
+        {alCentrar && (
+          <Accion onClick={alCentrar} etiqueta="Volver al centro">
+            <LocateFixed className="size-[13.5px]" />
+          </Accion>
+        )}
+
         {/* PAUSAR VIVE ACÁ, no dentro del panel. Es la acción más urgente de la consulta —el titular
             sale a buscar el carnet, entra alguien, suena el teléfono— y estaba a dos clics. */}
         {enCurso && (
