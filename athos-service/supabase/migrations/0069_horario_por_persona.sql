@@ -58,10 +58,13 @@ begin
     and rel.relname = 'clinic_hours'
     and con.contype = 'u'
     and (
-      select array_agg(att.attname order by att.attname)
+      -- `::text` EN LOS DOS LADOS. `pg_attribute.attname` es de tipo `name`, y Postgres no tiene
+      -- operador `name[] = text[]`: sin el cast esto no compara mal, directamente no corre
+      -- (42883). Pasó al aplicarla.
+      select array_agg(att.attname::text order by att.attname::text)
       from unnest(con.conkey) k
       join pg_attribute att on att.attrelid = con.conrelid and att.attnum = k
-    ) = array['clinic_id', 'opens_at', 'weekday'];
+    ) = array['clinic_id', 'opens_at', 'weekday']::text[];
 
   if nombre is not null then
     execute format('alter table public.clinic_hours drop constraint %I', nombre);
