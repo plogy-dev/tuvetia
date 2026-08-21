@@ -4,7 +4,10 @@ import { es } from "date-fns/locale/es"
 import { createClient } from "@/lib/supabase/server"
 import { DataError } from "@/components/data-error"
 import { PageHeader, PageShell } from "@/components/ui/page-shell"
-import { StatCard } from "@/components/ui/stat-card"
+import {
+  PastillasDelTablero,
+  type Pastilla,
+} from "@/components/dashboard/pastillas-del-tablero"
 import { ConsultationsChartLazy as ConsultationsChart } from "@/components/dashboard/consultations-chart-lazy"
 import { BorrarEjemplo } from "@/components/onboarding/borrar-ejemplo"
 import { RielConfiguracion } from "@/components/onboarding/riel-configuracion"
@@ -83,25 +86,32 @@ export default async function DashboardPage() {
     (r) => r.error,
   )
 
-  const metrics = [
+  // CADA CIFRA LLEVA SU CLAVE DE DETALLE. Es lo que la vuelve tocable: al abrirla, la vista pide
+  // `/api/tablero/detalle?metrica=…`, que consulta CON LOS MISMOS FILTROS que el conteo de acá
+  // arriba — si los dos lados se separan, el detalle termina contradiciendo a la cifra que lo abrió.
+  const metrics: Pastilla[] = [
     {
+      metrica: "consultas-mes",
       label: "Consultas este mes",
-      value: consultasMes.count ?? 0,
+      value: String(consultasMes.count ?? 0),
       hint: "Consultas registradas en la clínica",
     },
     {
+      metrica: "pacientes",
       label: "Pacientes",
-      value: pacientes.count ?? 0,
+      value: String(pacientes.count ?? 0),
       hint: "Fichas activas en la clínica",
     },
     {
+      metrica: "citas-7d",
       label: "Citas (próx. 7 días)",
-      value: citas7d.count ?? 0,
+      value: String(citas7d.count ?? 0),
       hint: "Agenda de la semana",
     },
     {
+      metrica: "notas-borrador",
       label: "Notas por revisar",
-      value: notasRevisar.count ?? 0,
+      value: String(notasRevisar.count ?? 0),
       hint: "Borradores del Modo Fantasma pendientes de aprobar",
     },
   ]
@@ -140,13 +150,7 @@ export default async function DashboardPage() {
           cumplir su función de recordar.
           Es el MISMO componente y la misma lógica: sólo cambió de lugar. */}
       <RielConfiguracion progreso={await progresoDeConfiguracion()} />
-      {/* `auto-fit` + `minmax(220px,1fr)` es la grilla del mockup: las tarjetas se acomodan solas
-          según el ancho en vez de saltar de 2 a 4 columnas en un breakpoint fijo. */}
-      <div className="grid gap-4 [grid-template-columns:repeat(auto-fit,minmax(220px,1fr))]">
-        {metrics.map((m) => (
-          <StatCard key={m.label} label={m.label} value={String(m.value)} sub={m.hint} />
-        ))}
-      </div>
+      <PastillasDelTablero pastillas={metrics} />
       <div className="grid gap-6 lg:grid-cols-5">
         <div className="lg:col-span-3">
           <ConsultationsChart data={series} />
