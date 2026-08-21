@@ -33,6 +33,7 @@ import {
   ChevronDown,
   ChevronUp,
   Loader2,
+  Maximize2,
   Pause,
   Play,
   Square,
@@ -237,6 +238,20 @@ export function GrabacionPastilla({
           <Accion onClick={() => consultaViva.reiniciar()} etiqueta="Entendido">
             <Square className="size-[13.5px]" />
           </Accion>
+        )}
+
+        {/* AMPLIAR AL COCKPIT. Lleva a la pantalla de la consulta, que mientras se graba ES el
+            cockpit: los dos paneles, las pestañas y `Esc` para volver acá. No es otra superficie de
+            grabación —el estado es el mismo, sale del proveedor— es la misma consulta en grande. */}
+        {enCurso && estado.consultaId && (
+          <Link
+            href={`/dashboard/consultas/${estado.consultaId}`}
+            aria-label="Ampliar la consulta"
+            title="Ampliar la consulta"
+            className="grid shrink-0 place-items-center rounded-[7px] p-[5px] text-fg-muted transition-colors hover:bg-fg/10 hover:text-fg"
+          >
+            <Maximize2 className="size-[13.5px]" />
+          </Link>
         )}
 
         {alAlternar ? (

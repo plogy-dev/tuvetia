@@ -1,8 +1,7 @@
 import type { Metadata } from "next";
 import {
-  Geist,
-  Geist_Mono,
-  Newsreader,
+  Inter_Tight,
+  Bricolage_Grotesque,
   JetBrains_Mono,
   Archivo,
   Instrument_Serif,
@@ -14,28 +13,39 @@ import "./globals.css";
 import { getAppBaseUrl } from "@/lib/base-url";
 import { cn } from "@/lib/utils";
 
-// ── Fuentes de la APP (sistema de diseño Tuvetia v2) ──
-// Geist para la UI operativa, Newsreader para títulos y estados vacíos, Geist
-// Mono para valores clínicos y códigos — nada más. Es la regla del mockup: el
-// serif es para el título, no para el cuerpo, y la mono es para lo que se lee
-// como dato (40.1 °C, $180.000), no para lo que se lee como texto.
-const geist = Geist({
+// ── Fuentes de la APP ──
+//
+// SE CAMBIA LA REFERENCIA AL MOCKUP DE LUCIANO (19-ago), y el cambio de fondo es el TÍTULO: pasa de
+// una serif (Newsreader) a una grotesca (Bricolage Grotesque). No es una variante del mismo tono —
+// una serif de titular le da a la pantalla un aire editorial, de revista, y lo que el cliente pide
+// es una herramienta de trabajo. Es la mitad de lo que se leía como "muy AI-based".
+//
+// La regla de reparto no cambia y sigue siendo la misma de siempre: display para títulos, sans para
+// el cuerpo, y mono SÓLO para lo que se lee como dato (40.1 °C, $180.000) y no como texto.
+//
+//   · Inter Tight        — la UI operativa. Más angosta que Geist: entra más en la misma línea, que
+//                          es justo lo que hace falta en tablas de facturación y listas de citas.
+//   · Bricolage Grotesque — títulos y estados vacíos.
+//   · JetBrains Mono     — valores clínicos, montos, cronómetros.
+const interTight = Inter_Tight({
   subsets: ["latin"],
-  variable: "--font-geist",
+  weight: ["400", "500", "600", "700", "800"],
+  style: ["normal", "italic"],
+  variable: "--font-inter-tight",
   display: "swap",
 });
 
-const geistMono = Geist_Mono({
+const bricolage = Bricolage_Grotesque({
   subsets: ["latin"],
-  variable: "--font-geist-mono",
+  weight: ["400", "600", "700", "800"],
+  variable: "--font-bricolage",
   display: "swap",
 });
 
-const newsreader = Newsreader({
+const jetbrains = JetBrains_Mono({
   subsets: ["latin"],
   weight: ["400", "500", "600"],
-  style: ["normal", "italic"],
-  variable: "--font-newsreader",
+  variable: "--font-jetbrains",
   display: "swap",
 });
 
@@ -92,9 +102,9 @@ export default function RootLayout({
         "h-full",
         "antialiased",
         "font-sans",
-        geist.variable,
-        geistMono.variable,
-        newsreader.variable,
+        interTight.variable,
+        bricolage.variable,
+        jetbrains.variable,
         archivo.variable,
         jetbrainsLanding.variable,
         instrumentSerif.variable

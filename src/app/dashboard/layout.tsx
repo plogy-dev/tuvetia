@@ -13,6 +13,7 @@ import { progresoDeConfiguracion } from "@/lib/onboarding/consultar"
 import { AthosProvider } from "@/components/athos/athos-provider"
 import { AthosDock } from "@/components/athos/athos-dock"
 import { NotchDeConsulta } from "@/components/athos/notch-de-consulta"
+import { ProveedorDeInteligenciaViva } from "@/lib/consulta-viva/proveedor"
 import { PlanProvider } from "@/components/planes/plan-provider"
 import { comoPlan } from "@/lib/planes"
 import { precioProCentavos } from "@/lib/planes/precio"
@@ -127,6 +128,11 @@ export default async function DashboardLayout({
           progresoConfiguracion={(await progresoDeConfiguracion()).porcentaje}
         />
         <OnboardingTour onboarded={Boolean((profile as { onboarded_at?: string | null } | null)?.onboarded_at)} />
+        {/* UN SOLO ESTADO DE LA CONSULTA VIVA para las dos superficies que la muestran: el notch,
+            que flota sobre cualquier pantalla, y el cockpit, que ocupa la pantalla de la consulta.
+            Con un gancho en cada una habría dos relojes disparando contra el mismo presupuesto.
+            Ver `lib/consulta-viva/proveedor.tsx`. */}
+        <ProveedorDeInteligenciaViva>
         <SidebarInset>
           <SiteHeader />
           {/* EL NOTCH DE LA CONSULTA VA ACÁ DENTRO, y no suelto como el dock. `SidebarInset` es
@@ -143,6 +149,7 @@ export default async function DashboardLayout({
               y no compite por espacio con el cajón del sidebar cuando está abierto. */}
           <TabBarMovil />
         </SidebarInset>
+        </ProveedorDeInteligenciaViva>
         <AthosDock />
       </AthosProvider>
       </PlanProvider>
