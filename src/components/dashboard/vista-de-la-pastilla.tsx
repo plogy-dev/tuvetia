@@ -29,8 +29,12 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import { bogotaDateTime } from "@/lib/date-utils"
+import type { IdDeMetrica } from "@/lib/tablero/metricas"
 
-export type MetricaDelTablero = "consultas-mes" | "pacientes" | "citas-7d" | "notas-borrador"
+// EL TIPO SALE DEL CATÁLOGO y ya no se escribe a mano acá. Eran dos listas de ids —ésta y la de
+// `lib/tablero/metricas.ts`— y con dos listas, agregar una cifra y olvidarse de una compila igual y
+// falla al hacer clic. Ahora agregar una métrica al catálogo obliga a darle destino abajo.
+export type MetricaDelTablero = IdDeMetrica
 
 type Fila = { id: string; titulo: string; detalle: string | null; cuando: string | null }
 
@@ -55,6 +59,45 @@ const DESTINOS: Record<MetricaDelTablero, { fila: (id: string) => string; todo: 
     fila: (id) => `/dashboard/consultas/${id}`,
     todo: "/dashboard/consultas?nota=draft",
     verTodo: "Ver los borradores",
+  },
+
+  // ── Las que se pueden agregar desde «Armá tu tablero» ────────────────────────────────────────
+  "consultas-hoy": {
+    fila: (id) => `/dashboard/consultas/${id}`,
+    todo: "/dashboard/consultas",
+    verTodo: "Ver todas las consultas",
+  },
+  // Las citas no tienen pantalla propia: la fila lleva a la agenda, igual que `citas-7d`.
+  "citas-hoy": {
+    fila: () => "/dashboard/calendario",
+    todo: "/dashboard/calendario",
+    verTodo: "Ver la agenda",
+  },
+  titulares: {
+    fila: (id) => `/dashboard/owners/${id}`,
+    todo: "/dashboard/owners",
+    verTodo: "Ver todos los titulares",
+  },
+  "pacientes-nuevos-mes": {
+    fila: (id) => `/dashboard/patients/${id}`,
+    todo: "/dashboard/patients",
+    verTodo: "Ver todos los pacientes",
+  },
+  // El refuerzo vive en la ficha del paciente, que es adonde hay que ir para agendarlo.
+  "vacunas-por-vencer": {
+    fila: (id) => `/dashboard/patients/${id}`,
+    todo: "/dashboard/patients",
+    verTodo: "Ver todos los pacientes",
+  },
+  "facturado-mes": {
+    fila: (id) => `/dashboard/facturacion/${id}`,
+    todo: "/dashboard/facturacion",
+    verTodo: "Ver la facturación",
+  },
+  "por-cobrar": {
+    fila: (id) => `/dashboard/facturacion/${id}`,
+    todo: "/dashboard/facturacion/cartera",
+    verTodo: "Ver la cartera",
   },
 }
 

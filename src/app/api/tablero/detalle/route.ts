@@ -18,6 +18,7 @@
 // no contradiga a la cifra que lo abrio.
 
 import { NextResponse } from "next/server"
+import { formatCOP } from "@/lib/facturacion/format"
 
 import { createClient } from "@/lib/supabase/server"
 
@@ -40,6 +41,9 @@ export async function GET(req: Request) {
   const ahora = new Date()
   const inicioDeMes = new Date(ahora.getFullYear(), ahora.getMonth(), 1)
   const enSieteDias = new Date(ahora.getTime() + 7 * 864e5)
+  const inicioDeHoy = new Date(ahora.getFullYear(), ahora.getMonth(), ahora.getDate())
+  const finDeHoy = new Date(inicioDeHoy.getTime() + 864e5 - 1)
+  const enTreintaDias = new Date(ahora.getTime() + 30 * 864e5)
 
   let filas: Fila[] = []
   let error: string | null = null
@@ -96,6 +100,106 @@ export async function GET(req: Request) {
         cuando: n.created_at,
       }),
     )
+  } else if (metrica === "consultas-hoy") {
+    const { data, error: e } = await supabase
+      .from("consultations")
+      .select("id, started_at, patient:patients(name, species)")
+      .gte("started_at", inicioDeHoy.toISOString())
+      .order("started_at", { ascending: false })
+      .limit(TOPE)
+    error = e?.message ?? null
+    filas = ((data as unknown as { id: string; started_at: string; patient: { name: string; species: string | null } | null }[] | null) ?? []).map(
+      (c) => ({ id: c.id, titulo: c.patient?.name ?? "Consulta", detalle: c.patient?.species ?? null, cuando: c.started_at }),
+    )
+  } else if (metrica === "citas-hoy") {
+    const { data, error: e } = await supabase
+      .from("appointments")
+      .select("id, title, starts_at, patient:patients(name)")
+      .gte("starts_at", inicioDeHoy.toISOString())
+      .lte("starts_at", finDeHoy.toISOString())
+      .in("status", ["scheduled", "confirmed", "in_progress"])
+      .order("starts_at", { ascending: true })
+      .limit(TOPE)
+    error = e?.message ?? null
+    filas = ((data as unknown as { id: string; title: string; starts_at: string; patient: { name: string } | null }[] | null) ?? []).map(
+      (a) => ({ id: a.id, titulo: a.patient?.name ?? a.title, detalle: a.patient?.name ? a.title : null, cuando: a.starts_at }),
+    )
+  } else if (metrica === "titulares") {
+    const { data, error: e } = await supabase
+      .from("owners")
+      .select("id, full_name, phone, created_at")
+      .order("created_at", { ascending: false })
+      .limit(TOPE)
+    error = e?.message ?? null
+    filas = ((data as unknown as { id: string; full_name: string; phone: string | null; created_at: string }[] | null) ?? []).map(
+      (o) => ({ id: o.id, titulo: o.full_name, detalle: o.phone, cuando: o.created_at }),
+    )
+  } else if (metrica === "pacientes-nuevos-mes") {
+    const { data, error: e } = await supabase
+      .from("patients")
+      .select("id, name, species, created_at, owner:owners(full_name)")
+      .gte("created_at", inicioDeMes.toISOString())
+      .order("created_at", { ascending: false })
+      .limit(TOPE)
+    error = e?.message ?? null
+    filas = ((data as unknown as { id: string; name: string; species: string | null; created_at: string; owner: { full_name: string } | null }[] | null) ?? []).map(
+      (p) => ({ id: p.id, titulo: p.name, detalle: [p.species, p.owner?.full_name].filter(Boolean).join(" · ") || null, cuando: p.created_at }),
+    )
+  } else if (metrica === "vacunas-por-vencer") {
+    // Los MISMOS 30 días que cuenta la cifra, y `next_dose_at` es una columna DATE: se compara con
+    // el calendario, no con un instante — comparar contra `toISOString()` completo adelanta un día.
+    const { data, error: e } = await supabase
+      .from("vaccines")
+      .select("id, name, next_dose_at, patient:patients(id, name)")
+      .not("next_dose_at", "is", null)
+      .lte("next_dose_at", enTreintaDias.toISOString().slice(0, 10))
+      .order("next_dose_at", { ascending: true })
+      .limit(TOPE)
+    error = e?.message ?? null
+    filas = ((data as unknown as { id: string; name: string | null; next_dose_at: string; patient: { id: string; name: string } | null }[] | null) ?? []).map(
+      (v) => ({
+        // El id que viaja es el del PACIENTE: la fila lleva a su ficha, que es donde se agenda.
+        id: v.patient?.id ?? v.id,
+        titulo: v.patient?.name ?? "Paciente",
+        detalle: v.name ?? "Refuerzo",
+        cuando: v.next_dose_at,
+      }),
+    )
+  } else if (metrica === "facturado-mes") {
+    const { data, error: e } = await supabase
+      .from("invoices")
+      .select("id, number, total_cents, issued_on, payer:billing_payers(name)")
+      .eq("status", "EMITIDA")
+      .gte("issued_on", inicioDeMes.toISOString().slice(0, 10))
+      .order("issued_on", { ascending: false })
+      .limit(TOPE)
+    error = e?.message ?? null
+    filas = ((data as unknown as { id: string; number: string | null; total_cents: number; issued_on: string; payer: { name: string } | null }[] | null) ?? []).map(
+      (f) => ({
+        id: f.id,
+        titulo: f.payer?.name ?? f.number ?? "Factura",
+        detalle: formatCOP(f.total_cents ?? 0),
+        cuando: f.issued_on,
+      }),
+    )
+  } else if (metrica === "por-cobrar") {
+    // Con SALDO, que no es lo mismo que emitida: una factura pagada sigue siendo emitida.
+    const { data, error: e } = await supabase
+      .from("invoices")
+      .select("id, number, total_cents, paid_cents, due_date, payer:billing_payers(name)")
+      .eq("status", "EMITIDA")
+      .order("due_date", { ascending: true })
+      .limit(TOPE * 3)
+    error = e?.message ?? null
+    filas = ((data as unknown as { id: string; number: string | null; total_cents: number; paid_cents: number; due_date: string | null; payer: { name: string } | null }[] | null) ?? [])
+      .filter((f) => (f.total_cents ?? 0) - (f.paid_cents ?? 0) > 0)
+      .slice(0, TOPE)
+      .map((f) => ({
+        id: f.id,
+        titulo: f.payer?.name ?? f.number ?? "Factura",
+        detalle: `Saldo ${formatCOP((f.total_cents ?? 0) - (f.paid_cents ?? 0))}`,
+        cuando: f.due_date,
+      }))
   } else {
     return NextResponse.json({ error: "Métrica desconocida." }, { status: 400 })
   }

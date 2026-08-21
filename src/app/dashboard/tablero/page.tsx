@@ -20,6 +20,14 @@ import {
 import { BotonDePersonalizar } from "@/components/dashboard/boton-de-personalizar"
 import { NotasPorAprobar, type NotaEnBorrador } from "@/components/dashboard/notas-por-aprobar"
 import { disposicionEfectiva, visibles, type Guardado } from "@/lib/tablero/widgets"
+import {
+  metricaDe,
+  metricasAPintar,
+  metricasEfectivas,
+  type IdDeMetrica,
+  type MetricasGuardadas,
+} from "@/lib/tablero/metricas"
+import { formatCOP } from "@/lib/facturacion/format"
 
 export const metadata = { title: "Dashboard · Tuvetia" }
 
@@ -46,6 +54,9 @@ export default async function DashboardPage() {
   const now = new Date()
   const monthStart = new Date(now.getFullYear(), now.getMonth(), 1)
   const weekAhead = new Date(now.getTime() + 7 * 864e5)
+  const inicioDeHoy = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+  const finDeHoy = new Date(inicioDeHoy.getTime() + 864e5 - 1)
+  const enTreintaDias = new Date(now.getTime() + 30 * 864e5)
   const chartStart = startOfWeek(addWeeks(startOfWeek(now, { weekStartsOn: 1 }), -(WEEKS - 1)), {
     weekStartsOn: 1,
   })
@@ -68,6 +79,7 @@ export default async function DashboardPage() {
     demoOwner,
     borradores,
     preferencia,
+    ajustesDeFacturacion,
   ] = await Promise.all([
       supabase
         .from("consultations")
@@ -113,10 +125,17 @@ export default async function DashboardPage() {
       user && clinicId
         ? supabase
             .from("tablero_preferencias")
-            .select("widgets")
+            // `metricas` viaja en el MISMO select que `widgets` (0073): es la misma preferencia, de
+            // la misma persona, para la misma pantalla.
+            .select("widgets, metricas")
             .eq("user_id", user.id)
             .eq("clinic_id", clinicId)
             .maybeSingle()
+        : Promise.resolve({ data: null }),
+      // ¿Factura esta clínica desde Tuvetia? Decide si se le OFRECEN las cifras de plata: a una que
+      // no activó el módulo serían ceros permanentes.
+      clinicId
+        ? supabase.from("billing_settings").select("module_status").eq("clinic_id", clinicId).maybeSingle()
         : Promise.resolve({ data: null }),
     ])
 
@@ -125,35 +144,97 @@ export default async function DashboardPage() {
     (r) => r.error,
   )
 
+  const facturacionActiva =
+    (ajustesDeFacturacion as { data: { module_status: string } | null }).data?.module_status === "ACTIVO"
+
+  // QUÉ CIFRAS QUIERE ESTA PERSONA (0073), reconciliadas con las que existen hoy y filtradas por lo
+  // que esta clínica puede ofrecer. Sin preferencia guardada salen las cuatro de fábrica de siempre.
+  const metricasDeLaPersona = metricasEfectivas(
+    (preferencia as { data: { metricas?: MetricasGuardadas } | null } | { data: null }).data?.metricas ?? null,
+  )
+  const metricasElegidas = metricasAPintar(metricasDeLaPersona, facturacionActiva)
+  const encendida = (id: IdDeMetrica) => metricasElegidas.some((m) => m.id === id)
+
+  // ── SEGUNDA OLA: sólo lo que alguien encendió ────────────────────────────────────────────────
+  //
+  // Va aparte de la ola grande de arriba a propósito. Estas consultas existen únicamente para las
+  // cifras OPCIONALES, así que pedirlas siempre sería cobrarle siete consultas por carga a la
+  // mayoría —que no encendió ninguna— para pintar nada. `null` cuando está apagada, y abajo se
+  // saltea.
+  //
+  // Las cuatro de fábrica siguen en la ola de arriba: son `count` con `head: true`, de las más
+  // baratas que hay, y hacerlas condicionales enredaría la lectura a cambio de casi nada.
+  const [
+    consultasHoy,
+    citasHoy,
+    titulares,
+    pacientesNuevos,
+    vacunas,
+    facturadoMes,
+    porCobrar,
+  ] = await Promise.all([
+    encendida("consultas-hoy")
+      ? supabase.from("consultations").select("*", { count: "exact", head: true }).gte("started_at", inicioDeHoy.toISOString())
+      : null,
+    encendida("citas-hoy")
+      ? supabase
+          .from("appointments")
+          .select("*", { count: "exact", head: true })
+          .gte("starts_at", inicioDeHoy.toISOString())
+          .lte("starts_at", finDeHoy.toISOString())
+          .in("status", ["scheduled", "confirmed", "in_progress"])
+      : null,
+    encendida("titulares")
+      ? supabase.from("owners").select("*", { count: "exact", head: true })
+      : null,
+    encendida("pacientes-nuevos-mes")
+      ? supabase.from("patients").select("*", { count: "exact", head: true }).gte("created_at", monthStart.toISOString())
+      : null,
+    // `next_dose_at` es una columna DATE: se compara contra el CALENDARIO. Compararla con un
+    // instante completo adelanta el vencimiento un día.
+    encendida("vacunas-por-vencer")
+      ? supabase
+          .from("vaccines")
+          .select("*", { count: "exact", head: true })
+          .not("next_dose_at", "is", null)
+          .lte("next_dose_at", enTreintaDias.toISOString().slice(0, 10))
+      : null,
+    encendida("facturado-mes")
+      ? supabase.from("invoices").select("total_cents").eq("status", "EMITIDA").gte("issued_on", monthStart.toISOString().slice(0, 10))
+      : null,
+    encendida("por-cobrar")
+      ? supabase.from("invoices").select("total_cents, paid_cents").eq("status", "EMITIDA")
+      : null,
+  ])
+
+  const sumaDe = (r: { data: unknown } | null, campo: (f: Record<string, number>) => number) =>
+    ((r?.data as Record<string, number>[] | null) ?? []).reduce((s, f) => s + campo(f), 0)
+
+  /** El valor ya formateado de cada cifra. Las apagadas ni se calculan. */
+  const VALORES: Record<IdDeMetrica, string> = {
+    "consultas-mes": String(consultasMes.count ?? 0),
+    pacientes: String(pacientes.count ?? 0),
+    "citas-7d": String(citas7d.count ?? 0),
+    "notas-borrador": String(notasRevisar.count ?? 0),
+    "consultas-hoy": String(consultasHoy?.count ?? 0),
+    "citas-hoy": String(citasHoy?.count ?? 0),
+    titulares: String(titulares?.count ?? 0),
+    "pacientes-nuevos-mes": String(pacientesNuevos?.count ?? 0),
+    "vacunas-por-vencer": String(vacunas?.count ?? 0),
+    "facturado-mes": formatCOP(sumaDe(facturadoMes, (f) => f.total_cents ?? 0)),
+    "por-cobrar": formatCOP(sumaDe(porCobrar, (f) => (f.total_cents ?? 0) - (f.paid_cents ?? 0))),
+  }
+
   // CADA CIFRA LLEVA SU CLAVE DE DETALLE. Es lo que la vuelve tocable: al abrirla, la vista pide
   // `/api/tablero/detalle?metrica=…`, que consulta CON LOS MISMOS FILTROS que el conteo de acá
   // arriba — si los dos lados se separan, el detalle termina contradiciendo a la cifra que lo abrió.
-  const metrics: Pastilla[] = [
-    {
-      metrica: "consultas-mes",
-      label: "Consultas este mes",
-      value: String(consultasMes.count ?? 0),
-      hint: "Consultas registradas en la clínica",
-    },
-    {
-      metrica: "pacientes",
-      label: "Pacientes",
-      value: String(pacientes.count ?? 0),
-      hint: "Fichas activas en la clínica",
-    },
-    {
-      metrica: "citas-7d",
-      label: "Citas (próx. 7 días)",
-      value: String(citas7d.count ?? 0),
-      hint: "Agenda de la semana",
-    },
-    {
-      metrica: "notas-borrador",
-      label: "Notas por revisar",
-      value: String(notasRevisar.count ?? 0),
-      hint: "Borradores del Modo Fantasma pendientes de aprobar",
-    },
-  ]
+  //
+  // El ORDEN es el que la persona guardó, no el del catálogo: `metricasElegidas` ya viene ordenado.
+  const metrics: Pastilla[] = metricasElegidas.flatMap((p) => {
+    const m = metricaDe(p.id)
+    if (!m) return []
+    return [{ metrica: p.id, label: m.label, value: VALORES[p.id], hint: m.hint }]
+  })
 
   const series = weeklySeries(
     ((chartData.data as { started_at: string }[] | null) ?? []).map((c) => c.started_at),
@@ -214,7 +295,14 @@ export default async function DashboardPage() {
               gate del plan, la ventana de invitación a Pro y el `?grabar=1` que arranca la
               grabación sola. Lo único propio es dónde se monta y cómo se llama el botón. */}
           <NewConsultationDrawer label="Empezar consulta" />
-          <BotonDePersonalizar disposicion={disposicion} clinicId={clinicId} />
+          {/* Le llega la lista COMPLETA de cifras —encendidas y apagadas— porque la pantalla de
+              elegir necesita las dos: `metricasElegidas` de arriba ya viene filtrada para pintar. */}
+          <BotonDePersonalizar
+            disposicion={disposicion}
+            metricas={metricasDeLaPersona}
+            facturacionActiva={facturacionActiva}
+            clinicId={clinicId}
+          />
         </div>
       </div>
       {loadError && (

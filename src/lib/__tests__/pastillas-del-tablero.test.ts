@@ -17,6 +17,8 @@ import { join } from "node:path"
 
 import { describe, expect, it } from "vitest"
 
+import { CATALOGO_DE_METRICAS } from "@/lib/tablero/metricas"
+
 const RAIZ = join(process.cwd(), "src")
 
 /**
@@ -36,9 +38,19 @@ const TABLERO = leer("app/dashboard/tablero/page.tsx")
 const DETALLE = leer("app/api/tablero/detalle/route.ts")
 const VISTA = leer("components/dashboard/vista-de-la-pastilla.tsx")
 
-/** Las claves que la página le pasa a cada pastilla. */
+/**
+ * Todas las cifras que se pueden encender.
+ *
+ * SALE DEL CATÁLOGO Y YA NO DE LA PÁGINA. Antes se raspaban los `metrica: "…"` del fuente del
+ * tablero, porque las cuatro estaban escritas ahí a mano. Con las métricas elegibles (0073) la
+ * página las arma desde `lib/tablero/metricas.ts` y no queda ningún literal que raspar.
+ *
+ * El cambio hace el test MÁS fuerte, no más débil: antes cubría las cuatro que había en pantalla;
+ * ahora cubre las ONCE que alguien puede prender —incluidas las que nadie prendió todavía, que son
+ * justamente las que nadie va a probar a mano antes de que un veterinario les haga clic.
+ */
 function clavesDelTablero(): string[] {
-  return [...TABLERO.matchAll(/metrica:\s*"([a-z0-9-]+)"/g)].map((m) => m[1])
+  return CATALOGO_DE_METRICAS.map((m) => m.id)
 }
 
 /** Las claves que el endpoint sabe atender. */

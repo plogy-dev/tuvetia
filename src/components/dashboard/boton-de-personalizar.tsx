@@ -15,6 +15,7 @@ import { SlidersHorizontal } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import type { Puesto } from "@/lib/tablero/widgets"
+import type { PuestoDeMetrica } from "@/lib/tablero/metricas"
 
 const PersonalizarTablero = dynamic(
   () => import("@/components/dashboard/personalizar-tablero").then((m) => m.PersonalizarTablero),
@@ -23,9 +24,15 @@ const PersonalizarTablero = dynamic(
 
 export function BotonDePersonalizar({
   disposicion,
+  metricas,
+  facturacionActiva,
   clinicId,
 }: {
   disposicion: Puesto[]
+  /** Las cifras de la tira, con las apagadas incluidas (0073). */
+  metricas: PuestoDeMetrica[]
+  /** Sin facturación activa, las cifras de plata no se ofrecen. */
+  facturacionActiva: boolean
   clinicId: string | null
 }) {
   const [abierto, setAbierto] = useState(false)
@@ -43,6 +50,8 @@ export function BotonDePersonalizar({
       {abierto && (
         <PersonalizarTablero
           disposicion={disposicion}
+          metricas={metricas}
+          facturacionActiva={facturacionActiva}
           clinicId={clinicId}
           abierto={abierto}
           alCerrar={() => setAbierto(false)}

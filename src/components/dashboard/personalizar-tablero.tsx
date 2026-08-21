@@ -57,6 +57,14 @@ import {
   type IdDeWidget,
   type Puesto,
 } from "@/lib/tablero/widgets"
+import {
+  alternarMetrica,
+  catalogoOfrecido,
+  metricaDe,
+  metricasEfectivas,
+  moverMetrica,
+  type PuestoDeMetrica,
+} from "@/lib/tablero/metricas"
 
 function Fila({
   puesto,
@@ -125,19 +133,89 @@ function Fila({
   )
 }
 
+/**
+ * Una cifra de la tira, en la lista donde se eligen.
+ *
+ * SIN ARRASTRAR, a diferencia de los bloques, y es deliberado: dos áreas de drag-and-drop dentro
+ * del mismo diálogo compiten por el mismo gesto —el que arrastra una cifra hacia abajo termina
+ * soltándola sobre la lista de bloques— y el orden de una tira horizontal se ajusta con dos clics,
+ * no con una maniobra. Las flechas alcanzan y son accesibles con teclado sin ningún trabajo extra.
+ */
+function FilaDeMetrica({
+  puesto,
+  primero,
+  ultimo,
+  onSubir,
+  onBajar,
+  onAlternar,
+}: {
+  puesto: PuestoDeMetrica
+  primero: boolean
+  ultimo: boolean
+  onSubir: () => void
+  onBajar: () => void
+  onAlternar: () => void
+}) {
+  const m = metricaDe(puesto.id)
+  if (!m) return null
+
+  return (
+    <li
+      className={`flex items-center gap-2 rounded-xl border border-line-soft bg-surface p-2.5 ${
+        puesto.visible ? "" : "opacity-55"
+      }`}
+    >
+      <span className="min-w-0 flex-1">
+        <span className="block truncate text-sm font-medium text-fg">{m.label}</span>
+        <span className="block text-[12px] leading-snug text-fg-muted">{m.descripcion}</span>
+      </span>
+
+      <span className="flex shrink-0 items-center gap-0.5">
+        <Button size="icon" variant="ghost" onClick={onSubir} disabled={primero} aria-label={`Subir ${m.label}`}>
+          <ChevronUp className="size-4" />
+        </Button>
+        <Button size="icon" variant="ghost" onClick={onBajar} disabled={ultimo} aria-label={`Bajar ${m.label}`}>
+          <ChevronDown className="size-4" />
+        </Button>
+        <Button
+          size="icon"
+          variant="ghost"
+          onClick={onAlternar}
+          aria-pressed={puesto.visible}
+          aria-label={puesto.visible ? `Quitar ${m.label}` : `Agregar ${m.label}`}
+        >
+          {puesto.visible ? <Eye className="size-4" /> : <EyeOff className="size-4" />}
+        </Button>
+      </span>
+    </li>
+  )
+}
+
 export function PersonalizarTablero({
   disposicion,
+  metricas,
+  facturacionActiva,
   clinicId,
   abierto,
   alCerrar,
 }: {
   disposicion: Puesto[]
+  /** Las cifras de la tira, con las apagadas incluidas (0073). */
+  metricas: PuestoDeMetrica[]
+  /** Sin facturación activa, las cifras de plata ni se ofrecen: serían ceros permanentes. */
+  facturacionActiva: boolean
   clinicId: string
   abierto: boolean
   alCerrar: () => void
 }) {
   const [d, setD] = useState<Puesto[]>(disposicion)
+  const [m, setM] = useState<PuestoDeMetrica[]>(metricas)
   const [guardando, setGuardando] = useState(false)
+
+  // Lo que se le ofrece a ESTA clínica. Filtrar acá y no en el `map` de abajo deja bien las flechas:
+  // "primero" y "último" tienen que serlo de la lista que se VE, no de la completa.
+  const ofrecidas = new Set(catalogoOfrecido(facturacionActiva).map((x) => x.id))
+  const metricasVisiblesEnLaLista = m.filter((p) => ofrecidas.has(p.id))
 
   const sensores = useSensors(
     // 6px antes de empezar a arrastrar: sin esa distancia, un clic en el asa se lee como arrastre
@@ -174,7 +252,16 @@ export function PersonalizarTablero({
     const { error } = await supabase
       .from("tablero_preferencias")
       .upsert(
-        { user_id: user.id, clinic_id: clinicId, widgets: d, updated_at: new Date().toISOString() },
+        // Los dos en el MISMO upsert, y por eso viven en la misma fila (0073): si fueran dos
+        // escrituras, la primera vez que una fallara el tablero quedaría con los bloques de hoy y
+        // las cifras de ayer, sin nada que lo revirtiera.
+        {
+          user_id: user.id,
+          clinic_id: clinicId,
+          widgets: d,
+          metricas: m,
+          updated_at: new Date().toISOString(),
+        },
         { onConflict: "user_id,clinic_id" },
       )
     setGuardando(false)
@@ -222,10 +309,47 @@ export function PersonalizarTablero({
               </ul>
             </SortableContext>
           </DndContext>
+
+          {/* ── LAS CIFRAS DE LA TIRA ──────────────────────────────────────────────────────────
+              Van en la MISMA hoja que los bloques y no en una pestaña aparte: son la misma
+              decisión —cómo quiero mi tablero— y separarlas obligaría a descubrir que existe una
+              segunda pantalla. El rótulo y la línea alcanzan para que no se lean como una lista
+              sola de doce cosas. */}
+          <div className="mt-5 border-t border-line-soft pt-4">
+            <p className="px-0.5 text-[11px] font-semibold tracking-[0.06em] text-fg-faint uppercase">
+              Las cifras de arriba
+            </p>
+            <p className="mt-1 mb-2.5 px-0.5 text-[12px] leading-snug text-fg-muted">
+              Elegí cuáles querés ver. Cada una se abre para mirar el detalle.
+            </p>
+            <ul className="flex flex-col gap-1.5">
+              {metricasVisiblesEnLaLista.map((p, i) => (
+                <FilaDeMetrica
+                  key={p.id}
+                  puesto={p}
+                  primero={i === 0}
+                  ultimo={i === metricasVisiblesEnLaLista.length - 1}
+                  onSubir={() => setM((prev) => moverMetrica(prev, p.id, -1))}
+                  onBajar={() => setM((prev) => moverMetrica(prev, p.id, 1))}
+                  onAlternar={() => setM((prev) => alternarMetrica(prev, p.id))}
+                />
+              ))}
+            </ul>
+          </div>
         </div>
 
         <div className="flex items-center gap-2 border-t border-line-soft p-4">
-          <Button variant="ghost" size="sm" onClick={() => setD(porDefecto())}>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => {
+              setD(porDefecto())
+              // `metricasEfectivas(null)` es exactamente "nadie eligió nunca": las de fábrica
+              // encendidas y el resto apagado. Restablecer sólo los bloques dejaría la tira con las
+              // cifras de antes, que no es lo que promete el botón.
+              setM(metricasEfectivas(null))
+            }}
+          >
             <RotateCcw className="size-3.5" />
             Como venía
           </Button>
