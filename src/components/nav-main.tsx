@@ -188,35 +188,11 @@ function Items({ items, grupo }: { items: NavItem[]; grupo: "consulta" | "crm" }
 export function NavMain({ consultorio, crm }: { consultorio: NavItem[]; crm: NavItem[] }) {
   return (
     <>
+      {/* CLÍNICA ARRIBA, CONSULTA ABAJO. Lo invirtió Luciano el 19-ago: "yo lo que haría es
+          intercambiar clínica por consulta y consulta abajo".
+          Tiene sentido con el orden nuevo: la jornada empieza mirando cómo está la clínica —
+          dashboard, pacientes, agenda— y la consulta es lo que se abre cuando llega el animal. */}
       <SidebarGroup>
-        <Rotulo>Consulta</Rotulo>
-        <SidebarGroupContent className="flex flex-col gap-2">
-          <Items items={consultorio} grupo="consulta" />
-          {/* "Iniciar consulta" vive DENTRO del consultorio, no suelta al final de la barra: es la
-              acción del grupo que la contiene. Reusa el drawer de la página de Consultas — sólo
-              cambia dónde se monta. */}
-          <SidebarMenu>
-            <SidebarMenuItem>
-              {/* SECUNDARIO, no menta relleno. En el mockup este botón es blanco con borde: el
-                  menta se reserva para la acción de la pantalla en la que estás, y un botón menta
-                  permanente en la barra compite con todas ellas a la vez. */}
-              <NewConsultationDrawer
-                label="Iniciar consulta"
-                trigger={
-                  <SidebarMenuButton
-                    tooltip="Iniciar consulta"
-                    variant="outline"
-                    className="min-w-8 justify-center font-medium"
-                  />
-                }
-              />
-            </SidebarMenuItem>
-          </SidebarMenu>
-        </SidebarGroupContent>
-      </SidebarGroup>
-
-      {/* El divisor del mockup: la línea es lo que hace legible que son dos mundos, no dos rótulos. */}
-      <SidebarGroup className="mt-1 border-t border-line-soft pt-3">
         <Rotulo>Clínica</Rotulo>
         <SidebarGroupContent className="flex flex-col gap-2">
           <Items items={crm} grupo="crm" />
@@ -227,6 +203,37 @@ export function NavMain({ consultorio, crm }: { consultorio: NavItem[]; crm: Nav
                 trigger={<SidebarMenuButton variant="outline" tooltip="Nuevo paciente" />}
               />
               <PendingProposalsButton />
+            </SidebarMenuItem>
+          </SidebarMenu>
+        </SidebarGroupContent>
+      </SidebarGroup>
+
+      {/* El divisor: la línea es lo que hace legible que son dos mundos, no dos rótulos. */}
+      <SidebarGroup className="mt-1 border-t border-line-soft pt-3">
+        <Rotulo>Consulta</Rotulo>
+        <SidebarGroupContent className="flex flex-col gap-2">
+          <Items items={consultorio} grupo="consulta" />
+          {/* "Iniciar consulta" vive DENTRO del grupo de la consulta: es la acción del grupo que la
+              contiene. Reusa el drawer de la página de Consultas — sólo cambia dónde se monta.
+
+              MENTA RELLENO, y es un cambio del 19-ago: "esto siempre mantenerlo como un botón que
+              sobresalga con el color que teníamos antes, un verdecito" (Luciano).
+              Estaba en `outline` con el argumento de que el menta se reserva para la acción de la
+              PANTALLA en la que estás, y que un botón menta permanente compite con todas. El
+              cliente decidió lo contrario, y su razón es mejor: iniciar una consulta no compite con
+              las acciones de las pantallas, es LA acción del producto — todo lo demás existe
+              alrededor de ella. */}
+          <SidebarMenu>
+            <SidebarMenuItem>
+              <NewConsultationDrawer
+                label="Iniciar consulta"
+                trigger={
+                  <SidebarMenuButton
+                    tooltip="Iniciar consulta"
+                    className="min-w-8 justify-center bg-brand font-medium text-on-brand hover:bg-brand-deep hover:text-on-brand active:bg-brand-deep active:text-on-brand"
+                  />
+                }
+              />
             </SidebarMenuItem>
           </SidebarMenu>
         </SidebarGroupContent>
