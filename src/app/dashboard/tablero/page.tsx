@@ -11,6 +11,7 @@ import {
 import { ConsultationsChartLazy as ConsultationsChart } from "@/components/dashboard/consultations-chart-lazy"
 import { BorrarEjemplo } from "@/components/onboarding/borrar-ejemplo"
 import { RielConfiguracion } from "@/components/onboarding/riel-configuracion"
+import { NewConsultationDrawer } from "@/components/new-consultation-drawer"
 import { progresoDeConfiguracion } from "@/lib/onboarding/consultar"
 import {
   UpcomingAppointments,
@@ -202,7 +203,19 @@ export default async function DashboardPage() {
           title="Dashboard"
           description={`${hoy.charAt(0).toUpperCase() + hoy.slice(1)} · la clínica de un vistazo`}
         />
-        <BotonDePersonalizar disposicion={disposicion} clinicId={clinicId} />
+        <div className="flex flex-wrap items-center gap-2">
+          {/* EMPEZAR LA CONSULTA DESDE ACÁ.
+              El tablero volvió a ser lo primero que se ve al entrar, y hasta ahora la acción
+              central del producto sólo se disparaba desde la barra lateral — que además ahora
+              arranca colapsada, o sea reducida a un icono sin rótulo. Quien entra a trabajar tenía
+              que buscarla.
+
+              Es el MISMO cajón de la barra y de la pantalla de Consultas, no una copia: reusa el
+              gate del plan, la ventana de invitación a Pro y el `?grabar=1` que arranca la
+              grabación sola. Lo único propio es dónde se monta y cómo se llama el botón. */}
+          <NewConsultationDrawer label="Empezar consulta" />
+          <BotonDePersonalizar disposicion={disposicion} clinicId={clinicId} />
+        </div>
       </div>
       {loadError && (
         <DataError>

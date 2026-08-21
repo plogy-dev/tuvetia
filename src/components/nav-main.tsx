@@ -228,9 +228,21 @@ export function NavMain({ consultorio, crm }: { consultorio: NavItem[]; crm: Nav
               <NewConsultationDrawer
                 label="Iniciar consulta"
                 trigger={
+                  /* `[&>span]:hidden` EN MODO ICONO, Y NO ES COSMÉTICO: es lo que centra el `+`.
+
+                     Colapsada, la barra fuerza el botón a `size-8` con `p-2` y `overflow-hidden`
+                     (ver `sidebarMenuButtonVariants`), pero la ETIQUETA SIGUE OCUPANDO ESPACIO en el
+                     flex. Con `justify-center`, el centrado se calcula sobre `icono + gap + texto`
+                     —bastante más ancho que los 32px de la caja— y el desborde recorta la derecha:
+                     el icono termina corrido a la izquierda.
+
+                     Los demás ítems no sufren esto porque NO llevan `justify-center`: su icono queda
+                     pegado al padding izquierdo, que en `p-2` + `size-8` da centrado por aritmética.
+                     Acá el botón sí lo necesita —es el único con relleno menta, y sin centrar de
+                     verdad se nota—, así que se resuelve sacando del cálculo lo que no se ve. */
                   <SidebarMenuButton
                     tooltip="Iniciar consulta"
-                    className="min-w-8 justify-center bg-brand font-medium text-on-brand hover:bg-brand-deep hover:text-on-brand active:bg-brand-deep active:text-on-brand"
+                    className="min-w-8 justify-center bg-brand font-medium text-on-brand group-data-[collapsible=icon]:[&>span]:hidden hover:bg-brand-deep hover:text-on-brand active:bg-brand-deep active:text-on-brand"
                   />
                 }
               />

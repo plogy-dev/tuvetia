@@ -82,13 +82,21 @@ export default async function DashboardLayout({
   }
   const sidebarClinic = { name: c?.name ?? "Tuvetia", logoUrl: c?.logo_url ?? null }
 
-  // `ui/sidebar.tsx` guarda el colapso en la cookie `sidebar_state` desde siempre, pero nadie la
-  // leía: `SidebarProvider` se montaba con su `defaultOpen = true` y la barra volvía a abrirse en
-  // cada recarga. El nombre tiene que seguir a `SIDEBAR_COOKIE_NAME`. Por defecto abierta: sólo un
-  // "false" explícito la colapsa.
+  // `ui/sidebar.tsx` guarda el colapso en la cookie `sidebar_state`, y acá se lee para que la barra
+  // respete lo que cada quien dejó. El nombre tiene que seguir a `SIDEBAR_COOKIE_NAME`.
+  //
+  // POR DEFECTO CERRADA (19-ago). Antes abría desplegada y sólo un `"false"` explícito la colapsaba.
+  // Se invierte: quien nunca la tocó entra con la barra en modo icono. La razón es el ruido — son
+  // once entradas con sus rótulos ocupando 288px de ancho permanente frente a una pantalla que
+  // existe para leer el día de la clínica, y el nombre de cada sección no es algo que haga falta
+  // tener a la vista todo el tiempo.
+  //
+  // NO SE PIERDE NADA NI SE ESCONDE NADA: los iconos siguen ahí con su tooltip, el botón de la
+  // cabecera la despliega, y en cuanto alguien la abre la cookie recuerda esa decisión para
+  // siempre. El default sólo decide con qué arranca quien todavía no eligió.
   //
   // No cambia el renderizado: este layout ya era dinámico porque `createClient()` lee cookies.
-  const sidebarOpen = (await cookies()).get("sidebar_state")?.value !== "false"
+  const sidebarOpen = (await cookies()).get("sidebar_state")?.value === "true"
 
   return (
     <SidebarProvider
