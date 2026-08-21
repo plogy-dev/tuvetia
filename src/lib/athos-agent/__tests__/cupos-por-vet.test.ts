@@ -17,15 +17,21 @@ import { beforeEach, describe, expect, it, vi } from "vitest"
 type Llamada = { tabla: string; metodo: string; args: unknown[] }
 let llamadas: Llamada[] = []
 
-/** Filas que devuelve cada tabla. `clinic_hours` tiene que traer algo o la tool corta antes. */
+/**
+ * Filas que devuelve cada tabla. `clinic_hours` tiene que traer algo o la tool corta antes.
+ *
+ * `vet_id: null` NO ES DECORACIÓN desde la 0069: es lo que marca la fila como horario de la
+ * clínica. Sin la propiedad, `franjasQueMandan` la descarta —`undefined` no es `null`— y la tool
+ * responde "esta clínica no tiene horario ese día", que es un verde falso esperando a pasar.
+ */
 const respuestas: Record<string, unknown[]> = {
-  clinic_hours: [{ opens_at: "08:00", closes_at: "18:00", slot_minutes: 30 }],
+  clinic_hours: [{ weekday: 2, opens_at: "08:00", closes_at: "18:00", slot_minutes: 30, vet_id: null }],
   appointments: [],
 }
 
 function nodo(tabla: string) {
   const self: Record<string, unknown> = {}
-  for (const m of ["select", "eq", "gte", "lt", "lte", "in", "order", "neq", "limit"]) {
+  for (const m of ["select", "eq", "gte", "lt", "lte", "in", "order", "neq", "limit", "or", "is"]) {
     self[m] = (...args: unknown[]) => {
       llamadas.push({ tabla, metodo: m, args })
       return self
@@ -105,6 +111,36 @@ describe("los cupos se calculan contra la agenda de UN veterinario", () => {
     })
 
     expect(filtrosDeCitas().some((l) => l.metodo === "eq" && l.args[0] === "vet_id")).toBe(false)
+  })
+})
+
+describe("de quién es el horario contra el que se calculan los cupos", () => {
+  // LA OTRA MITAD DE "LA AGENDA ES DE UNA PERSONA" (migración 0069). Ya no alcanza con restar las
+  // citas del vet: la ventana de la que se restan también es suya. Un vet que entra a las 2
+  // aparecía libre a las 8 porque la clínica abre a las 8.
+  function consultaDeHorarios() {
+    return llamadas.filter((l) => l.tabla === "clinic_hours")
+  }
+
+  it("con vet_id pide el horario de la clínica Y el suyo", async () => {
+    const tools = buildAthosTools(supabaseFalso, ctx)
+    await ejecutar(tools.list_available_slots)({
+      date: "2026-09-01",
+      vet_id: "11111111-1111-1111-1111-111111111111",
+    })
+
+    const or = consultaDeHorarios().find((l) => l.metodo === "or")
+    expect(or, "sin esto el horario personal no llega y la migración queda sin efecto").toBeDefined()
+    expect(or!.args[0]).toContain("vet_id.is.null")
+    expect(or!.args[0]).toContain("vet_id.eq.11111111-1111-1111-1111-111111111111")
+  })
+
+  it("sin vet_id se queda con el de la clínica", async () => {
+    const tools = buildAthosTools(supabaseFalso, ctx)
+    await ejecutar(tools.list_available_slots)({ date: "2026-09-01" })
+
+    const or = consultaDeHorarios().find((l) => l.metodo === "or")
+    expect(or!.args[0]).toBe("vet_id.is.null")
   })
 })
 

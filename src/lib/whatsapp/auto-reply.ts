@@ -163,6 +163,10 @@ export async function maybeAutoReply(input: {
       .from("clinic_hours")
       .select("weekday, opens_at, closes_at")
       .eq("clinic_id", clinicId)
+      // EL DE LA CLÍNICA, no el de nadie en particular (0069). Al otro lado hay un TITULAR
+      // preguntando a qué hora abren: contestarle con el horario personal de un veterinario sería
+      // decirle que la clínica abre a las 2 porque ese día ese vet entra a las 2.
+      .is("vet_id", null)
       .order("weekday")
       .order("opens_at"),
     admin

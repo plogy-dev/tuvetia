@@ -43,7 +43,9 @@ export const progresoDeConfiguracion = cache(async (): Promise<Progreso> => {
 
   const [clinica, horarios, pacientes, servicios, whatsapp, equipo] = await Promise.all([
     supabase.from("clinics").select("logo_url").eq("id", clinicId).maybeSingle(),
-    supabase.from("clinic_hours").select("id", { count: "exact", head: true }),
+    // Los de la CLÍNICA (0069). Sin el filtro, un vet que carga su horario personal daría por
+    // hecho el paso de configuración de la clínica, que es justo lo que el riel viene a recordar.
+    supabase.from("clinic_hours").select("id", { count: "exact", head: true }).is("vet_id", null),
     supabase.from("patients").select("id", { count: "exact", head: true }),
     // `item_type` y no `kind`: la columna se llama así en `catalog_items`. `active` porque un
     // servicio dado de baja no habilita facturar nada.

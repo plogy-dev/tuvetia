@@ -75,9 +75,20 @@ export function diaValido(d: DiaSugerido): boolean {
 export function filasDeHorario(
   clinicId: string,
   dias: readonly DiaSugerido[],
-): { clinic_id: string; weekday: number; opens_at: string; closes_at: string; slot_minutes: number }[] {
+): {
+  clinic_id: string
+  vet_id: null
+  weekday: number
+  opens_at: string
+  closes_at: string
+  slot_minutes: number
+}[] {
   return dias.filter(diaValido).map((d) => ({
     clinic_id: clinicId,
+    // DE LA CLINICA, explicito (0069). El default de la columna ya es nulo, pero lo que el vet esta
+    // cargando en el asistente de bienvenida es el horario de la puerta, no el suyo — y eso lo dice
+    // el codigo o no lo dice nadie.
+    vet_id: null,
     weekday: d.weekday,
     opens_at: d.opens_at,
     closes_at: d.closes_at,

@@ -5,6 +5,7 @@ import { AppointmentCalendarLazy as AppointmentCalendar } from "@/components/cal
 import { DataError } from "@/components/data-error"
 import { DiaDeHoy, type CitaDeHoy } from "@/components/calendar/dia-de-hoy"
 import { huecosDelDia } from "@/lib/agenda/huecos"
+import { franjasQueMandan, type FranjaDeAlguien } from "@/lib/agenda/horario-de-cada-quien"
 import { bogotaTodayISO } from "@/lib/date-utils"
 import { localWeekday } from "@/lib/athos-agent/agenda"
 import { APPOINTMENT_SELECT, type AppointmentRow, type PatientOption, type SelectOption } from "@/lib/appointments"
@@ -77,9 +78,12 @@ export default async function CalendarioPage() {
   const { data: franjasHoy } = clinicId
     ? await supabase
         .from("clinic_hours")
-        .select("opens_at, closes_at")
+        .select("weekday, opens_at, closes_at, vet_id")
         .eq("clinic_id", clinicId)
         .eq("weekday", localWeekday(hoy))
+        // La de la clínica y la de quien está mirando (0069): esta lista es SU día, no el de la
+        // puerta. Cuál manda lo decide `franjasQueMandan`, no el filtro.
+        .or(user ? `vet_id.is.null,vet_id.eq.${user.id}` : "vet_id.is.null")
     : { data: null }
 
   const citasDeHoy: CitaDeHoy[] = ((appts as unknown as AppointmentRow[] | null) ?? [])
@@ -93,7 +97,12 @@ export default async function CalendarioPage() {
 
   const huecos = huecosDelDia({
     date: hoy,
-    franjas: ((franjasHoy as { opens_at: string; closes_at: string }[] | null) ?? []),
+    // EL HORARIO DE QUIEN MIRA, no el de la clínica. Un vet que entra a las 2 veía "libre de 8 a
+    // 14" como si le sobrara media jornada, porque la clínica abre a las 8.
+    franjas: franjasQueMandan(
+      (franjasHoy as FranjaDeAlguien[] | null) ?? [],
+      user?.id ?? null,
+    ),
     // Los huecos se calculan contra TODAS las citas vivas del día, no sólo las que se listan:
     // una cita cancelada libera el espacio, una confirmada no.
     ocupados: ((appts as unknown as AppointmentRow[] | null) ?? [])
