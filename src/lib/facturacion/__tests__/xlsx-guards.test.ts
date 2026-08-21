@@ -36,20 +36,50 @@ beforeEach(() => {
   perfil = { clinic_id: 'clinic-1' };
 });
 
+const conArchivo = (nombre: string, contenido = 'pwn') => {
+  const fd = new FormData();
+  fd.set('file', new File([contenido], nombre));
+  return fd;
+};
+
 describe('guardas de xlsx', () => {
-  it('createImportPreview rechaza SIN tocar el archivo (la guarda corre antes que todo)', async () => {
-    const fd = new FormData();
-    fd.set('file', new File(['pwn'], 'catalogo.xlsx'));
-    const r = await createImportPreview(fd);
+  it('createImportPreview rechaza un .xlsx SIN tocar el archivo', async () => {
+    const r = await createImportPreview(conArchivo('catalogo.xlsx'));
     expect(r.ok).toBe(false);
-    if (!r.ok) expect(r.error).toMatch(/deshabilitada/);
+    if (!r.ok) expect(r.error).toMatch(/deshabilitad/);
   });
 
-  it('createImportPreview rechaza incluso sin sesión: la guarda no depende de auth', async () => {
-    usuario = null;
-    const r = await createImportPreview(new FormData());
+  it('también rechaza el .xls binario viejo', async () => {
+    const r = await createImportPreview(conArchivo('catalogo.xls'));
     expect(r.ok).toBe(false);
-    if (!r.ok) expect(r.error).toMatch(/deshabilitada/);
+    if (!r.ok) expect(r.error).toMatch(/deshabilitad/);
+  });
+
+  // LA PROPIEDAD QUE NO PUEDE PERDERSE al acotar la guarda a las extensiones de Excel: el parser
+  // vulnerable sigue siendo inalcanzable aunque no haya sesión. Es el orden lo que lo garantiza —
+  // el corte por extensión corre ANTES de `requireClinic`.
+  it('rechaza el .xlsx incluso sin sesión: la guarda no depende de auth', async () => {
+    usuario = null;
+    const r = await createImportPreview(conArchivo('catalogo.xlsx'));
+    expect(r.ok).toBe(false);
+    if (!r.ok) expect(r.error).toMatch(/deshabilitad/);
+  });
+
+  it('la extensión se mira sin importar mayúsculas', async () => {
+    const r = await createImportPreview(conArchivo('CATALOGO.XLSX'));
+    expect(r.ok).toBe(false);
+    if (!r.ok) expect(r.error).toMatch(/deshabilitad/);
+  });
+
+  // ── Y EL CSV SÍ PASA ────────────────────────────────────────────────────────────────────────
+  //
+  // El camino del CSV es Papaparse, que no tiene nada que ver con las CVE de xlsx. Bloquearlo era
+  // tapar un parser sano por culpa de otro. Este test es la otra mitad del contrato: si alguien
+  // vuelve a ensanchar la guarda a la action entera, se pone en rojo.
+  it('un .csv NO lo frena la guarda', async () => {
+    const r = await createImportPreview(conArchivo('catalogo.csv', 'Nombre,Precio\nAmoxicilina,85000\n'));
+    // Puede fallar más adelante (la base está mockeada); lo que NO puede es morir en la guarda.
+    if (!r.ok) expect(r.error).not.toMatch(/deshabilitad/);
   });
 
   it("ingestRecipeAction rechaza kind:'excel' para un usuario autenticado", async () => {
