@@ -100,6 +100,8 @@ export function AppointmentCalendar({
   owners,
   vets,
   miId,
+  veTodo,
+  acotarA,
 }: {
   initialAppointments: AppointmentRow[]
   initialRange: { start: string; end: string }
@@ -108,6 +110,22 @@ export function AppointmentCalendar({
   vets: SelectOption[]
   /** Quién está mirando. Es lo que hace posible separar "mi agenda" de la de la clínica. */
   miId: string | null
+  /**
+   * Si esta persona tiene el permiso de ver la agenda de toda la clínica (0070).
+   *
+   * SIN EL PERMISO NO HAY INTERRUPTOR, y no es sólo por esconder el botón: sin permiso la consulta
+   * ni siquiera trae las citas de los demás, así que un interruptor que no cambia nada sería peor
+   * que no tenerlo — parecería que la clínica no tiene más citas que las tuyas.
+   */
+  veTodo: boolean
+  /**
+   * El `.or()` con el que se piden las citas, o `null` para pedirlas todas.
+   *
+   * LO CALCULA EL SERVIDOR y viaja como prop porque esta misma consulta se repite acá cada vez que
+   * el vet cambia de semana. Aplicar el permiso sólo en la carga inicial no serviría de nada:
+   * bastaría con avanzar una semana para volver a traerse la agenda de todos.
+   */
+  acotarA: string | null
 }) {
   const [supabase] = useState(() => createClient())
   const [events, setEvents] = useState<CalendarEvent[]>(() => initialAppointments.map(toEvent))
@@ -135,9 +153,10 @@ export function AppointmentCalendar({
 
   const loadRange = useCallback(
     async (start: Date, end: Date) => {
-      const { data, error } = await supabase
-        .from("appointments")
-        .select(APPOINTMENT_SELECT)
+      const { data, error } = await (acotarA
+        ? supabase.from("appointments").select(APPOINTMENT_SELECT).or(acotarA)
+        : supabase.from("appointments").select(APPOINTMENT_SELECT)
+      )
         .lte("starts_at", end.toISOString())
         .gte("ends_at", start.toISOString())
         .order("starts_at", { ascending: true })
@@ -147,7 +166,7 @@ export function AppointmentCalendar({
       }
       setEvents(((data ?? []) as unknown as AppointmentRow[]).map(toEvent))
     },
-    [supabase],
+    [supabase, acotarA],
   )
 
   const openDrawer = useCallback((init: AppointmentFormInitial) => {
@@ -289,7 +308,10 @@ export function AppointmentCalendar({
     filtro,
     miId,
   )
-  const ocultas = filtro === "mia" ? deOtros(events.map((e) => e.resource), miId) : 0
+  // CUÁNTAS SE ESTÁN ESCONDIENDO — y sólo tiene sentido si de verdad hay algo escondido. Sin el
+  // permiso, las citas de los demás nunca llegaron: contar cero y decirlo sería mentir por omisión
+  // al revés, sugiriendo que la clínica no tiene más citas que las tuyas.
+  const ocultas = veTodo && filtro === "mia" ? deOtros(events.map((e) => e.resource), miId) : 0
   const huerfanas = sinAsignar(events.map((e) => e.resource))
 
   return (
@@ -307,7 +329,7 @@ export function AppointmentCalendar({
         <div className="flex flex-wrap items-center gap-2">
           {/* EL INTERRUPTOR. Dice cuántas citas está escondiendo: filtrar sin decirlo es ocultar, y
               en una agenda clínica eso se paga con alguien que no fue a una cita. */}
-          {miId && (
+          {veTodo && miId && (
             <ToggleGroup
               // Base UI maneja el valor como ARREGLO aunque la selección sea única. `?? filtro`
               // ignora el intento de des-seleccionar: la agenda siempre muestra algo — quedarse sin
