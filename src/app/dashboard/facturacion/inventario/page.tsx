@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { ArrowLeft, AlertTriangle, ArrowLeftRight, FileUp, BookOpen, ShoppingCart } from 'lucide-react';
+import { ArrowLeft, AlertTriangle, ArrowLeftRight, FileDown, FileUp, BookOpen, ShoppingCart } from 'lucide-react';
 import { requireClinicPage } from '@/lib/facturacion/page-auth';
 import {
   ensureDefaultCategories,
@@ -185,6 +185,27 @@ export default async function InventarioPage({
               <ArrowLeftRight className="size-4" aria-hidden />
               Movimientos
             </Link>
+            {/* BAJAR EL INVENTARIO A EXCEL. Es un <a> y no un botón con JS porque la respuesta es
+                un archivo: así anda el click derecho, "abrir en otra pestaña" y la descarga no
+                depende de que el JS haya cargado.
+
+                `download` NO ES DECORATIVO. Un <a> a una ruta interna recarga el documento, y con
+                él se muere el MediaRecorder de una consulta en curso — hay un test de la casa que
+                vigila exactamente eso. Con `download` el navegador baja el archivo SIN navegar, así
+                que se puede exportar el inventario en medio de una grabación sin cortarla. El
+                nombre del archivo lo pone el `Content-Disposition` de la ruta.
+
+                Va ANTES de Importar a propósito: importar está deshabilitado (ver abajo), así que
+                hoy esto es lo único que mueve el inventario entre la app y una planilla. */}
+            <a
+              href="/api/facturacion/inventario/export"
+              download
+              title="Descarga el inventario completo en .xlsx — con precios en pesos y las existencias de hoy."
+              className="inline-flex items-center gap-2 rounded-lg border border-line bg-surface px-3 py-2 text-sm text-fg-muted hover:bg-surface-2 hover:text-fg transition"
+            >
+              <FileDown className="size-4" aria-hidden />
+              Exportar
+            </a>
             {/* El destino existe y explica por qué está deshabilitado, pero prometía "Importar" a
                 secas: se llegaba esperando importar y salía un "próximamente". Que se sepa antes
                 de hacer clic. */}
