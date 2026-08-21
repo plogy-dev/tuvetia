@@ -67,6 +67,10 @@ describe("aislamiento por clínica", () => {
         "human_tasks",
         "invoices",
         "whatsapp_integrations",
+        // Sumada el 2026-08-21 con la señal de consultas sin facturar. El test hizo lo que dice
+        // arriba: falló al aparecer una tabla nueva en el camino de las señales, y obliga a
+        // declarar acá que su consulta también acota por clínica. Lo hace — ver `consultar.ts`.
+        "consultations",
       ]),
     )
   })
@@ -166,6 +170,57 @@ describe("los cobros vencidos se comparan contra el día de BOGOTÁ", () => {
     respuestas = { invoices: { data: [{ balance_cents: 0, due_date: "2026-08-01" }] } }
 
     expect((await senalesDeLaClinica(clienteFalso(), CLINICA, HOY)).cobrosVencidos.cuantas).toBe(0)
+  })
+})
+
+describe("consultas sin facturar", () => {
+  // ANULAR UNA FACTURA DEJA LA CONSULTA OTRA VEZ POR COBRAR, y por eso el estado viaja en el embed
+  // en vez de contar filas. `getUnbilledConsultations` —la lista de Ventas a la que este número
+  // manda— ya descarta las anuladas con `.neq('status','ANULADA')`; si el riel las contara como
+  // facturadas, escondería la consulta justo cuando hay que volver a emitirla, y el número no
+  // cuadraría con la lista que el vet abre a continuación.
+  const consultas = (data: unknown[]) => ({ consultations: { data } })
+
+  it("una consulta sin ninguna factura cuenta", async () => {
+    respuestas = consultas([{ id: "c1", invoices: [] }])
+
+    const r = await senalesDeLaClinica(clienteFalso(), CLINICA, HOY)
+
+    expect(r.pendientes.find((p) => p.id === "sin-facturar")?.etiqueta).toBe("1 consulta sin facturar")
+  })
+
+  it("una consulta ya facturada no cuenta", async () => {
+    respuestas = consultas([{ id: "c1", invoices: [{ id: "f1", status: "EMITIDA" }] }])
+
+    const r = await senalesDeLaClinica(clienteFalso(), CLINICA, HOY)
+
+    expect(r.pendientes.map((p) => p.id)).not.toContain("sin-facturar")
+  })
+
+  it("una consulta cuya ÚNICA factura fue anulada vuelve a contar", async () => {
+    respuestas = consultas([{ id: "c1", invoices: [{ id: "f1", status: "ANULADA" }] }])
+
+    const r = await senalesDeLaClinica(clienteFalso(), CLINICA, HOY)
+
+    expect(r.pendientes.find((p) => p.id === "sin-facturar")?.etiqueta).toBe("1 consulta sin facturar")
+  })
+
+  it("si se anuló una y se emitió otra, ya está facturada", async () => {
+    respuestas = consultas([
+      { id: "c1", invoices: [{ id: "f1", status: "ANULADA" }, { id: "f2", status: "EMITIDA" }] },
+    ])
+
+    const r = await senalesDeLaClinica(clienteFalso(), CLINICA, HOY)
+
+    expect(r.pendientes.map((p) => p.id)).not.toContain("sin-facturar")
+  })
+
+  it("el embed nulo se trata como sin factura, no como error", async () => {
+    respuestas = consultas([{ id: "c1", invoices: null }])
+
+    const r = await senalesDeLaClinica(clienteFalso(), CLINICA, HOY)
+
+    expect(r.pendientes.find((p) => p.id === "sin-facturar")?.etiqueta).toBe("1 consulta sin facturar")
   })
 })
 

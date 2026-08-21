@@ -75,6 +75,13 @@ export type SenalesDeLaClinica = {
  * todavía: un riel al que le falta una línea es molesto; uno que rompe la pantalla de inicio porque
  * `vaccines` no respondió es inaceptable.
  */
+/** El corte de la ventana: la misma que usa `getUnbilledConsultations`. */
+function hace60Dias(hoyISO: string): string {
+  const d = new Date(`${hoyISO}T00:00:00-05:00`)
+  d.setUTCDate(d.getUTCDate() - 60)
+  return d.toISOString()
+}
+
 export async function senalesDeLaClinica(
   supabase: SupabaseClient,
   clinicId: string,
@@ -85,7 +92,7 @@ export async function senalesDeLaClinica(
 
   const caidas: SenalesCaidas = []
 
-  const [notas, mensajes, vacunas, tareas, facturas, integraciones] = await Promise.all([
+  const [notas, mensajes, vacunas, tareas, facturas, integraciones, sinFacturarRows] = await Promise.all([
     supabase
       .from("clinical_notes")
       .select("status")
@@ -134,7 +141,38 @@ export async function senalesDeLaClinica(
       .select("status, updated_at")
       .eq("clinic_id", clinicId)
       .then(oVacio<IntegracionParaSenal>("whatsapp_integrations", clinicId, caidas)),
+
+    // CONSULTAS TERMINADAS SIN FACTURA. El embed `invoices(id, status)` viene con `!left` explícito
+    // porque lo que interesa son justamente las que NO tienen ninguna — un embed normal las dejaría
+    // fuera. El filtro de "sin factura" se hace acá abajo, no en SQL: PostgREST no sabe expresar
+    // "el embed vacío" en un `.is()` sin volverse ilegible.
+    //
+    // La ventana de 60 días es la misma que usa `getUnbilledConsultations`. Sin ella, una clínica
+    // que empieza a facturar hoy arrastraría un año de consultas viejas al riel el primer día.
+    supabase
+      .from("consultations")
+      .select("id, invoices!left(id, status)")
+      .eq("clinic_id", clinicId)
+      .eq("status", "completed")
+      .gte("started_at", hace60Dias(hoyISO))
+      .limit(200)
+      .then(
+        oVacio<{ id: string; invoices: { id: string; status: string }[] | null }>(
+          "consultations",
+          clinicId,
+          caidas,
+        ),
+      ),
   ])
+
+  // SIN FACTURA = sin ninguna que siga en pie. Una ANULADA no cuenta como facturada, y esto no es
+  // un detalle: `getUnbilledConsultations` —la lista de Ventas a la que este número manda— la
+  // descarta con `.neq('status','ANULADA')`, porque anular una factura deja la consulta otra vez
+  // por cobrar. Si acá se contara, el riel escondería la consulta justo cuando hay que volver a
+  // emitirla, y el número dejaría de cuadrar con la lista que el vet abre a continuación.
+  const sinFactura = sinFacturarRows.filter(
+    (c) => !(c.invoices ?? []).some((i) => i.status !== "ANULADA"),
+  )
 
   const vencidas = facturas.filter((f) => (f.balance_cents ?? 0) > 0 && f.due_date && f.due_date < hoyISO)
   const cobros = {
@@ -143,7 +181,16 @@ export async function senalesDeLaClinica(
   }
 
   return {
-    pendientes: pendientesDeLaClinica({ hoyISO, notas, mensajes, vacunas, tareas, cobros, integraciones }),
+    pendientes: pendientesDeLaClinica({
+      hoyISO,
+      notas,
+      mensajes,
+      vacunas,
+      tareas,
+      cobros,
+      integraciones,
+      sinFacturar: sinFactura,
+    }),
     cobrosVencidos: cobros,
     caidas,
   }

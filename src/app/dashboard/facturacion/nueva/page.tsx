@@ -9,6 +9,7 @@ import {
 import { DEFAULT_UVT_VALUE_CENTS } from '@/lib/facturacion/constants';
 import { fmtDate } from '@/lib/facturacion/format';
 import { InvoiceCart } from '@/components/facturacion/InvoiceCart';
+import { sugerirRenglones } from '@/lib/facturacion/lo-recetado';
 import { FormularioDeFiltros } from "@/components/ui/formulario-de-filtros"
 
 export const metadata = { title: "Nueva factura · Tuvetia" }
@@ -49,13 +50,31 @@ export default async function NuevaFacturaPage({ searchParams }: { searchParams:
 
   // Una sola ola: settings, catálogo y consultas sin facturar no dependen entre
   // sí (los gates `showCart`/`q` salen del searchParams, no de settings).
-  const [settings, items, unbilled] = await Promise.all([
+  const [settings, items, unbilled, notaDeLaConsulta] = await Promise.all([
     getBillingSettings(supabase, clinicId),
     showCart ? listCatalogItems(supabase, clinicId) : Promise.resolve([]),
     !showCart && !q
       ? getUnbilledConsultations(supabase, clinicId)
       : Promise.resolve([]),
+    // EL PLAN DE LA CONSULTA, si se vino desde una. SÓLO la nota APROBADA: cobrar a partir de un
+    // borrador que nadie firmó sería facturar lo que todavía se puede cambiar.
+    showCart && sp.consultationId
+      ? supabase
+          .from('clinical_notes')
+          .select('plan')
+          .eq('clinic_id', clinicId)
+          .eq('consultation_id', sp.consultationId)
+          .eq('status', 'approved')
+          .maybeSingle()
+      : Promise.resolve({ data: null }),
   ]);
+
+  // Lo recetado, cruzado con el catálogo. Sin nota aprobada o sin nada cobrable en el plan queda
+  // vacío y el carrito arranca como siempre — el camino de la factura suelta no cambia.
+  const renglonesIniciales = sugerirRenglones(
+    (notaDeLaConsulta as { data: { plan: string | null } | null }).data?.plan ?? null,
+    items.map((i) => ({ id: i.id, name: i.name, price_cents: i.price_cents, tax_rate: i.tax_rate })),
+  );
   const active = settings?.module_status === 'ACTIVO';
 
   // ── Paso carrito ──────────────────────────────────────────────────────────
@@ -89,6 +108,7 @@ export default async function NuevaFacturaPage({ searchParams }: { searchParams:
             patientId={sp.patientId}
             patientName={sp.patientName}
             consultationId={sp.consultationId}
+            renglonesIniciales={renglonesIniciales}
             defaultDocKind={settings?.default_doc_kind ?? 'POS'}
             uvtValueCents={settings?.uvt_value_cents ?? DEFAULT_UVT_VALUE_CENTS}
             defaultTermsDays={settings?.default_payment_terms_days ?? 15}

@@ -11,6 +11,7 @@ import {
   ChevronDown,
   ExternalLink,
   FileText,
+  Receipt,
   Loader2,
   Save,
   Sparkles,
@@ -21,6 +22,7 @@ import { athosPhantomSuggest, type Citation, type ConditionAlert } from "@/lib/a
 import { tituloDeLaConsulta } from "@/lib/consultas/titulo"
 import { Cockpit, type PestanaDelCockpit } from "@/components/athos/cockpit"
 import { InformeAlTitular } from "@/components/consultas/informe-al-titular"
+import { hayAlgoQueCobrar } from "@/lib/facturacion/lo-recetado"
 import { useConsultaViva } from "@/lib/consulta-viva/usar"
 import { useRouter } from "next/navigation"
 import { createClient } from "@/lib/supabase/client"
@@ -814,6 +816,30 @@ export default function NotaConsultaPage({ params }: { params: Promise<{ id: str
                 <FileText className="size-4" />
                 Informe para el titular
               </Button>
+              {/* LA FACTURA, DESDE ACÁ. Lo pidió Luciano el 19-ago: que Athos avise "tenés esta
+                  factura por emitir de esta consulta".
+
+                  La lista de consultas sin facturar YA EXISTÍA —en Ventas → Nueva factura— y ahí
+                  estaba el problema: hay que ir a Ventas para enterarse, y quien atiende no entra a
+                  Ventas hasta que va a cobrar. Para entonces ya se olvidó de la de anteayer.
+
+                  El carrito arranca CON LO RECETADO: la página de nueva factura lee el plan de la
+                  nota aprobada y lo cruza con el catálogo. Todo en cantidad 1 — la posología no se
+                  convierte en unidades, porque si ese cálculo falla, falla en la factura de un
+                  cliente y nadie revisa un número que ya viene puesto y parece razonable. */}
+              {approved && hayAlgoQueCobrar(soap.plan) && pet?.owner_id && (
+                <Button
+                  variant="outline"
+                  render={
+                    <Link
+                      href={`/dashboard/facturacion/nueva?ownerId=${pet.owner_id}&patientId=${consultation.patient_id}&patientName=${encodeURIComponent(pet.name)}&consultationId=${consultation.id}`}
+                    />
+                  }
+                >
+                  <Receipt className="size-4" />
+                  Facturar lo recetado
+                </Button>
+              )}
               {note.ai_generated_at && (
                 <span className="ml-auto text-xs text-muted-foreground">Redactada por Athos</span>
               )}
