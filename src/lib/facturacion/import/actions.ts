@@ -128,32 +128,53 @@ export async function createImportPreview(
   // con xlsx@0.18.5 en el servidor (prototype pollution + ReDoS, sin fix en npm). Quedó registrada
   // como endpoint al portar ImportBatchesList (importar CUALQUIER export de un módulo 'use server'
   // registra TODAS sus actions), así que la guarda va acá adentro, antes de tocar el archivo.
-  // createImportPreviewFromCapture (foto/texto vía visión) y revertImport siguen activas — no usan
-  // xlsx. Constante de CÓDIGO y no flag de env, a propósito: un env permitiría rehabilitar el
-  // parser vulnerable sin reemplazar la lib. Se levanta editando esta línea cuando entre el parser
-  // seguro. (El `as boolean` evita que TS marque el resto como inalcanzable y pierda el narrowing.)
-  const XLSX_IMPORT_ENABLED = false as boolean;
-  if (!XLSX_IMPORT_ENABLED) {
+  //
+  // ── DEJA PASAR EL CSV, Y NO ES UNA CONCESIÓN ────────────────────────────────────────────────
+  //
+  // La guarda bloqueaba la action ENTERA, pero `parseInventoryFile` sólo llama a xlsx cuando el
+  // nombre termina en `.xlsx`/`.xls`; el camino del CSV es **Papaparse**, que no tiene nada que ver
+  // con estas CVE. O sea que se estaba bloqueando un parser sano para tapar a otro.
+  //
+  // El corte pasa a ser por EXTENSIÓN y sigue estando ANTES DE TODO —antes de la sesión, antes de
+  // leer un byte— así que la propiedad que importa no cambia: `XLSX.read` es inalcanzable desde
+  // esta action, con sesión o sin ella. Lo que cambia es que "guardar como CSV" en Excel, que es un
+  // paso que cualquier clínica sabe dar, vuelve a ser un camino de importación.
+  //
+  // Sigue siendo constante de CÓDIGO y no flag de env, a propósito: un env permitiría rehabilitar
+  // el parser vulnerable sin reemplazar la lib. Se levanta editando esta línea cuando entre el
+  // parser seguro. (El `as boolean` evita que TS marque el resto como inalcanzable.)
+  const XLSX_PARSER_ENABLED = false as boolean;
+  const subido = formData.get('file');
+  const nombreSubido = subido instanceof File ? subido.name : '';
+  if (!XLSX_PARSER_ENABLED && /\.(xlsx|xls)$/i.test(nombreSubido)) {
     return {
       ok: false,
       error:
-        'La importación desde Excel está deshabilitada temporalmente. Podés cargar el catálogo con una foto de la planilla (Importar con IA) o ítem por ítem.',
+        'Los archivos .xlsx y .xls están deshabilitados temporalmente. Abrí la planilla en Excel, ' +
+        'usá "Guardar como → CSV" y subí ese archivo; o cargá el catálogo con una foto (Importar con IA).',
     };
   }
   try {
     const { supabase, clinicId, userId } = await requireClinic();
     const file = formData.get('file');
     if (!(file instanceof File) || file.size === 0) {
-      return { ok: false, error: 'Selecciona un archivo .csv o .xlsx' };
+      return { ok: false, error: 'Selecciona un archivo .csv' };
     }
     if (file.size > MAX_FILE_BYTES) {
       return { ok: false, error: 'El archivo supera 2 MB. Divide la planilla.' };
     }
-    if (!/\.(csv|xlsx|xls)$/i.test(file.name)) {
-      return { ok: false, error: 'Formato no soportado (usa .csv, .xlsx o .xls)' };
+    if (!/\.csv$/i.test(file.name)) {
+      return { ok: false, error: 'Formato no soportado (por ahora sólo .csv)' };
     }
 
     const buffer = Buffer.from(await file.arrayBuffer());
+    // SEGUNDA VUELTA DE LLAVE, y a propósito. La de arriba corre sobre lo que vino en el FormData;
+    // ésta sobre el nombre con el que realmente se va a parsear. Son la misma cadena hoy, y el día
+    // que alguien meta un paso en el medio —renombrar, descomprimir, tomar el nombre de otro
+    // campo— la que decide es ésta, que está pegada a la llamada.
+    if (!XLSX_PARSER_ENABLED && /\.(xlsx|xls)$/i.test(file.name)) {
+      return { ok: false, error: 'Los archivos .xlsx y .xls están deshabilitados temporalmente.' };
+    }
     const { columns, rows } = parseInventoryFile(buffer, file.name);
     if (rows.length === 0) return { ok: false, error: 'El archivo no contiene filas de datos' };
     if (rows.length > MAX_IMPORT_ROWS) {
