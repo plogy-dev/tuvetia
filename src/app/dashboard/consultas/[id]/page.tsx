@@ -374,7 +374,8 @@ export default function NotaConsultaPage({ params }: { params: Promise<{ id: str
   // quitó hace poco.
   if (grabandoEsta) {
     return (
-      <div className="consulta flex flex-1 flex-col">
+      // El cockpit NO fuerza superficie oscura — ver el comentario del return principal.
+      <div className="flex flex-1 flex-col">
         <Cockpit
           pestana={pestanaCockpit}
           alCambiarPestana={setPestanaCockpit}
@@ -385,18 +386,24 @@ export default function NotaConsultaPage({ params }: { params: Promise<{ id: str
   }
 
   return (
-    // `consulta` = superficie GRAFITO. Es el segundo contexto del sistema de diseño v2: el CRM va en
-    // blanco y la consulta abierta en oscuro. No es estética — es lo que separa el "cockpit" de la
-    // consulta del resto de la app, y de un vistazo dice si estás con un paciente delante o no.
+    // LA CONSULTA YA NO SE PONE OSCURA, y es un cambio de decisión, no un arreglo de descuido.
     //
-    // La clase sólo reasigna variables (`globals.css`), así que TODO lo de adentro —cards, badges,
-    // el hilo de Athos, los bloques del calendario— se repinta heredando. Ningún componente de acá
-    // sabe en qué contexto está, que es justamente el punto.
+    // Llevaba la clase `consulta` —superficie grafito— porque el sistema de diseño v2 de David tenía
+    // dos contextos: el CRM en blanco y la consulta abierta en oscuro, para que de un vistazo se
+    // supiera si había un paciente delante. Era deliberado y estaba escrito acá.
     //
-    // El padding que antes tenía el contenedor centrado sube a este: `dashboard/layout.tsx` no pone
-    // ninguno alrededor de `{children}`, así que el grafito tiene que llegar solo hasta el borde del
-    // área de contenido. Si el padding se quedara adentro, quedaría un marco blanco alrededor.
-    <div className="consulta flex flex-1 flex-col px-4 py-4 md:py-6 lg:px-6">
+    // POR QUÉ SE CAE. El 19-ago se cambió la referencia de diseño al prototipo de Luciano, y ese
+    // prototipo NO tiene superficie oscura por sección: tiene un único `.dark` global que prende el
+    // usuario cuando quiere. Entrar al Modo Fantasma y que la pantalla se apague sola es, contra esa
+    // referencia, un salto de tema que nadie pidió — y encima ignora al vet que eligió tema claro.
+    //
+    // LO QUE SÍ SIGUE OSCURO ES EL NOTCH (`grabacion-pastilla.tsx` y su panel). Eso no es lo mismo:
+    // es un objeto flotante, chico, que tiene que despegarse del fondo para verse desde cualquier
+    // pantalla — y es exactamente como se ve en las capturas del prototipo. Lo que se quita es que
+    // se oscurezca LA SECCIÓN entera.
+    //
+    // El padding se queda: `dashboard/layout.tsx` no pone ninguno alrededor de `{children}`.
+    <div className="flex flex-1 flex-col px-4 py-4 md:py-6 lg:px-6">
     <div className="mx-auto flex w-full max-w-7xl flex-col gap-4 md:gap-5">
       <Link
         href="/dashboard/consultas"
