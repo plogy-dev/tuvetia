@@ -21,6 +21,7 @@ import { useCallback, useEffect, useRef, useState } from "react"
 import { AudioLines, Loader2, Mic, ShieldCheck, Square } from "lucide-react"
 import { toast } from "sonner"
 
+import { comoReloj } from "@/lib/duracion"
 import { consultaViva } from "@/lib/consulta-viva/sesion"
 import { useConsultaViva } from "@/lib/consulta-viva/usar"
 import { createClient } from "@/lib/supabase/client"
@@ -62,7 +63,7 @@ export function ConsultationRecorder({
   const lista = esLaMia && sesion.fase === "terminada"
   const otraEnCurso = !esLaMia && sesion.fase === "grabando"
 
-  const mmss = `${String(Math.floor(sesion.segundos / 60)).padStart(2, "0")}:${String(sesion.segundos % 60).padStart(2, "0")}`
+  const mmss = comoReloj(sesion.segundos)
 
   // Inserta la fila de consentimiento de ESTA consulta (el trigger de BD la exige siempre).
   // owner_scope=true cuando el titular acepta por primera vez -> cubre sus próximas consultas.
