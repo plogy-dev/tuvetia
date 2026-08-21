@@ -13,6 +13,8 @@ import { toast } from "sonner"
 
 import { createClient } from "@/lib/supabase/client"
 import { Button } from "@/components/ui/button"
+import { filaDeCabecera } from "@/lib/importar/cabecera"
+import { comoTexto } from "@/lib/importar/texto"
 import {
   CAMPOS,
   SIN_MAPEAR,
@@ -21,6 +23,16 @@ import {
   normalizar,
   type Columna,
 } from "@/lib/pacientes/columnas-del-archivo"
+
+/**
+ * ¿Esta celda parece un encabezado de pacientes?
+ *
+ * Es la señal fuerte con la que `filaDeCabecera` distingue la tabla de una fila de título. Se
+ * apoya en el MISMO puntaje que después hace el mapeo —no en una segunda lista de sinónimos que
+ * se desincronizaría— pasándole una columna sola: si algún campo la reclama, es un encabezado.
+ */
+const esEncabezadoDePaciente = (celda: string) =>
+  Object.values(mapearColumnas(columnasDe([celda]))).some((v) => v !== SIN_MAPEAR)
 
 function normSex(v: string): "male" | "female" | "unknown" {
   const n = normalizar(v)
@@ -85,25 +97,39 @@ export default function ImportPatientsPage() {
       // SheetJS (~1 MB) se carga recién acá, cuando el usuario ya eligió un archivo — no al
       // entrar a la página.
       const XLSX = await import("xlsx")
-      // CSV/TSV/TXT: leer como TEXTO (UTF-8) — si se lee como binario, SheetJS no detecta el
-      // codepage y destroza los acentos (Michifú -> MichifÃº). Los binarios (xlsx/xls/ods) sí van
-      // por arrayBuffer.
+      // CSV/TSV/TXT: leer como TEXTO — si se lee como binario, SheetJS no detecta el codepage y
+      // destroza los acentos (Michifú -> MichifÃº). Los binarios (xlsx/xls/ods) sí van por
+      // arrayBuffer.
+      //
+      // Y EL TEXTO PASA POR `comoTexto`, no por `file.text()`: `File.text()` decodifica SIEMPRE
+      // como UTF-8, y Excel en Windows guarda "CSV" en Windows-1252. Con `file.text()` la ó de
+      // "Teléfono"/"Dirección" llegaba como `�` y esa columna no mapeaba con ninguna regla —
+      // medido en el barrido de formatos del 21-ago sobre el importador de inventario, que tenía
+      // exactamente el mismo defecto.
       const isText = /\.(csv|tsv|txt)$/i.test(file.name)
+      const bytes = new Uint8Array(await file.arrayBuffer())
       const wb = isText
-        ? XLSX.read(await file.text(), { type: "string" })
-        : XLSX.read(new Uint8Array(await file.arrayBuffer()), { type: "array", cellDates: true })
+        ? XLSX.read(comoTexto(bytes), { type: "string" })
+        : XLSX.read(bytes, { type: "array", cellDates: true })
       const ws = wb.Sheets[wb.SheetNames[0]]
       const matrix = XLSX.utils.sheet_to_json<unknown[]>(ws, { header: 1, blankrows: false, defval: "" })
       if (!matrix.length) {
         toast.error("El archivo está vacío.")
         return
       }
+      // DÓNDE EMPIEZA LA TABLA. Antes se tomaba `matrix[0]` sin más, y una planilla con fila de
+      // título arriba —"LISTADO DE PACIENTES"— metía los encabezados reales como si fueran un
+      // paciente y dejaba las columnas sin nombre. Es el caso que más rompía en el barrido del
+      // 21-ago, y es el mismo módulo que usa el importador de inventario.
+      const texto = (f: unknown[]) => (f as unknown[]).map((h) => String(h ?? ""))
+      const inicio = filaDeCabecera(matrix.map(texto), esEncabezadoDePaciente)
+
       // LAS FILAS SE INDEXAN POR POSICIÓN, no por el texto del encabezado. Una planilla exportada
       // trae encabezados repetidos ("Teléfono" dos veces) y encabezados vacíos: con el texto como
       // clave, la segunda columna pisaba a la primera y los datos de una aparecían bajo el nombre
       // de otra. Es la otra mitad de "mezcla las columnas" que reportó David.
-      const cols = columnasDe((matrix[0] as unknown[]).map((h) => String(h ?? "")))
-      const body = matrix.slice(1).map((r) => {
+      const cols = columnasDe(texto(matrix[inicio] as unknown[]))
+      const body = matrix.slice(inicio + 1).map((r) => {
         const obj: Record<string, unknown> = {}
         cols.forEach((c, i) => (obj[c.id] = (r as unknown[])[i]))
         return obj
