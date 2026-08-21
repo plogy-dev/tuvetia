@@ -6,6 +6,8 @@
 
 import Papa from 'papaparse';
 import * as XLSX from 'xlsx';
+import { filaDeCabecera } from '@/lib/importar/cabecera';
+import { comoTexto } from '@/lib/importar/texto';
 import { pesosToCents } from '@/lib/facturacion/domain/money';
 import type { TaxStatus } from '@/lib/facturacion/domain/types';
 import {
@@ -22,28 +24,107 @@ import {
 // arrastrar xlsx/papaparse al bundle del navegador.
 export * from './fields';
 
+/** ¿Esta celda parece un encabezado que sabemos mapear? Es la señal fuerte de `filaDeCabecera`. */
+const esEncabezadoConocido = (celda: string) => proposeMapping([celda])[celda] !== '';
+
+/**
+ * Una celda de xlsx como texto.
+ *
+ * LAS FECHAS SE FORMATEAN, NO SE IMPRIMEN. Con `cellDates` SheetJS entrega un `Date`, y
+ * `String(new Date())` da "Fri Jan 15 2027 00:00:00 GMT-0500 (…)" — que ningún parser de
+ * vencimientos va a entender. Sin `cellDates` es peor todavía: llega el serial de Excel crudo
+ * (`46401.79`), que fue lo que salió en el barrido del 21-ago con la columna "Vence".
+ *
+ * SE LEEN LOS COMPONENTES **LOCALES**, no `toISOString()`. Un serial de Excel no lleva zona: es un
+ * día del calendario, y SheetJS lo materializa como la medianoche LOCAL de ese día. Pasarlo por
+ * `toISOString()` lo reinterpreta como instante UTC, y en cualquier zona con offset positivo
+ * —Europa— la medianoche local del 15 es el 14 a las 22:00 en UTC: el vencimiento se importa un día
+ * antes. En Colombia (UTC-5) el error no aparece, que es justo lo que lo haría difícil de encontrar
+ * después.
+ */
+function celdaATexto(v: unknown): string {
+  if (v instanceof Date && !Number.isNaN(v.getTime())) {
+    const p = (n: number) => String(n).padStart(2, '0');
+    return `${v.getFullYear()}-${p(v.getMonth() + 1)}-${p(v.getDate())}`;
+  }
+  return String(v ?? '').trim();
+}
+
 export function parseInventoryFile(
   buffer: Buffer,
   fileName: string,
 ): { columns: string[]; rows: Record<string, string>[] } {
   if (/\.(xlsx|xls)$/i.test(fileName)) {
-    const wb = XLSX.read(buffer, { type: 'buffer' });
+    // `cellDates` para que un vencimiento no llegue como el serial de Excel. Ver `celdaATexto`.
+    const wb = XLSX.read(buffer, { type: 'buffer', cellDates: true });
     const sheet = wb.Sheets[wb.SheetNames[0]];
-    const json = XLSX.utils.sheet_to_json<Record<string, unknown>>(sheet, { defval: '' });
-    const rows = json.map((r) =>
-      Object.fromEntries(Object.entries(r).map(([k, v]) => [k.trim(), String(v).trim()])),
-    );
-    return { columns: rows.length ? Object.keys(rows[0]) : [], rows };
+
+    // SE LEE COMO MATRIZ, no como objetos por encabezado, porque hasta no saber CUÁL fila es el
+    // encabezado no se puede usar ninguna como clave. `blankrows: false` saca las filas separadoras
+    // que traen las planillas exportadas.
+    const matriz = XLSX.utils
+      .sheet_to_json<unknown[]>(sheet, { header: 1, blankrows: false, defval: '' })
+      .map((f) => (f as unknown[]).map(celdaATexto));
+
+    const inicio = filaDeCabecera(matriz, esEncabezadoConocido);
+    const columns = dedup((matriz[inicio] ?? []).map((c) => c.trim()));
+    const rows = matriz
+      .slice(inicio + 1)
+      .map((f) => Object.fromEntries(columns.map((c, i) => [c, f[i] ?? ''])))
+      .filter((r) => Object.values(r).some((v) => v !== ''));
+
+    return { columns, rows };
   }
-  const parsed = Papa.parse<Record<string, string>>(buffer.toString('utf-8'), {
+
+  // `comoTexto` y no `toString("utf-8")`: Excel en Windows guarda CSV en Windows-1252 y los acentos
+  // llegaban como `�`, que rompe el mapeo de la columna con tilde. Ver `lib/importar/texto`.
+  const texto = comoTexto(buffer);
+
+  // La fila de título también aparece en CSV. Se busca con el mismo criterio que en xlsx, y recién
+  // después se le pasa a Papa el texto que empieza en el encabezado.
+  const sinCabecera = Papa.parse<string[]>(texto, { skipEmptyLines: true });
+  const inicio = filaDeCabecera((sinCabecera.data ?? []).map((f) => f.map((c) => String(c ?? ''))), esEncabezadoConocido);
+
+  const parsed = Papa.parse<Record<string, string>>(texto, {
     header: true,
     skipEmptyLines: true,
     transformHeader: (h) => h.trim(),
+    // Papa cuenta las líquidas ya salteadas, así que `inicio` es directamente cuántas descartar.
+    ...(inicio > 0 ? { beforeFirstChunk: (c: string) => saltarLineas(c, inicio) } : {}),
   });
   const rows = parsed.data.map((r) =>
     Object.fromEntries(Object.entries(r).map(([k, v]) => [k, String(v ?? '').trim()])),
   );
   return { columns: parsed.meta.fields ?? [], rows };
+}
+
+/**
+ * Nombres de columna únicos.
+ *
+ * Dos columnas con el mismo encabezado —"Teléfono" dos veces, que es lo que traen las planillas
+ * exportadas— colapsarían en una sola clave y la segunda pisaría a la primera: los datos de una
+ * aparecen bajo el nombre de la otra. Es la mitad de "mezcla las columnas" que ya se arregló en el
+ * importador de pacientes (#146) indexando por posición; acá se resuelve desambiguando el nombre.
+ */
+function dedup(nombres: string[]): string[] {
+  const vistos = new Map<string, number>();
+  return nombres.map((n, i) => {
+    const base = n || `Columna ${i + 1}`;
+    const veces = vistos.get(base) ?? 0;
+    vistos.set(base, veces + 1);
+    return veces === 0 ? base : `${base} (${veces + 1})`;
+  });
+}
+
+/** Descarta las primeras `n` líneas del texto crudo, respetando CRLF. */
+function saltarLineas(texto: string, n: number): string {
+  let desde = 0;
+  for (let i = 0; i < n; i++) {
+    const corte = texto.indexOf('\n', desde);
+    if (corte === -1) return '';
+    desde = corte + 1;
+  }
+  return texto.slice(desde);
 }
 
 /** Propone correspondencias columna → campo por nombre normalizado. */
