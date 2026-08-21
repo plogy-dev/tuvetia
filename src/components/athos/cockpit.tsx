@@ -21,6 +21,7 @@
 import { useEffect } from "react"
 import { Loader2, Minimize2, Pause, Play, Sparkles, TriangleAlert } from "lucide-react"
 
+import { comoReloj } from "@/lib/duracion"
 import { AthosEnVivo } from "@/components/athos/athos-en-vivo"
 import { CasosParecidos } from "@/components/athos/casos-parecidos"
 import { Cuaderno } from "@/components/athos/cuaderno"
@@ -37,12 +38,6 @@ const PESTANAS = [
 ] as const
 
 export type PestanaDelCockpit = (typeof PESTANAS)[number]["id"]
-
-function mmss(total: number): string {
-  const m = Math.floor(total / 60)
-  const s = total % 60
-  return `${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`
-}
 
 /** Un panel del cockpit: título, bajada y cuerpo con su propio scroll. */
 function Panel({
@@ -111,7 +106,7 @@ export function Cockpit({
               />
               {pausada ? "En pausa" : "Grabando"}
               <span aria-hidden className="font-mono tabular-nums text-fg-muted">
-                {mmss(estado.segundos)}
+                {comoReloj(estado.segundos)}
               </span>
             </span>
           </h1>

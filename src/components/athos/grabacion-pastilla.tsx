@@ -43,14 +43,9 @@ import {
   TriangleAlert,
 } from "lucide-react"
 
+import { comoReloj } from "@/lib/duracion"
 import { consultaViva } from "@/lib/consulta-viva/sesion"
 import { useConsultaViva } from "@/lib/consulta-viva/usar"
-
-function mmss(total: number): string {
-  const m = Math.floor(total / 60)
-  const s = total % 60
-  return `${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`
-}
 
 // LA PASTILLA ES OSCURA EN LOS DOS TEMAS, y se consigue con la clase `.consulta` que el sistema ya
 // tiene: declara la paleta oscura completa —en nuestro menta, no en el azul del prototipo— sobre
@@ -230,7 +225,7 @@ export function GrabacionPastilla({
             aria-hidden
             className="hidden shrink-0 font-mono text-[11.5px] tabular-nums text-fg-muted sm:inline"
           >
-            {mmss(estado.segundos)}
+            {comoReloj(estado.segundos)}
           </span>
         </>
       )}
