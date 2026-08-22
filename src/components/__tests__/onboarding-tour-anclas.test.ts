@@ -58,7 +58,12 @@ describe("anclas del tour de onboarding", () => {
     //
     // Lo que se verifica es lo que el tour necesita —que el href salga al DOM como ancla—, no con
     // qué componente. Un <button> no pasa.
+    //
+    // Y NO SE EXIGE QUE NO HAYA MÁS PROPS. El patrón era literal hasta el `/>` y se puso en rojo al
+    // sumarle `prefetch` al link — un cambio que no toca en nada lo que este test protege. Un test
+    // que falla por props que no le incumben enseña a editarlo sin leerlo, y el día que alguien
+    // cambie el `<Link>` por un `<button>` ya nadie lo va a estar mirando.
     const navMain = readFileSync(join(raiz, "nav-main.tsx"), "utf8")
-    expect(navMain).toMatch(/render=\{<(?:Link|a) href=\{item\.url\} \/>\}/)
+    expect(navMain).toMatch(/render=\{<(?:Link|a) href=\{item\.url\}[^>]*\/>\}/)
   })
 })

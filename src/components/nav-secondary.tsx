@@ -38,7 +38,7 @@ export function NavSecondary({
               <SidebarMenuButton
                 isActive={isNavActive(pathname, item.url)}
                 tooltip={item.title}
-                render={<Link href={item.url} />}
+                render={<Link href={item.url} prefetch />}
               >
                 {item.icon}
                 <span>{item.title}</span>
