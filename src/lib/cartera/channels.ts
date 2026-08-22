@@ -20,6 +20,7 @@ import 'server-only';
 import { resendApiKey } from '@/lib/email/resend';
 import { sendTransactionalEmail, transactionalFrom } from '@/lib/email/transactional';
 import { buildMessageId } from '@/lib/email/threading';
+import { DestinoNoRegistrado } from '@/lib/whatsapp/destino-permitido';
 import { loadIntegration, sendWhatsAppText } from '@/lib/whatsapp/send-message';
 import type { CommsChannel } from '@/lib/supabase/types';
 import { SimulatedMessaging, type MessagingPort, type OutboundMessage, type SendResult } from './messaging';
@@ -98,12 +99,28 @@ export class RealMessaging implements MessagingPort {
   }
 
   private async sendWhatsApp(msg: OutboundMessage): Promise<SendResult> {
-    const { waMessageId } = await sendWhatsAppText(this.clinicId, msg.to, msg.body, {
-      ownerId: msg.ownerId ?? null,
-      sentBy: null, // lo envió el motor de cartera, no un humano
-      agentMode: 'auto',
-    });
-    return { ok: true, provider: 'whatsapp', providerMessageId: waMessageId, status: 'ENVIADO' };
+    try {
+      const { waMessageId } = await sendWhatsAppText(this.clinicId, msg.to, msg.body, {
+        ownerId: msg.ownerId ?? null,
+        sentBy: null, // lo envió el motor de cartera, no un humano
+        agentMode: 'auto',
+      });
+      return { ok: true, provider: 'whatsapp', providerMessageId: waMessageId, status: 'ENVIADO' };
+    } catch (e) {
+      // EL DESTINO NO ESTÁ REGISTRADO. Es el único camino automático que la guarda puede frenar:
+      // `auto-reply` y `wa-router` responden al número que ACABA de escribir, así que por la regla
+      // (b) nunca los bloquea. Cartera sí escribe primero, a un pagador que puede no estar cargado.
+      //
+      // SE TRADUCE A FALLO NO TRANSITORIO, y eso no es un detalle de tipos: `transient: false` es
+      // lo que hace que el scheduler abra una tarea `MENSAJE_NO_ENTREGADO` (§ `procesarRecordatorios`)
+      // en vez de reprogramar el recordatorio para mañana. Reprogramarlo sería reintentar todos los
+      // días algo que va a fallar siempre — y en silencio, porque nadie mira los logs de un cron.
+      //
+      // Así el vet ve "no se pudo entregar el recordatorio de FV-123" en su bandeja y decide: si el
+      // pagador es un cliente real, lo carga como titular y el próximo barrido sale solo.
+      if (e instanceof DestinoNoRegistrado) return fail(e.message, false);
+      throw e;
+    }
   }
 }
 
