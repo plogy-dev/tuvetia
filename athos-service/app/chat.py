@@ -116,8 +116,18 @@ def _thread_history(rows) -> list[dict]:
     """Filas de athos_messages (más antiguo->más reciente) -> mensajes {role, content} para el LLM.
     Limpia los extremos: el historial debe EMPEZAR con 'user' y TERMINAR con 'assistant' (turnos
     completos), para no romper la alternancia que espera la API al anexar la pregunta actual."""
-    hist = [{"role": r["role"], "content": r["content"]}
-            for r in rows if r.get("role") in ("user", "assistant") and (r.get("content") or "").strip()]
+    raw = [{"role": r["role"], "content": r["content"]}
+           for r in rows if r.get("role") in ("user", "assistant") and (r.get("content") or "").strip()]
+    # Colapsa las rachas de un mismo rol: un turno que falló a mitad (se logueó el 'user' pero el
+    # stream del 'assistant' no) deja dos 'user' seguidos, y Anthropic —el RESPALDO de la cascada de
+    # proveedores— rechaza roles no alternados con HTTP 400. Sin esto, la cascada fallaría justo al
+    # caer a Claude, que es cuando más se la necesita. Se conserva el ÚLTIMO de cada racha.
+    hist: list[dict] = []
+    for m in raw:
+        if hist and hist[-1]["role"] == m["role"]:
+            hist[-1] = m
+        else:
+            hist.append(m)
     while hist and hist[0]["role"] != "user":
         hist.pop(0)
     while hist and hist[-1]["role"] != "assistant":

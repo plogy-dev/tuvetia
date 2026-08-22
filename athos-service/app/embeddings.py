@@ -111,7 +111,10 @@ class EmbeddingClient:
                         time.sleep(_RETRY_SLEEP_S)
                         continue
                     raise EmbeddingQuotaExceeded(f"Cohere 429 tras reintentos: {e}") from e
-                raise
+                # Error sin código reconocible (500 de Cohere, respuesta malformada…): se envuelve en
+                # EmbeddingError para que la degradación a Tier 1 sea uniforme. Sin esto, `retrieve()`
+                # —que sólo captura EmbeddingError— reventaría en vez de degradar.
+                raise EmbeddingUnavailable(f"Cohere falló ({status}): {e}") from e
         raise EmbeddingQuotaExceeded(f"Cohere 429 tras reintentos: {last}")
 
 

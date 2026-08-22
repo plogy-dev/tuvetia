@@ -27,6 +27,18 @@ def test_variantes_de_formato():
         assert has_dose(t), t
 
 
+def test_detecta_dosis_escrita_con_palabra_por_kg():
+    """El modelo a veces redacta 'por kg'/'por kilo' en vez de '/kg'; también debe taparse.
+    Antes se escapaba con la ficha incompleta — un guard de seguridad fallando ABIERTO (regla nº4)."""
+    for t in ("meloxicam 0,2 mg por kg cada 24h", "0.1-0.2 mg por kilo",
+              "20 mg por kilogramo", "5 mg por kg", "10 mg por kg por día"):
+        assert has_dose(t), t
+        limpio, redactado = redact_doses(t)
+        assert redactado and REDACTED in limpio and "mg por" not in limpio
+    limpio, _ = redact_doses("Meloxicam 0,2 mg por kg cada 24 horas")
+    assert limpio.startswith("Meloxicam ") and "cada 24 horas" in limpio
+
+
 def test_no_toca_lo_que_no_es_dosis_por_peso():
     """Concentraciones, pesos y cifras clínicas NO son dosis: taparlas sería censurar información."""
     for t in ("plaquetas < 20.000/µL", "pesa 12 kg", "fiebre de 39,8 °C",
