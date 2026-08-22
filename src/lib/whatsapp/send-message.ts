@@ -3,6 +3,7 @@
 // y el modo auto. SOLO servidor (usa service_role).
 
 import { createAdminClient } from "@/lib/supabase/admin"
+import { DestinoNoRegistrado, puedeRecibirWhatsApp } from "./destino-permitido"
 import { ErrorQueElVetPuedeResolver } from "./error-de-envio"
 import { normalizarTelefono } from "./telefono"
 import { providerFor, type WhatsAppIntegrationRow } from "./provider"
@@ -60,6 +61,17 @@ export async function sendWhatsAppText(
       "No se puede enviar un WhatsApp al número de la propia clínica. Para probar, usá otro teléfono.",
       400,
     )
+  }
+
+  // A QUIÉN SE LE PUEDE ESCRIBIR. Titular de la clínica, o alguien que ya escribió — ver
+  // `destino-permitido`, que explica por qué "sólo titulares" habría bloqueado el 98,7% del
+  // tráfico y por qué no hay excepción para lo que manda una persona.
+  //
+  // VA ACÁ Y NO EN LA TOOL DE ATHOS, por lo mismo que la normalización del teléfono: éste es el
+  // único camino de salida. Ponerla en la tool dejaría fuera el modo auto, la cobranza y la
+  // bandeja, y bastaría con que mañana alguien agregue un quinto llamador para volver a abrirla.
+  if (!(await puedeRecibirWhatsApp(admin, clinicId, destino))) {
+    throw new DestinoNoRegistrado(destino)
   }
 
   const { waMessageId } = await providerFor(integ).sendText(integ, destino, body)
