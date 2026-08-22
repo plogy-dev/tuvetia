@@ -13,6 +13,7 @@
 
 import { useCuaderno } from "@/lib/consulta-viva/usar-cuaderno"
 import { type EstadoDelCuaderno } from "@/lib/consulta-viva/cuaderno"
+import { ROTULO_DE_SECCION } from "@/components/athos/rotulo-de-seccion"
 import { Textarea } from "@/components/ui/textarea"
 
 /**
@@ -51,7 +52,7 @@ export function Cuaderno({
   return (
     <div className={`flex flex-col gap-1.5 ${className ?? ""}`}>
       <div className="flex items-baseline justify-between gap-3">
-        <span className="text-[11px] font-semibold uppercase tracking-[0.08em] text-fg-faint">
+        <span className={ROTULO_DE_SECCION}>
           Cuaderno
         </span>
         <Aviso estado={estado} />

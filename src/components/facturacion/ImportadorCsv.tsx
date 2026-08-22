@@ -39,7 +39,6 @@ import {
   IMPORT_FIELDS,
   type ImportField,
   type ImportMapping,
-  type ImportPreset,
   type ImportReport,
   type RowStatus,
   type ValidatedRow,
