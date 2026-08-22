@@ -1,4 +1,10 @@
 import "server-only"
+import {
+  EMBED_DE_FACTURAS,
+  TOPE_SIN_FACTURAR,
+  desdeCuando,
+  soloSinFacturar,
+} from "@/lib/facturacion/sin-facturar"
 
 // Trae de la base lo que las señales necesitan. El QUÉ significa cada cosa vive en `pendientes.ts`,
 // que es puro y testeable; acá sólo están las consultas.
@@ -75,12 +81,6 @@ export type SenalesDeLaClinica = {
  * todavía: un riel al que le falta una línea es molesto; uno que rompe la pantalla de inicio porque
  * `vaccines` no respondió es inaceptable.
  */
-/** El corte de la ventana: la misma que usa `getUnbilledConsultations`. */
-function hace60Dias(hoyISO: string): string {
-  const d = new Date(`${hoyISO}T00:00:00-05:00`)
-  d.setUTCDate(d.getUTCDate() - 60)
-  return d.toISOString()
-}
 
 export async function senalesDeLaClinica(
   supabase: SupabaseClient,
@@ -151,11 +151,11 @@ export async function senalesDeLaClinica(
     // que empieza a facturar hoy arrastraría un año de consultas viejas al riel el primer día.
     supabase
       .from("consultations")
-      .select("id, invoices!left(id, status)")
+      .select(`id, ${EMBED_DE_FACTURAS}`)
       .eq("clinic_id", clinicId)
       .eq("status", "completed")
-      .gte("started_at", hace60Dias(hoyISO))
-      .limit(200)
+      .gte("started_at", desdeCuando(hoyISO))
+      .limit(TOPE_SIN_FACTURAR)
       .then(
         oVacio<{ id: string; invoices: { id: string; status: string }[] | null }>(
           "consultations",
@@ -170,9 +170,7 @@ export async function senalesDeLaClinica(
   // descarta con `.neq('status','ANULADA')`, porque anular una factura deja la consulta otra vez
   // por cobrar. Si acá se contara, el riel escondería la consulta justo cuando hay que volver a
   // emitirla, y el número dejaría de cuadrar con la lista que el vet abre a continuación.
-  const sinFactura = sinFacturarRows.filter(
-    (c) => !(c.invoices ?? []).some((i) => i.status !== "ANULADA"),
-  )
+  const sinFactura = soloSinFacturar(sinFacturarRows)
 
   const vencidas = facturas.filter((f) => (f.balance_cents ?? 0) > 0 && f.due_date && f.due_date < hoyISO)
   const cobros = {
