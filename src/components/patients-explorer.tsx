@@ -92,6 +92,19 @@ function especieBucket(species: string): string {
   return "otros"
 }
 
+// LA ESCALA DE LA TABLA, MEDIDA CONTRA EL PROTOTIPO DEL CLIENTE (22-ago).
+//
+// El diagnóstico ya estaba escrito en `docs/entrega/4-EL-REPO-DE-LUCIANO.md`: el sistema declara
+// 10px de radio y nosotros renderizamos 18, y nuestro texto es ~11% más grande en las superficies
+// densas. Sumado, es lo que Luciano llamó "efecto ladrillo" — y lo dijo mirando listas como ésta.
+//
+// Estas dos constantes son las medidas de su tabla, no una aproximación: `px-[14px] py-[9px]` en la
+// cabecera y `px-[14px] py-[11px]` en las celdas. El primitivo compartido (`ui/table`) trae `px-2`,
+// que en una tabla de ocho columnas aprieta el texto contra el borde. NO se toca ese primitivo: lo
+// usan veinte tablas y esto es una depuración de Pacientes, no del sistema.
+const CABECERA = "px-[14px] py-[9px] text-[11px] font-semibold uppercase tracking-[0.06em] text-muted-foreground"
+const CELDA = "px-[14px] py-[11px]"
+
 export function PatientsExplorer({
   rows,
   listError,
@@ -164,34 +177,40 @@ export function PatientsExplorer({
       {/* Tabla de pacientes. Un bloque con borde y filas separadas por línea —sin sombra, sin fondo
           en la cabecera— que es la gramática de listas del mockup. La cabecera va en versalitas de
           11px como el resto del sistema. */}
-      <div className="overflow-hidden rounded-xl border border-line">
-        <Table>
+      {/* DEPURADO CONTRA EL PROTOTIPO (22-ago). Tres medidas, todas del suyo:
+          `rounded-lg` y no `rounded-xl` —18px contra los 10px que declara el sistema, que es de
+          donde sale el "efecto ladrillo"—, `border-line-soft` en vez de `border-line`, y la
+          superficie de tarjeta con su sombra. */}
+      <div className="overflow-hidden rounded-lg border border-line-soft bg-card shadow-sm">
+        {/* 13px y no 14: la tabla de ellos es `text-[13px]`. En una lista de ocho columnas ese
+            punto es la diferencia entre leerla de un vistazo y tener que recorrerla. */}
+        <Table className="text-[13px]">
           <TableHeader>
             <TableRow className="hover:bg-transparent">
-              <TableHead className="text-[11px] font-semibold uppercase tracking-[0.08em] text-fg-faint">
+              <TableHead className={CABECERA}>
                 Paciente
               </TableHead>
               {/* "Estado" reemplaza a "Especie": la especie ya se lee en el nombre y en la raza, y
                   esta columna es la que el mockup usa para la alerta clínica. */}
-              <TableHead className="text-[11px] font-semibold uppercase tracking-[0.08em] text-fg-faint">
+              <TableHead className={CABECERA}>
                 Estado
               </TableHead>
-              <TableHead className="hidden text-[11px] font-semibold uppercase tracking-[0.08em] text-fg-faint md:table-cell">
+              <TableHead className={`${CABECERA} hidden md:table-cell`}>
                 Raza
               </TableHead>
-              <TableHead className="text-[11px] font-semibold uppercase tracking-[0.08em] text-fg-faint">
+              <TableHead className={CABECERA}>
                 Sexo
               </TableHead>
-              <TableHead className="text-[11px] font-semibold uppercase tracking-[0.08em] text-fg-faint">
+              <TableHead className={CABECERA}>
                 Edad
               </TableHead>
-              <TableHead className="hidden text-[11px] font-semibold uppercase tracking-[0.08em] text-fg-faint sm:table-cell">
+              <TableHead className={`${CABECERA} hidden sm:table-cell`}>
                 Titular
               </TableHead>
-              <TableHead className="hidden text-[11px] font-semibold uppercase tracking-[0.08em] text-fg-faint lg:table-cell">
+              <TableHead className={`${CABECERA} hidden lg:table-cell`}>
                 Teléfono
               </TableHead>
-              <TableHead className="w-28 text-right text-[11px] font-semibold uppercase tracking-[0.08em] text-fg-faint">
+              <TableHead className={`${CABECERA} w-28 text-right`}>
                 Historia
               </TableHead>
             </TableRow>
@@ -200,40 +219,42 @@ export function PatientsExplorer({
             {patients.length ? (
               patients.map((patient) => (
                 <TableRow key={patient.id}>
-                  <TableCell className="font-medium">
+                  <TableCell className={`${CELDA} font-medium`}>
                     <Link
                       href={`/dashboard/patients/${patient.id}`}
-                      className="flex items-center gap-3 hover:underline"
+                      className="group/nombre flex items-center gap-[9px]"
                     >
-                      <Avatar className="size-9">
+                      <Avatar className="size-8">
                         <AvatarImage src={patient.photo_url ?? undefined} alt={patient.name} />
                         <AvatarFallback>
                           <PawPrintIcon className="size-4" />
                         </AvatarFallback>
                       </Avatar>
                       <span className="min-w-0">
-                        <span className="block truncate">{patient.name}</span>
+                        <span className="block truncate font-semibold transition-colors group-hover/nombre:text-brand">
+                          {patient.name}
+                        </span>
                         <span className="block truncate text-xs font-normal text-fg-muted">
                           {patient.species}
                         </span>
                       </span>
                     </Link>
                   </TableCell>
-                  <TableCell>
+                  <TableCell className={CELDA}>
                     <AlertaClinica alergias={patient.allergies ?? []} />
                   </TableCell>
-                  <TableCell className="hidden text-muted-foreground md:table-cell">
+                  <TableCell className={`${CELDA} hidden text-fg-muted md:table-cell`}>
                     {patient.breed ?? "—"}
                   </TableCell>
-                  <TableCell>{SEX_LABELS[patient.sex] ?? patient.sex}</TableCell>
-                  <TableCell className="font-mono text-xs">{fmtAgeShort(patient.birth_date)}</TableCell>
-                  <TableCell className="hidden sm:table-cell">
+                  <TableCell className={`${CELDA} text-fg-muted`}>{SEX_LABELS[patient.sex] ?? patient.sex}</TableCell>
+                  <TableCell className={`${CELDA} font-mono text-xs tabular-nums text-fg-muted`}>{fmtAgeShort(patient.birth_date)}</TableCell>
+                  <TableCell className={`${CELDA} hidden text-fg-muted sm:table-cell`}>
                     {patient.owner?.full_name ?? "—"}
                   </TableCell>
-                  <TableCell className="hidden text-muted-foreground lg:table-cell">
+                  <TableCell className={`${CELDA} hidden font-mono text-xs tabular-nums text-muted-foreground lg:table-cell`}>
                     {patient.owner?.phone ?? "—"}
                   </TableCell>
-                  <TableCell className="text-right">
+                  <TableCell className={`${CELDA} text-right`}>
                     <Button
                       variant="outline"
                       size="sm"
