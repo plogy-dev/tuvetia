@@ -13,7 +13,9 @@
 // LO QUE ACÁ NO SE PUEDE OLVIDAR: nada de esto es la historia clínica. Se mira y se descarta. La
 // nota que se aprueba sigue siendo la del cierre, y por eso el pie lo dice.
 
-import { AlertTriangle, Loader2, Stethoscope } from "lucide-react"
+import { AlertTriangle, Stethoscope } from "lucide-react"
+
+import { ROTULO_DE_SECCION, RotuloDeSeccion } from "@/components/athos/rotulo-de-seccion"
 
 import type { InteligenciaViva } from "@/lib/consulta-viva/usar-inteligencia-viva"
 
@@ -38,7 +40,7 @@ function Bloque({
   if (!items.length) return null
   return (
     <section className="flex flex-col gap-1.5">
-      <h3 className="text-[11px] font-semibold uppercase tracking-[0.08em] text-fg-faint">
+      <h3 className={ROTULO_DE_SECCION}>
         {titulo}
       </h3>
       <ul className="flex flex-col gap-1.5">
@@ -85,14 +87,10 @@ export function AthosEnVivo({
 
   return (
     <div className={`flex min-w-0 flex-col gap-4 ${className ?? ""}`}>
-      <div className="flex items-center gap-2">
-        <Stethoscope className="size-3.5 shrink-0 text-fg-faint" aria-hidden />
-        <span className="text-sm font-semibold">
-          {soloSugerencias ? "Qué mirar" : soloNotas ? "Lo que se dijo" : "Athos en vivo"}
-        </span>
-        {vivo.pensando && (
-          <Loader2 aria-hidden className="size-3.5 shrink-0 animate-spin text-fg-faint" />
-        )}
+      <RotuloDeSeccion
+        icono={<Stethoscope className="size-3 shrink-0 text-fg-faint" aria-hidden />}
+        cargando={vivo.pensando}
+        acciones={<>
         {/* EL GASTO A LA VISTA. Un techo que no se ve no disciplina a nadie, y esta función es la
             que más puede costar del producto. Se muestra desde la primera llamada. */}
         {vivo.llamadas > 0 && (
@@ -103,7 +101,10 @@ export function AthosEnVivo({
             {vivo.llamadas}/{vivo.techo}
           </span>
         )}
-      </div>
+        </>}
+      >
+        {soloSugerencias ? "Qué mirar" : soloNotas ? "Lo que se dijo" : "Athos en vivo"}
+      </RotuloDeSeccion>
 
       {/* LAS ALERGIAS SEVERAS, ARRIBA DE TODO. Es la regla 3 del producto: el gate va ANTES de
           cualquier plan. Acá el momento correcto es antes de que el vet elija el fármaco — no al
