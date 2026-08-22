@@ -113,8 +113,17 @@ function objeto(v: unknown): Record<string, unknown> | null {
 const POR_TOOL: Record<string, (p: Record<string, unknown>) => CampoDeAccion[]> = {
   create_appointment: (p) => [
     ...fila("Título", p.title),
-    ...cuando(p.starts_at),
-    ...duracion(p.starts_at, p.ends_at),
+    // El payload GUARDADO trae `starts_at`/`ends_at` (la tool los resolvió a ISO antes de proponer).
+    // Pero la tarjeta EN VIVO del chat recibe el `input` crudo del modelo —`date`/`time`/
+    // `duration_min`— porque la propuesta todavía no pasó por la DB. Se manejan las dos formas para
+    // que el vet vea la hora también mientras Athos la propone, no sólo al recargar.
+    ...(typeof p.starts_at === "string"
+      ? [...cuando(p.starts_at), ...duracion(p.starts_at, p.ends_at)]
+      : [
+          ...fila("Fecha", typeof p.date === "string" ? bogotaDateOnly(p.date) : null),
+          ...fila("Hora", p.time),
+          ...fila("Duración", typeof p.duration_min === "number" ? `${p.duration_min} min` : null),
+        ]),
     ...fila("Motivo", p.reason),
     ...fila("Notas", p.notes),
   ],
