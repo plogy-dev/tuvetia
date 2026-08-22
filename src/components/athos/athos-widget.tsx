@@ -122,8 +122,8 @@ export function AthosWidget() {
         )}
         <AthosMensajes messages={messages} />
         {busy && (
-          <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-            <Loader2 className="size-3 animate-spin" /> Athos está escribiendo…
+          <div className="flex items-center gap-[9px] text-[13px] text-fg-faint">
+            <Loader2 className="size-3.5 animate-spin" /> Athos está escribiendo…
           </div>
         )}
       </div>
