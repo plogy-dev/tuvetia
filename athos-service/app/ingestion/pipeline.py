@@ -31,6 +31,12 @@ def parse_document(md_text: str) -> tuple[dict, str]:
     Formato del corpus: '---\\n<yaml>\\n---\\n<cuerpo>'. Sin frontmatter válido -> ({}, texto).
     """
     text = md_text.lstrip("﻿")  # posible BOM al inicio del archivo
+    # Los OA scrapeados de PDF pueden traer bytes NUL (0x00) de una extracción sucia. Postgres los
+    # rechaza tanto en columnas text (content/title) como en jsonb (metadata), y sin esto la ingesta
+    # aborta el lote entero. Se quitan aquí, en el único punto por el que pasa todo documento, para
+    # que el cuerpo y el frontmatter queden limpios aguas abajo (chunks, metadata, tsvector).
+    if "\x00" in text:
+        text = text.replace("\x00", "")
     m = _FRONTMATTER_RE.match(text)
     if not m:
         return {}, text

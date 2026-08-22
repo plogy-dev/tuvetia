@@ -24,6 +24,17 @@ CURRENT_BOOST = 0.05    # documento vigente (is_current)
 CONCEPT_BOOST = 0.05    # por cada coincidencia de MeSH/concepto (tope 3)
 TIER_BOOST = {"A": 0.05, "B": 0.02, "C": 0.0}
 
+# Penalización por ALCANCE off-domain (2026-08-21). El corpus incorporó literatura de
+# producción/granja/equino (`alcance=tier2_produccion`) y no-clínica (`otros_no_clinico`) del
+# lote nuevo. Athos es un asistente de MASCOTAS: esos documentos no deben competir de igual a igual
+# con la literatura companion en una consulta de perro/gato. La penalización es SUAVE, no exclusión:
+# un doc de producción sigue apareciendo si es lo único que hay (p. ej. un fármaco transversal a
+# especies), pero queda por debajo de cualquier evidencia companion comparable. Los documentos SIN
+# `alcance` (el corpus PubMed original, ya orientado a mascotas) y los `companion` no se penalizan.
+# Magnitud comparable a SPECIES_BOOST; PENDIENTE calibrar contra un golden ampliado con casos de
+# producción antes de endurecerla.
+ALCANCE_PENALTY = {"tier2_produccion": -0.15, "otros_no_clinico": -0.15}
+
 # Bases de relevancia del Tier 1 (señales binarias fuertes, luego se afinan con boosts del Tier 0).
 TIER1_MESH_BASE = 0.6   # el chunk trae un MeSH/concepto de la consulta: evidencia fuerte
 TIER1_LEX_BASE = 0.4    # match de full-text (léxico)
@@ -124,6 +135,7 @@ def score_chunk(chunk: RetrievedChunk, filters: dict) -> float:
     if md.get("is_current"):
         score += CURRENT_BOOST
     score += TIER_BOOST.get(str(md.get("tier", "")).upper(), 0.0)
+    score += ALCANCE_PENALTY.get(str(md.get("alcance", "")), 0.0)
     return score
 
 
