@@ -125,10 +125,16 @@ function Items({ items, grupo }: { items: NavItem[]; grupo: "consulta" | "crm" }
               `a[href="/dashboard/..."]`, y hay un test que lo cubre
               (`__tests__/onboarding-tour-anclas.test.ts`). `<Link>` renderiza un `<a href>` de
               verdad en el DOM, así que el selector sigue valiendo. */}
+          {/* `prefetch` EXPLÍCITO. Next lo hace solo con las rutas estáticas, y las del nav son
+              dinámicas: sin esto, cada sección se empieza a cargar recién al hacer clic. Como el
+              shell persiste entre clicks (por eso se navega con `<Link>` y no con `<a href>`), lo
+              único que falta cargar son los datos — y precargarlos al montar la barra es lo que
+              hace que cambiar de sección se sienta instantáneo. Lo hacen ellos con el mismo
+              argumento. */}
           <SidebarMenuButton
             tooltip={item.title}
             isActive={isNavActive(pathname, item.url)}
-            render={<Link href={item.url} />}
+            render={<Link href={item.url} prefetch />}
           >
             <Indicador grupo={grupo} />
             {/* El icono SÓLO existe en la barra colapsada. Ahí el punto no sirve —serían siete
