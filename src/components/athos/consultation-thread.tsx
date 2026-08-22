@@ -123,7 +123,7 @@ export function ConsultationThread({
                 Athos
               </span>
               {msg.warning && (
-                <div className="mb-1 flex w-full items-start gap-2 rounded-lg border border-warn/30 bg-warn-soft px-2.5 py-2 text-xs text-warn">
+                <div className="mb-1 flex w-full items-start gap-2 rounded-lg border border-warn-soft bg-warn-soft px-2.5 py-2 text-xs text-warn">
                   <AlertTriangle className="mt-0.5 size-3.5 shrink-0" />
                   <span>{msg.warning}</span>
                 </div>

@@ -31,7 +31,7 @@ export function renderInline(text: string, citations: Citation[], kp: string): R
         POSSIBILITY.test(p) ? (
           <span
             key={`${base}-p${j}`}
-            className="font-medium text-foreground underline decoration-dotted decoration-muted-foreground/60 underline-offset-2"
+            className="font-medium text-foreground underline decoration-dotted decoration-muted-foreground underline-offset-2"
           >
             {p}
           </span>

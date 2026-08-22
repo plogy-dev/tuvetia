@@ -41,10 +41,10 @@ export function AthosMensajes({ messages }: { messages: UIMessage[] }) {
                   return (
                     <div
                       key={i}
-                      className="rounded-2xl rounded-tl-sm border bg-muted/50 px-3 py-1 text-sm leading-relaxed"
+                      className="rounded-2xl rounded-tl-sm border bg-muted px-3 py-1 text-sm leading-relaxed"
                     >
                       {splitBlocks(p.text).map((blk, j) => (
-                        <div key={j} className="border-b border-border/60 py-2 last:border-b-0 last:pb-0">
+                        <div key={j} className="border-b border-border py-2 last:border-b-0 last:pb-0">
                           {renderInline(blk.text, [], `${m.id}-${i}-${j}`)}
                         </div>
                       ))}
