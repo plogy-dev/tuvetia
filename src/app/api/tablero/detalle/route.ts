@@ -96,6 +96,66 @@ export async function GET(req: Request) {
         cuando: n.created_at,
       }),
     )
+  // ── Las cuatro cifras de PACIENTES ────────────────────────────────────────────────────────────
+  //
+  // Lo mismo que pidió Luciano para el tablero, en la otra pantalla que tiene una fila de cifras:
+  // que al tocarlas se abra el detalle sin sacarte de donde estás.
+  //
+  // LOS FILTROS SON COPIA EXACTA de los de `dashboard/patients/page.tsx`, y hay un test que lo
+  // vigila: una tarjeta que dice 9 y una vista que muestra 11 es peor que no tener la vista.
+  } else if (metrica === "pacientes-activos") {
+    // `is_deceased` FALSE, igual que el conteo. La tarjeta siempre dijo "Pacientes activos" y
+    // contaba todos: hoy no se nota porque no hay ninguno marcado, y el día que lo haya la cifra
+    // habría empezado a mentir sin que nada fallara.
+    const { data, error: e } = await supabase
+      .from("patients")
+      .select("id, name, species, created_at")
+      .eq("is_deceased", false)
+      .order("created_at", { ascending: false })
+      .limit(TOPE)
+    error = e?.message ?? null
+    filas = ((data as { id: string; name: string; species: string | null; created_at: string }[] | null) ?? []).map(
+      (p) => ({ id: p.id, titulo: p.name, detalle: p.species, cuando: p.created_at }),
+    )
+  } else if (metrica === "citas-hoy") {
+    // HOY, no siete días: es la ventana del conteo de esta pantalla, distinta de la del tablero.
+    const inicioDelDia = new Date(ahora.getFullYear(), ahora.getMonth(), ahora.getDate())
+    const finDelDia = new Date(inicioDelDia.getTime() + 864e5)
+    const { data, error: e } = await supabase
+      .from("appointments")
+      .select("id, title, starts_at, patient:patients(name)")
+      .gte("starts_at", inicioDelDia.toISOString())
+      .lt("starts_at", finDelDia.toISOString())
+      .order("starts_at", { ascending: true })
+      .limit(TOPE)
+    error = e?.message ?? null
+    filas = ((data as unknown as { id: string; title: string | null; starts_at: string; patient: { name: string } | null }[] | null) ?? []).map(
+      (a) => ({ id: a.id, titulo: a.patient?.name ?? a.title ?? "Cita", detalle: a.title, cuando: a.starts_at }),
+    )
+  } else if (metrica === "consultas-revision") {
+    // `consultations.status = 'review'` — NO es lo mismo que `notas-borrador` del tablero, que
+    // mira `clinical_notes.status`. Son dos cifras parecidas de tablas distintas.
+    const { data, error: e } = await supabase
+      .from("consultations")
+      .select("id, started_at, patient:patients(name, species)")
+      .eq("status", "review")
+      .order("started_at", { ascending: false })
+      .limit(TOPE)
+    error = e?.message ?? null
+    filas = ((data as unknown as { id: string; started_at: string; patient: { name: string; species: string | null } | null }[] | null) ?? []).map(
+      (c) => ({ id: c.id, titulo: c.patient?.name ?? "Consulta", detalle: "En revisión", cuando: c.started_at }),
+    )
+  } else if (metrica === "pacientes-nuevos-mes") {
+    const { data, error: e } = await supabase
+      .from("patients")
+      .select("id, name, species, created_at")
+      .gte("created_at", inicioDeMes.toISOString())
+      .order("created_at", { ascending: false })
+      .limit(TOPE)
+    error = e?.message ?? null
+    filas = ((data as { id: string; name: string; species: string | null; created_at: string }[] | null) ?? []).map(
+      (p) => ({ id: p.id, titulo: p.name, detalle: p.species, cuando: p.created_at }),
+    )
   } else {
     return NextResponse.json({ error: "Métrica desconocida." }, { status: 400 })
   }
