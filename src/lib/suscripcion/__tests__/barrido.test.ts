@@ -160,3 +160,51 @@ describe("las otras ramas siguen como estaban", () => {
     expect(updates).toEqual([])
   })
 })
+
+// ── Lo que encontró el review del 23-ago ───────────────────────────────────────────────────────
+describe('a quién NO se le baja el plan', () => {
+  // `trial` es además el DEFAULT HISTÓRICO de la columna: hay clínicas en `free` que lo llevan sin
+  // haber probado nada. Mirando sólo el estado, cualquiera de ellas con un `plan_renueva_en`
+  // vencido —una edición manual, un restore— se contaría como una prueba que terminó. `enPrueba()`
+  // en `lib/planes` ya exigía las dos cosas; el barrido no.
+  it('una clínica FREE con estado trial no es una prueba: no se toca', async () => {
+    clinicas = [
+      {
+        id: 'c-legacy',
+        plan: 'free',
+        subscription_status: 'trial',
+        plan_renueva_en: VENCIDA,
+        plan_cancelado_en: null,
+        wompi_payment_source_id: null,
+        wompi_customer_email: null,
+      },
+    ]
+    const r = await barrerSuscripciones(AHORA)
+    expect(updates, 'no se le puede bajar el plan a quien nunca estuvo en prueba').toEqual([])
+    expect(r.bajadas).toBe(0)
+  })
+
+  // `/api/suscripcion/suscribir` guarda la fuente de pago y cobra, pero NO escribe
+  // `subscription_status`: eso lo hace el webhook de Wompi, que es asíncrono y normalmente vuelve
+  // PENDING. Una clínica que contrata el último día de prueba sigue en `trial` hasta que llegue, y
+  // el barrido de ese día le quitaba Athos a mitad de jornada y le borraba el reloj del reintento.
+  it('una prueba vencida que YA cargó medio de pago espera al webhook', async () => {
+    clinicas = [
+      {
+        id: 'c-pago-en-vuelo',
+        plan: 'pro',
+        subscription_status: 'trial',
+        plan_renueva_en: VENCIDA,
+        plan_cancelado_en: null,
+        wompi_payment_source_id: 'src_recien_cargada',
+        wompi_customer_email: 'vet@clinica.co',
+      },
+    ]
+    const r = await barrerSuscripciones(AHORA)
+    expect(updates, 'pagó: no se le baja el plan mientras el webhook está en vuelo').toEqual([])
+    expect(r.bajadas).toBe(0)
+    expect(cobros, 'tampoco se le vuelve a cobrar').toEqual([])
+    // Queda dicho por qué no se tocó, que es lo que hace diagnosticable una corrida.
+    expect(r.omitidas[0]?.motivo).toMatch(/webhook/i)
+  })
+})

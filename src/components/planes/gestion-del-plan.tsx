@@ -19,7 +19,6 @@ import { FormularioDePago } from "@/components/planes/formulario-de-pago"
 import {
   DIAS_DE_PRUEBA,
   ESTADO_LEGIBLE,
-  diasDePruebaRestantes,
   enPrueba,
   seRenueva,
   type EstadoSuscripcion,
@@ -37,6 +36,7 @@ export function GestionDelPlan({
   plan,
   estado,
   renuevaEn,
+  diasDePrueba,
   cancelado,
   tarjeta,
   precioCentavos,
@@ -46,6 +46,8 @@ export function GestionDelPlan({
   plan: Plan
   estado: EstadoSuscripcion
   renuevaEn: string | null
+  /** Días enteros que quedan de prueba. Lo cuenta el servidor: acá el reloj sería impuro. */
+  diasDePrueba: number
   cancelado: boolean
   tarjeta: { marca: string; ultimos4: string } | null
   precioCentavos: number
@@ -121,11 +123,15 @@ export function GestionDelPlan({
           <Sparkles className="mt-0.5 size-4 shrink-0 text-primary" aria-hidden />
           <div className="text-sm">
             <p className="font-medium text-fg">
-              {(() => {
-                const d = diasDePruebaRestantes(renuevaEn)
-                if (d <= 0) return "Hoy es el último día de tu prueba."
-                return `Te ${d === 1 ? "queda" : "quedan"} ${d} ${d === 1 ? "día" : "días"} de prueba.`
-              })()}
+              {/* `diasDePruebaRestantes` redondea HACIA ARRIBA, así que 1 es el último día real y
+                  0 sólo se alcanza cuando la prueba YA venció y el barrido todavía no pasó. La
+                  primera versión decía "hoy es el último día" justo en ese caso —cuando ya no
+                  quedaba ninguno— y llamaba "queda 1 día" al último de verdad. */}
+              {diasDePrueba <= 0
+                ? "Tu prueba terminó."
+                : diasDePrueba === 1
+                  ? "Hoy es el último día de tu prueba."
+                  : `Te quedan ${diasDePrueba} días de prueba.`}
             </p>
             <p className="mt-1 text-fg-muted">
               Estás usando Pro completo —Athos, el Modo Fantasma y todo lo que necesita IA— sin haber
