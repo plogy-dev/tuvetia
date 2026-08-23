@@ -2,6 +2,11 @@
 
 **Contrato:** COT-2026-TUV-001 · **Fecha:** 18 de agosto de 2026
 **Entorno:** producción, accesible al cliente
+**Cifras medidas el 23 de agosto de 2026** contra el proyecto principal y el repositorio.
+
+> **Toda cifra de este documento lleva fecha y definición.** No es formalidad: la versión anterior
+> decía "33 pantallas" sin decir que contaba las del dashboard, y "en las últimas 48 horas" sin decir
+> desde cuándo. Un número sin fecha envejece sin que se note, y este documento es evidencia.
 
 > Este documento existe porque el 28 de julio no se entregó y el cliente lo usó como argumento.
 >
@@ -12,7 +17,8 @@
 
 ## 1. Superficie del producto
 
-**33 pantallas** desplegadas, **32 rutas de API**, **65 tablas** con seguridad a nivel de fila.
+**34 pantallas del producto** (las del dashboard; 52 contando panel de plataforma, marketing, legales
+y las páginas públicas sin sesión), **37 rutas de API**, **68 tablas** con seguridad a nivel de fila.
 
 ### Módulo Consulta *(clínico)*
 
@@ -110,28 +116,32 @@ primario cayó (`athos_agent_usage.fell_back_from`).
 
 | | |
 |---|---|
-| Clínicas | 15 |
-| Usuarios | 17 |
-| Titulares / Pacientes | 45 / 47 |
-| Consultas | 65 |
-| Notas clínicas | 44 (**23 aprobadas**) |
+| Clínicas | 16 |
+| Usuarios | 18 |
+| Titulares / Pacientes | 47 / 49 |
+| Consultas | 74 |
+| Notas clínicas | 45 (**23 aprobadas**) |
 | Citas | 25 |
-| Mensajes de WhatsApp | 6.666 |
-| Chunks del corpus | 519.999 |
+| Mensajes de WhatsApp | 6.924 |
+| Chunks del corpus | 640.193 |
+
+*Medido el 23-ago-2026. Las 16 clínicas son pruebas cerradas del equipo, no clientes en producción.*
 
 ---
 
 ## 5. Calidad y trazabilidad
 
-- **1.058 pruebas automatizadas**, en cada cambio (typecheck, lint, tests, build)
-- **67 migraciones** versionadas; las últimas nueve con **script de verificación propio**
+- **1.876 pruebas automatizadas** en cada cambio (1.563 del producto y 313 del servicio de IA),
+  junto con typecheck, lint y build
+- **81 migraciones** versionadas; **17 con script de verificación propio** — obligatorio desde la
+  0059, y cada verificación se corre contra el principal después de aplicar
 - **Auditoría completa del 16-ago**: 9 hallazgos, los 9 cerrados —
   `docs/AUDITORIA-COMPLETA-2026-08-16.md`
 - **Traza de acciones humanas** (migración 0063): quién editó un paciente o canceló una cita, con el
   antes y el después
 - **Banco de pruebas del agente**: `docs/AGENT-SMOKE-TESTING.md`, `docs/BANCO-AGENTE-RESULTADO.md`
 
-### Corregido en las últimas 48 horas
+### Corregido entre el 16 y el 18 de agosto
 
 | | |
 |---|---|
@@ -140,6 +150,19 @@ primario cayó (`athos_agent_usage.fell_back_from`).
 | Canales que morían en silencio | WhatsApp caído 5 días sin avisar: ahora es señal visible |
 | Contraste ilegible | `fg-faint` reprobaba WCAG AA en 216 usos |
 | Índices faltantes | `owners` y `clinical_notes` hacían escaneo completo |
+
+### Corregido entre el 21 y el 23 de agosto
+
+Todo esto salió de **recorrer el producto como lo recorre un cliente**, no de leer el código. Ninguno
+fallaba: los cinco pasaban los tests y no aparecían en ningún log.
+
+| | |
+|---|---|
+| **La nota del Fantasma no se generaba** | El estado decía "Generando nota" y en realidad esperaba un clic. Cuatro consultas quedaron sin nota, de cuatro días distintos |
+| **Athos se descubría chocando** | Dos de las tres superficies del copiloto no miraban el plan: una clínica sin Pro recibía un error rojo en vez de la invitación |
+| **La edad del paciente discrepaba** | La lista decía 6 meses y la ficha 5, por zona horaria. En un cachorro, la edad en meses ordena el plan de vacunación |
+| **El catálogo se leía cortado en 500** | Sin aviso. El export de inventario a Excel salía incompleto pareciendo completo |
+| **Cartera se quedaba con mensajes ajenos** | Lo que no era cobranza no llegaba a nadie |
 
 ---
 
