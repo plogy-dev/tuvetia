@@ -68,10 +68,15 @@ def index_patient_memory(clinic_id: str, patient_id: str) -> int:
     except EmbeddingError:
         return 0
     for r, v in zip(pendientes, vectores):
+        # `on conflict do nothing`: dos chats simultáneos del mismo paciente pueden ver la misma
+        # fuente como pendiente (el NOT EXISTS no es un lock) e intentar insertarla los dos. El UNIQUE
+        # (clinic_id, source_type, source_id) de la migración 0074 hace que el segundo no duplique.
+        # Sin target explícito a propósito: así es inocuo aunque el constraint todavía no esté
+        # aplicado en un entorno (no exige que exista para no fallar).
         execute(
             "insert into public.patient_embeddings "
             "  (clinic_id, patient_id, source_type, source_id, content, embedding) "
-            "values (%s,%s,%s,%s,%s,%s::vector)",
+            "values (%s,%s,%s,%s,%s,%s::vector) on conflict do nothing",
             (clinic_id, patient_id, r["source_type"], r["source_id"],
              (r["content"] or "")[:MAX_CHARS], _vector_literal(v)),
         )
