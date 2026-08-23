@@ -48,12 +48,21 @@ export type CuerpoLegible = {
 export function cuerpoLegible(correo: {
   cuerpo?: string | null
   preview?: string | null
+  /** Lo dice el adaptador. Sin este dato hay que adivinar, y adivinar acá salía mal (ver abajo). */
+  cuerpoCompleto?: boolean
 }): CuerpoLegible {
   const cuerpo = (correo.cuerpo ?? "").trim()
   const preview = (correo.preview ?? "").trim()
 
-  if (cuerpo && cuerpo !== preview) return { texto: cuerpo, completo: true }
+  // EL ADAPTADOR SABE, Y ANTES SE ADIVINABA. La primera versión daba por completo todo `cuerpo`
+  // distinto del `preview`, razonando que si difieren es porque hay más texto. Falso: `preview` es
+  // un `slice(0, 200)` del MISMO string, así que un `bodyPreview` de 255 caracteres produce dos
+  // valores distintos y ninguno es el correo entero. La pantalla decía "esto es todo" sobre un
+  // correo de dos páginas, que es justo el defecto que este módulo vino a arreglar.
+  if (cuerpo && correo.cuerpoCompleto) return { texto: cuerpo, completo: true }
 
   const texto = cuerpo || preview
+  // Sin la marca del adaptador se cae al criterio viejo, que sirve para lo único que puede: si el
+  // texto no llegó al tope del recorte, no está recortado.
   return { texto, completo: texto.length < LARGO_DEL_PREVIEW }
 }
