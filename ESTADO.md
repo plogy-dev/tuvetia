@@ -146,6 +146,12 @@ nuevos; si el flujo del equipo usa el CLI, marcalos como aplicados (`supabase mi
 `0011 appointment_fk_indexes` · `0012 audio_storage_path_nullable` · `0013 profiles_onboarded_at` ·
 `0014 hot_path_indexes` · `0015 whatsapp_integrations` · `0016 invitations_rpcs` ·
 `0017 onboarding_setup` · `0020 hot_path_indexes_2` (índices de la auditoría E2E, 2026-07-24).
+
+**Aplicadas el 2026-08-23 al principal, las dos verificadas ahí mismo:**
+`0078 la_prueba_de_tres_dias` (trigger que estampa `pro`+`trial`+3 días en toda clínica nueva) ·
+`0079 una_factura_no_se_acredita_de_mas` (trigger que impide que la suma de notas crédito EMITIDAS
+supere el total de la factura — la comprobación en código es leer-y-después-escribir y dos
+peticiones simultáneas la pasaban las dos).
 (`0004 clinical_notes_alerts` vino de otra rama.)
 
 ---
@@ -307,6 +313,118 @@ envío/lectura no cambia: solo la capa que obtiene el token.
 
 **Qué pedirle al cliente si se activa:** que confirme Workspace con dominio propio, que **todos** los
 vets estén en ese dominio, acceso de admin a la consola y a Google Cloud, y SPF/DKIM configurados.
+
+## Sesión 2026-08-23 — facturación, la capa agéntica medida, velocidad, y dos cerrojos que no cerraban
+
+Trece PRs a `master` (#194–#206) y dos migraciones aplicadas al principal. Lo que sigue está ordenado
+por lo que le sirve a quien abra el repo mañana, no por orden cronológico.
+
+### Lo que se puede mostrar
+
+- **Nota crédito PARCIAL** (#194). Varias notas sobre la misma factura, con techo en lo ya
+  acreditado; la que completa el total anula. La parcial **no mueve inventario** y la pantalla lo
+  dice antes de emitir: sin saber qué línea se acredita no hay forma de saber qué volvió. Lo que
+  falta es la nota crédito **por línea**, y ahí sí una devolución parcial cerraría entera.
+- **La prueba gratuita de 3 días** (#199, migración `0078`). Decidida en la reunión del 22-ago; no
+  existía nada en el código. No hay columna nueva: una prueba es `plan='pro'` +
+  `subscription_status='trial'` + `plan_renueva_en`. La estampa un trigger al nacer la clínica y la
+  baja el barrido diario.
+- **El correo se lee entero** (#198). El panel de lectura pintaba `preview` —el mismo campo
+  recortado a 200 caracteres de la lista—, así que abrir un correo no mostraba nada nuevo. Lo
+  reportó un vet en la reunión del 22-ago.
+- **El agente ya sabe que lo que LEE es dato** (#195) y hay un **banco adversario** para medirlo
+  (#196/#197). Ver los bullets de Pendientes.
+- **Fuera el enlace ICS** del calendario (#204). Se va la entrada; el endpoint queda, porque un feed
+  que alguien ya pegó en su Google Calendar se sigue consultando y borrarlo le rompería la agenda sin
+  avisar. Los tokens vivos están en `calendar_feeds`.
+
+### Velocidad: qué se midió y qué NO era
+
+Un vet reportó lentitud. Lo medido contra el despliegue, y **casi todo lo que se sospechaba era
+falso**:
+
+- **Postgres no es el cuello.** `pg_stat_statements` lo dominan el retrieval y la ingesta del corpus
+  (17 s y 44 s de media). Ninguna consulta de la app aparece con tiempo relevante.
+- **Las consultas ya estaban paralelizadas**: las 5 páginas del dashboard con 2+ consultas usan
+  `Promise.all`. Cero pendientes.
+- **Los índices sobran, no faltan**: 64 FKs sin índice, todas INFO — y **42 índices que nunca se
+  usaron**.
+- **Sí hay un piso fijo**, y ése era el problema: `/dashboard/ayuda` —una página SIN una sola
+  consulta— tardaba **1.061 ms**, lo mismo que `/dashboard/tablero` con muchas (930 ms). Contra 289
+  ms de una estática sin sesión.
+
+Se quitaron dos viajes de red encadenados (#201): la clínica viaja embebida en el perfil y
+`sesionDelServidor()` memoiza la sesión con `cache()` de React. **La mejora medida fue ~100 ms, no
+los 300-400 estimados** — y esa diferencia enseñó más que el arreglo.
+
+**Después se instrumentó el layout** (#203, `lib/perf/marcas.ts`, se activa con la cabecera
+`x-perf: 1`) y el reparto quedó a la vista:
+
+```
+sesión (getUser)                265 ms
+perfil + clínica embebida       278 ms
+progresoDeConfiguracion()       443 ms   ← 43 % del layout
+resto (render, cookies)          37 ms
+total del layout              1.023 ms
+```
+
+**Un `getUser()` cuesta 265 ms.** Ése era el número que faltaba. Con Postgres respondiendo en
+microsegundos, eso apunta a que **la función de Vercel y el proyecto de Supabase están en regiones
+distintas** — `vercel.json` no fija región, así que las funciones corren en `iad1`. **Comprobarlo es
+un dato de dos dashboards y es la palanca más grande que queda**: dividiría los cuatro viajes, no uno.
+
+Lo que sigue sin hacer y sale barato: `requireClinicPage()` todavía hace su propio `getUser()` (−265
+ms en todo el dashboard y en facturación), y `progresoDeConfiguracion()` podría salir del camino
+crítico con `<Suspense>` — es una barra de onboarding que para una clínica configurada cuesta 443 ms
+por navegación para pintar un 100 %.
+
+### El apagón, y los dos cerrojos que no cerraban
+
+**Se rompió el acceso al dashboard durante ~20 minutos** (#201, arreglado en #202). El embed
+`clinic:clinics(...)` es **ambiguo**: hay DOS claves foráneas entre `profiles` y `clinics`
+(`profiles.clinic_id` y `clinics.owner_id`). PostgREST lo rechaza, y como la consulta termina en
+`.single()` ese rechazo **no llega como error** sino como `data: null` — perfil vacío,
+`estadoDeAcceso` lo lee como "sin onboarding", y el layout redirige a `/bienvenida`. La app no abría
+para nadie. La forma correcta ya estaba en el repo (`clinica-de-la-sesion.ts` trae
+`clinic:clinics!profiles_clinic_id_fkey(plan)`) y se perdió al copiar el patrón.
+
+**Y después el cerrojo que se puso para que no se repitiera estaba muerto** (#206): el test tenía un
+BACKSPACE literal (0x08) donde iba `\b`, así que el patrón no matcheaba nunca nada y pasaba en verde
+sin leer una línea. Se descubrió al intentar reforzarlo, porque la mutación no lo ponía en rojo.
+
+**Las dos verificaciones de migración de hoy también fallaron por su propio SQL**, no por la
+migración: la de la `0078` se contaba a sí misma, la de la `0079` omitía una columna NOT NULL. En los
+dos casos la migración estaba bien y el examen mal.
+
+> **La lección operativa, que vale más que los arreglos:** una guarda que nadie probó que MUERDE no
+> es una guarda. Verificar que un test se pone en rojo al revertir lo que protege costó minutos y fue
+> lo único que destapó el cerrojo muerto. Vale para cualquier test nuevo, y sobre todo para los que
+> existen para que no se repita algo.
+
+### El review, y qué dice de cómo se trabajó hoy
+
+Un review sobre los diez PRs del día encontró **15 hallazgos** (#205, #206). Los más graves, todos
+verificados contra el código antes de tocarlos:
+
+- **El CUFE de la segunda nota crédito apuntaba a la primera.** Las notas se registran en
+  `fiscal_documents` con el `invoice_id` de la factura, y el CUFE se leía como "el documento más
+  reciente de esta factura" sin filtrar `doc_kind`. Con una sola nota era inalcanzable; las parciales
+  lo volvieron el camino normal.
+- **La guarda que protege la plata no revisaba su propio error.** Un SELECT fallido dejaba
+  `yaAcreditado` en 0 y reabría el crédito completo. Todas las demás lecturas de esa función sí lo
+  revisan.
+- **El panel no se cerraba tras una parcial** → segundo clic, otro consecutivo DIAN quemado.
+- **El cuerpo de Outlook es HTML** y nadie lo limpiaba: desde #198 un vet con Outlook veía
+  `<html><head>…` literal en pantalla. Peor que antes, y en la función que ese cambio arreglaba. Se
+  convierte en el adaptador, porque cartera también lee `cuerpo` para clasificar intención.
+- **Quien paga el último día de prueba se caía a `free`**: `suscribir` no escribe
+  `subscription_status` —lo hace el webhook de Wompi, asíncrono— así que el barrido de ese día la
+  degradaba y le borraba el reloj del reintento.
+
+**De los 15, la mayoría se introdujeron el mismo día**, y el patrón es uno solo: habilitar varias
+notas crédito por factura rompió suposiciones que nadie volvió a mirar (el CUFE "el más reciente", la
+guarda de un solo uso, el panel que no volvía a su estado). **Cuando un cambio toca plata, el review
+no puede ser el último paso.**
 
 ## Pendientes conocidos
 
@@ -496,6 +614,36 @@ vets estén en ese dominio, acceso de admin a la consola y a Google Cloud, y SPF
   propósito: un banco que se auto-saltea es papel, y este repo ya tuvo esa historia con los
   cross-tenant del backend. **Una sola corrida con la key llena la tabla de resultados del
   documento.** Hasta entonces, sobre si el modelo obedece órdenes ajenas no hay cifra.
+
+- 🟠 **Velocidad: lo que queda, en orden de retorno.** Medido el 23-ago (ver §Sesión 2026-08-23).
+  1. **Comprobar en qué región están la función de Vercel y el proyecto de Supabase.** Un `getUser()`
+     cuesta **265 ms** con Postgres respondiendo en microsegundos: eso es latencia entre regiones.
+     `vercel.json` no fija región → las funciones corren en `iad1`. Es un dato de dos dashboards y
+     divide **los cuatro viajes**, no uno. Nada de lo demás rinde tanto.
+  2. **`requireClinicPage()` → `sesionDelServidor()`.** Sigue haciendo su propio `getUser()` (−265 ms
+     en todo el dashboard y en las páginas de facturación). Una línea.
+  3. **`progresoDeConfiguracion()` fuera del camino crítico**, con `<Suspense>` o sin consultarlo al
+     100 %. Son 443 ms por navegación —el 43 % del layout— para pintar una barra de onboarding que
+     en una clínica configurada dice 100 %.
+
+  La instrumentación quedó puesta (`lib/perf/marcas.ts`, cabecera `x-perf: 1`), así que cada cambio
+  se mide contra las mismas cuatro fases. **No estimar: la vez pasada la estimación erró por tres.**
+
+- 🟡 **¿El calendario se sincroniza con Google?** Lo preguntó Luciano en la reunión del 22-ago. La
+  respuesta que da el código: **UNA SOLA VÍA, a propósito.** Tuvetia empuja sus citas (crear, mover,
+  borrar); no lee nada de vuelta. Medido el 23-ago: 3 integraciones Google, **0 con canal de
+  escucha**, 7 de 25 citas empujadas. El motivo está en `composio/calendario.ts`: el *pull* que
+  existió trajo **19.649 filas** del calendario personal de un vet ("Comer", "Dormir") contra 21
+  citas reales — «no es un filtro que falte: es que el canal no debe existir».
+
+  **Queda para confirmar con Santiago** si hace falta la vuelta. Si la respuesta es sí, es una
+  funcionalidad NUEVA con su riesgo conocido, no un arreglo.
+
+- 🟡 **El mock del calendario y de pacientes.** Pedido el 23-ago: "depurar esas vistas para
+  parecerse al mock". No se pudo empezar porque no hay contra qué comparar: `feat/pacientes-crm-mockup`
+  y `feat/mockup-los-cuatro-baratos` **ya están en master**, y **no existe ninguna rama de mockup del
+  calendario**. O la implementación se desvió de un mock que ya se aplicó, o hay uno más nuevo fuera
+  del repo. Hace falta el archivo o el enlace.
 
 - ⚠️ **Plantillas de correo en Supabase** (config, no código): son **DOS** —"Magic Link" y
   "Confirm signup"—, porque `signInWithOtp` manda una u otra según si el correo ya tiene cuenta.
