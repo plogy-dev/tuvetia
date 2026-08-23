@@ -10,6 +10,7 @@ import { useRouter } from "next/navigation"
 import { AlertTriangle, AudioLines, ExternalLink, FileText, Loader2, Sparkles, Trash2 } from "lucide-react"
 import { toast } from "sonner"
 
+import { ESTADO_DE_CONSULTA } from "@/lib/consultas/estado"
 import { createClient } from "@/lib/supabase/client"
 import { parseTranscript } from "@/lib/transcript"
 import { ConsultationAudioPlayer } from "@/components/consultation-audio-player"
@@ -44,13 +45,6 @@ export type ConsultationHistory = {
   audios: AudioH[] | null
 }
 
-const CONSULTATION_STATUS: Record<string, string> = {
-  open: "Abierta",
-  transcribing: "Transcribiendo",
-  generating_note: "Generando nota",
-  review: "En revisión",
-  completed: "Completada",
-}
 const NOTE_STATUS: Record<string, { label: string; variant: "default" | "secondary" | "outline" }> = {
   draft: { label: "Borrador", variant: "secondary" },
   approved: { label: "Aprobada", variant: "default" },
@@ -201,7 +195,7 @@ export function PatientConsultationHistory({
           </div>
           <div className="flex items-center gap-2">
             <Badge variant="outline" className="text-xs">
-              {CONSULTATION_STATUS[selected.status] ?? selected.status}
+              {ESTADO_DE_CONSULTA[selected.status] ?? selected.status}
             </Badge>
             {noteMeta && (
               <Badge variant={noteMeta.variant} className="text-xs">
