@@ -19,8 +19,9 @@ Despliegue: **Railway**. Base de datos: **Supabase** (Postgres + pgvector). Fron
 7. **`service_role` se salta RLS** → pasa `clinic_id` explícito en cada query del lado paciente y filtra por él. Cubierto por test.
 
 ## Motores de IA (DECIDIDOS, siempre por variable de entorno — nunca hardcodear)
-- **Redacción (B→A):** `LLM_MODEL=claude-sonnet-5`. Validar `claude-opus-4-8` contra el golden set y escalar a él **solo los casos difíciles** si gana de forma medible.
-- **Liviano (A→B, distilación):** `LLM_LIGHT_MODEL=claude-haiku-4-5`.
+- **Redacción (B→A):** el validado contra el golden set es **`deepseek-v4-flash@openai`**, y es lo que corre en producción (verificado el 2026-08-22 contra `clinical_notes.ai_model`). Alternativa de la cascada: `gemini-3.6-flash@google`. El routing por consulta manda la banda `limited` a `LLM_CASCADE_DIFICIL` — ver `app/generation/provider_cascade.py`, que es la fuente de verdad del orden.
+- **⚠️ Los defaults de `config.py` NO son eso:** son `claude-sonnet-5@anthropic`, y `provider_cascade.py` excluye a Anthropic **mientras su cuenta no tenga crédito**. O sea que "sin variables de entorno" es justo la configuración que se sabe rota — el servicio arrancaría, pasaría el healthcheck de Railway y moriría en la primera generación. Desde el 2026-08-22 el arranque lo grita en el log (`app/arranque.py`); no lo tapa.
+- **Liviano (A→B, distilación):** `LLM_LIGHT_MODEL`. Mismo criterio: lo que decide es la env var de Railway, no el default del código.
 - **Embeddings:** **Cohere embed-v4** (multilingüe, recuperación cross-lingual ES→EN). `EMBEDDING_DIM=1024` (Cohere soporta 1024); corpus y `patient_embeddings` usan el **mismo** modelo/dimensión. **Cohere Rerank** es el candidato para el reranking. Siempre por env var.
 - Registra el modelo usado en `rag_answer_log.model`. Usa prompt caching en el prefijo estable (prompt de sistema + definiciones del glosario).
 
