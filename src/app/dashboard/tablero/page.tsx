@@ -54,9 +54,12 @@ export default async function DashboardPage() {
     data: { user },
   } = await supabase.auth.getUser()
   const { data: perfil } = user
-    ? await supabase.from("profiles").select("clinic_id").eq("id", user.id).maybeSingle()
+    ? await supabase.from("profiles").select("clinic_id, role").eq("id", user.id).maybeSingle()
     : { data: null }
   const clinicId = (perfil as { clinic_id: string | null } | null)?.clinic_id ?? null
+  // El rol decide si además del suyo puede dejar el tablero de ENTRADA de la clínica (0075). Es la
+  // misma comprobación que hace la RLS: acá sólo gobierna si se ofrece el botón, no si se permite.
+  const esAdmin = (perfil as { role: string | null } | null)?.role === "admin"
 
   const [
     consultasMes,
@@ -68,6 +71,7 @@ export default async function DashboardPage() {
     demoOwner,
     borradores,
     preferencia,
+    defaultDeLaClinica,
   ] = await Promise.all([
       supabase
         .from("consultations")
@@ -115,6 +119,16 @@ export default async function DashboardPage() {
             .from("tablero_preferencias")
             .select("widgets")
             .eq("user_id", user.id)
+            .eq("clinic_id", clinicId)
+            .maybeSingle()
+        : Promise.resolve({ data: null }),
+      // EL TABLERO CON EL QUE ENTRA LA CLÍNICA (0075). Es el punto de PARTIDA de quien todavía no
+      // armó el suyo; la preferencia de arriba le gana siempre. Va en la misma ola porque no
+      // depende de ella: cuál de las dos rige lo decide `disposicionEfectiva`, no una consulta.
+      clinicId
+        ? supabase
+            .from("tablero_default_clinica")
+            .select("widgets")
             .eq("clinic_id", clinicId)
             .maybeSingle()
         : Promise.resolve({ data: null }),
@@ -170,9 +184,15 @@ export default async function DashboardPage() {
   // LA DISPOSICIÓN DE ESTA PERSONA, reconciliada con los widgets que existen HOY (0072). Un id
   // viejo se ignora y uno nuevo aparece al final: la preferencia guardada es una foto del día que
   // se guardó, y el código sigue cambiando.
-  const disposicion = disposicionEfectiva(
-    ((preferencia as { data: { widgets: Guardado } | null } | { data: null }).data?.widgets ?? null),
-  )
+  //
+  // Y SI NO ARMÓ EL SUYO, entra con el de la clínica (0075). Cuál rige lo decide la función pura,
+  // no esta pantalla: acá sólo se le pasan los dos orígenes.
+  const guardadoPropio =
+    (preferencia as { data: { widgets: Guardado } | null } | { data: null }).data?.widgets ?? null
+  const guardadoDeLaClinica =
+    (defaultDeLaClinica as { data: { widgets: Guardado } | null } | { data: null }).data?.widgets ??
+    null
+  const disposicion = disposicionEfectiva(guardadoPropio, guardadoDeLaClinica)
 
   // Cada bloque, ya armado. Se arma TODO y se pinta lo elegido: el costo está en las consultas —que
   // ya corrieron arriba— y no en construir el JSX. Armar sólo lo visible obligaría a mover las
@@ -214,7 +234,7 @@ export default async function DashboardPage() {
               gate del plan, la ventana de invitación a Pro y el `?grabar=1` que arranca la
               grabación sola. Lo único propio es dónde se monta y cómo se llama el botón. */}
           <NewConsultationDrawer label="Empezar consulta" />
-          <BotonDePersonalizar disposicion={disposicion} clinicId={clinicId} />
+          <BotonDePersonalizar disposicion={disposicion} clinicId={clinicId} esAdmin={esAdmin} />
         </div>
       </div>
       {loadError && (
