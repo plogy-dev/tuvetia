@@ -1,6 +1,6 @@
 # Correo masivo de una clínica a sus clientes
 
-**Estado:** evaluado el 2026-08-22, sin construir. Decisión de Felipe: es lo que se quiere.
+**Estado:** evaluado el 2026-08-22. **Paso 1 (la baja) construido**; el resto, sin construir. Decisión de Felipe: es lo que se quiere.
 **Recomendación de tiempo:** arrancarlo **después de la entrega del lunes 24**. Abajo, por qué.
 
 ---
@@ -85,8 +85,10 @@ Resend manda webhooks de `bounced` y `complained`. Mínimo: marcar la dirección
 
 ## Orden sugerido
 
-1. **La baja primero.** Tabla, ruta pública, enlace en el pie de todo correo masivo. Sin esto no
-   sale ni un envío.
+1. ~~**La baja primero.**~~ **HECHO el 22-ago** (migración 0077, `lib/email/baja.ts`,
+   `/baja/[token]`). Falta una sola cosa cuando exista el envío: **poner el enlace en el pie**, y
+   que el envío llame a `sinLosDeBaja`. La función ya está escrita y probada; nadie la usa todavía
+   porque todavía no hay masivo a clientes.
 2. **La audiencia acotada.** "Titulares con paciente activo", "con vacuna vencida", "sin visita en
    N meses". Que la clínica NO pueda escribir "todos" sin ver a cuántos le va a llegar.
 3. **El envío**, reusando el molde del masivo de plataforma: tope, ritmo, reintento, traza por
