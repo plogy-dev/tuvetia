@@ -14,6 +14,7 @@ import "server-only"
 // componentes de cliente y no pueden importar este archivo.
 export { NOMBRE_PROVEEDOR, type Proveedor } from "./proveedores-nombres"
 
+import { LARGO_DEL_PREVIEW } from "@/lib/email/cuerpo-legible"
 import type { Proveedor } from "./proveedores-nombres"
 
 /** Un correo, ya normalizado — misma forma venga de donde venga. */
@@ -139,7 +140,7 @@ const GMAIL: Adaptador = {
         de: m.sender ?? "(desconocido)",
         para: m.to ?? "",
         asunto: m.subject ?? "(sin asunto)",
-        preview: (m.preview?.body ?? m.messageText ?? "").slice(0, 200),
+        preview: (m.preview?.body ?? m.messageText ?? "").slice(0, LARGO_DEL_PREVIEW),
         // `messageText` primero acá: para el cuerpo entero es la fuente buena, mientras que para el
         // vistazo de la bandeja `preview.body` viene mejor recortado por Gmail.
         cuerpo: m.messageText ?? m.preview?.body ?? "",
@@ -278,7 +279,7 @@ const OUTLOOK: Adaptador = {
         de: de || "(desconocido)",
         para: (m.toRecipients ?? []).map(direccionOutlook).filter(Boolean).join(", "),
         asunto: m.subject ?? "(sin asunto)",
-        preview: (m.bodyPreview ?? "").slice(0, 200),
+        preview: (m.bodyPreview ?? "").slice(0, LARGO_DEL_PREVIEW),
         // Graph entrega `body.content` cuando se lo pide; en un listado a veces sólo hay
         // `bodyPreview`, y entonces esto es lo mismo que el preview. Mejor eso que vacío.
         cuerpo: m.body?.content ?? m.bodyPreview ?? "",
