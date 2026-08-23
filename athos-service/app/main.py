@@ -1,8 +1,11 @@
 """FastAPI: rutas de Athos. /health está implementado; el resto llama a los módulos."""
+from contextlib import asynccontextmanager
+
 from fastapi import FastAPI, Header, HTTPException, WebSocket
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 
+from app.arranque import anunciar
 from app.config import get_settings
 from app.auth import verify_jwt, resolve_clinic_id
 from app.models import (
@@ -28,7 +31,18 @@ from app.retrieval.cascade import build_and_retrieve
 from app.trace.logs import log_retrieval
 
 settings = get_settings()
-app = FastAPI(title="Athos RAG service")
+@asynccontextmanager
+async def lifespan(_app: FastAPI):
+    """Al arrancar, el servicio dice con qué modelos quedó y qué credenciales le faltan.
+
+    Es lo único que separa "Railway perdió las variables" de "Athos no responde y no sabemos por
+    qué": el healthcheck da verde en los dos casos. Ver `app/arranque.py`.
+    """
+    anunciar(get_settings())
+    yield
+
+
+app = FastAPI(title="Athos RAG service", lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,

@@ -15,11 +15,30 @@ class Settings(BaseSettings):
     database_url: str = ""                  # DB de PACIENTE + trazas (por clínica) — el principal
     corpus_database_url: str = ""          # DB del CORPUS/glosario (global); si vacío usa database_url
 
-    # Motores de IA (parametrizables)
-    llm_provider: str = "anthropic"        # "anthropic" | "openai" (compatible: DeepSeek, Moonshot/Kimi)
-    llm_base_url: str = ""                  # base URL del proveedor OpenAI-compatible (p.ej. https://api.deepseek.com)
-    llm_model: str = "claude-sonnet-5"
-    llm_light_model: str = "claude-haiku-4-5"
+    # Motores de IA (parametrizables). LA ENV VAR SIGUE MANDANDO: esto es lo que queda cuando no hay
+    # ninguna, y por eso importa cuál es.
+    #
+    # ── POR QUÉ EL DEFAULT ES DEEPSEEK Y NO CLAUDE (cambiado el 2026-08-22) ────────────────────
+    #
+    # Era `claude-sonnet-5@anthropic`, y `provider_cascade.py` dice —con todas las letras— que
+    # Anthropic no debe usarse mientras su cuenta no tenga crédito. O sea que "sin variables de
+    # entorno" era exactamente la configuración que se sabe rota: el servicio arranca, pasa el
+    # healthcheck de Railway y muere en la primera generación, con el tablero en verde.
+    #
+    # Ahora el default es el primario VALIDADO contra el golden set, que es además lo que corre en
+    # producción (verificado el 2026-08-22 contra `clinical_notes.ai_model`). El caso que arregla de
+    # verdad: quien configure `LLM_API_KEY` y se olvide del resto ahora funciona en vez de fallar.
+    #
+    # LOS TRES VAN JUNTOS. Un default a medias es peor que el anterior: con `openai` y `llm_base_url`
+    # vacío, la URL queda en "/chat/completions" —relativa, inválida— y el fallo pasa de "sin
+    # crédito" a "no se entiende". Proveedor, URL y modelo se mueven de a tres o no se mueven.
+    #
+    # ANTHROPIC NO SE VA: sigue soportado como proveedor y como alternativa de la cascada, con su
+    # `anthropic_api_key` propia. Lo que cambia es cuál se asume cuando no se dijo nada.
+    llm_provider: str = "openai"           # "anthropic" | "openai" (compatible: DeepSeek, Moonshot/Kimi)
+    llm_base_url: str = "https://api.deepseek.com"
+    llm_model: str = "deepseek-v4-flash"
+    llm_light_model: str = "deepseek-v4-flash"
     llm_api_key: str = ""
 
     # Key propia de Anthropic. Si esta vacia cae a `llm_api_key`, que es como funcionaba cuando
