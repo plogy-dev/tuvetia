@@ -5,8 +5,11 @@ import {
   INCLUYE_PRO,
   MENSAJE_REQUIERE_PRO,
   PLAN_MINIMO,
+  DIAS_DE_PRUEBA,
   comoEstado,
   comoPlan,
+  diasDePruebaRestantes,
+  enPrueba,
   seRenueva,
   tieneAcceso,
   type Capacidad,
@@ -108,5 +111,44 @@ describe("comoEstado y seRenueva", () => {
     expect(seRenueva("canceled")).toBe(false)
     expect(seRenueva("inactive")).toBe(false)
     expect(seRenueva("trial")).toBe(false)
+  })
+})
+
+describe("la prueba de tres días", () => {
+  // LA PROPIEDAD QUE HACE QUE ESTO NO PUEDA ABRIR UN AGUJERO: el acceso lo sigue decidiendo `plan`
+  // y sólo `plan`. `enPrueba` no concede nada — dice qué mostrar. Si algún día alguien la mete en
+  // el gate, este comentario es la advertencia.
+  it("no toca el acceso: lo decide el plan, como siempre", () => {
+    // Una clínica "en prueba" ES pro, así que el acceso ya salía bien sin preguntar nada.
+    for (const c of TODAS) expect(tieneAcceso("pro", c)).toBe(true)
+    for (const c of TODAS) expect(tieneAcceso("free", c)).toBe(false)
+  })
+
+  it("hace falta el estado Y el plan", () => {
+    expect(enPrueba("trial", "pro")).toBe(true)
+    // El caso real que obliga a mirar las dos cosas: hay una clínica vieja en `free` cuyo estado
+    // dice `trial` por el default histórico de la columna. No está probando nada.
+    expect(enPrueba("trial", "free")).toBe(false)
+    expect(enPrueba("active", "pro")).toBe(false)
+    expect(enPrueba("cortesia", "pro")).toBe(false)
+  })
+
+  it("cuenta los días como los cuenta quien la usa: hacia arriba", () => {
+    const ahora = new Date("2026-08-24T09:00:00.000Z")
+    // Faltan 2 días y 14 horas → quedan 3, no 2. A las 23:00 del primer día nadie diría "1,04".
+    expect(diasDePruebaRestantes("2026-08-26T23:00:00.000Z", ahora)).toBe(3)
+    expect(diasDePruebaRestantes("2026-08-25T09:00:00.000Z", ahora)).toBe(1)
+  })
+
+  it("una prueba vencida muestra 0, nunca un negativo", () => {
+    const ahora = new Date("2026-08-24T09:00:00.000Z")
+    // Vencida y todavía sin barrer: la pantalla no puede decir "te quedan -2 días".
+    expect(diasDePruebaRestantes("2026-08-22T09:00:00.000Z", ahora)).toBe(0)
+    expect(diasDePruebaRestantes(null, ahora)).toBe(0)
+    expect(diasDePruebaRestantes("no es una fecha", ahora)).toBe(0)
+  })
+
+  it("dura tres días, y ese número vive también en la migración 0078", () => {
+    expect(DIAS_DE_PRUEBA).toBe(3)
   })
 })

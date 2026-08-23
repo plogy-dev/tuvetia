@@ -436,6 +436,32 @@ vets estén en ese dominio, acceso de admin a la consola y a Google Cloud, y SPF
   redactado. El destinatario de CORREO sigue siendo editable, y el modelo lo deduce de lo leído
   (está comentado a propósito, para que el vet lo corrija).
 
+- 🟠 **La prueba de 3 días está construida, y la migración SIN APLICAR.** Decisión de la reunión
+  del 22-ago —"periodo de prueba gratuito de 3 días para el uso de las funciones de IA"— que no
+  existía en el código: `clinics.plan` es `free|pro` a secas y una clínica sin suscripción no tenía
+  Athos desde el primer minuto.
+
+  **No hay columna nueva, y es la decisión de diseño.** Una prueba es lo que el esquema ya sabía
+  decir: `plan='pro'` + `subscription_status='trial'` + `plan_renueva_en = ahora + 3d`. La
+  tentación era un `trial_ends_at`, y habría creado un SEGUNDO reloj: el barrido está construido
+  sobre `plan_renueva_en` como única columna a propósito («no existe ninguna clínica que el barrido
+  pueda no ver»), y con dos relojes hay clínicas que se cuelan entre los dos. De paso `'trial'`
+  deja de ser el valor muerto que la 0065 dejó "por compatibilidad".
+
+  **La estampa un trigger** (`0078`), no un default ni la función de alta: `plan` con default
+  `'pro'` no caducaría nunca, las tres columnas tienen que moverse juntas, y `insert into clinics`
+  aparece en TRES funciones distintas (0022, 0048, 0055). El trigger cubre también los caminos que
+  se escriban después. **La baja el barrido**, que ya miraba por `plan_renueva_en` — lo único que
+  las dejaba afuera era el filtro de estado, y va con test de que no se les intente cobrar: una
+  prueba no tiene tarjeta, y un cobro fallido la dejaría en Pro contada como "omitida", o sea una
+  prueba que no caduca disfrazada de problema de pagos.
+
+  **Sin backfill, medido antes de decidirlo:** 14 clínicas en `cortesia`, 1 `active` y UNA en
+  `free` (del 17-ago, con `plan_renueva_en` en null, así que ni el gate ni el barrido la tocan).
+
+  ⚠️ **Falta aplicar `0078` al principal** (con su verificación en `athos-service/supabase/
+  verificaciones/`). Hasta entonces el código está listo y ninguna clínica nueva recibe la prueba.
+
 - 🟡 **El banco adversario está construido, y sin correr.** Misma tanda del 23-ago. Es el
   instrumento que faltaba para medir lo de arriba: `docs/AGENTE-ADVERSARIOS.md`,
   `src/lib/athos-agent/adversarios/` y `npm run adversarios`. **7 ataques por inyección** —

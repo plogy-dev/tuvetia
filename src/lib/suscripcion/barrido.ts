@@ -1,6 +1,7 @@
 import "server-only"
 
-// El barrido diario: cobra lo que vence, reintenta lo que falló y baja lo que se canceló.
+// El barrido diario: cobra lo que vence, reintenta lo que falló, y baja lo que se canceló o se le
+// terminó la prueba.
 //
 // UNA SOLA COLUMNA LO GOBIERNA: `clinics.plan_renueva_en`. Es "cuándo hay que volver a mirar esta
 // clínica", y significa cosas distintas según el estado —renovar, reintentar, o bajar el plan—
@@ -40,9 +41,13 @@ export async function barrerSuscripciones(ahora = new Date()): Promise<Resultado
       "id, plan, subscription_status, plan_renueva_en, plan_cancelado_en, wompi_payment_source_id, wompi_customer_email",
     )
     .lte("plan_renueva_en", ahora.toISOString())
-    // `cortesia`, `inactive` y `trial` no entran: no tienen nada que cobrar. Filtrarlo en la
+    // `cortesia` e `inactive` no entran: no tienen nada que cobrar ni que vencer. Filtrarlo en la
     // consulta y no en el bucle evita traer las clínicas gratis, que van a ser la mayoría.
-    .in("subscription_status", ["active", "past_due", "canceled"])
+    //
+    // `trial` SÍ entra desde la 0078, y no para cobrarle: para BAJARLA. Una prueba de tres días es
+    // `plan = 'pro'` con fecha de vencimiento, así que el barrido ya la veía por `plan_renueva_en`
+    // y era este filtro lo único que la dejaba afuera. Sin esto, la prueba no se termina nunca.
+    .in("subscription_status", ["active", "past_due", "canceled", "trial"])
     .order("plan_renueva_en", { ascending: true })
     .limit(TOPE_POR_CORRIDA)
 
@@ -60,6 +65,25 @@ export async function barrerSuscripciones(ahora = new Date()): Promise<Resultado
       // Bajan acá y no el día que cancelaron. Ver `cancelarSuscripcion`: quien pagó el mes se lo usa
       // entero.
       if (clinica.subscription_status === "canceled") {
+        await db
+          .from("clinics")
+          .update({
+            plan: "free",
+            subscription_status: "inactive",
+            plan_renueva_en: null,
+            updated_at: new Date().toISOString(),
+          })
+          .eq("id", clinica.id)
+        resultado.bajadas += 1
+        continue
+      }
+
+      // ── Prueba vencida: se acabaron los tres días ─────────────────────────────────────────────
+      // Baja igual que una cancelada, pero por otro motivo y sin nada que cobrar: una prueba no
+      // tiene tarjeta. Va ANTES del cobro porque `cobrarPeriodo` con `wompi_payment_source_id` en
+      // null devolvería un fallo, y un fallo se cuenta como omitida — la clínica se quedaría en Pro
+      // y el informe diría que no se le pudo cobrar, que es la lectura equivocada.
+      if (clinica.subscription_status === "trial") {
         await db
           .from("clinics")
           .update({
