@@ -4,13 +4,14 @@
 // destinatarios uno por uno (o "todos"), y confirmar escribiendo el número de destinatarios. Un
 // masivo mal dirigido no se puede deshacer.
 
-import { useState } from "react"
-import { Loader2, Send, Users } from "lucide-react"
+import { useMemo, useState } from "react"
+import { Eye, Loader2, Send, Users } from "lucide-react"
 import { toast } from "sonner"
 
 import { enviarCorreoMasivo } from "@/app/admin/usuarios/actions"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { PLANTILLAS, huecos, plantillaPorId, rellenar } from "@/lib/email/plantillas"
 
 export type DestinatarioMasivo = { email: string; nombre: string | null; clinica: string | null }
 
@@ -29,11 +30,32 @@ export function BulkEmailPanel({
   const [text, setText] = useState("")
   const [confirmacion, setConfirmacion] = useState("")
   const [enviando, setEnviando] = useState(false)
+  const [valores, setValores] = useState<Record<string, string>>({})
+
+  // LO QUE SE MANDA ES LO QUE SE VE, y por eso sale de la misma función que arma la vista previa
+  // (`lib/email/plantillas`). Si el preview se armara por su cuenta, mostraría un texto y saldría
+  // otro — y el masivo se firma mirando el preview.
+  const asuntoFinal = useMemo(() => rellenar(subject, valores), [subject, valores])
+  const cuerpoFinal = useMemo(() => rellenar(text, valores), [text, valores])
+  const sinLlenar = useMemo(() => huecos(asuntoFinal, cuerpoFinal), [asuntoFinal, cuerpoFinal])
 
   const total = elegidos.size
   const excede = total > tope
   const confirmado = confirmacion.trim() === String(total) && total > 0
-  const listo = configurado && confirmado && !excede && !!subject.trim() && !!text.trim()
+  const listo =
+    configurado && confirmado && !excede && !!asuntoFinal.trim() && !!cuerpoFinal.trim() &&
+    sinLlenar.length === 0
+
+  function elegirPlantilla(id: string) {
+    const p = plantillaPorId(id)
+    if (!p) return
+    setSubject(p.asunto)
+    setText(p.cuerpo)
+    // Los campos arrancan vacíos a propósito: un valor de ejemplo precargado es exactamente lo que
+    // termina saliendo sin que nadie lo mire.
+    setValores({})
+    setConfirmacion("")
+  }
 
   function alternar(email: string) {
     setElegidos((prev) => {
@@ -57,8 +79,8 @@ export function BulkEmailPanel({
     setEnviando(true)
     const res = await enviarCorreoMasivo({
       destinatarios: [...elegidos],
-      subject,
-      text,
+      subject: asuntoFinal,
+      text: cuerpoFinal,
     })
     setEnviando(false)
 
@@ -79,6 +101,7 @@ export function BulkEmailPanel({
     setElegidos(new Set())
     setSubject("")
     setText("")
+    setValores({})
     setConfirmacion("")
     setAbierto(false)
   }
@@ -150,6 +173,22 @@ export function BulkEmailPanel({
         )}
       </div>
 
+      <div className="flex flex-wrap items-center gap-1.5">
+        <span className="text-xs text-muted-foreground">Plantilla:</span>
+        {PLANTILLAS.map((p) => (
+          <button
+            key={p.id}
+            type="button"
+            onClick={() => elegirPlantilla(p.id)}
+            title={p.para}
+            className="rounded-full border px-2.5 py-1 text-xs transition hover:bg-muted"
+          >
+            {p.nombre}
+          </button>
+        ))}
+        <span className="text-xs text-muted-foreground">o escribilo a mano abajo.</span>
+      </div>
+
       <Input
         value={subject}
         onChange={(e) => setSubject(e.target.value)}
@@ -164,6 +203,44 @@ export function BulkEmailPanel({
         maxLength={20000}
         className="w-full rounded-md border bg-background p-2 text-sm outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50"
       />
+
+      {sinLlenar.length > 0 && (
+        <div className="rounded-lg border bg-muted/40 p-3">
+          <p className="text-xs font-medium">Completá los datos de la plantilla</p>
+          <div className="mt-2 grid gap-2 sm:grid-cols-2">
+            {sinLlenar.map((h) => (
+              <label key={h} className="text-xs text-muted-foreground">
+                {h}
+                <Input
+                  value={valores[h] ?? ""}
+                  onChange={(e) => setValores((v) => ({ ...v, [h]: e.target.value }))}
+                  placeholder={`{{${h}}}`}
+                  className="mt-1"
+                />
+              </label>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* LA VISTA PREVIA NO ES UN ADORNO: es lo único que enseña el correo entero antes de que salga
+          a doce cuentas, y muestra EXACTAMENTE el texto que se manda —el mismo `rellenar`— con los
+          huecos que falten todavía a la vista. */}
+      {(asuntoFinal.trim() || cuerpoFinal.trim()) && (
+        <div className="rounded-lg border bg-background p-3">
+          <p className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
+            <Eye className="size-3.5" /> Así les va a llegar
+          </p>
+          <p className="mt-2 text-sm font-semibold">{asuntoFinal || "(sin asunto)"}</p>
+          <p className="mt-1 whitespace-pre-wrap text-sm text-muted-foreground">{cuerpoFinal}</p>
+          {sinLlenar.length > 0 && (
+            <p className="mt-2 text-xs text-destructive">
+              Todavía hay {sinLlenar.length === 1 ? "un dato" : "datos"} sin completar:{" "}
+              {sinLlenar.map((h) => `{{${h}}}`).join(", ")}. No se puede enviar así.
+            </p>
+          )}
+        </div>
+      )}
 
       <div className="flex items-end gap-2">
         <div className="flex-1">

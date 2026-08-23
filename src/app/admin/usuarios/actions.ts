@@ -16,6 +16,7 @@ import { createAdminClient } from "@/lib/supabase/admin"
 import { isPlatformAdmin } from "@/lib/platform-admin"
 import { sendPlatformEmail } from "@/lib/email/platform-sender"
 import { TOPE_ENVIO_MASIVO } from "@/lib/admin/limites"
+import { huecos } from "@/lib/email/plantillas"
 
 const EnvioSchema = z.object({
   to: z.string().email("El correo del destinatario no es válido"),
@@ -214,14 +215,32 @@ export async function enviarCorreoPlataforma(input: {
 const TOPE_MASIVO = TOPE_ENVIO_MASIVO
 const MS_ENTRE_ENVIOS = 1200
 
-const MasivoSchema = z.object({
-  destinatarios: z
-    .array(z.string().email())
-    .min(1, "Elegí al menos un destinatario")
-    .max(TOPE_MASIVO, `Máximo ${TOPE_MASIVO} destinatarios por tanda`),
-  subject: z.string().trim().min(1, "El asunto no puede ir vacío").max(200),
-  text: z.string().trim().min(1, "El mensaje no puede ir vacío").max(20_000),
-})
+const MasivoSchema = z
+  .object({
+    destinatarios: z
+      .array(z.string().email())
+      .min(1, "Elegí al menos un destinatario")
+      .max(TOPE_MASIVO, `Máximo ${TOPE_MASIVO} destinatarios por tanda`),
+    subject: z.string().trim().min(1, "El asunto no puede ir vacío").max(200),
+    text: z.string().trim().min(1, "El mensaje no puede ir vacío").max(20_000),
+  })
+  // EL HUECO SIN RELLENAR, CORTADO EN EL SERVIDOR. El panel ya deshabilita el botón cuando quedan
+  // marcas, pero una server action es un ENDPOINT: se la puede llamar sin pasar por la interfaz, y
+  // el día que alguien arme un script para la tanda del mes, la validación de la pantalla no
+  // existe. "Hola {{nombre}}," a doce clínicas no se puede deshacer.
+  //
+  // Se usa la MISMA función que arma la vista previa (`lib/email/plantillas`): dos criterios
+  // distintos darían un texto que la pantalla deja mandar y el servidor rebota — o al revés, que es
+  // peor.
+  .superRefine((v, ctx) => {
+    const sinLlenar = huecos(v.subject, v.text)
+    if (sinLlenar.length === 0) return
+    ctx.addIssue({
+      code: "custom",
+      // Se nombran los huecos: "faltan datos" a secas obliga a releer 20 líneas para encontrar cuál.
+      message: `Faltan datos en la plantilla: ${sinLlenar.map((h) => `{{${h}}}`).join(", ")}`,
+    })
+  })
 
 export type ResultadoMasivo =
   | { ok: true; enviados: number; fallidos: { email: string; error: string }[] }
