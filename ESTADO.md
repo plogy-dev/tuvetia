@@ -363,10 +363,14 @@ vets estén en ese dominio, acceso de admin a la consola y a Google Cloud, y SPF
   —y ojo, `fiscal_documents` y `payment_applications` apuntan con `RESTRICT`, así que hay que
   borrarlas antes; los `invoice_events` caen por cascade.
 
-- ⚠️ **Template de email "Magic Link" en Supabase** (config, no código): debe emitir
-  `{{ .SiteURL }}/auth/confirm?token_hash={{ .TokenHash }}&type=email&next=/dashboard`. Si sigue
-  con `{{ .ConfirmationURL }}` (PKCE `?code=`), el magic link puede "no hacer nada" al abrirse en
-  otro dispositivo. Verificar en Auth → Email Templates (coordinar con Santiago).
+- ⚠️ **Plantillas de correo en Supabase** (config, no código): son **DOS** —"Magic Link" y
+  "Confirm signup"—, porque `signInWithOtp` manda una u otra según si el correo ya tiene cuenta.
+  Texto exacto y verificación en `docs/CONFIGURAR-MAGIC-LINK.md`.
+  **Corrección del 23-ago:** acá decía `{{ .SiteURL }}/auth/confirm?token_hash=…&next=/dashboard`, y
+  eso PIERDE el `next` que manda el navegador — que es por donde viaja la invitación de equipo
+  (`/signup?next=/invitar/<token>`). Va `{{ .RedirectTo }}`, que ya trae el `next`, y se concatena
+  con `&`. Si sigue con `{{ .ConfirmationURL }}` (PKCE `?code=`), el enlace "no hace nada" al abrirse
+  en otro dispositivo. El contrato quedó fijado en `src/lib/__tests__/contrato-del-magic-link.test.ts`.
 - (Opcional) **2ª key de Cohere** para aislar la ingesta de producción del todo — hoy el timeout
   de 6s ya protege el chat mientras ingesta.
 - Rediseño de la **historia del paciente** (UX confusa) — hacerlo ya con el design system nuevo.

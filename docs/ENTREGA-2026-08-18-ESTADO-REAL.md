@@ -1,5 +1,22 @@
 # Entrega Final del 18-ago — qué está verificado y qué no
 
+> ## ⏱ Esto es una FOTO del 18 de agosto — releído y contrastado el 23-ago
+>
+> Cada "hoy", "ayer" y "mañana" de abajo está dicho desde el 18. Se deja tal cual, porque un
+> documento fechado que se reescribe deja de servir como registro. Lo que cambió desde entonces:
+>
+> | lo que decía el 18-ago | al 23-ago |
+> |---|---|
+> | «La política de tratamiento de datos **no existe**» | **Existe y está escrita** (`lib/legal/politica-de-datos.ts`), y la página **se publica sola** en cuanto se llenen los cinco campos de `lib/legal/responsable.ts`. Sigue mostrando "en preparación" por lo mismo que decía el 18: falta nombrar al responsable, que es una decisión comercial |
+> | «1058 tests en verde» | **1.876** (1.563 del producto, 313 del servicio de IA) |
+> | «Los tres modelos»: sólo DeepSeek responde | **Sin cambios.** Verificado el 23-ago: Claude 0, Gemini 0 en las dos superficies. Sigue siendo crédito y variables, no código |
+> | «Citas superpuestas: resuelto ayer» | Sigue resuelto |
+>
+> Y entre el 21 y el 23 se corrigieron cinco defectos más, todos encontrados **recorriendo el
+> producto** y ninguno visible en los logs — ver la sección "Corregido entre el 21 y el 23 de
+> agosto" de `docs/entrega/2-INVENTARIO-DE-COMPONENTES.md`.
+
+
 > **Contraste del checklist interno contra producción**, hecho el 2026-08-17 consultando la base y
 > leyendo el código. Aplica la regla que el propio checklist pone arriba de todo: *"solo cuenta lo
 > que esté integrado y operando en el entorno accesible al cliente"*.
