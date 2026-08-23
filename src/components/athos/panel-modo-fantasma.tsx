@@ -41,7 +41,7 @@ import type { InteligenciaViva } from "@/lib/consulta-viva/usar-inteligencia-viv
  * estaban amontonadas:
  *
  *   · TRANSCRIPCIÓN — lo que se está diciendo, crudo.
- *   · LIVE NOTES    — lo que Athos va ordenando de eso.
+ *   · NOTAS EN VIVO — lo que Athos va ordenando de eso.
  *   · CASOS PARECIDOS — la memoria de la propia clínica: "esto ya lo viste en marzo".
  *   · SUGERENCIAS   — qué preguntar y qué no dejar pasar, con literatura detrás.
  *   · MIS NOTAS     — la hoja en blanco del vet.
@@ -51,7 +51,7 @@ import type { InteligenciaViva } from "@/lib/consulta-viva/usar-inteligencia-viv
  */
 const PESTANAS = [
   { id: "transcripcion", rotulo: "Transcripción" },
-  { id: "notas", rotulo: "Live notes" },
+  { id: "notas", rotulo: "Notas en vivo" },
   { id: "casos", rotulo: "Casos parecidos" },
   { id: "sugerencias", rotulo: "Sugerencias" },
   { id: "cuaderno", rotulo: "Mis notas" },

@@ -13,7 +13,7 @@
 // después es exactamente el ruido del que se quejó el cliente. Cuando la grabación termina, el
 // cockpit se retira solo y la pantalla de siempre vuelve con el material ya listo.
 //
-// DOS PANELES Y NO TRES. El prototipo pone Live notes y Mi cuaderno lado a lado, y la transcripción
+// DOS PANELES Y NO TRES. El prototipo pone las notas en vivo y Mi cuaderno lado a lado, y la transcripción
 // en su propia pestaña. Es correcto: la transcripción corre sola y no se lee mientras se atiende —
 // se consulta cuando hay una duda. Lo que se mira todo el tiempo es lo que Athos va armando y lo
 // que uno escribe.
@@ -177,7 +177,7 @@ export function Cockpit({
         // DOS PANELES, apilados en pantalla angosta. El cuaderno va PRIMERO al apilarse: es lo
         // único con lo que se interactúa, y leer lo que Athos armó se puede hacer después.
         <div className="flex min-h-0 flex-1 flex-col-reverse gap-4 lg:flex-row">
-          <Panel titulo="Live notes" bajada="Athos lo arma solo a medida que escucha">
+          <Panel titulo="Notas en vivo" bajada="Athos lo arma solo a medida que escucha">
             <AthosEnVivo vivo={vivo} soloNotas />
           </Panel>
           <Panel

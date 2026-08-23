@@ -67,7 +67,7 @@ export function AthosEnVivo({
   className,
 }: {
   vivo: InteligenciaViva
-  /** Sólo "lo que se dijo". Lo usa la pestaña Live notes del notch. */
+  /** Sólo "lo que se dijo". Lo usa la pestaña Notas en vivo del notch. */
   soloNotas?: boolean
   /** Sólo "qué mirar". Lo usa la pestaña Sugerencias. */
   soloSugerencias?: boolean
