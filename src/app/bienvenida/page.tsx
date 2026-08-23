@@ -7,6 +7,7 @@ import { SinClinica } from "@/components/onboarding/sin-clinica"
 import { CuentaDesactivada } from "@/components/cuenta-desactivada"
 import { estadoDeAcceso } from "@/lib/acceso"
 import { progresoDeConfiguracion } from "@/lib/onboarding/consultar"
+import { comoPlan } from "@/lib/planes"
 
 export const metadata = { title: "Configura tu clínica · Tuvetia" }
 
@@ -57,10 +58,10 @@ export default async function BienvenidaPage() {
 
   const { data: clinic } = await supabase
     .from("clinics")
-    .select("name, logo_url")
+    .select("name, logo_url, plan")
     .eq("id", p.clinic_id)
     .maybeSingle()
-  const c = clinic as { name: string; logo_url: string | null } | null
+  const c = clinic as { name: string; logo_url: string | null; plan: string | null } | null
 
   // QUÉ TIENE YA LA CLÍNICA, para que el wizard no vuelva a pedir lo que ya está.
   //
@@ -93,7 +94,7 @@ export default async function BienvenidaPage() {
       {/* El panel de Athos es acompañamiento, no camino crítico: en pantallas chicas se oculta y el
           wizard funciona igual. Si Athos falla o tarda, el onboarding no se bloquea. */}
       <div className="hidden min-h-0 lg:block">
-        <OnboardingAthos clinicName={c?.name ?? ""} />
+        <OnboardingAthos clinicName={c?.name ?? ""} plan={comoPlan(c?.plan)} />
       </div>
     </main>
   )
