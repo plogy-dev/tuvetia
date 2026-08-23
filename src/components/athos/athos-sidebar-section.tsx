@@ -33,6 +33,7 @@ import Link from "next/link"
 import { usePathname, useSearchParams } from "next/navigation"
 import { ChevronDown, MessagesSquare, PlusIcon, SearchIcon, Stethoscope } from "lucide-react"
 
+import { ESTADO_DE_CONSULTA } from "@/lib/consultas/estado"
 import { createClient } from "@/lib/supabase/client"
 import { Input } from "@/components/ui/input"
 import {
@@ -50,13 +51,6 @@ import {
   suscribirAlPlegado,
 } from "@/lib/athos/historial-plegado"
 
-const ESTADO_CONSULTA: Record<string, string> = {
-  open: "Abierta",
-  transcribing: "Transcribiendo",
-  generating_note: "Generando nota",
-  review: "En revisión",
-  completed: "Completada",
-}
 
 /** Cuántas filas de cada lista se traen. Es un panel de acceso rápido, no un archivo completo. */
 const TOPE_CONSULTAS = 40
@@ -112,7 +106,7 @@ export function AthosSidebarSection() {
           key: c.id,
           href: `/dashboard/consultas/${c.id}`,
           titulo: c.patient?.name ?? "Sin paciente",
-          sub: `${bogotaDate(c.started_at)} · ${ESTADO_CONSULTA[c.status] ?? c.status}`,
+          sub: `${bogotaDate(c.started_at)} · ${ESTADO_DE_CONSULTA[c.status] ?? c.status}`,
         })),
       )
 

@@ -325,6 +325,12 @@ vets estén en ese dominio, acceso de admin a la consola y a Google Cloud, y SPF
 > se tachan con `~~…~~` y se dice cuándo y en qué commit — no se borran, porque saber que algo se
 > intentó y por qué se resolvió así vale tanto como la lista.
 
+- 🟡 **¿La nota del Fantasma se genera sola?** (decisión de producto, no defecto). Hoy `generating_note`
+  se sale a mano: el vet abre la consulta y aprieta "Generar sugerencia". Se corrigió la etiqueta, que
+  decía "Generando nota" y hacía esperar a la gente (22-ago, `src/lib/consultas/estado.ts`) — pero la
+  pregunta de fondo sigue abierta: generar sola cuesta una llamada al modelo por consulta cerrada, la
+  capacidad es de Pro, y hay consultas que se graban y se abandonan. Medido antes del arreglo: cuatro
+  consultas atascadas de cuatro días distintos, todas con transcript y ninguna con nota.
 - ⚠️ **Template de email "Magic Link" en Supabase** (config, no código): debe emitir
   `{{ .SiteURL }}/auth/confirm?token_hash={{ .TokenHash }}&type=email&next=/dashboard`. Si sigue
   con `{{ .ConfirmationURL }}` (PKCE `?code=`), el magic link puede "no hacer nada" al abrirse en

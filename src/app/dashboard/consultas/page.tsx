@@ -1,6 +1,7 @@
 import Link from "next/link"
 import { ChevronDownIcon, ChevronRightIcon, GhostIcon, SearchIcon } from "lucide-react"
 
+import { ESTADO_DE_CONSULTA } from "@/lib/consultas/estado"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { EmptyState } from "@/components/ui/empty-state"
@@ -17,13 +18,6 @@ import { tituloDeLaConsulta } from "@/lib/consultas/titulo"
 export const metadata = { title: "Modo Fantasma · Tuvetia" }
 
 
-const CONSULTATION_STATUS: Record<string, string> = {
-  open: "Abierta",
-  transcribing: "Transcribiendo",
-  generating_note: "Generando nota",
-  review: "En revisión",
-  completed: "Completada",
-}
 
 const NOTE_STATUS: Record<
   string,
@@ -268,7 +262,7 @@ export default async function ConsultasPage({
                       })}
                     </span>
                     <span className="hidden shrink-0 text-xs text-muted-foreground sm:block">
-                      {CONSULTATION_STATUS[c.status] ?? c.status}
+                      {ESTADO_DE_CONSULTA[c.status] ?? c.status}
                     </span>
                     {noteMeta ? (
                       <Badge variant={noteMeta.variant} className="shrink-0 text-xs">
