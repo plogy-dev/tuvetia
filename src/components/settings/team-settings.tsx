@@ -52,6 +52,16 @@ function initialsOf(name: string | null, fallback: string) {
     .join("")
 }
 
+/** Las dos opciones de rol, para los dos selects de esta pantalla.
+ *
+ * `items` NO es decorativo: Base UI lo usa para que `<SelectValue />` muestre la ETIQUETA y no el
+ * valor. Sin él se lee "vet" donde va "Veterinario" — que es lo que pasaba en la lista del equipo.
+ */
+const ROLES = [
+  { label: "Veterinario", value: "vet" },
+  { label: "Administrador", value: "admin" },
+]
+
 export function TeamSettings({
   isAdmin,
   members,
@@ -246,6 +256,7 @@ export function TeamSettings({
                   value={m.role}
                   onValueChange={(v) => cambiarRol(m, ((v as string) ?? "vet") as "vet" | "admin")}
                   disabled={cambiandoRol === m.id}
+                  items={ROLES}
                 >
                   <SelectTrigger
                     className="h-7 w-[132px] shrink-0 text-xs"
@@ -360,11 +371,7 @@ export function TeamSettings({
                 <Select
                   value={role}
                   onValueChange={(v) => setRole(((v as string) ?? "vet") as "vet" | "admin")}
-                  // Sin `items`, Base UI pinta el valor crudo: "vet" en vez de "Veterinario".
-                  items={[
-                    { label: "Veterinario", value: "vet" },
-                    { label: "Administrador", value: "admin" },
-                  ]}
+                  items={ROLES}
                 >
                   <SelectTrigger id="invite-role" className="w-full">
                     <SelectValue />

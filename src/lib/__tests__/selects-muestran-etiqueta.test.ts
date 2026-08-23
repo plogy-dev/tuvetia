@@ -34,10 +34,27 @@ const VALUE_PELADO = /<SelectValue\s*\/>/g
 /** `items={…}` en el `<Select>` que lo contiene. */
 const ITEMS = /items=\{/g
 
+/**
+ * Quita los comentarios antes de contar. SIN ESTO, DOCUMENTAR LA REGLA LA ROMPE: un comentario
+ * que explique por qué hace falta `items` casi siempre nombra un `<SelectValue />`, el escáner lo
+ * cuenta como un select más, y el archivo aparece incompleto por haberse explicado bien. Pasó el
+ * 22-ago en `team-settings.tsx`. Es la misma cura que el test de las pastillas del tablero.
+ *
+ * El `[^:]` antes de las dos barras protege a `https://`.
+ */
+function sinComentarios(codigo: string): string {
+  return codigo
+    .replace(/\/\*[\s\S]*?\*\//g, "")
+    .replace(/(^|[^:])\/\/.*$/gm, "$1")
+}
+
 function fuentes(): { ruta: string; contenido: string }[] {
   return readdirSync(RAIZ, { recursive: true, encoding: "utf8" })
     .filter((f) => f.endsWith(".tsx"))
-    .map((f) => ({ ruta: f.replace(/\\/g, "/"), contenido: readFileSync(join(RAIZ, f), "utf8") }))
+    .map((f) => ({
+      ruta: f.replace(/\\/g, "/"),
+      contenido: sinComentarios(readFileSync(join(RAIZ, f), "utf8")),
+    }))
     // El wrapper define el componente; no lo usa.
     .filter((a) => !a.ruta.endsWith("ui/select.tsx"))
 }
