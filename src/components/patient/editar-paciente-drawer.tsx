@@ -193,7 +193,16 @@ export function EditarPacienteDrawer({
               {/* `onValueChange` entrega `string | null` en esta versión del Select. El null se
                   ignora en vez de escribirse: dejaría el sexo en un valor que la validación
                   rechaza, y el vet vería un error sobre un campo que no tocó. */}
-              <Select value={campos.sex} onValueChange={(v) => v !== null && set("sex")(v)}>
+              <Select
+                value={campos.sex}
+                onValueChange={(v) => v !== null && set("sex")(v)}
+                // Sin `items`, Base UI pinta el valor crudo: "female" en vez de "Hembra".
+                items={[
+                  { label: "Hembra", value: "female" },
+                  { label: "Macho", value: "male" },
+                  { label: "Sin definir", value: "unknown" },
+                ]}
+              >
                 <SelectTrigger id="ep-sexo">
                   <SelectValue />
                 </SelectTrigger>
