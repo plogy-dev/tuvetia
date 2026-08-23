@@ -252,3 +252,58 @@ describe("el catálogo y la pantalla no se separan", () => {
     for (const w of CATALOGO) expect(widgetDe(w.id)).toBeDefined()
   })
 })
+
+describe("el tablero con el que entra la clínica (0075)", () => {
+  /**
+   * LAS DOS FRASES DE LUCIANO, de la misma llamada del 21-ago:
+   *
+   *   29:03 — "¿qué tal si el administrador es el único que lo puede modificar?" · "exactamente"
+   *   44:44 — "mi cuenta y mi dashboard es mío, mi agenda es mía"
+   *
+   * Se contradicen, y las dos tienen razón sobre algo distinto. La regla que las satisface: el
+   * default de clínica es el punto de PARTIDA y la preferencia personal le gana siempre.
+   *
+   * Estos tests fijan esa precedencia, que es lo único que no se puede deducir leyendo el código
+   * sin las dos frases delante.
+   */
+  const propio = [{ id: "borradores", visible: true }]
+  const deLaClinica = [{ id: "metricas", visible: true }]
+
+  it("sin nada propio, entra con el de la clínica", () => {
+    expect(disposicionEfectiva(null, deLaClinica)[0].id).toBe("metricas")
+  })
+
+  // LA MITAD QUE PROTEGE "mi dashboard es mío".
+  it("con el suyo armado, el de la clínica no lo toca", () => {
+    expect(disposicionEfectiva(propio, deLaClinica)[0].id).toBe("borradores")
+  })
+
+  it("sin ninguno de los dos, el de fábrica", () => {
+    expect(disposicionEfectiva(null, null)).toEqual(porDefecto())
+  })
+
+  // NO SE MEZCLAN. Fusionar el orden del admin con la visibilidad de la persona haría que un
+  // bloque se moviera solo un día cualquiera — y eso se lee como un error, no como una novedad.
+  it("no fusiona: gana uno entero", () => {
+    const d = disposicionEfectiva([{ id: "borradores", visible: false }], deLaClinica)
+    // "borradores" viene del propio y conserva SU visibilidad, no la del de la clínica.
+    expect(d.find((p) => p.id === "borradores")?.visible).toBe(false)
+  })
+
+  // Guardar una lista de nada no es una preferencia: un arreglo vacío tiene que caer al siguiente
+  // origen. Con `??` no pasaría — un `[]` no es null y ganaría igual.
+  it("una preferencia vacía cae al de la clínica", () => {
+    expect(disposicionEfectiva([], deLaClinica)[0].id).toBe("metricas")
+  })
+
+  // Lo mismo con una llena de ids que ya no existen: es una foto de un código que cambió.
+  it("una preferencia de puros ids viejos cae al de la clínica", () => {
+    expect(disposicionEfectiva([{ id: "zzz-no-existe", visible: true }], deLaClinica)[0].id).toBe(
+      "metricas",
+    )
+  })
+
+  it("y si el de la clínica también es basura, el de fábrica", () => {
+    expect(disposicionEfectiva([], [{ id: "zzz", visible: true }])).toEqual(porDefecto())
+  })
+})

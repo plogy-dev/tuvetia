@@ -36,7 +36,7 @@ import {
   verticalListSortingStrategy,
 } from "@dnd-kit/sortable"
 import { CSS } from "@dnd-kit/utilities"
-import { ChevronDown, ChevronUp, Eye, EyeOff, GripVertical, RotateCcw } from "lucide-react"
+import { Building2, ChevronDown, ChevronUp, Eye, EyeOff, GripVertical, RotateCcw } from "lucide-react"
 import { toast } from "sonner"
 
 import { createClient } from "@/lib/supabase/client"
@@ -130,11 +130,19 @@ export function PersonalizarTablero({
   clinicId,
   abierto,
   alCerrar,
+  esAdmin,
 }: {
   disposicion: Puesto[]
   clinicId: string
   abierto: boolean
   alCerrar: () => void
+  /**
+   * Un admin puede además dejar esta disposición como el tablero de ENTRADA de la clínica (0075).
+   *
+   * Gobierna si se OFRECE la acción, no si se permite: quien decide eso es la RLS, que exige
+   * `admin` en las tres policies de escritura. Esconder un botón no es una autorización.
+   */
+  esAdmin?: boolean
 }) {
   const [d, setD] = useState<Puesto[]>(disposicion)
   const [guardando, setGuardando] = useState(false)
@@ -156,6 +164,40 @@ export function PersonalizarTablero({
         prev.findIndex((p) => p.id === over.id),
       ),
     )
+  }
+
+  /**
+   * Deja esta disposición como el punto de partida de la clínica (0075).
+   *
+   * NO PISA EL TABLERO DE NADIE. Quien ya armó el suyo sigue con el suyo — lo decide
+   * `disposicionEfectiva`, que elige la preferencia personal cuando existe. Esto sólo cambia con
+   * qué entra quien todavía no la tiene, y el `title` del botón lo dice antes de apretarlo.
+   */
+  async function dejarComoEntradaDeLaClinica() {
+    setGuardando(true)
+    const supabase = createClient()
+    const {
+      data: { user },
+    } = await supabase.auth.getUser()
+    const { error } = await supabase
+      .from("tablero_default_clinica")
+      .upsert(
+        {
+          clinic_id: clinicId,
+          widgets: d,
+          updated_by: user?.id ?? null,
+          updated_at: new Date().toISOString(),
+        },
+        { onConflict: "clinic_id" },
+      )
+    setGuardando(false)
+    if (error) {
+      // La RLS es la que decide de verdad: si esta persona dejó de ser admin entre que se pintó el
+      // botón y se apretó, el error viene de ahí y hay que mostrarlo tal cual.
+      toast.error(`No se pudo dejar como entrada de la clínica: ${error.message}`)
+      return
+    }
+    toast.success("Quien no haya armado su tablero entrará con éste")
   }
 
   async function guardarYCerrar() {
@@ -224,11 +266,26 @@ export function PersonalizarTablero({
           </DndContext>
         </div>
 
-        <div className="flex items-center gap-2 border-t border-line-soft p-4">
+        <div className="flex flex-wrap items-center gap-2 border-t border-line-soft p-4">
           <Button variant="ghost" size="sm" onClick={() => setD(porDefecto())}>
             <RotateCcw className="size-3.5" />
             Como venía
           </Button>
+          {/* LA ACCIÓN DEL ADMIN, y va SEPARADA de "Guardar" a propósito. Son dos cosas distintas
+              —una cambia tu pantalla, la otra la de todo el equipo— y un solo botón con una casilla
+              al lado invita a marcarla sin leerla. El texto dice a quién le cambia la vista. */}
+          {esAdmin && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={dejarComoEntradaDeLaClinica}
+              disabled={guardando}
+              title="Quien todavía no armó su tablero entrará con esta disposición. A quien ya armó el suyo no le cambia nada."
+            >
+              <Building2 className="size-3.5" />
+              Dejar como entrada de la clínica
+            </Button>
+          )}
           <Button className="ml-auto" onClick={guardarYCerrar} disabled={guardando}>
             {guardando ? "Guardando…" : "Guardar"}
           </Button>

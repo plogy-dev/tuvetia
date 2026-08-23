@@ -24,9 +24,12 @@ const PersonalizarTablero = dynamic(
 export function BotonDePersonalizar({
   disposicion,
   clinicId,
+  esAdmin,
 }: {
   disposicion: Puesto[]
   clinicId: string | null
+  /** Sólo un admin puede dejar el tablero de entrada de la clínica (0075). */
+  esAdmin?: boolean
 }) {
   const [abierto, setAbierto] = useState(false)
 
@@ -42,6 +45,7 @@ export function BotonDePersonalizar({
       </Button>
       {abierto && (
         <PersonalizarTablero
+          esAdmin={esAdmin}
           disposicion={disposicion}
           clinicId={clinicId}
           abierto={abierto}

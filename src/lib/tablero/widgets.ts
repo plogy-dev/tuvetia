@@ -86,16 +86,47 @@ export type Puesto = { id: IdDeWidget; visible: boolean }
 export type Guardado = { id?: unknown; visible?: unknown }[]
 
 /**
- * La disposición que rige: lo que la persona guardó, reconciliado con lo que existe hoy.
+ * La disposición que rige, con TRES orígenes en orden de precedencia:
+ *
+ *   1. Lo que ESTA PERSONA guardó.
+ *   2. El default que dejó el administrador para la clínica (0075).
+ *   3. El de fábrica.
+ *
+ * ── POR QUÉ TRES Y NO DOS ───────────────────────────────────────────────────────────────────────
+ *
+ * Luciano pidió las dos cosas en la misma llamada del 21-ago: que el tablero lo defina el admin
+ * (29:03) y que "mi dashboard es mío" (44:44). Se contradicen, y las dos tienen razón sobre algo
+ * distinto — el admin quiere poder poner algo delante de todos, y cada quien quiere su vista. El
+ * default de clínica es el punto de PARTIDA; la preferencia personal le gana siempre.
+ *
+ * ── NO SE MEZCLAN, SE ELIGE UNO ─────────────────────────────────────────────────────────────────
+ *
+ * Si la persona tiene su fila, el default de la clínica no le toca nada. Fusionarlos —tomar el
+ * orden del admin y la visibilidad de la persona, por ejemplo— haría que un bloque se moviera solo
+ * un día cualquiera, sin que nadie hubiera tocado su tablero. Eso se lee como un error, no como
+ * una novedad, y es imposible de explicar sin contar la regla entera.
+ *
+ * "Tener su fila" es tener algo RECONOCIBLE en ella: un arreglo vacío, o uno lleno de ids que ya no
+ * existen, cae al siguiente origen. Guardar una lista de nada no es una preferencia.
  *
  * Devuelve SIEMPRE el catálogo completo —visibles y ocultos— porque la pantalla de personalizar
  * necesita las dos listas, y separarlas acá obligaría a recomponerlas allá.
  */
-export function disposicionEfectiva(guardado: Guardado | null | undefined): Puesto[] {
+export function disposicionEfectiva(
+  guardado: Guardado | null | undefined,
+  defaultDeLaClinica?: Guardado | null,
+): Puesto[] {
+  const reconocibles = (g: Guardado | null | undefined) =>
+    (g ?? []).filter((x) => typeof x?.id === "string" && POR_ID.has(x.id as IdDeWidget))
+
+  // El primero que diga algo. `??` no sirve: un arreglo vacío no es null y ganaría igual.
+  const propio = reconocibles(guardado)
+  const fuente = propio.length > 0 ? propio : reconocibles(defaultDeLaClinica)
+
   const vistos = new Set<IdDeWidget>()
   const salida: Puesto[] = []
 
-  for (const g of guardado ?? []) {
+  for (const g of fuente) {
     const id = g?.id
     // Se ignora lo que no reconocemos y lo repetido. Un id viejo no puede tirar la pantalla, y un
     // duplicado pintaría el mismo bloque dos veces.
