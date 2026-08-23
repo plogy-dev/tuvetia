@@ -1,4 +1,4 @@
-// La nota crédito: lo único que corrige una factura ya emitida.
+// La nota crédito: lo único que corrige una factura ya emitida. TOTAL (anula) o PARCIAL (ajusta).
 //
 // POR QUÉ EXISTE ESTE ARCHIVO. Hasta el 2026-08-23 una factura emitida era PERMANENTE: la pantalla
 // advertía "solo se corrige con nota crédito", la tabla `credit_notes` estaba creada con su CHECK de
@@ -25,7 +25,17 @@
 //    líneas daría distinto si alguien cambió la receta de un servicio o el ítem entre la emisión y
 //    la anulación — y devolvería al stock una cantidad que nunca salió.
 //
-// 3. EL ESTADO SE DERIVA DEL EVENTO. No se escribe `credited_cents` a mano: se emite
+// 3. LA PARCIAL AJUSTA PLATA, NO STOCK. Sin saber QUÉ línea se acredita no hay forma de saber qué
+//    volvió: $30.000 de una factura de $100.000 puede ser un descuento, un ajuste de precio o la
+//    devolución de un producto. Devolver stock adivinando pondría en el inventario unidades que
+//    siguen en la casa del cliente. Por eso el inventario se mueve SÓLO al anular, y la interfaz se
+//    lo dice al vet cuando pide el monto. La nota crédito POR LÍNEA es lo que falta para cerrarlo.
+//
+// 4. VARIAS PARCIALES SOBRE LA MISMA FACTURA, con un techo: la suma de lo acreditado no puede pasar
+//    el total. Sin ese tope, tres parciales de $40.000 sobre una factura de $100.000 acreditarían
+//    $120.000 — más de lo que se cobró.
+//
+// 5. EL ESTADO SE DERIVA DEL EVENTO. No se escribe `credited_cents` a mano: se emite
 //    `CREDIT_NOTE_APPLIED` con su importe y `refreshInvoiceStatus` recompone las cuatro dimensiones.
 //    Escribirlo a mano dejaría la fila y sus eventos contando cosas distintas, que es exactamente lo
 //    que esa máquina de estados viene a impedir.
@@ -56,13 +66,25 @@ export interface AnularRequest {
   motivo: MotivoNotaCredito;
   /** Detalle libre del vet. Opcional, pero es lo que explica el motivo dentro de seis meses. */
   detalle?: string | null;
+  /**
+   * Cuánto acreditar. Sin valor = el total de la factura, o sea la ANULACIÓN.
+   *
+   * Con valor menor al saldo acreditable, es una nota crédito PARCIAL: corrige el importe sin
+   * anular el documento. La factura sigue EMITIDA y su saldo baja.
+   */
+  montoCents?: number | null;
   createdBy?: string | null;
 }
 
 export interface AnularResult {
   creditNoteId: string;
   fullNumber: string;
+  /** Lo acreditado por ESTA nota. */
   totalCents: number;
+  /** Si dejó la factura anulada (acreditó todo lo que quedaba) o sólo le bajó el saldo. */
+  anulada: boolean;
+  /** Lo que todavía se puede acreditar después de ésta. */
+  acreditableRestante: number;
   cufe: string | null;
   fiscalStatus: string;
   providerMessage: string;
@@ -102,15 +124,41 @@ export async function anularFactura(
     throw new Error(`Solo se puede anular una factura EMITIDA (está en ${invoice.status}).`);
   }
 
-  // Idempotencia: dos clics no queman dos consecutivos. Se consulta ANTES de tocar el rango.
-  const { count: yaTiene } = await supabase
+  // ── LO YA ACREDITADO, que es lo que vuelve seguras a las parciales ─────────────────────────
+  //
+  // Una factura puede tener VARIAS notas crédito parciales, así que "¿ya tiene una?" dejó de ser la
+  // pregunta. La pregunta es cuánto queda por acreditar: sin este tope, tres parciales de $40.000
+  // sobre una factura de $100.000 acreditarían $120.000 — más de lo que se cobró, y el saldo del
+  // cliente quedaría a favor de la nada.
+  //
+  // Se consulta ANTES de tocar el rango, por lo mismo de siempre: un consecutivo consumido no se
+  // devuelve. Y también es lo que impide que dos clics acrediten dos veces.
+  const { data: previas } = await supabase
     .from('credit_notes')
-    .select('id', { count: 'exact', head: true })
+    .select('total_cents')
     .eq('clinic_id', clinicId)
-    .eq('invoice_id', invoice.id);
-  if ((yaTiene ?? 0) > 0) {
-    throw new Error('Esta factura ya tiene una nota crédito.');
+    .eq('invoice_id', invoice.id)
+    .eq('status', 'EMITIDA');
+  const yaAcreditado = (previas ?? []).reduce(
+    (acc, n) => acc + Number((n as { total_cents: number }).total_cents),
+    0,
+  );
+  const acreditable = invoice.total_cents - yaAcreditado;
+  if (acreditable <= 0) {
+    throw new Error('Esta factura ya está acreditada por completo.');
   }
+
+  const monto = req.montoCents == null ? acreditable : Math.round(req.montoCents);
+  if (monto <= 0) {
+    throw new Error('El monto a acreditar tiene que ser mayor que cero.');
+  }
+  if (monto > acreditable) {
+    throw new Error(
+      `No se puede acreditar más de lo que queda: el máximo es ${acreditable / 100} y ya hay ${yaAcreditado / 100} acreditado.`,
+    );
+  }
+  // Anula sólo si se lleva TODO lo que quedaba. Una parcial deja la factura viva y con menos saldo.
+  const anula = monto === acreditable;
 
   // ── 2. El consecutivo, con la misma disciplina que la emisión ───────────────────────────────
   const range = await ensureActiveRange(supabase, clinicId, 'NOTA_CREDITO', req.createdBy);
@@ -151,7 +199,7 @@ export async function anularFactura(
       status: 'EMITIDA',
       reason_code: req.motivo,
       reason_text: req.detalle?.trim() || MOTIVOS_NOTA_CREDITO[req.motivo],
-      total_cents: invoice.total_cents,
+      total_cents: monto,
       issued_at: now.toISOString(),
     })
     .select('id')
@@ -160,12 +208,26 @@ export async function anularFactura(
   const creditNoteId = (cnRow as { id: string }).id;
 
   // ── 4. Devolver el inventario: los opuestos EXACTOS de lo que salió ─────────────────────────
-  const { data: salidas } = await supabase
+  //
+  // ⚠️ SÓLO AL ANULAR. Una nota crédito PARCIAL no mueve stock, y no es un olvido: sin decir QUÉ
+  // línea se acredita no hay forma de saber qué volvió. Acreditar $30.000 de una factura de
+  // $100.000 puede ser un descuento (no volvió nada), un ajuste de precio (no volvió nada) o la
+  // devolución de un producto (volvió uno) — y devolver stock adivinando pondría en el inventario
+  // unidades que siguen en la casa del cliente.
+  //
+  // La parcial ajusta PLATA. Si volvió mercancía, el vet registra la devolución en inventario, que
+  // es una pantalla que ya existe. Lo dice la interfaz al pedir el monto.
+  //
+  // Lo que falta para cerrarlo del todo es la nota crédito POR LÍNEA — elegir qué renglones se
+  // acreditan y con qué cantidad. Ahí el stock sí se puede calcular, y queda anotado en ESTADO.md.
+  const { data: salidas } = anula
+    ? await supabase
     .from('inventory_movements')
     .select('item_id, lot_id, qty')
     .eq('clinic_id', clinicId)
     .eq('ref_type', 'INVOICE')
-    .eq('ref_id', invoice.id);
+    .eq('ref_id', invoice.id)
+    : { data: [] };
 
   const devoluciones = (salidas ?? []).map((m) => {
     const s = m as { item_id: string; lot_id: string | null; qty: number };
@@ -217,7 +279,7 @@ export async function anularFactura(
     invoiceFullNumber: invoice.full_number ?? '',
     invoiceCufe: (fiscalDoc as { cufe: string | null } | null)?.cufe ?? null,
     reason: req.detalle?.trim() || MOTIVOS_NOTA_CREDITO[req.motivo],
-    totalCents: invoice.total_cents,
+    totalCents: monto,
     emitter: {
       name: settings.fiscal_name ?? 'Emisor sin configurar',
       idType: settings.fiscal_id_type ?? 'CC',
@@ -268,26 +330,33 @@ export async function anularFactura(
   // `amountCents` es la clave que lee `deriveStatus` para acumular `creditedCents`. Con el total de
   // la factura, el saldo queda en 0 y la dimensión fiscal pasa a AFECTADA_POR_NOTA_CREDITO.
   await appendEvent(supabase, invoice.id, 'CREDIT_NOTE_APPLIED', {
-    amountCents: invoice.total_cents,
+    amountCents: monto,
     creditNoteId,
     fullNumber,
     motivo: req.motivo,
   });
 
-  const { error: stErr } = await supabase
-    .from('invoices')
-    .update({ status: 'ANULADA' })
-    .eq('id', invoice.id)
-    .eq('clinic_id', clinicId)
-    .eq('status', 'EMITIDA');
-  if (stErr) throw new Error(`No se pudo marcar la factura como anulada: ${stErr.message}`);
+  // ANULADA sólo cuando se acreditó todo. Una parcial deja la factura EMITIDA a propósito: el
+  // documento sigue siendo válido, con menos saldo. La dimensión fiscal ya pasa a
+  // AFECTADA_POR_NOTA_CREDITO por el evento, que es lo que dice "esta factura tiene notas encima".
+  if (anula) {
+    const { error: stErr } = await supabase
+      .from('invoices')
+      .update({ status: 'ANULADA' })
+      .eq('id', invoice.id)
+      .eq('clinic_id', clinicId)
+      .eq('status', 'EMITIDA');
+    if (stErr) throw new Error(`No se pudo marcar la factura como anulada: ${stErr.message}`);
+  }
 
   const derived = await refreshInvoiceStatus(supabase, clinicId, invoice.id, now);
 
   return {
     creditNoteId,
     fullNumber,
-    totalCents: invoice.total_cents,
+    totalCents: monto,
+    anulada: anula,
+    acreditableRestante: acreditable - monto,
     cufe: fiscalResult?.cufe ?? null,
     fiscalStatus: derived.fiscal,
     providerMessage: fiscalResult?.providerMessage ?? `Proveedor no disponible: ${providerError}`,

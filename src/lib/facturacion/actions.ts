@@ -819,13 +819,26 @@ const AnularSchema = z.object({
   // un motivo inválido debe dar un mensaje en español y no un error de constraint.
   motivo: z.string().refine(esMotivoValido, 'Motivo no válido'),
   detalle: z.string().trim().max(500).optional().nullable(),
+  // Sin monto = anulación total. Con monto = parcial; el tope contra lo ya acreditado lo pone
+  // `anularFactura`, que es quien sabe cuánto queda.
+  montoCents: z.number().int().positive().optional().nullable(),
 });
 
 export async function anularFacturaAction(input: {
   invoiceId: string;
   motivo: string;
   detalle?: string | null;
-}): Promise<Result<{ fullNumber: string; cufe: string | null; movimientosDevueltos: number }>> {
+  montoCents?: number | null;
+}): Promise<
+  Result<{
+    fullNumber: string;
+    cufe: string | null;
+    movimientosDevueltos: number;
+    anulada: boolean;
+    acreditableRestante: number;
+    totalCents: number;
+  }>
+> {
   try {
     const { supabase, clinicId, userId } = await requireClinic();
     const parsed = AnularSchema.safeParse(input);
@@ -837,6 +850,7 @@ export async function anularFacturaAction(input: {
       invoiceId: d.invoiceId,
       motivo: d.motivo as MotivoNotaCredito,
       detalle: d.detalle ?? null,
+      montoCents: d.montoCents ?? null,
       createdBy: userId,
     });
     revalidatePath('/dashboard/facturacion');
@@ -847,6 +861,9 @@ export async function anularFacturaAction(input: {
       fullNumber: result.fullNumber,
       cufe: result.cufe,
       movimientosDevueltos: result.movimientosDevueltos,
+      anulada: result.anulada,
+      acreditableRestante: result.acreditableRestante,
+      totalCents: result.totalCents,
     };
   } catch (e) {
     return { ok: false, error: e instanceof Error ? e.message : 'No se pudo anular la factura' };

@@ -343,8 +343,12 @@ vets estén en ese dominio, acceso de admin a la consola y a Google Cloud, y SPF
   nota crédito" en la factura emitida. Sin migración: la base ya tenía todo (tabla con su CHECK de
   motivos DIAN, rango `NOTA_CREDITO` admitido, `CREDIT_NOTE_APPLIED` y `DEVOLUCION` en sus CHECKs, y
   `submitCreditNote` implementado en el sandbox) — faltaba sólo el caso de uso.
-  Cubre la anulación TOTAL. La nota crédito **parcial** —corregir un importe sin anular— sigue sin
-  construirse y es lo que queda de esta funcionalidad.
+  Cubre la anulación TOTAL **y la PARCIAL** (23-ago): varias notas sobre la misma factura, con techo
+  en lo ya acreditado, y la factura sigue EMITIDA con menos saldo. La que completa el total anula.
+  **Lo que falta es la nota crédito POR LÍNEA:** hoy la parcial ajusta plata y NO mueve inventario,
+  porque sin saber qué renglón se acredita no hay forma de saber qué volvió — devolver stock
+  adivinando pondría unidades que siguen en la casa del cliente. Con selección de líneas y cantidades
+  sí se puede calcular, y ahí una devolución parcial cerraría entera.
 
 - 🟡 **Los acuses de WhatsApp nunca llegan: todo mensaje enviado se queda en un solo check.**
   Encontrado el 23-ago recorriendo Comunicaciones. Medido: **0 de 3.491** salientes tienen
