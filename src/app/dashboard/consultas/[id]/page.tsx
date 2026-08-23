@@ -11,10 +11,11 @@ import {
   ChevronDown,
   ExternalLink,
   FileText,
-  Receipt,
   Loader2,
+  Receipt,
   Save,
   Sparkles,
+  Stethoscope,
 } from "lucide-react"
 import { toast } from "sonner"
 
@@ -421,14 +422,28 @@ export default function NotaConsultaPage({ params }: { params: Promise<{ id: str
           plegado: sigue estando, deja de competir. */}
       <div className="flex min-w-0 flex-col gap-4 md:gap-5">
 
-      {/* Cabecera del paciente */}
-      <div className="rounded-xl border bg-card p-4 md:p-6">
+      {/* LA CABECERA NO ES UNA TARJETA, es una banda — medido contra su `ConsultationHubView`.
+          Era el primero de SEIS paneles `rounded-xl border bg-card` apilados, todos del mismo peso:
+          la pantalla se leía como una grilla de ladrillos y nada decía qué mirar primero. Una
+          cabecera con borde propio compite con lo que encabeza; una banda con una línea abajo le da
+          un techo a la página y deja que el primer bloque con borde sea la nota, que es a lo que se
+          entra.
+
+          Y arriba un RÓTULO EN VERSALITA como el de ellos: dice de qué es esta pantalla antes de
+          decir de quién, que es el orden en que se lee. */}
+      <div className="border-b border-line-soft pb-4 md:pb-5">
         <div className="flex flex-wrap items-center gap-4">
           <div className="grid size-12 shrink-0 place-items-center rounded-xl bg-secondary text-xl font-bold">
             {initial}
           </div>
           <div className="min-w-0 flex-1">
-            <h1 className="text-xl font-semibold tracking-tight md:text-2xl">
+            <div className="flex items-center gap-2">
+              <Stethoscope className="size-3.5 shrink-0 text-fg-muted" aria-hidden />
+              <span className="text-[10px] font-semibold uppercase tracking-[0.18em] text-fg-faint">
+                Consulta con Athos
+              </span>
+            </div>
+            <h1 className="mt-1 text-xl font-semibold tracking-tight md:text-2xl">
               {consultation ? (
                 <Link
                   href={`/dashboard/patients/${consultation.patient_id}`}
@@ -458,13 +473,21 @@ export default function NotaConsultaPage({ params }: { params: Promise<{ id: str
           </div>
         </div>
         <div className="mt-4 flex flex-wrap gap-2">
-          <span className="inline-flex items-center gap-1.5 rounded-md border bg-secondary px-2.5 py-1 text-xs font-medium">
-            <span className={`size-1.5 rounded-full ${approved ? "bg-foreground" : "bg-muted-foreground"}`} />
+          {/* PÍLDORAS, NO CHIPS CON BORDE. Es la forma de ellos —`h-[21px] rounded-full`, relleno
+              suave y sin borde— y acá cambia algo más que el radio: cuatro rectángulos con borde
+              debajo de una cabecera con borde son cinco rectángulos, y el estado de la nota, que es
+              lo único que hay que mirar ahí, no se distinguía de los demás. */}
+          <span
+            className={`inline-flex h-[21px] items-center gap-[5px] rounded-full px-2 text-[11.5px] font-medium ${
+              approved ? "bg-brand-soft text-brand-text" : "bg-secondary text-fg-muted"
+            }`}
+          >
+            <span className={`size-1.5 rounded-full ${approved ? "bg-brand" : "bg-fg-faint"}`} />
             {note ? (approved ? "Aprobada" : "Borrador — requiere aprobación") : "Sin nota"}
           </span>
           {note?.ai_generated_at && (
-            <span className="inline-flex items-center gap-1.5 rounded-md border bg-secondary px-2.5 py-1 text-xs text-muted-foreground">
-              Redactada por <span className="text-foreground">Athos</span>
+            <span className="inline-flex h-[21px] items-center gap-[5px] rounded-full bg-secondary px-2 text-[11.5px] text-fg-muted">
+              Redactada por <span className="text-fg">Athos</span>
             </span>
           )}
           {/* EL RÓTULO SALE DEL VEREDICTO DEL JUEZ, NO DE CONTAR CITAS.
