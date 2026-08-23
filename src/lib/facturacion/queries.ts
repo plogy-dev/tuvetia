@@ -5,7 +5,7 @@
 // es obligatorio en cada query (regla dura del contrato).
 
 import type { SupabaseClient } from '@supabase/supabase-js';
-import { bogotaTodayISO } from '@/lib/date-utils';
+import { bogotaTodayISO, finDelDiaBogota } from '@/lib/date-utils';
 import {
   EMBED_DE_FACTURAS,
   TOPE_SIN_FACTURAR,
@@ -596,7 +596,18 @@ export async function getNearExpirySet(
   if (error) throw new Error(`No se pudieron leer lotes: ${error.message}`);
   const set = new Set<string>();
   for (const lot of (data as unknown as Pick<CatalogLotRow, 'item_id' | 'expires_on'>[]) ?? []) {
-    if (lot.expires_on && lotNearExpiry(new Date(lot.expires_on), now, windowDays)) {
+    // `finDelDiaBogota` Y NO `new Date(…)`. `expires_on` es una columna DATE: PostgREST la entrega
+    // como "2027-01-15", y la forma ISO sólo-fecha **se parsea siempre en UTC, por spec**. En
+    // Bogotá eso es el 14 a las 19:00 — o sea que el lote se daba por vencido cinco horas antes de
+    // que terminara su día.
+    //
+    // Es el MISMO defecto que ya se corrigió para `due_date` (ver `date-utils` y
+    // `vencimiento-zona.test.ts`), y a `expires_on` no le había llegado. Un lote vale hasta el
+    // final de su día: eso es lo que devuelve `finDelDiaBogota`.
+    //
+    // Sobre una ventana de 30 días las cinco horas casi nunca cambian la respuesta — pero cuando la
+    // cambian, cambian en el borde, que es justo el día en que alguien mira la alerta.
+    if (lot.expires_on && lotNearExpiry(finDelDiaBogota(lot.expires_on), now, windowDays)) {
       set.add(lot.item_id);
     }
   }

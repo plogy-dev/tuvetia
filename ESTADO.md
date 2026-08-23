@@ -375,6 +375,11 @@ vets estén en ese dominio, acceso de admin a la consola y a Google Cloud, y SPF
   `src/lib/__tests__/auto-reply-no-duplica.test.ts` fija el `.is(…, null)`, el `.select()` y, sobre
   todo, que la reserva ocurra ANTES de llamar al modelo. Sin eso se podía deshacer sin que nada
   fallara, y el síntoma sólo aparece con un reintento real del webhook.
+- ~~**`expires_on` se parseaba en UTC**~~ — **RESUELTO el 22-ago.** `getNearExpirySet` hacía
+  `new Date(lot.expires_on)` sobre una columna DATE, y la forma ISO sólo-fecha se parsea siempre en
+  UTC por spec: en Bogotá eso es el día anterior a las 19:00, así que un lote se daba por vencido
+  cinco horas antes de que terminara su día. Es el mismo defecto que ya se había corregido para
+  `due_date`; a `expires_on` no le había llegado. Ahora usa `finDelDiaBogota`.
 - **`POST /athos/whatsapp/suggest` quedó sin llamadores**: la bandeja migró al agente de Next
   (`/api/athos/suggest-reply`). El endpoint sigue vivo en athos-service y `athosWhatsappSuggest` en
   `src/lib/athos.ts` también. Decidir con el equipo si se borra.
