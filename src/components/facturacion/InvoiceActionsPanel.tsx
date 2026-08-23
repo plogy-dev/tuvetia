@@ -63,6 +63,10 @@ export function InvoiceActionsPanel({
   const [anulando, setAnulando] = useState(false);
   const [motivo, setMotivo] = useState<string>('ANULACION');
   const [detalle, setDetalle] = useState('');
+  // "todo" = anular · "parte" = nota crédito parcial. Arranca en "todo" porque es el caso que el
+  // vet busca cuando llega acá: se equivocó y quiere deshacer.
+  const [alcance, setAlcance] = useState<'todo' | 'parte'>('todo');
+  const [montoPesos, setMontoPesos] = useState('');
   const [notice, setNotice] = useState<string | null>(null);
 
   const [plan, setPlan] = useState<PaymentPlan>(() => makeDefaultPlan(defaultTermsDays));
@@ -286,14 +290,57 @@ export function InvoiceActionsPanel({
               </button>
             ) : (
               <div className="space-y-3 rounded-lg border border-warn/40 bg-surface-2 p-3">
-                <p className="text-xs text-fg-muted">
-                  Se emite una <b className="text-fg">nota crédito</b> por{' '}
-                  <b className="text-fg">{formatCOP(totalCents)}</b> que anula {fullNumber ?? 'esta factura'}.
-                  Consume un consecutivo propio y <b className="text-fg">no se puede deshacer</b>.
-                  {balanceCents === 0 && (
-                    <> El pago ya recibido <b className="text-fg">no se borra</b>: queda como saldo a favor del cliente.</>
-                  )}
-                </p>
+                <div className="flex flex-wrap gap-1.5">
+                  <button
+                    type="button"
+                    onClick={() => setAlcance('todo')}
+                    className={`rounded-full border px-2.5 py-1 text-xs transition ${alcance === 'todo' ? 'border-warn bg-surface text-warn' : 'border-line text-fg-muted hover:bg-surface'}`}
+                  >
+                    Anular toda la factura
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setAlcance('parte')}
+                    className={`rounded-full border px-2.5 py-1 text-xs transition ${alcance === 'parte' ? 'border-warn bg-surface text-warn' : 'border-line text-fg-muted hover:bg-surface'}`}
+                  >
+                    Acreditar una parte
+                  </button>
+                </div>
+
+                {alcance === 'todo' ? (
+                  <p className="text-xs text-fg-muted">
+                    Se emite una <b className="text-fg">nota crédito</b> por{' '}
+                    <b className="text-fg">{formatCOP(totalCents)}</b> que anula {fullNumber ?? 'esta factura'}.
+                    Consume un consecutivo propio y <b className="text-fg">no se puede deshacer</b>.
+                    {balanceCents === 0 && (
+                      <> El pago ya recibido <b className="text-fg">no se borra</b>: queda como saldo a favor del cliente.</>
+                    )}
+                  </p>
+                ) : (
+                  <>
+                    <div>
+                      <label htmlFor="nc-monto" className="block text-xs font-medium text-fg-muted">
+                        Cuánto acreditar (pesos)
+                      </label>
+                      <input
+                        id="nc-monto"
+                        inputMode="numeric"
+                        value={montoPesos}
+                        onChange={(e) => setMontoPesos(e.target.value.replace(/[^0-9]/g, ''))}
+                        placeholder={String(Math.round(totalCents / 100))}
+                        className="mt-1 w-full rounded-lg border border-line bg-surface px-3 py-2 text-sm text-fg"
+                      />
+                    </div>
+                    {/* LO QUE NO HACE, dicho ANTES de emitir. Una parcial ajusta plata, no stock: sin
+                        saber qué línea se acredita no hay forma de saber qué volvió, y devolver
+                        inventario adivinando pondría unidades que siguen en la casa del cliente. */}
+                    <p className="text-xs text-fg-muted">
+                      La factura <b className="text-fg">sigue vigente</b> con menos saldo, y{' '}
+                      <b className="text-fg">no se devuelve inventario</b>. Si el cliente devolvió un
+                      producto, registrá la devolución en Inventario.
+                    </p>
+                  </>
+                )}
 
                 <div>
                   <label htmlFor="nc-motivo" className="block text-xs font-medium text-fg-muted">
@@ -330,19 +377,29 @@ export function InvoiceActionsPanel({
                 <div className="flex flex-wrap gap-2">
                   <button
                     type="button"
-                    disabled={isPending}
+                    disabled={isPending || (alcance === 'parte' && !Number(montoPesos))}
                     onClick={() =>
                       run(async () => {
-                        const r = await anularFacturaAction({ invoiceId, motivo, detalle });
+                        const r = await anularFacturaAction({
+                          invoiceId,
+                          motivo,
+                          detalle,
+                          montoCents: alcance === 'parte' ? Number(montoPesos) * 100 : null,
+                        });
                         return r.ok
-                          ? { ok: true, msg: `Nota crédito ${r.fullNumber} emitida` }
+                          ? {
+                              ok: true,
+                              msg: r.anulada
+                                ? `Nota crédito ${r.fullNumber}: factura anulada`
+                                : `Nota crédito ${r.fullNumber} por ${formatCOP(r.totalCents)} — quedan ${formatCOP(r.acreditableRestante)} acreditables`,
+                            }
                           : { ok: false, error: r.error };
                       })
                     }
                     className="inline-flex items-center gap-2 rounded-lg border border-warn bg-surface px-4 py-2 text-sm font-medium text-warn hover:bg-surface-2 transition disabled:opacity-60"
                   >
                     <Ban className="size-4" aria-hidden />
-                    Emitir la nota crédito
+                    {alcance === 'todo' ? 'Anular la factura' : 'Emitir la nota crédito'}
                   </button>
                   <button
                     type="button"

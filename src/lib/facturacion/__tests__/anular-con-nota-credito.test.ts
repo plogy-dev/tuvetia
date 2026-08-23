@@ -34,7 +34,8 @@ type Escritura = { tabla: string; op: 'insert' | 'update'; datos: Record<string,
 /** Lo que el doble devuelve por tabla, y lo que registra de lo escrito. */
 function clienteFalso(opts: {
   factura?: Record<string, unknown> | null;
-  notasPrevias?: number;
+  /** Importes de las notas crédito ya emitidas sobre esa factura. */
+  acreditadas?: number[];
   movimientos?: Array<{ item_id: string; lot_id: string | null; qty: number }>;
   rango?: Record<string, unknown> | null;
   rpcFalla?: boolean;
@@ -74,8 +75,9 @@ function clienteFalso(opts: {
       };
       nodo.single = async () => ({ data: { id: 'nc-1' }, error: null });
       nodo.then = (resolver: (v: unknown) => unknown) => {
-        if (conteo) {
-          return resolver({ data: null, count: tabla === 'credit_notes' ? (opts.notasPrevias ?? 0) : 0, error: null });
+        if (conteo) return resolver({ data: null, count: 0, error: null });
+        if (tabla === 'credit_notes') {
+          return resolver({ data: (opts.acreditadas ?? []).map((c) => ({ total_cents: c })), error: null });
         }
         if (tabla === 'inventory_movements') return resolver({ data: opts.movimientos ?? [], error: null });
         return resolver({ data: [], error: null });
@@ -124,13 +126,31 @@ describe('las guardas, que son las que protegen el consecutivo', () => {
     expect(rpcs).toEqual([]);
   });
 
-  it('DOS CLICS NO QUEMAN DOS NÚMEROS: si ya hay nota crédito, corta antes del rango', async () => {
+  it('DOS CLICS NO QUEMAN DOS NÚMEROS: si ya está acreditada entera, corta antes del rango', async () => {
     // El caso real: el vet aprieta, tarda, vuelve a apretar. La segunda tiene que morir antes de la
     // RPC del consecutivo — después ya no hay forma de devolver el número.
-    const { cliente, rpcs } = clienteFalso({ factura: FACTURA_EMITIDA, notasPrevias: 1 });
+    const { cliente, rpcs } = clienteFalso({ factura: FACTURA_EMITIDA, acreditadas: [100_000] });
     await expect(anularFactura(cliente, 'c1', { invoiceId: 'inv-1', motivo: 'ANULACION' })).rejects.toThrow(
-      /ya tiene una nota crédito/i,
+      /acreditada por completo/i,
     );
+    expect(rpcs).toEqual([]);
+  });
+
+  it('ACREDITAR DE MÁS SE RECHAZA, y tampoco quema un número', async () => {
+    // Sin este tope, tres parciales de $40.000 sobre una factura de $100.000 acreditarían $120.000:
+    // más de lo que se cobró, y el saldo del cliente quedaría a favor de la nada.
+    const { cliente, rpcs } = clienteFalso({ factura: FACTURA_EMITIDA, acreditadas: [70_000] });
+    await expect(
+      anularFactura(cliente, 'c1', { invoiceId: 'inv-1', motivo: 'DESCUENTO', montoCents: 40_000 }),
+    ).rejects.toThrow(/no se puede acreditar más/i);
+    expect(rpcs).toEqual([]);
+  });
+
+  it('un monto en cero o negativo no pasa', async () => {
+    const { cliente, rpcs } = clienteFalso({ factura: FACTURA_EMITIDA });
+    await expect(
+      anularFactura(cliente, 'c1', { invoiceId: 'inv-1', motivo: 'DESCUENTO', montoCents: 0 }),
+    ).rejects.toThrow(/mayor que cero/i);
     expect(rpcs).toEqual([]);
   });
 
@@ -232,5 +252,88 @@ describe('la anulación completa', () => {
     const fd = escrituras.find((e) => e.tabla === 'fiscal_documents')!;
     expect(fd.datos.doc_kind).toBe('NOTA_CREDITO');
     expect(fd.datos.status).toBe('ACEPTADO'); // el sandbox acepta
+  });
+});
+
+describe('la nota crédito PARCIAL', () => {
+  it('acredita menos, y la factura NO queda anulada', async () => {
+    const { cliente, escrituras } = clienteFalso({ factura: FACTURA_EMITIDA, rango: RANGO });
+
+    const r = await anularFactura(cliente, 'c1', {
+      invoiceId: 'inv-1',
+      motivo: 'AJUSTE_PRECIO',
+      montoCents: 30_000,
+      detalle: 'le cobré de más la consulta',
+    });
+
+    expect(r.anulada).toBe(false);
+    expect(r.totalCents).toBe(30_000);
+    expect(r.acreditableRestante).toBe(70_000);
+
+    const nota = escrituras.find((e) => e.tabla === 'credit_notes')!;
+    expect(nota.datos.total_cents).toBe(30_000);
+
+    // LA FACTURA SIGUE VIVA. Una parcial corrige el importe; el documento no se anula.
+    expect(escrituras.some((e) => e.tabla === 'invoices' && e.datos.status === 'ANULADA')).toBe(false);
+  });
+
+  it('NO MUEVE INVENTARIO, aunque la factura tenga salidas de stock', async () => {
+    // Es la decisión que más se puede hacer mal en silencio: sin saber QUÉ línea se acredita, no hay
+    // forma de saber qué volvió. Devolver stock adivinando pondría en el inventario unidades que
+    // siguen en la casa del cliente.
+    const { cliente, escrituras } = clienteFalso({
+      factura: FACTURA_EMITIDA,
+      rango: RANGO,
+      movimientos: [{ item_id: 'it-1', lot_id: null, qty: -2 }],
+    });
+
+    const r = await anularFactura(cliente, 'c1', {
+      invoiceId: 'inv-1',
+      motivo: 'DESCUENTO',
+      montoCents: 25_000,
+    });
+
+    expect(escrituras.filter((e) => e.tabla === 'inventory_movements')).toHaveLength(0);
+    expect(r.movimientosDevueltos).toBe(0);
+  });
+
+  it('el evento acredita SÓLO lo parcial, que es de donde sale el saldo nuevo', async () => {
+    const { cliente, escrituras } = clienteFalso({ factura: FACTURA_EMITIDA, rango: RANGO });
+    await anularFactura(cliente, 'c1', { invoiceId: 'inv-1', motivo: 'DESCUENTO', montoCents: 30_000 });
+
+    const evento = escrituras.find(
+      (e) => e.tabla === 'invoice_events' && e.datos.event_type === 'CREDIT_NOTE_APPLIED',
+    )!;
+    // Si acá fuera el total, una parcial dejaría el saldo en 0 y la factura figuraría cobrada.
+    expect((evento.datos.payload as { amountCents: number }).amountCents).toBe(30_000);
+  });
+
+  it('LA QUE COMPLETA EL TOTAL SÍ ANULA, aunque se pida como parcial', async () => {
+    // Ya hay $70.000 acreditados y se piden los $30.000 que faltan: el resultado es una factura
+    // acreditada entera, así que se comporta como anulación —incluida la devolución del stock—.
+    const { cliente, escrituras } = clienteFalso({
+      factura: FACTURA_EMITIDA,
+      rango: RANGO,
+      acreditadas: [70_000],
+      movimientos: [{ item_id: 'it-1', lot_id: null, qty: -1 }],
+    });
+
+    const r = await anularFactura(cliente, 'c1', {
+      invoiceId: 'inv-1',
+      motivo: 'DEVOLUCION',
+      montoCents: 30_000,
+    });
+
+    expect(r.anulada).toBe(true);
+    expect(r.acreditableRestante).toBe(0);
+    expect(escrituras.some((e) => e.tabla === 'invoices' && e.datos.status === 'ANULADA')).toBe(true);
+    expect(escrituras.filter((e) => e.tabla === 'inventory_movements')).toHaveLength(1);
+  });
+
+  it('sin monto, sigue siendo la anulación de siempre', async () => {
+    const { cliente } = clienteFalso({ factura: FACTURA_EMITIDA, rango: RANGO });
+    const r = await anularFactura(cliente, 'c1', { invoiceId: 'inv-1', motivo: 'ANULACION' });
+    expect(r.anulada).toBe(true);
+    expect(r.totalCents).toBe(100_000);
   });
 });
