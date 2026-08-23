@@ -309,6 +309,22 @@ envío/lectura no cambia: solo la capa que obtiene el token.
 vets estén en ese dominio, acceso de admin a la consola y a Google Cloud, y SPF/DKIM configurados.
 
 ## Pendientes conocidos
+
+> **Revisado contra el repo el 2026-08-22.** De las diez entradas verificables, **cuatro estaban
+> desactualizadas**: tres describían defectos ya corregidos (`payload_override`, `evidence_level`,
+> el duplicado del modo auto) y una describía un mecanismo que ya no existe así (cartera). Una
+> quinta —`xlsx`— describía la guarda anterior a que se acotara.
+>
+> **Por qué importa más de lo que parece:** esta lista se usa como lista de trabajo. Dos veces el
+> 22-ago mandó a rehacer algo ya resuelto, y una tercera —el radio, en
+> `docs/entrega/4-EL-REPO-DE-LUCIANO.md`— casi hace deshacer un pedido explícito del cliente. Un
+> pendiente que ya no lo es no es ruido inofensivo: es trabajo que alguien va a hacer dos veces.
+>
+> **La regla, entonces:** el que cierra algo tacha su línea acá **en el mismo PR**, y el que va a
+> tomar una de estas entradas la verifica contra el código antes de empezar. Las entradas resueltas
+> se tachan con `~~…~~` y se dice cuándo y en qué commit — no se borran, porque saber que algo se
+> intentó y por qué se resolvió así vale tanto como la lista.
+
 - ⚠️ **Template de email "Magic Link" en Supabase** (config, no código): debe emitir
   `{{ .SiteURL }}/auth/confirm?token_hash={{ .TokenHash }}&type=email&next=/dashboard`. Si sigue
   con `{{ .ConfirmationURL }}` (PKCE `?code=`), el magic link puede "no hacer nada" al abrirse en
@@ -323,24 +339,32 @@ vets estén en ese dominio, acceso de admin a la consola y a Google Cloud, y SPF
 - **Trámite Meta Tech Provider** (admin): checklist en `WHATSAPP.md` §Trámite.
 - Re-registrar el webhook de Kapso con el secreto en HEADER y borrar el fallback de query param.
 - ⚠️ **`xlsx@0.18.5`** (prototype pollution + ReDoS, sin fix en npm — SheetJS se mudó a su CDN).
-  Estado 2026-07-30, tras portar la UI de facturación: el código server-side que lo usa quedó
-  **empaquetado pero neutralizado con DOS guardas incondicionales** en la frontera de las server
-  actions — `ingestRecipeAction` rechaza `kind='excel'` (foto y texto siguen activos) y
-  `createImportPreview` devuelve "deshabilitado temporalmente" antes de tocar el archivo
-  (`XLSX_IMPORT_ENABLED = false`, constante de CÓDIGO a propósito: un flag de env permitiría
-  rehabilitar el parser vulnerable sin reemplazar la lib). `/inventario/importar` es una página que
-  explica el porqué. Se levanta reemplazando la lib (candidatos: exceljs o el SheetJS mantenido del
-  CDN) y editando esas dos guardas. El import de pacientes sigue client-side (riesgo autoinfligido).
+  **Sigue vulnerable, pero la guarda se ACOTÓ el 22-ago (#158)** y esta entrada describía el estado
+  anterior. Hoy:
+  - `createImportPreview` corta **por extensión** (`XLSX_PARSER_ENABLED = false`), no la action
+    entera: `.xlsx`/`.xls` se rechazan **antes de la sesión y antes de leer un byte**, y el **CSV
+    pasa** — su camino es Papaparse, que no tiene nada que ver con estas CVE. Se estaba bloqueando
+    un parser sano para tapar a otro.
+  - `/inventario/importar` **ya no es una página que explica el porqué**: es el wizard de
+    importación por CSV, con mapeo de columnas y previsualización.
+  - `ingestRecipeAction` sigue rechazando `kind='excel'`. Sin cambios.
+  - El import de pacientes sigue client-side (riesgo autoinfligido).
+  Se levanta el `.xlsx` reemplazando la lib (candidatos: exceljs o el SheetJS del CDN) y editando
+  esa constante más el `accept` del input.
 - **Cartera consume la cuota diaria del asistente clínico**: ~~pendiente~~ **corregido en PR #30**
   (los frenos cuentan sobre `athos_actions` con `source='auto'`, que cartera no escribe).
-- **Cartera se queda con el mensaje aunque no sea de cobranza**: si el titular tiene una factura
-  cobrable y respondió a un recordatorio reciente, `applyCarteraInbound` devuelve `handled: true`
-  incluso cuando el intent cae en `OTRO`, así que el modo auto general nunca ve el mensaje. No se
-  pierde nada (abre tarea humana y el vet lo ve en la bandeja), pero una pregunta trivial —"¿a qué
-  hora abren?"— deja de responderse sola para ese titular.
-- **`payload_override` no se revalida**: `/api/athos/actions/[id]/execute` mergea lo que mande el
-  cliente sobre el payload propuesto sin volver a pasarlo por el schema del tool. Lo ejecuta un vet
-  autenticado bajo su propia sesión (la RLS acota el alcance), pero conviene revalidar.
+- **Cartera se queda con el mensaje aunque no sea de cobranza** — SIGUE ABIERTO, pero la
+  descripción estaba vieja: en `wa-router.ts` ya **no hay ninguna mención a `intent` ni a `OTRO`**
+  (verificado el 22-ago). El corto­circuito real es más simple: si el titular existe, tiene una
+  factura EMITIDA con saldo y `followup_enabled`, la función devuelve `handled: true` **al final,
+  pase lo que pase con el contenido del mensaje** — los `handled: false` de arriba son todos por
+  motivos estructurales (sin titular, sin factura, factura no cobrable), no por lo que dice.
+  Consecuencia igual que antes: una pregunta trivial —"¿a qué hora abren?"— deja de responderse
+  sola para ese titular. No se pierde nada: queda en la bandeja.
+- ~~**`payload_override` no se revalida**~~ — **RESUELTO** (verificado contra el código el 22-ago).
+  `execute/route.ts` mergea el override sobre el payload propuesto y **lo pasa por `validarPayload`
+  con el esquema de esa tool**; si no valida, corta con 400. Además el parseo **descarta los campos
+  desconocidos**, así que un `clinic_id` o un `vet_id` agregados a mano no llegan a la RPC.
 - ~~**Modo auto: ventana de duplicado**~~ — **YA ESTABA ARREGLADO cuando se escribió esta línea.**
   El defecto era real: la idempotencia se consultaba contra `athos_actions`, cuya fila se escribe
   DESPUÉS de enviar, así que entre el chequeo y la escritura —debounce más modelo— un reintento del
@@ -354,9 +378,10 @@ vets estén en ese dominio, acceso de admin a la consola y a Google Cloud, y SPF
 - **`POST /athos/whatsapp/suggest` quedó sin llamadores**: la bandeja migró al agente de Next
   (`/api/athos/suggest-reply`). El endpoint sigue vivo en athos-service y `athosWhatsappSuggest` en
   `src/lib/athos.ts` también. Decidir con el equipo si se borra.
-- **El agente cita `passed`, no `evidence_level`**: `system-prompt.ts` y `tools.ts` hablan de
-  `passed=false`, y `/athos/retrieve` hoy solo devuelve `passed`. Para usar la banda del juez de
-  evidencia hay que agregar `evidence_level` a `RetrieveResponse` primero (backend), y recién ahí
-  cambiar el prompt.
+- ~~**El agente cita `passed`, no `evidence_level`**~~ — **RESUELTO** (verificado el 22-ago). Las
+  dos mitades están: `athos-service/app/main.py` devuelve `evidence_level=verdict.band` en
+  `/athos/retrieve`, y la descripción de la tool en `tools.ts` dice literalmente *"Guiate por
+  evidence_level, NO por passed (que está saturado)"*, con el mapeo de las tres bandas. El front
+  además tolera una ventana de deploy desfasado cayendo a `sufficient` si el campo no viniera.
 - **Site URL de Supabase**: ahora que `/` es la landing y el login vive en `/login`, hay que revisar
   la config del dashboard de Auth — si el fallback aterriza en la raíz, no hay intercambio de código.
