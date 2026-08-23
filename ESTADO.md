@@ -459,8 +459,12 @@ vets estén en ese dominio, acceso de admin a la consola y a Google Cloud, y SPF
   **Sin backfill, medido antes de decidirlo:** 14 clínicas en `cortesia`, 1 `active` y UNA en
   `free` (del 17-ago, con `plan_renueva_en` en null, así que ni el gate ni el barrido la tocan).
 
-  ⚠️ **Falta aplicar `0078` al principal** (con su verificación en `athos-service/supabase/
-  verificaciones/`). Hasta entonces el código está listo y ninguna clínica nueva recibe la prueba.
+  ✅ **`0078` APLICADA al principal el 23-ago**, y verificada ahí mismo: el trigger y la función
+  existen, y los casos 1-4 pasaron contra la base real (nace pro/trial con 3 días exactos, y no se
+  pisa ni un alta deliberada de Pro ni una fila que ya trae su `plan_renueva_en`). El caso 5 falló
+  por un defecto DE LA VERIFICACIÓN, no de la migración: contaba su propio fixture —
+  `subscription_status` tiene default `'trial'`, así que la clínica del caso 4 es una fila
+  free+trial+fecha— y quedó corregido excluyendo las tres filas del bloque.
 
 - 🟡 **El banco adversario está construido, y sin correr.** Misma tanda del 23-ago. Es el
   instrumento que faltaba para medir lo de arriba: `docs/AGENTE-ADVERSARIOS.md`,
