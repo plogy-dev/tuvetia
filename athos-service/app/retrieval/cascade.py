@@ -207,6 +207,26 @@ def tier1_params(cfg: str, terms: str, mesh: list[str]) -> tuple:
             TIER1_LIMIT)
 
 
+# Las dos ramas del Tier 1 por SEPARADO, para correr la full-text SÓLO si hace falta (ver
+# `tier1_lexical_glossary`). La rama MeSH usa el índice GIN y es barata; la full-text, para signos
+# comunes (fever, lethargy), hace un bitmap-heap-scan de decenas de miles de chunks (~19s en Micro).
+TIER1_MESH_SQL = (
+    "select id, source, title, content, metadata, true as mesh_hit, "
+    "       ts_rank_cd(tsv, websearch_to_tsquery(%s, %s)) as lex "
+    "from (select id, source, title, content, metadata, tsv from public.corpus_chunks "
+    "      where metadata->'mesh' ?| %s limit %s) c "
+    "order by lex desc limit %s"
+)
+TIER1_FTS_SQL = (
+    "select id, source, title, content, metadata, false as mesh_hit, "
+    "       ts_rank_cd(tsv, websearch_to_tsquery(%s, %s)) as lex "
+    "from (select id, source, title, content, metadata, tsv from public.corpus_chunks "
+    "      where tsv @@ websearch_to_tsquery(%s, %s) and not (metadata->'mesh' ?| %s) "
+    "      limit %s) c "
+    "order by lex desc limit %s"
+)
+
+
 def tier1_lexical_glossary(query: StructuredQuery, filters: dict) -> list[RetrievedChunk]:
     """Léxico + glosario (gratis): full-text (config del idioma) sobre content + match de
     conceptos/MeSH contra metadata->'mesh'. Base = 0.6 (MeSH) + 0.4 (léxico). Usa la DB.
@@ -226,7 +246,18 @@ def tier1_lexical_glossary(query: StructuredQuery, filters: dict) -> list[Retrie
     mesh = filters["mesh"] if "mesh" in filters else list(query.mesh)
     cfg = _ts_config(filters.get("language"))
     terms = " or ".join(concepts)  # websearch_to_tsquery entiende OR
-    rows = fetch_all_corpus(TIER1_SQL, tier1_params(cfg, terms, mesh))
+    # Rama MeSH primero. El sort final del union era `mesh_hit desc, lex desc`, así que las filas
+    # MeSH SIEMPRE ganan las de full-text: si el MeSH ya llenó TIER1_LIMIT, las de full-text quedaban
+    # descartadas por el orden — pero igual se computaban, y esa rama es la CARA (bitmap-heap-scan de
+    # ~27k chunks para signos comunes, ~19s en Micro). Se corre SÓLO si el MeSH no llenó el cupo. El
+    # resultado es idéntico al union anterior; lo que cambia es no pagar 19s cuando no aportan.
+    rows = fetch_all_corpus(TIER1_MESH_SQL, (cfg, terms, mesh, TIER1_MESH_SCAN_CAP, TIER1_LIMIT))
+    if len(rows) < TIER1_LIMIT:
+        fts = fetch_all_corpus(
+            TIER1_FTS_SQL, (cfg, terms, cfg, terms, mesh, TIER1_FTS_SCAN_CAP, TIER1_LIMIT))
+        # Replica exactamente el `union all ... order by mesh_hit desc, lex desc limit N` del original.
+        rows = sorted(rows + fts, key=lambda r: (r["mesh_hit"], float(r["lex"] or 0.0)),
+                      reverse=True)[:TIER1_LIMIT]
     out = []
     for r in rows:
         lex = float(r["lex"] or 0.0)
