@@ -27,6 +27,9 @@ export async function POST(req: Request) {
     const { waMessageId, message } = await sendWhatsAppText(clinicId, to, text, {
       ownerId: body.owner_id ?? null,
       sentBy: user.id,
+      // LO TECLEÓ UNA PERSONA. Es la bandeja: el vet eligió el destinatario, así que no hay cerco
+      // — es su WhatsApp y su cliente, esté o no cargado todavía en el CRM.
+      origen: "humano",
     })
     return NextResponse.json({
       ok: true,
