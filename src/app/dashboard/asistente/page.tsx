@@ -1,4 +1,4 @@
-import { createClient } from "@/lib/supabase/server"
+import { sesionDelServidor } from "@/lib/supabase/sesion"
 import {
   TOPE_MENSAJES,
   agruparPorPaciente,
@@ -65,10 +65,7 @@ export default async function AsistentePage({
   searchParams: Promise<{ patient?: string; pedir?: string; desde?: string; minutos?: string }>
 }) {
   const { patient: patientParam, pedir, desde, minutos } = await searchParams
-  const supabase = await createClient()
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
+  const { supabase, user } = await sesionDelServidor()
 
   let clinicId = ""
   // El cupo de IA del mes. Se resuelve abajo, con la clínica ya conocida; si no hay tope

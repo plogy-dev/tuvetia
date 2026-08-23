@@ -1,6 +1,6 @@
 import { CalendarDays, Mail, MessageCircle } from "lucide-react"
 
-import { createClient } from "@/lib/supabase/server"
+import { sesionDelServidor } from "@/lib/supabase/sesion"
 import { WhatsappSettings } from "@/components/settings/whatsapp-settings"
 import { CalendarSettings, type CalendarProvider } from "@/components/settings/calendar-settings"
 import { AthosEmailSettings } from "@/components/settings/athos-email-settings"
@@ -33,10 +33,7 @@ export const metadata = { title: "Integraciones · Tuvetia" }
 export const dynamic = "force-dynamic"
 
 export default async function ConexionesPage() {
-  const supabase = await createClient()
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
+  const { supabase, user } = await sesionDelServidor()
 
   const composioListo = composioConfigurado()
 

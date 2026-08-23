@@ -1,6 +1,6 @@
 import { endOfWeek, startOfWeek } from "date-fns"
 
-import { createClient } from "@/lib/supabase/server"
+import { sesionDelServidor } from "@/lib/supabase/sesion"
 import { AppointmentCalendarLazy as AppointmentCalendar } from "@/components/calendar/appointment-calendar-lazy"
 import { DataError } from "@/components/data-error"
 import { DiaDeHoy, type CitaDeHoy } from "@/components/calendar/dia-de-hoy"
@@ -26,16 +26,13 @@ const ESTADOS_VIVOS = new Set(["scheduled", "confirmed", "in_progress"])
 // usuario (su propio calendario), no algo de la pantalla de agenda.
 
 export default async function CalendarioPage() {
-  const supabase = await createClient()
+  const { supabase, user } = await sesionDelServidor()
 
   // Rango inicial: semana actual (lun–dom). El cliente refetchea al navegar.
   const now = new Date()
   const rangeStart = startOfWeek(now, { weekStartsOn: 1 })
   const rangeEnd = endOfWeek(now, { weekStartsOn: 1 })
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
 
   // clinic_id explícito para el selector de vets (defensa en profundidad, no solo RLS).
   //

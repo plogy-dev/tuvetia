@@ -8,7 +8,7 @@ import { SiteHeader } from "@/components/site-header"
 import { TabBarMovil } from "@/components/tab-bar-movil"
 import { OnboardingTour } from "@/components/onboarding-tour"
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar"
-import { createClient } from "@/lib/supabase/server"
+import { sesionDelServidor } from "@/lib/supabase/sesion"
 import { progresoDeConfiguracion } from "@/lib/onboarding/consultar"
 import { AthosProvider } from "@/components/athos/athos-provider"
 import { AthosDock } from "@/components/athos/athos-dock"
@@ -23,10 +23,10 @@ export default async function DashboardLayout({
 }: {
   children: React.ReactNode
 }) {
-  const supabase = await createClient()
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
+  // UNA sola validación de sesión por request: `sesionDelServidor` está memoizada con `cache()`, así
+  // que este `getUser()` y el de la página que se esté cargando son el mismo viaje de red. Antes
+  // eran dos (tres con el middleware), encadenados.
+  const { supabase, user } = await sesionDelServidor()
 
   const profile = user
     ? (
@@ -35,7 +35,14 @@ export default async function DashboardLayout({
           // `role` es para el pie de la barra lateral e `is_active` para el gate de cuenta
           // desactivada. Van en ESTE select y no en consultas aparte: el perfil ya se estaba
           // trayendo, así que las dos columnas salen gratis.
-          .select("full_name, onboarded_at, clinic_id, setup_completed_at, role, is_active")
+          //
+          // LA CLÍNICA VIENE EMBEBIDA, y ése es el segundo viaje que se elimina. Antes se consultaba
+          // aparte y NO podía empezar hasta tener el `clinic_id` de acá: dos round-trips en cadena
+          // donde Postgres resuelve el join en uno. Mismo patrón que usa `clinica-de-la-sesion.ts`.
+          // Si la RLS niega la clínica, el embed llega `null` — que es lo que ya se contemplaba.
+          .select(
+            "full_name, onboarded_at, clinic_id, setup_completed_at, role, is_active, clinic:clinics(name, logo_url, plan)",
+          )
           .eq("id", user.id)
           .single()
       ).data
@@ -50,6 +57,7 @@ export default async function DashboardLayout({
     setup_completed_at: string | null
     role: string | null
     is_active: boolean | null
+    clinic: { name: string; logo_url: string | null; plan: string | null } | null
   } | null
   // Adónde va este usuario. El orden vive en `lib/acceso.ts` y está probado ahí — se toma la misma
   // decisión en `/bienvenida`, y las dos ya se desincronizaron una vez con un lazo de redirecciones.
@@ -66,13 +74,11 @@ export default async function DashboardLayout({
   // sin ninguna pista. No hay lazo: /bienvenida ya NO rebota acá cuando falta la clínica.
   if (user && acceso !== "activo") redirect("/bienvenida")
 
-  // `plan` viaja en el MISMO select que el nombre y el logo: la barra lateral y el widget de Athos
-  // necesitan saberlo en cada carga, y una consulta aparte por algo que ya se está trayendo es un
-  // round-trip regalado en la ruta más caliente de la app.
-  const { data: clinic } = p?.clinic_id
-    ? await supabase.from("clinics").select("name, logo_url, plan").eq("id", p.clinic_id).maybeSingle()
-    : { data: null }
-  const c = clinic as { name: string; logo_url: string | null; plan: string | null } | null
+  // Ya vino con el perfil, en el mismo viaje. `plan` viaja ahí también: la barra lateral y el widget
+  // de Athos lo necesitan en cada carga, y una consulta aparte por algo que ya se está trayendo es
+  // un round-trip regalado en la ruta más caliente de la app.
+  const c = (p as unknown as { clinic: { name: string; logo_url: string | null; plan: string | null } | null } | null)
+    ?.clinic ?? null
 
   const sidebarUser = {
     name: profile?.full_name || user?.email || "Usuario",

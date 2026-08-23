@@ -1,7 +1,7 @@
 import { addWeeks, format, startOfWeek } from "date-fns"
 import { es } from "date-fns/locale/es"
 
-import { createClient } from "@/lib/supabase/server"
+import { sesionDelServidor } from "@/lib/supabase/sesion"
 import { DataError } from "@/components/data-error"
 import { PageHeader, PageShell } from "@/components/ui/page-shell"
 import {
@@ -41,7 +41,7 @@ function weeklySeries(dates: string[]): { label: string; count: number }[] {
 }
 
 export default async function DashboardPage() {
-  const supabase = await createClient()
+  const { supabase, user } = await sesionDelServidor()
 
   const now = new Date()
   const monthStart = new Date(now.getFullYear(), now.getMonth(), 1)
@@ -50,9 +50,6 @@ export default async function DashboardPage() {
     weekStartsOn: 1,
   })
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
   const { data: perfil } = user
     ? await supabase.from("profiles").select("clinic_id, role").eq("id", user.id).maybeSingle()
     : { data: null }
