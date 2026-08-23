@@ -384,9 +384,13 @@ vets estén en ese dominio, acceso de admin a la consola y a Google Cloud, y SPF
   UTC por spec: en Bogotá eso es el día anterior a las 19:00, así que un lote se daba por vencido
   cinco horas antes de que terminara su día. Es el mismo defecto que ya se había corregido para
   `due_date`; a `expires_on` no le había llegado. Ahora usa `finDelDiaBogota`.
-- **`POST /athos/whatsapp/suggest` quedó sin llamadores**: la bandeja migró al agente de Next
-  (`/api/athos/suggest-reply`). El endpoint sigue vivo en athos-service y `athosWhatsappSuggest` en
-  `src/lib/athos.ts` también. Decidir con el equipo si se borra.
+- ~~**`POST /athos/whatsapp/suggest` quedó sin llamadores**~~ — **BORRADO** (22-ago). Se fue el
+  endpoint, `app/whatsapp_reply.py`, sus modelos y `athosWhatsappSuggest`. El borrador lo hace el
+  agente de Next (`/api/athos/suggest-reply`), que además lo deja propuesto en `athos_actions` —
+  auditado y con el envío como aprobación humana; el camino viejo devolvía texto suelto sin traza.
+  Lo que sí se rescató antes de borrar: el test de Python era el ÚNICO que fijaba "el borrador no
+  diagnostica ni inventa datos de la clínica", y esa regla ahora se fija sobre el prompt que de
+  verdad se manda (`src/app/api/athos/__tests__/suggest-reply.test.ts`).
 - ~~**El agente cita `passed`, no `evidence_level`**~~ — **RESUELTO** (verificado el 22-ago). Las
   dos mitades están: `athos-service/app/main.py` devuelve `evidence_level=verdict.band` en
   `/athos/retrieve`, y la descripción de la tool en `tools.ts` dice literalmente *"Guiate por
