@@ -338,30 +338,13 @@ vets estén en ese dominio, acceso de admin a la consola y a Google Cloud, y SPF
   —que debe llamar a `sinLosDeBaja` y poner el enlace en el pie— y los rebotes. Se
   recomienda arrancarlo DESPUÉS de la entrega: el dominio remitente es uno solo para todas las
   clínicas, y una lista sucia le arruina la entregabilidad al resto.
-- 🔴 **Una factura emitida NO SE PUEDE CORREGIR: la nota crédito no existe.** Encontrado el 23-ago
-  intentando anular una factura de prueba recién emitida.
-
-  Lo que hay: la tabla **`credit_notes`** (con `invoice_id`, `numbering_range_id`, `full_number`,
-  `reason_code`, `reason_text`, `total_cents`) y el prefijo de numeración `SNC` en
-  `facturacion/constants.ts`. **Eso es todo.** `credit_notes` no aparece en NINGUNA línea de código:
-  nadie la lee ni la escribe. Lo único que pone `status='ANULADA'` en el repo es el módulo de
-  **compras**, no el de facturas. La pantalla de una factura emitida ofrece enviar por correo, por
-  WhatsApp e imprimir, y nada más.
-
-  Por qué importa más de lo que parece: la propia pantalla de emisión advierte *"Emitir asigna
-  consecutivo y transmite el documento — solo se corrige con nota crédito"*, y el inventario de
-  entrega lista *"motivos de nota crédito"* entre el andamiaje. Las dos cosas apuntan a una salida
-  que no está construida. **Si en una demo se emite algo con un error, no hay arreglo** — ni siquiera
-  marcarla anulada.
-
-  Tamaño real, para que no se subestime: numeración propia con su rango `SNC` (misma RPC de
-  consecutivo), motivos DIAN en `reason_code`, efecto sobre `balance_cents` y sobre la cartera del
-  titular, reversa del movimiento de inventario, su documento imprimible, y la nota crédito parcial
-  además de la total. No es una pantalla: es el reverso de la emisión.
-
-  Mientras no exista: en una demo, emitir sólo a propósito. Una factura de prueba se limpia por SQL
-  —y ojo, `fiscal_documents` y `payment_applications` apuntan con `RESTRICT`, así que hay que
-  borrarlas antes; los `invoice_events` caen por cascade.
+- ~~**Una factura emitida NO SE PUEDE CORREGIR: la nota crédito no existe**~~ — **RESUELTO el
+  23-ago.** `src/lib/facturacion/credit-notes.ts` + `anularFacturaAction` + el bloque "Anular con
+  nota crédito" en la factura emitida. Sin migración: la base ya tenía todo (tabla con su CHECK de
+  motivos DIAN, rango `NOTA_CREDITO` admitido, `CREDIT_NOTE_APPLIED` y `DEVOLUCION` en sus CHECKs, y
+  `submitCreditNote` implementado en el sandbox) — faltaba sólo el caso de uso.
+  Cubre la anulación TOTAL. La nota crédito **parcial** —corregir un importe sin anular— sigue sin
+  construirse y es lo que queda de esta funcionalidad.
 
 - ⚠️ **Plantillas de correo en Supabase** (config, no código): son **DOS** —"Magic Link" y
   "Confirm signup"—, porque `signInWithOtp` manda una u otra según si el correo ya tiene cuenta.

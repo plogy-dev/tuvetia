@@ -2,13 +2,15 @@
 
 import { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
-import { AlertTriangle, Check, Mail, MessageCircle, Printer } from 'lucide-react';
+import { AlertTriangle, Ban, Check, Mail, MessageCircle, Printer } from 'lucide-react';
 import {
+  anularFacturaAction,
   discardInvoiceDraft,
   issueInvoiceAction,
   registerManualPaymentAction,
   sendInvoiceEmailAction,
 } from '@/lib/facturacion/actions';
+import { MOTIVOS_NOTA_CREDITO } from '@/lib/facturacion/credit-notes';
 import { formatCOP } from '@/lib/facturacion/domain/money';
 import {
   makeDefaultPlan,
@@ -56,6 +58,11 @@ export function InvoiceActionsPanel({
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
+  // Anulación: la caja se abre con un clic y pide motivo. NO se anula desde el primer clic —
+  // una nota crédito quema un consecutivo fiscal y no se deshace.
+  const [anulando, setAnulando] = useState(false);
+  const [motivo, setMotivo] = useState<string>('ANULACION');
+  const [detalle, setDetalle] = useState('');
   const [notice, setNotice] = useState<string | null>(null);
 
   const [plan, setPlan] = useState<PaymentPlan>(() => makeDefaultPlan(defaultTermsDays));
@@ -258,6 +265,95 @@ export function InvoiceActionsPanel({
               <Printer className="size-4" aria-hidden />
               Imprimir / PDF
             </a>
+          </div>
+
+          {/* ── Anular con nota crédito ──────────────────────────────────────────────────────
+              Es la ÚNICA forma de corregir una factura emitida, y hasta el 23-ago no existía: la
+              línea de arriba de esta misma pantalla ya prometía "solo se corrige con nota crédito".
+
+              Va detrás de un clic y pide motivo a propósito. Una nota crédito quema un consecutivo
+              fiscal propio y no se deshace: si fuera un botón suelto al lado de "Imprimir", se
+              apretaría por error. */}
+          <div className="border-t border-line pt-3">
+            {!anulando ? (
+              <button
+                type="button"
+                onClick={() => setAnulando(true)}
+                className="inline-flex items-center gap-2 text-xs text-fg-faint hover:text-warn transition"
+              >
+                <Ban className="size-3.5" aria-hidden />
+                Anular con nota crédito
+              </button>
+            ) : (
+              <div className="space-y-3 rounded-lg border border-warn/40 bg-surface-2 p-3">
+                <p className="text-xs text-fg-muted">
+                  Se emite una <b className="text-fg">nota crédito</b> por{' '}
+                  <b className="text-fg">{formatCOP(totalCents)}</b> que anula {fullNumber ?? 'esta factura'}.
+                  Consume un consecutivo propio y <b className="text-fg">no se puede deshacer</b>.
+                  {balanceCents === 0 && (
+                    <> El pago ya recibido <b className="text-fg">no se borra</b>: queda como saldo a favor del cliente.</>
+                  )}
+                </p>
+
+                <div>
+                  <label htmlFor="nc-motivo" className="block text-xs font-medium text-fg-muted">
+                    Motivo (DIAN)
+                  </label>
+                  <select
+                    id="nc-motivo"
+                    value={motivo}
+                    onChange={(e) => setMotivo(e.target.value)}
+                    className="mt-1 w-full rounded-lg border border-line bg-surface px-3 py-2 text-sm text-fg"
+                  >
+                    {Object.entries(MOTIVOS_NOTA_CREDITO).map(([code, label]) => (
+                      <option key={code} value={code}>
+                        {label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label htmlFor="nc-detalle" className="block text-xs font-medium text-fg-muted">
+                    Detalle (opcional)
+                  </label>
+                  <input
+                    id="nc-detalle"
+                    value={detalle}
+                    onChange={(e) => setDetalle(e.target.value)}
+                    maxLength={500}
+                    placeholder="Qué pasó, en una línea"
+                    className="mt-1 w-full rounded-lg border border-line bg-surface px-3 py-2 text-sm text-fg"
+                  />
+                </div>
+
+                <div className="flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    disabled={isPending}
+                    onClick={() =>
+                      run(async () => {
+                        const r = await anularFacturaAction({ invoiceId, motivo, detalle });
+                        return r.ok
+                          ? { ok: true, msg: `Nota crédito ${r.fullNumber} emitida` }
+                          : { ok: false, error: r.error };
+                      })
+                    }
+                    className="inline-flex items-center gap-2 rounded-lg border border-warn bg-surface px-4 py-2 text-sm font-medium text-warn hover:bg-surface-2 transition disabled:opacity-60"
+                  >
+                    <Ban className="size-4" aria-hidden />
+                    Emitir la nota crédito
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setAnulando(false)}
+                    className="rounded-lg border border-line bg-surface px-4 py-2 text-sm text-fg-muted hover:bg-surface-2 hover:text-fg transition"
+                  >
+                    Cancelar
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         </>
       )}
