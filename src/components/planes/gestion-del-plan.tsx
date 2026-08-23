@@ -3,7 +3,7 @@
 import * as React from "react"
 import { useRouter } from "next/navigation"
 import { toast } from "sonner"
-import { AlertTriangle, CreditCard, Loader2 } from "lucide-react"
+import { AlertTriangle, CreditCard, Loader2, Sparkles } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import {
@@ -16,7 +16,15 @@ import {
 } from "@/components/ui/dialog"
 import { BotonSubirAPro, ComparacionDePlanes } from "@/components/planes/comparacion-de-planes"
 import { FormularioDePago } from "@/components/planes/formulario-de-pago"
-import { ESTADO_LEGIBLE, seRenueva, type EstadoSuscripcion, type Plan } from "@/lib/planes"
+import {
+  DIAS_DE_PRUEBA,
+  ESTADO_LEGIBLE,
+  diasDePruebaRestantes,
+  enPrueba,
+  seRenueva,
+  type EstadoSuscripcion,
+  type Plan,
+} from "@/lib/planes"
 import { fmtDate } from "@/lib/facturacion/format"
 
 // La parte con estado de la pantalla de Plan: abrir el formulario, cancelar, y el aviso de mora.
@@ -104,6 +112,35 @@ export function GestionDelPlan({
         </div>
       )}
 
+      {/* ── La prueba, con los días que quedan ───────────────────────────────────────────────
+          Va arriba y dice el número: una prueba que no se ve es una clínica que un jueves se
+          encuentra con que Athos dejó de responder y no sabe por qué. El vencimiento lo aplica el
+          barrido (`lib/suscripcion/barrido.ts`), acá sólo se cuenta. */}
+      {enPrueba(estado, plan) && (
+        <div className="mb-4 flex items-start gap-3 rounded-xl border border-primary/30 bg-primary/5 p-4">
+          <Sparkles className="mt-0.5 size-4 shrink-0 text-primary" aria-hidden />
+          <div className="text-sm">
+            <p className="font-medium text-fg">
+              {(() => {
+                const d = diasDePruebaRestantes(renuevaEn)
+                if (d <= 0) return "Hoy es el último día de tu prueba."
+                return `Te ${d === 1 ? "queda" : "quedan"} ${d} ${d === 1 ? "día" : "días"} de prueba.`
+              })()}
+            </p>
+            <p className="mt-1 text-fg-muted">
+              Estás usando Pro completo —Athos, el Modo Fantasma y todo lo que necesita IA— sin haber
+              puesto una tarjeta. Cuando termine, tu clínica pasa al plan gratis y no se borra nada
+              de lo que ya tenés.
+            </p>
+            {esAdmin && pagosDisponibles && (
+              <Button size="sm" className="mt-3" onClick={() => setFormAbierto(true)}>
+                <CreditCard className="size-4" /> Seguir con Pro
+              </Button>
+            )}
+          </div>
+        </div>
+      )}
+
       {cancelado && plan === "pro" && (
         <div className="mb-4 rounded-xl border border-line bg-surface p-4 text-sm">
           <p className="font-medium text-fg">Tu suscripción está cancelada.</p>
@@ -127,7 +164,9 @@ export function GestionDelPlan({
           <h3 className="text-sm font-semibold text-fg">Tu suscripción</h3>
           <dl className="mt-3 grid grid-cols-[auto_1fr] gap-x-6 gap-y-1.5 text-sm">
             <dt className="text-fg-muted">Estado</dt>
-            <dd className="font-medium text-fg">{ESTADO_LEGIBLE[estado]}</dd>
+            <dd className="font-medium text-fg">
+              {enPrueba(estado, plan) ? `Prueba de ${DIAS_DE_PRUEBA} días` : ESTADO_LEGIBLE[estado]}
+            </dd>
 
             {seRenueva(estado) && renuevaEn && (
               <>
