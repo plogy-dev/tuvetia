@@ -353,8 +353,12 @@ vets estén en ese dominio, acceso de admin a la consola y a Google Cloud, y SPF
   esa constante más el `accept` del input.
 - **Cartera consume la cuota diaria del asistente clínico**: ~~pendiente~~ **corregido en PR #30**
   (los frenos cuentan sobre `athos_actions` con `source='auto'`, que cartera no escribe).
-- **Cartera se queda con el mensaje aunque no sea de cobranza** — SIGUE ABIERTO, pero la
-  descripción estaba vieja: en `wa-router.ts` ya **no hay ninguna mención a `intent` ni a `OTRO`**
+- ~~**Cartera se queda con el mensaje aunque no sea de cobranza**~~ — **RESUELTO el 22-ago.**
+  `wa-router` ahora devuelve `handled: false` cuando el intent es `OTRO` **y no vino adjunto**, así
+  que el mensaje cae al modo auto general como el de cualquiera que no deba nada. Con adjunto sí se
+  reclama: una foto de quien debe plata es un comprobante hasta que se demuestre lo contrario, y
+  soltarla perdería `storeReceiptReference`. Lo que sigue abajo era la descripción vieja del
+  mecanismo, que tampoco era exacta: en `wa-router.ts` ya **no hay ninguna mención a `intent` ni a `OTRO`**
   (verificado el 22-ago). El corto­circuito real es más simple: si el titular existe, tiene una
   factura EMITIDA con saldo y `followup_enabled`, la función devuelve `handled: true` **al final,
   pase lo que pase con el contenido del mensaje** — los `handled: false` de arriba son todos por
