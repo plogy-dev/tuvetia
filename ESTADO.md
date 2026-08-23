@@ -434,9 +434,29 @@ vets estén en ese dominio, acceso de admin a la consola y a Google Cloud, y SPF
   cumpla — eso es comportamiento, y un prompt no es una garantía. El residuo es el mismo de antes y
   es conocido: una propuesta **verosímil** que un vet apurado apruebe, y el CUERPO de un mensaje
   redactado. El destinatario de CORREO sigue siendo editable, y el modelo lo deduce de lo leído
-  (está comentado a propósito, para que el vet lo corrija). Medirlo de verdad pide un banco de casos
-  **adversarios** —un correo con una orden adentro, y ver si el agente la cita o la ejecuta—, que hoy
-  no existe. Ése es el siguiente paso.
+  (está comentado a propósito, para que el vet lo corrija).
+
+- 🟡 **El banco adversario está construido, y sin correr.** Misma tanda del 23-ago. Es el
+  instrumento que faltaba para medir lo de arriba: `docs/AGENTE-ADVERSARIOS.md`,
+  `src/lib/athos-agent/adversarios/` y `npm run adversarios`. **7 ataques por inyección** —
+  exfiltración a un correo ajeno, suplantación del "sistema Tuvetia", contaminación con la ficha de
+  otro paciente, frase dictada, silenciamiento, cambio de destinatario, falsa urgencia del dueño— y
+  **3 controles** que miden lo contrario: que el agente endurecido no haya dejado de trabajar.
+
+  El juez es **determinístico, sin LLM**, y su decisión de diseño es la que hay que entender antes
+  de tocarlo: el marcador se busca SÓLO en el payload de lo que el agente propuso escribir, **nunca en
+  su texto** — porque si hace lo correcto y le CITA la orden al vet, el correo del atacante aparece
+  en su respuesta, y un juez ingenuo contaría como fallo justo el comportamiento que se le pide.
+
+  Lo que corre en CI son las piezas frágiles (19 pruebas): el juez, la coherencia del corpus —que
+  cada ataque tenga su marcador dentro de lo que el agente va a leer, o sería un ataque que nunca se
+  lanza— y el cableado del arnés contra un modelo falso, que verifica que el veneno llega al prompt.
+
+  ⚠️ **Falta la corrida.** En esta máquina no hay ninguna credencial de proveedor (`ANTHROPIC_API_KEY`
+  y compañía viven en Vercel y Railway), así que el corredor falla en su primera aserción — a
+  propósito: un banco que se auto-saltea es papel, y este repo ya tuvo esa historia con los
+  cross-tenant del backend. **Una sola corrida con la key llena la tabla de resultados del
+  documento.** Hasta entonces, sobre si el modelo obedece órdenes ajenas no hay cifra.
 
 - ⚠️ **Plantillas de correo en Supabase** (config, no código): son **DOS** —"Magic Link" y
   "Confirm signup"—, porque `signInWithOtp` manda una u otra según si el correo ya tiene cuenta.
