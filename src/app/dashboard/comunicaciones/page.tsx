@@ -1,10 +1,9 @@
-import Link from "next/link"
 import { MessageCircle } from "lucide-react"
 
 import { createClient } from "@/lib/supabase/server"
 import { DataError } from "@/components/data-error"
 import { WhatsappInbox, type InboxMessage, type InboxOwner } from "@/components/whatsapp/inbox"
-import { Button } from "@/components/ui/button"
+import { WhatsappSettings } from "@/components/settings/whatsapp-settings"
 
 export const metadata = { title: "Comunicaciones · Tuvetia" }
 
@@ -14,7 +13,7 @@ export default async function ComunicacionesPage() {
   const supabase = await createClient()
 
   const [{ data: integ }, { data: msgs, error: msgsError }, { data: owners }] = await Promise.all([
-    supabase.from("whatsapp_integrations").select("status, phone_number").maybeSingle(),
+    supabase.from("whatsapp_integrations").select("status, phone_number, agent_mode").maybeSingle(),
     supabase
       .from("whatsapp_messages")
       .select("id, owner_id, wa_message_id, wa_phone_from, wa_phone_to, direction, body, media_type, media_url, read_at, delivered_at, failed_at, error_detail, created_at, provider_timestamp")
@@ -29,19 +28,40 @@ export default async function ComunicacionesPage() {
     supabase.from("owners").select("id, full_name, phone").not("phone", "is", null).order("full_name"),
   ])
 
-  const integration = integ as { status: string; phone_number: string | null } | null
+  const integration = integ as {
+    status: string
+    phone_number: string | null
+    agent_mode: "auto" | "review" | "paused" | "intervene" | null
+  } | null
   const connected = integration?.status === "connected"
 
   if (!connected) {
     return (
-      <div className="mx-auto flex w-full max-w-md flex-col items-center gap-4 px-6 py-16 text-center">
+      // EL QR SE ESCANEA ACÁ MISMO. Antes esta pantalla tenía un botón "Conectar en Configuración",
+      // y ese viaje era peor de lo que parecía: Configuración ya no tiene el conector —se mudó a
+      // Conexiones— así que quien lo seguía llegaba a una línea de estado y a otro enlace. Dos
+      // saltos para escanear un código.
+      //
+      // David lo pidió el 19-ago: que el QR esté en la propia pantalla de Comunicaciones. Y tiene
+      // sentido más allá de los clics — es acá donde uno se da cuenta de que hace falta conectar,
+      // porque es acá donde no hay mensajes.
+      //
+      // ES EL MISMO COMPONENTE que usa Conexiones, no una copia: el flujo de vinculación tiene
+      // consentimiento, reintentos y tres proveedores detrás. Dos implementaciones del mismo QR
+      // serían dos que arreglar cada vez.
+      <div className="mx-auto flex w-full max-w-md flex-col items-center gap-4 px-6 py-16">
         <MessageCircle className="size-10 text-muted-foreground" />
         <h1 className="text-lg font-semibold">WhatsApp no está conectado</h1>
-        <p className="text-sm text-muted-foreground">
-          Conectá el WhatsApp de tu clínica escaneando un QR — seguís usando tu teléfono como siempre
-          y las conversaciones también llegan acá. Requiere la app <b>WhatsApp Business</b> (gratuita).
+        <p className="text-center text-sm text-muted-foreground">
+          Conectalo acá y las conversaciones con los titulares empiezan a llegar a esta bandeja.
         </p>
-        <Button render={<Link href="/dashboard/settings" />}>Conectar en Configuración</Button>
+        <div className="w-full rounded-xl border bg-card p-4">
+          <WhatsappSettings
+            initialStatus={(integration?.status as "none" | "pending" | "disconnected") ?? "none"}
+            initialPhone={integration?.phone_number ?? null}
+            initialAgentMode={integration?.agent_mode ?? "review"}
+          />
+        </div>
       </div>
     )
   }

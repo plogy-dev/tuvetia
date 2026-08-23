@@ -17,12 +17,17 @@ por el que falta la dosis, nunca un número que el sistema no pudo verificar.
 import re
 
 # Unidades de dosificación por peso: son las que exigen el peso del paciente. Cubre "mg/kg",
-# "mg / kg", "mg/kg/día", "mcg/kg/min", "UI/kg", "ml/kg". El número puede ser rango ("5-10"),
-# decimal con coma o punto, y llevar unidades compuestas detrás.
+# "mg / kg", "mg/kg/día", "mcg/kg/min", "UI/kg", "ml/kg", y también la forma escrita con palabra:
+# "mg por kg", "mg por kilo". El número puede ser rango ("5-10"), decimal con coma o punto, y
+# llevar unidades compuestas detrás.
+#
+# El `por kg` importa: medido, el modelo a veces redacta "0,2 mg por kg" en vez de "0,2 mg/kg", y
+# con sólo la barra literal esa cifra por peso se escapaba al veterinario con la ficha incompleta —
+# un guard de seguridad fallando ABIERTO, justo lo que la regla nº4 prohíbe.
 _NUM = r"\d+(?:[.,]\d+)?(?:\s*[-–a]\s*\d+(?:[.,]\d+)?)?"
 _UNIDAD = r"(?:mg|mcg|µg|ug|g|ml|l|ui|u|meq)"
-_POR_KG = r"\s*/\s*(?:kg|kilo|kilogramo)"
-DOSE_RE = re.compile(rf"{_NUM}\s*{_UNIDAD}{_POR_KG}(?:\s*/\s*\w+)?", re.IGNORECASE)
+_POR_KG = r"\s*(?:/|\bpor\b)\s*(?:kg|kgs|kilo|kilos|kilogramo|kilogramos)"
+DOSE_RE = re.compile(rf"{_NUM}\s*{_UNIDAD}{_POR_KG}(?:\s*(?:/|\bpor\b)\s*\w+)?", re.IGNORECASE)
 
 # Colchón de emisión para el chat en streaming: ninguna cifra puede escaparse a medias. Es más
 # largo que el patrón más largo que reconocemos ("0,25 mg / kg / día" ~ 20 chars), con margen.

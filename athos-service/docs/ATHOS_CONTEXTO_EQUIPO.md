@@ -57,7 +57,7 @@
 
 **Seams (contratos entre partes) — quién los mueve:**
 - **`profiles.is_active`** *(tabla de Santiago)*: Athos la exige para el auth (**403 si falta**). Hoy PRESENTE y OK. No la tocamos; si Santiago la cambia, avisar.
-- **`consultations.status`** *(nuestro flujo del Phantom)*: `open→transcribing→generating_note` lo pone el **backend** en `/athos/transcribe`; **nuestro front lo lleva a `review` al generar la sugerencia y a `completed` al aprobar la nota** (cerrado 2026-07-23, `consultas/[id]`). Si la plataforma también gestiona este estado, coordinar para no chocar.
+- **`consultations.status`** *(nuestro flujo del Phantom)*: `open→transcribing→generating_note` lo pone el **backend** en `/athos/transcribe`; **nuestro front lo lleva a `review` al generar la sugerencia y a `completed` al aprobar la nota** (cerrado 2026-07-23, `consultas/[id]`). Si la plataforma también gestiona este estado, coordinar para no chocar. ⚠️ **Las dos transiciones son MANUALES**: salen de botones que el vet aprieta, no de tareas de fondo. O sea que `generating_note` no es transitorio — una consulta se queda ahí hasta que alguien abra y genere. Medido el 2026-08-22: cuatro atascadas, de cuatro días distintos, todas con transcript y ninguna con nota. Por eso la etiqueta dice «Falta generar la nota» y no «Generando nota» (`src/lib/consultas/estado.ts`).
 - **Storage de audio** *(cross-proyecto)*: el front sube al bucket privado `consultation-audios` del **principal**; el backend lo baja del proyecto de `SUPABASE_URL` (= **principal**). Deben ser el **MISMO** proyecto — no romper.
 
 ## 1. Qué es Athos y qué hace

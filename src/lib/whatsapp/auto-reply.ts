@@ -163,6 +163,10 @@ export async function maybeAutoReply(input: {
       .from("clinic_hours")
       .select("weekday, opens_at, closes_at")
       .eq("clinic_id", clinicId)
+      // EL DE LA CLÍNICA, no el de nadie en particular (0069). Al otro lado hay un TITULAR
+      // preguntando a qué hora abren: contestarle con el horario personal de un veterinario sería
+      // decirle que la clínica abre a las 2 porque ese día ese vet entra a las 2.
+      .is("vet_id", null)
       .order("weekday")
       .order("opens_at"),
     admin
@@ -261,10 +265,15 @@ CITAS — tienes herramientas, úsalas en vez de prometer de memoria:
       return
     }
 
+    // ESTO ES ATHOS ESCRIBIENDO, aunque sea una respuesta. Si quien escribió no está cargado como
+    // titular, la guarda lo frena y cae al catch de abajo: no sale la respuesta automática y el
+    // mensaje queda en la bandeja para que lo conteste una persona. Es el resultado correcto — a un
+    // desconocido que le escribe a la clínica lo atiende alguien, no un bot.
     const { waMessageId: sentId, message } = await sendWhatsAppText(clinicId, fromPhone, text, {
       ownerId: owner?.id ?? null,
       sentBy: null,
       agentMode: "auto",
+      origen: "athos",
     })
 
     // Registro de la acción auto (ejecutada) + auditoría.

@@ -28,6 +28,22 @@ export type SuperficieDeUso =
   | "vision_purchase"
   // El briefing diario: gasto que ocurre SIN que ningun vet lo haya pedido, asi que se mide aparte.
   | "briefing"
+  /**
+   * El informe que se le entrega al TITULAR al cerrar la consulta (0071).
+   *
+   * Se mide aparte y no dentro de `agent` porque contesta una pregunta propia: cuánto cuesta que
+   * cada consulta termine con un informe para el dueño. Metida en la bolsa grande, esa cifra no
+   * existe — y es justo la que decide si la función se puede regalar o hay que cobrarla.
+   */
+  | "informe_titular"
+  /**
+   * Notas y sugerencias MIENTRAS la consulta pasa (Modo Fantasma en vivo).
+   *
+   * Aparte por la misma razón que `widget`: es la única superficie que se dispara sola, decenas de
+   * veces por consulta, sin que nadie apriete nada — o sea la que más hay que poder medir antes de
+   * ponerle precio. Sumarla a `agent` haría incontestable esa pregunta incluso a posteriori.
+   */
+  | "consulta_viva"
 
 /**
  * Lo que devuelve `result.usage` del AI SDK (`LanguageModelUsage`).

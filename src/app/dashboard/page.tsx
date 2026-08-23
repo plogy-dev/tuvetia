@@ -1,21 +1,18 @@
 import { redirect } from "next/navigation"
 
-// ATHOS PRIMERO. `/dashboard` ya no es el tablero de métricas: es la puerta, y la puerta abre en
-// Athos. Es la idea central del mockup v2 del cliente —se llama literalmente "Tuvetia · Athos
-// primero"— y lo que su brief describe: el consultorio antes que el CRM.
+// LA PUERTA ABRE EN EL DASHBOARD.
 //
-// POR QUÉ UN REDIRECT Y NO PINTAR ATHOS ACÁ. El ítem "Athos" del sidebar apunta a
-// `/dashboard/asistente`, y `onboarding-tour.tsx` ancla uno de sus pasos en
-// `a[href="/dashboard/asistente"]`. Si Athos viviera en `/dashboard`, el ancla tendría que ser
-// `a[href="/dashboard"]` — que también matchea el enlace del logo en la cabecera de la barra, y
-// `document.querySelector` devuelve el PRIMERO del DOM. El tour terminaría señalando el logo en vez
-// del ítem, sin fallar ningún test.
+// Estuvo abriendo en Athos ("Athos primero", del mockup v2). Se volvió atrás por pedido del
+// cliente: entrar directo a una conversación vacía no dice cómo está la clínica, y el tablero —
+// citas de hoy, notas por aprobar, consultas del mes— sí. Athos sigue a un clic en la barra, y el
+// riel de configuración se mudó al tablero justamente para acompañar esta vuelta.
 //
-// Con el redirect, la pantalla de Athos tiene una sola URL, el ancla queda sin ambigüedad, y los
-// enlaces viejos a `/dashboard` siguen llegando a algún lado sensato.
+// POR QUÉ UN REDIRECT Y NO PINTAR EL TABLERO ACÁ. El ítem "Dashboard" del sidebar apunta a
+// `/dashboard/tablero`. Si el tablero viviera también en `/dashboard`, habría dos URLs para la
+// misma pantalla y el `isActive` del sidebar dejaría de marcarlo al entrar por la puerta.
 //
-// El tablero completo no desaparece: vive en `/dashboard/tablero` y se llega desde el riel derecho
-// de Athos ("La clínica hoy → Dashboard") y desde el sidebar.
+// Con el redirect, cada pantalla tiene UNA sola URL y los enlaces viejos a `/dashboard` siguen
+// llegando a algún lado sensato.
 export default function DashboardPage() {
-  redirect("/dashboard/asistente")
+  redirect("/dashboard/tablero")
 }

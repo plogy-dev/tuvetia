@@ -1,29 +1,117 @@
 "use client"
 
-// "Estás grabando la consulta de Canela · 12:43" — visible en TODA la app.
+// El notch: "Athos · Canela · 12:43", arriba y al centro, visible en TODA la app.
+//
+// LA FORMA VIENE DEL PROTOTIPO DEL CLIENTE, que es lo que se acordó el 17-ago. Cuatro cosas cambian
+// respecto de lo que teníamos, y ninguna es cosmética:
+//
+//   1. **Arriba y al centro, no abajo a la derecha.** Abajo competía con el widget de Athos y con la
+//      barra de pestañas del móvil, y quedaba en la esquina donde uno no mira. Arriba al centro es
+//      donde el sistema pone lo que está en curso, y es donde el vet ya lo busca.
+//
+//   2. **Oscura en los dos temas.** No es un descuido: la pastilla no es contenido de la app, es
+//      cromo por encima de ella — como la barra de grabación del teléfono. Pintarla con los tokens
+//      de superficie la volvía una tarjeta más flotando sobre la pantalla.
+//
+//   3. **Las barras del ecualizador.** Es lo que distingue "el micrófono está tomado" de "te estoy
+//      escuchando": un punto encendido no dice si algo está entrando. **Se detienen en pausa**, y
+//      ahí comunican el estado sin una palabra.
+//
+//   4. **Pausar y detener viven acá.** Antes pausar sólo estaba dentro del panel, o sea que
+//      interrumpir la consulta obligaba a abrir una superficie entera. Es la acción más urgente de
+//      la consulta y estaba a dos clics.
 //
 // NO ES DECORACIÓN, ES EL CONTRAPESO. Desde que la grabación sobrevive la navegación, el vet puede
 // tener el micrófono abierto mientras mira la agenda, una factura o la ficha de otro paciente. Sin
-// un indicador permanente eso es un micrófono abierto que nadie ve — que es exactamente la crítica
-// que esta función se merecería.
+// un indicador permanente eso es un micrófono abierto que nadie ve.
 //
 // Y la etiqueta NOMBRA AL PACIENTE a propósito: es la prueba visible, para el vet y para quien mire
 // la pantalla, de que el alcance es UNA consulta y no la jornada entera.
 
 import Link from "next/link"
-import { Loader2, Mic, Square, TriangleAlert } from "lucide-react"
+import {
+  ChevronDown,
+  ChevronUp,
+  GripVertical,
+  Loader2,
+  LocateFixed,
+  Maximize2,
+  Pause,
+  Play,
+  Square,
+  Stethoscope,
+  TriangleAlert,
+} from "lucide-react"
 
+import { comoReloj } from "@/lib/duracion"
 import { consultaViva } from "@/lib/consulta-viva/sesion"
 import { useConsultaViva } from "@/lib/consulta-viva/usar"
-import { Button } from "@/components/ui/button"
 
-function mmss(total: number): string {
-  const m = Math.floor(total / 60)
-  const s = total % 60
-  return `${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`
+// LA PASTILLA ES OSCURA EN LOS DOS TEMAS, y se consigue con la clase `.consulta` que el sistema ya
+// tiene: declara la paleta oscura completa —en nuestro menta, no en el azul del prototipo— sobre
+// cualquier subárbol. Así esto no lleva ni un color crudo y sigue el tema del producto.
+//
+// Sin ella, `text-warn` en modo claro resolvía a `#8a5a0b` sobre un fondo casi negro: 2,8:1, o sea
+// la etiqueta "Pausada" ilegible justo cuando más hay que verla. Con `.consulta` es `#e5c078`.
+
+/** Un botón del notch: icono de 13,5px, radio 7px, sin fondo hasta el hover. */
+function Accion({
+  onClick,
+  etiqueta,
+  children,
+}: {
+  onClick: () => void
+  etiqueta: string
+  children: React.ReactNode
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-label={etiqueta}
+      title={etiqueta}
+      className="grid shrink-0 place-items-center rounded-[7px] p-[5px] text-fg-muted transition-colors hover:bg-fg/10 hover:text-fg focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+    >
+      {children}
+    </button>
+  )
 }
 
-export function GrabacionPastilla({ alAbrir }: { alAbrir?: () => void }) {
+export function GrabacionPastilla({
+  abierto,
+  alerta,
+  alAlternar,
+  asa,
+  arrastrando,
+  alCentrar,
+}: {
+  /** ¿El panel está desplegado? Cambia el galón y deja de redondear el borde de abajo. */
+  abierto?: boolean
+  /**
+   * Hay una sugerencia urgente sin mirar.
+   *
+   * ES EL MECANISMO DEL PROTOTIPO —"las urgentes prenden la luz del notch"— y resuelve bien un
+   * problema real: algo que no puede esperar tiene que avisar, pero abrir el panel solo encima de
+   * lo que el vet está haciendo con un animal delante es peor que el problema. Un aro ámbar avisa
+   * sin interrumpir, y se apaga cuando el vet abre la pestaña.
+   */
+  alerta?: boolean
+  alAlternar?: () => void
+  /**
+   * El asa para arrastrar el notch. La pone `NotchDeConsulta` con lo que le da dnd-kit.
+   *
+   * ES UN ASA Y NO LA PASTILLA ENTERA. Arrastrar por el cuerpo suena más limpio, pero la pastilla
+   * está llena de botones —pausar, terminar, ampliar, desplegar— y la acción más urgente de la
+   * consulta no puede competir con el arrastre por el mismo gesto. Además un asa es un botón: se
+   * enfoca con Tab y se mueve con las flechas sin cablear nada, que es lo que hace que esto no sea
+   * sólo para quien usa mouse.
+   */
+  asa?: React.ComponentProps<"button">
+  /** Mientras se arrastra, para que el cursor y el fondo del asa lo digan. */
+  arrastrando?: boolean
+  /** Volver al centro. Sin esto, un notch corrido hasta un borde se recupera a puro arrastre. */
+  alCentrar?: () => void
+}) {
   const estado = useConsultaViva()
 
   if (estado.fase === "inactiva" || estado.fase === "terminada") return null
@@ -31,6 +119,15 @@ export function GrabacionPastilla({ alAbrir }: { alAbrir?: () => void }) {
   const enCurso = estado.fase === "grabando"
   const cerrando = estado.fase === "subiendo" || estado.fase === "transcribiendo"
   const fallo = estado.fase === "perdida"
+  const pausada = enCurso && estado.pausada
+
+  // Una barra del ecualizador. `motion-safe:` porque cuatro barras latiendo son exactamente el tipo
+  // de movimiento que hay que poder apagar; sin la animación la barra queda a su altura y el grupo
+  // se sigue leyendo como un ecualizador.
+  const barra = (alto: string, retraso: string) =>
+    `w-[2.5px] origin-bottom rounded-[2px] bg-brand ${alto} motion-safe:animate-[eq_1s_ease-in-out_infinite] ${retraso} ${
+      pausada ? "[animation-play-state:paused]" : ""
+    }`
 
   return (
     <div
@@ -40,96 +137,184 @@ export function GrabacionPastilla({ alAbrir }: { alAbrir?: () => void }) {
       // la app inusable para quien lo necesita.
       aria-label={
         enCurso
-          ? `Grabando la consulta${estado.pacienteNombre ? ` de ${estado.pacienteNombre}` : ""}`
+          ? `${pausada ? "Consulta en pausa" : "Grabando la consulta"}${
+              estado.pacienteNombre ? ` de ${estado.pacienteNombre}` : ""
+            }`
           : cerrando
             ? "Guardando la grabación"
             : "La grabación falló"
       }
-      className={`pointer-events-auto flex items-center gap-2 rounded-full border py-1.5 pl-3 pr-1.5 shadow-popover ${
-        fallo ? "border-destructive/40 bg-danger-soft" : "border-brand bg-card"
+      className={`consulta pointer-events-auto flex h-[42px] max-w-[calc(100vw-24px)] items-center gap-2 border border-line bg-ink ${
+        asa ? "pl-1" : "pl-[13px]"
+      } pr-2 text-fg shadow-popover ${abierto ? "rounded-t-[18px]" : "rounded-full"} ${
+        alerta ? "ring-[3px] ring-warn/40" : ""
       }`}
     >
+      {/* EL ASA. Va primera y a la izquierda porque es donde vive el agarre en todo lo que se
+          arrastra, y separada del resto: los otros botones actúan sobre la GRABACIÓN, éste sobre
+          la ventanita. Mezclarlos invita a pausar cuando se quería correr. */}
+      {asa && (
+        <button
+          type="button"
+          {...asa}
+          aria-label="Mover el aviso de la consulta"
+          title="Arrastrá para moverlo — o usá las flechas"
+          className={`grid shrink-0 touch-none place-items-center rounded-[7px] p-[5px] text-fg-faint transition-colors hover:bg-fg/10 hover:text-fg focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none ${
+            arrastrando ? "cursor-grabbing bg-fg/10 text-fg" : "cursor-grab"
+          }`}
+        >
+          <GripVertical className="size-[13.5px]" aria-hidden />
+        </button>
+      )}
+
+      {/* El punto de estado. MENTA Y NO ROJO: el prototipo usa su brasa, pero acá el rojo está
+          reservado para lo que salió mal —esta misma pastilla lo usa para el fallo— y el menta es el
+          color de "activo" del sistema. Late mientras entra audio; apagado y quieto en pausa. */}
       {enCurso && (
-        // MENTA, NO ROJO. Lo tenía en `bg-red-500` con el argumento de que el rojo de grabación es
-        // una convención de hardware y que `bg-danger` colisionaría con el estado de FALLO de esta
-        // misma pastilla. El mockup del cliente resuelve el conflicto mejor: usa el MENTA, que en
-        // este sistema es el color de "activo", y deja el rojo libre para lo que salió mal.
-        //
-        // Con eso desaparece la última clase de paleta cruda de la app, y la pastilla deja de
-        // parecer una alerta cuando está haciendo exactamente lo que se le pidió.
         <span
           aria-hidden
-          className="size-2 shrink-0 rounded-full bg-brand motion-safe:animate-pulse"
+          className={`inline-flex size-2 shrink-0 rounded-full ${
+            alerta
+              ? "bg-warn motion-safe:animate-pulse"
+              : pausada
+                ? "bg-fg-faint"
+                : "bg-brand motion-safe:animate-pulse"
+          }`}
         />
       )}
-      {cerrando && <Loader2 aria-hidden className="size-3.5 shrink-0 animate-spin text-fg-faint" />}
-      {fallo && <TriangleAlert aria-hidden className="size-3.5 shrink-0 text-destructive" />}
-
-      <span className="min-w-0 text-xs">
-        {enCurso && (
-          <>
-            <span className="hidden sm:inline">Grabando</span>
-            {estado.pacienteNombre && (
-              <span className="font-medium"> {estado.pacienteNombre}</span>
-            )}
-            <span aria-hidden className="ml-1.5 tabular-nums text-fg-muted">
-              {mmss(estado.segundos)}
-            </span>
-          </>
-        )}
-        {cerrando && <span className="text-fg-muted">Guardando…</span>}
-        {fallo && <span className="text-destructive">{estado.error ?? "Falló la grabación"}</span>}
-      </span>
-
-      {/* "Abrir" ABRE EL PANEL, no navega. Antes mandaba a la pantalla de la consulta: mirar cómo va
-          la transcripción obligaba a abandonar lo que estabas haciendo, que es exactamente lo que
-          esta función existe para evitar. Ir a la consulta sigue estando, dentro del panel.
-
-          Si el dock no pasó `alAbrir` —montado suelto en algún test o pantalla— cae al enlace de
-          antes en vez de quedarse sin salida. */}
-      {alAbrir ? (
-        <Button size="sm" variant="ghost" className="h-7 shrink-0 px-2 text-xs" onClick={alAbrir}>
-          Abrir
-        </Button>
-      ) : (
-        estado.consultaId && (
-          <Button
-            size="sm"
-            variant="ghost"
-            className="h-7 shrink-0 px-2 text-xs"
-            render={<Link href={`/dashboard/consultas/${estado.consultaId}`} />}
-          >
-            Abrir
-          </Button>
-        )
+      {cerrando && (
+        <Loader2 aria-hidden className="size-3.5 shrink-0 animate-spin text-fg-faint" />
       )}
+      {fallo && <TriangleAlert aria-hidden className="size-3.5 shrink-0 text-danger" />}
 
-      {/* Detener sólo en escritorio. En móvil el botón queda al alcance del pulgar y un toque
-          accidental corta una grabación clínica: ahí se detiene desde la consulta, a un toque de
-          "Abrir". */}
       {enCurso && (
-        <Button
-          size="sm"
-          variant="ghost"
-          onClick={() => void consultaViva.detener()}
-          className="hidden h-7 shrink-0 px-2 text-xs sm:inline-flex"
+        <span
+          aria-hidden
+          className={`hidden h-[13px] shrink-0 items-end gap-[2.5px] sm:flex ${pausada ? "opacity-30" : ""}`}
         >
-          <Square className="size-3" aria-hidden /> Detener
-        </Button>
+          <i className={barra("h-[6px]", "")} />
+          <i className={barra("h-[12px]", "[animation-delay:.15s]")} />
+          <i className={barra("h-[8px]", "[animation-delay:.3s]")} />
+          <i className={barra("h-[11px]", "[animation-delay:.45s]")} />
+        </span>
       )}
 
+      <Stethoscope
+        className="hidden size-[13.5px] shrink-0 text-fg-faint sm:block"
+        aria-hidden
+      />
+      <span className="shrink-0 text-[13px] font-semibold tracking-[0.01em]">Athos</span>
+
+      {estado.pacienteNombre && (
+        <>
+          <span aria-hidden className="shrink-0 text-fg-faint/70">
+            ·
+          </span>
+          <span className="min-w-0 truncate text-[13px] font-medium" title={estado.pacienteNombre}>
+            {estado.pacienteNombre}
+          </span>
+        </>
+      )}
+
+      {enCurso && (
+        <>
+          <span aria-hidden className="hidden shrink-0 text-fg-faint/70 sm:inline">
+            ·
+          </span>
+          <span
+            aria-hidden
+            className="hidden shrink-0 font-mono text-[11.5px] tabular-nums text-fg-muted sm:inline"
+          >
+            {comoReloj(estado.segundos)}
+          </span>
+        </>
+      )}
+
+      {pausada && (
+        <span className="ml-1 shrink-0 text-[9px] font-semibold uppercase tracking-[0.13em] text-warn">
+          Pausada
+        </span>
+      )}
+
+      {cerrando && (
+        <span className="shrink-0 text-[11.5px] text-fg-muted">Guardando…</span>
+      )}
       {fallo && (
-        <Button
-          size="sm"
-          variant="ghost"
-          onClick={() => consultaViva.reiniciar()}
-          className="h-7 shrink-0 px-2 text-xs"
-        >
-          Entendido
-        </Button>
+        <span className="min-w-0 truncate text-[11.5px] text-danger">
+          {estado.error ?? "Falló la grabación"}
+        </span>
       )}
 
-      {enCurso && <Mic aria-hidden className="size-3.5 shrink-0 text-fg-faint sm:hidden" />}
+      <div className="ml-auto flex shrink-0 items-center gap-px pl-1">
+        {/* VOLVER AL CENTRO. Sólo aparece si el notch está corrido — ofrecerlo cuando ya está en su
+            sitio es un botón que no hace nada. Es la salida para el que lo arrastró contra un borde
+            y no quiere pelearlo de vuelta, y para el que se lo encuentra movido de otra sesión. */}
+        {alCentrar && (
+          <Accion onClick={alCentrar} etiqueta="Volver al centro">
+            <LocateFixed className="size-[13.5px]" />
+          </Accion>
+        )}
+
+        {/* PAUSAR VIVE ACÁ, no dentro del panel. Es la acción más urgente de la consulta —el titular
+            sale a buscar el carnet, entra alguien, suena el teléfono— y estaba a dos clics. */}
+        {enCurso && (
+          <Accion
+            onClick={() => (pausada ? consultaViva.reanudar() : consultaViva.pausar())}
+            etiqueta={pausada ? "Reanudar" : "Pausar"}
+          >
+            {pausada ? <Play className="size-[13.5px]" /> : <Pause className="size-[13.5px]" />}
+          </Accion>
+        )}
+
+        {/* Detener sólo en escritorio. En móvil el botón queda al alcance del pulgar y un toque
+            accidental corta una consulta clínica: ahí se termina desde el panel. */}
+        {enCurso && (
+          <span className="hidden sm:contents">
+            <Accion onClick={() => void consultaViva.detener()} etiqueta="Terminar la consulta">
+              <Square className="size-[13.5px]" />
+            </Accion>
+          </span>
+        )}
+
+        {fallo && (
+          <Accion onClick={() => consultaViva.reiniciar()} etiqueta="Entendido">
+            <Square className="size-[13.5px]" />
+          </Accion>
+        )}
+
+        {/* AMPLIAR AL COCKPIT. Lleva a la pantalla de la consulta, que mientras se graba ES el
+            cockpit: los dos paneles, las pestañas y `Esc` para volver acá. No es otra superficie de
+            grabación —el estado es el mismo, sale del proveedor— es la misma consulta en grande. */}
+        {enCurso && estado.consultaId && (
+          <Link
+            href={`/dashboard/consultas/${estado.consultaId}`}
+            aria-label="Ampliar la consulta"
+            title="Ampliar la consulta"
+            className="grid shrink-0 place-items-center rounded-[7px] p-[5px] text-fg-muted transition-colors hover:bg-fg/10 hover:text-fg"
+          >
+            <Maximize2 className="size-[13.5px]" />
+          </Link>
+        )}
+
+        {alAlternar ? (
+          <Accion onClick={alAlternar} etiqueta={abierto ? "Contraer" : "Abrir la consulta"}>
+            {abierto ? <ChevronUp className="size-[13.5px]" /> : <ChevronDown className="size-[13.5px]" />}
+          </Accion>
+        ) : (
+          // Sin panel donde desplegarse —montada suelta en un test o una pantalla— cae al enlace de
+          // antes en vez de quedarse sin salida.
+          estado.consultaId && (
+            <Link
+              href={`/dashboard/consultas/${estado.consultaId}`}
+              aria-label="Ir a la consulta"
+              title="Ir a la consulta"
+              className="grid shrink-0 place-items-center rounded-[7px] p-[5px] text-fg-muted transition-colors hover:bg-fg/10 hover:text-fg"
+            >
+              <ChevronDown className="size-[13.5px]" />
+            </Link>
+          )
+        )}
+      </div>
     </div>
   )
 }

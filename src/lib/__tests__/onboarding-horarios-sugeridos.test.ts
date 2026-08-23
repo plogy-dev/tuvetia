@@ -63,6 +63,10 @@ describe("armar las filas", () => {
     const [fila] = filasDeHorario(CLINICA, [LUNES])
     expect(fila).toEqual({
       clinic_id: CLINICA,
+      // DE LA CLÍNICA Y NO DE UNA PERSONA (migración 0069). Lo que se carga en el asistente de
+      // bienvenida es el horario de la puerta: si naciera con `vet_id` puesto, la clínica arrancaría
+      // sin horario propio y ni el modo auto de WhatsApp ni el riel de configuración lo verían.
+      vet_id: null,
       weekday: 1,
       opens_at: "08:00",
       closes_at: "18:00",

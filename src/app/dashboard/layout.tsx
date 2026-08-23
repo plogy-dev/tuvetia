@@ -12,6 +12,8 @@ import { createClient } from "@/lib/supabase/server"
 import { progresoDeConfiguracion } from "@/lib/onboarding/consultar"
 import { AthosProvider } from "@/components/athos/athos-provider"
 import { AthosDock } from "@/components/athos/athos-dock"
+import { NotchDeConsulta } from "@/components/athos/notch-de-consulta"
+import { ProveedorDeInteligenciaViva } from "@/lib/consulta-viva/proveedor"
 import { PlanProvider } from "@/components/planes/plan-provider"
 import { comoPlan } from "@/lib/planes"
 import { precioProCentavos } from "@/lib/planes/precio"
@@ -80,13 +82,21 @@ export default async function DashboardLayout({
   }
   const sidebarClinic = { name: c?.name ?? "Tuvetia", logoUrl: c?.logo_url ?? null }
 
-  // `ui/sidebar.tsx` guarda el colapso en la cookie `sidebar_state` desde siempre, pero nadie la
-  // leía: `SidebarProvider` se montaba con su `defaultOpen = true` y la barra volvía a abrirse en
-  // cada recarga. El nombre tiene que seguir a `SIDEBAR_COOKIE_NAME`. Por defecto abierta: sólo un
-  // "false" explícito la colapsa.
+  // `ui/sidebar.tsx` guarda el colapso en la cookie `sidebar_state`, y acá se lee para que la barra
+  // respete lo que cada quien dejó. El nombre tiene que seguir a `SIDEBAR_COOKIE_NAME`.
+  //
+  // POR DEFECTO CERRADA (19-ago). Antes abría desplegada y sólo un `"false"` explícito la colapsaba.
+  // Se invierte: quien nunca la tocó entra con la barra en modo icono. La razón es el ruido — son
+  // once entradas con sus rótulos ocupando 288px de ancho permanente frente a una pantalla que
+  // existe para leer el día de la clínica, y el nombre de cada sección no es algo que haga falta
+  // tener a la vista todo el tiempo.
+  //
+  // NO SE PIERDE NADA NI SE ESCONDE NADA: los iconos siguen ahí con su tooltip, el botón de la
+  // cabecera la despliega, y en cuanto alguien la abre la cookie recuerda esa decisión para
+  // siempre. El default sólo decide con qué arranca quien todavía no eligió.
   //
   // No cambia el renderizado: este layout ya era dinámico porque `createClient()` lee cookies.
-  const sidebarOpen = (await cookies()).get("sidebar_state")?.value !== "false"
+  const sidebarOpen = (await cookies()).get("sidebar_state")?.value === "true"
 
   return (
     <SidebarProvider
@@ -126,8 +136,18 @@ export default async function DashboardLayout({
           progresoConfiguracion={(await progresoDeConfiguracion()).porcentaje}
         />
         <OnboardingTour onboarded={Boolean((profile as { onboarded_at?: string | null } | null)?.onboarded_at)} />
+        {/* UN SOLO ESTADO DE LA CONSULTA VIVA para las dos superficies que la muestran: el notch,
+            que flota sobre cualquier pantalla, y el cockpit, que ocupa la pantalla de la consulta.
+            Con un gancho en cada una habría dos relojes disparando contra el mismo presupuesto.
+            Ver `lib/consulta-viva/proveedor.tsx`. */}
+        <ProveedorDeInteligenciaViva>
         <SidebarInset>
           <SiteHeader />
+          {/* EL NOTCH DE LA CONSULTA VA ACÁ DENTRO, y no suelto como el dock. `SidebarInset` es
+              `relative`, así que el notch se posiciona contra el ÁREA DE CONTENIDO: se centra sobre
+              ella —no sobre el viewport, que con el sidebar abierto está 144px corrido— y queda
+              debajo de la cabecera en vez de taparle el título y el buscador. */}
+          <NotchDeConsulta />
           <div className="flex flex-1 flex-col">
             <div className="@container/main flex flex-1 flex-col gap-2">
               {children}
@@ -137,6 +157,7 @@ export default async function DashboardLayout({
               y no compite por espacio con el cajón del sidebar cuando está abierto. */}
           <TabBarMovil />
         </SidebarInset>
+        </ProveedorDeInteligenciaViva>
         <AthosDock />
       </AthosProvider>
       </PlanProvider>

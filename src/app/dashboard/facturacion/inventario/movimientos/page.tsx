@@ -5,6 +5,7 @@ import { getBillingSettings, listCatalogItems, listMovements } from '@/lib/factu
 import { MovementForm } from '@/components/facturacion/MovementForm';
 import { MovementsExport } from '@/components/facturacion/MovementsExport';
 import { TrLink } from '@/components/ui/TrLink';
+import { FormularioDeFiltros } from "@/components/ui/formulario-de-filtros"
 
 export const metadata = { title: "Movimientos de inventario · Tuvetia" }
 
@@ -164,7 +165,7 @@ export default async function MovimientosPage({
         </div>
 
         {/* Filtros (GET) */}
-        <form className="mb-5 flex flex-wrap items-end gap-3" method="get">
+        <FormularioDeFiltros action="/dashboard/facturacion/inventario/movimientos" className="mb-5 flex flex-wrap items-end gap-3">
           {dir && <input type="hidden" name="dir" value={dir} />}
           <label className="text-xs text-fg-muted">
             Tipo
@@ -204,7 +205,7 @@ export default async function MovimientosPage({
           >
             Aplicar
           </button>
-        </form>
+        </FormularioDeFiltros>
 
         <div className="mb-3 flex items-center justify-between">
           <p className="text-sm text-fg-muted">

@@ -3,8 +3,9 @@
 Todo lo que hay que saber sobre los planes, el cobro y el corte de acceso. Si vas a tocar algo de
 esto, leé al menos las tres primeras secciones: hay decisiones que parecen rarezas y no lo son.
 
-> Estado: implementado en la rama `billing`. **Nada de esto está en producción todavía.**
-> La lista de lo que falta para poder cobrar de verdad está al final.
+> **Estado: en producción y verificado de punta a punta el 2026-08-18.** Migración aplicada, cobro
+> real aprobado ($2.000 COP de prueba, MASTERCARD), webhook validado y plan activado solo en
+> **8 segundos**. Lo que todavía falta está en la §10.
 
 ---
 
@@ -136,8 +137,8 @@ referencias repetidas. Las dos capas dicen lo mismo:
 - `aplicarResultado` sólo actúa si el cobro sigue en `PENDIENTE`, así que tres entregas del mismo
   webhook no suman tres meses.
 
-Por eso el barrido puede vivir en GitHub Actions, que no tiene SLA y a veces dispara tarde, dos
-veces, o no dispara.
+Por eso el barrido puede correr de más sin consecuencias: un cron que dispare dos veces, o que se
+reintente, no cobra dos veces.
 
 ---
 
@@ -164,14 +165,23 @@ tendría que volver a escribir la tarjeta y quedarían dos fuentes de pago para 
 
 ### Renovación
 
-Un barrido diario a las **8:00 Colombia** (13:00 UTC), desde
-[.github/workflows/renovacion-suscripciones.yml](.github/workflows/renovacion-suscripciones.yml).
+Un barrido diario a las **9:00 Colombia**, **dentro de** [`/api/cron/cartera`](src/app/api/cron/cartera/route.ts).
 
-> ¿Por qué GitHub Actions y no Vercel? El plan Hobby permite 2 crons diarios y los dos cupos están
-> usados desde hace meses (`purge-audio` y `cartera`). Es el mismo camino que ya tomó el briefing.
+> ¿Por qué ahí adentro y no en su propio cron? El plan Hobby de Vercel permite 2 crons diarios y los
+> dos cupos están usados desde hace meses (`purge-audio` y `cartera`). Ese endpoint **ya hacía dos
+> trabajos** por esta misma restricción — cobranza y lectura de correo.
 >
-> Corre **antes** que el barrido de cartera (9:00) a propósito: si una clínica cae a free por falta
-> de pago, conviene que caiga antes de que cartera intente usar la IA que ya no tiene.
+> Estuvo un día en un workflow de GitHub Actions. Se quitó: repartía la operación entre dos sitios y
+> sacaba el horario del repo, a cambio de nada.
+>
+> Corre **antes** que la cobranza, dentro del mismo endpoint: si una clínica cae a free por falta de
+> pago, conviene que caiga antes de que cartera intente usar la IA que ya no tiene. Con dos crons
+> separados eso era una carrera; acá el orden está garantizado.
+>
+> Cada trabajo va aislado en su `try/catch`: un fallo cobrando no impide que salgan los
+> recordatorios, ni al revés.
+
+`/api/cron/suscripciones` sigue existiendo para dispararlo **a mano**, sin esperar al horario.
 
 Una sola columna gobierna todo: **`clinics.plan_renueva_en`** = "cuándo hay que volver a mirar esta
 clínica". El barrido pregunta siempre lo mismo — ¿ya venció? — y por eso no existe ninguna clínica
@@ -209,6 +219,32 @@ Cortar el día que alguien cancela es quedarse con plata por un servicio no pres
 a que la gente cancele el último día por miedo a perder los días que le quedan.
 
 Un pago exitoso levanta la cancelación: quien canceló y volvió a pagar quiere seguir.
+
+### Reconciliación: cuando el webhook no llega
+
+**Esto no es defensivo por si acaso. Pasó.** El 2026-08-17, primera prueba real contra sandbox:
+Wompi aprobó el cobro en un segundo y el webhook nunca llegó (la URL de eventos no estaba guardada
+del lado de Wompi). El cobro quedó `PENDIENTE` para siempre y la clínica se quedó **pagando y sin su
+plan**, sin ninguna alerta. Hubo que destrabarlo a mano contra la base.
+
+Con cobros mensuales automáticos es peor: el cobro sale a las 9 de la mañana sin nadie delante. Si
+el webhook se pierde ahí, no hay ninguna persona mirando una pantalla de pago que lo note.
+
+[`reconciliar.ts`](src/lib/suscripcion/reconciliar.ts) corre después de cobrar: busca los cobros que
+llevan **más de 15 minutos** en `PENDIENTE`, le pregunta a Wompi el estado real de cada transacción
+(`GET /v1/transactions/{id}`) y aplica el resultado con el **mismo `aplicarResultado` del webhook**
+— que es idempotente, así que un webhook que llegue tarde no duplica nada.
+
+Los 15 minutos son deliberados: el camino normal es que el webhook llegue en segundos, y preguntar
+antes es gastar llamadas para recibir `PENDING`.
+
+**Lo que NO cubre, y hay que saberlo.** Sólo reconcilia cobros que tienen `wompi_transaction_id`.
+Queda afuera el caso en que la llamada a Wompi se cortó antes de devolvernos el id: ahí el cobro
+pudo haberse ejecutado y no tenemos con qué preguntarlo. Wompi expone búsqueda por referencia
+(`GET /v1/transactions?reference=`), que cerraría el hueco, pero requiere la llave privada y **no se
+pudo verificar la forma de su respuesta** al escribir esto; implementarla a ciegas sería código que
+falla en silencio justo en el escenario para el que existe. Esos cobros **no se adivinan: se
+reportan** como `huerfanos` y gritan en el log, para que los mire una persona en el panel de Wompi.
 
 ### Mes calendario, no 30 días
 
@@ -339,7 +375,7 @@ URL podría regalarse Pro mandando un JSON con `status: APPROVED`.
 2xx: devolver 400 a un evento con firma mala invita a reintentos indefinidos de algo que nunca vamos
 a aceptar. La única excepción es un cuerpo que no es JSON.
 
-### ⚠️ El checksum hay que confirmarlo contra sandbox antes de producción
+### El checksum: confirmado ✅ (y por qué no hay un vector fijo)
 
 La documentación de Wompi publica un ejemplo con su cadena concatenada y su hash, pero **los dos no
 se corresponden**: el SHA256 de la cadena que ellos muestran no da el hash que ellos muestran
@@ -350,8 +386,8 @@ importa, alterar el monto invalida, otro secreto invalida, nada lanza). Pero no 
 del proveedor contra el cual anclarlo — fijar uno inventado daría la falsa sensación de estar
 verificado contra Wompi.
 
-**Cómo confirmarlo, sin adivinar:** la primera transacción en sandbox lo dice. Está construido en el
-producto:
+**Cómo se confirmó, sin adivinar:** está construido en el producto. `suscripcion_eventos.firma_valida`
+guarda el veredicto de cada webhook entrante, así que la primera transacción real lo dice sola:
 
 ```sql
 select evento, firma_valida, procesado_en, created_at
@@ -359,9 +395,12 @@ from suscripcion_eventos
 order by created_at desc limit 5;
 ```
 
-Si `firma_valida` es `false` en un evento legítimo de sandbox, la concatenación no coincide con la
-de Wompi y hay que ajustarla antes de tocar producción. **Este es el paso número uno de la puesta en
-marcha.**
+**Verificado el 2026-08-17 en sandbox y el 2026-08-18 en producción: `firma_valida = true` en los
+dos.** La concatenación es correcta; el ejemplo de la documentación es el que está mal.
+
+Si algún día `firma_valida` empieza a dar `false` en eventos legítimos, lo más probable es que hayan
+rotado el secreto de eventos y nadie haya actualizado `WOMPI_EVENTS_SECRET` — no que el algoritmo
+haya cambiado.
 
 ---
 
@@ -373,7 +412,7 @@ WOMPI_PRIVATE_KEY=                 # crea fuentes de pago y cobra
 WOMPI_INTEGRITY_SECRET=            # firma el monto
 WOMPI_EVENTS_SECRET=               # valida los webhooks
 PLAN_PRO_PRECIO_CENTAVOS=          # 20000000 = $200.000 COP. Vacía = ese mismo default
-CRON_SECRET=                       # ya existía; también como secreto de GitHub Actions
+CRON_SECRET=                       # ya existía; lo comparten los dos crons de Vercel
 ```
 
 Detalle completo en [.env.example](.env.example).
@@ -388,32 +427,47 @@ pagos no están habilitados. Es la regla del repo para toda integración externa
 
 ---
 
-## 10. Qué falta para poder cobrar de verdad
+## 10. Estado de la puesta en marcha
 
-En orden.
+### Lo que ya está hecho y verificado
 
-1. **Aplicar la migración 0065.** No se aplicó a ninguna base todavía.
-2. **Confirmar el checksum contra sandbox** (sección 8). Es el paso uno de verdad: sin esto, ningún
-   pago se activa solo.
-3. **Cargar las cuatro llaves de sandbox** y registrar la URL del webhook en Wompi:
-   `https://<dominio>/api/wompi/webhook`.
-4. **`CRON_SECRET` como secreto de GitHub Actions**, con el mismo valor que la env de Vercel.
-5. **Probar el ciclo completo en sandbox**: alta → webhook → Pro; rechazo → `past_due` → reintento;
-   cancelar → baja al vencer.
-6. **Verificar 3D Secure.** Si el emisor pide autenticación, la fuente de pago no queda `AVAILABLE`.
-   Hoy ese camino **no está implementado**: la ruta corta con un mensaje honesto ("tu banco pidió una
-   verificación adicional") en vez de dejar una fuente a medias que falle en cada cobro mensual sin
-   explicación. Si en sandbox resulta que 3DS es obligatorio para cobros recurrentes, hay que
-   construir el flujo 3RI (polling + renderizar el desafío del banco), que es trabajo aparte y no
-   menor.
-7. **Confirmar el procesador.** El `recurrent: true` (Credential On File) sube la aprobación, pero
-   sólo aplica a VISA/Mastercard **con RBM** como procesador. Con otra combinación Wompi lo ignora
-   en silencio.
-8. **Decidir qué pasa con las clínicas de cortesía.** La migración deja a las 15 existentes en
-   `plan = 'pro'`, `subscription_status = 'cortesia'` — nadie pierde acceso el día del despliegue.
-   Pasarlas a free es un `update` de una línea, cuando se decida y después de avisarles.
-9. **Páginas legales.** Cobrar sin términos de servicio reales no es viable, y hoy siguen siendo un
+Todo esto se comprobó contra la base y contra Wompi el **17–18 de agosto de 2026**, no se da por
+supuesto:
+
+| | Cómo se verificó |
+|---|---|
+| Migración 0065 aplicada | 7 columnas, 2 tablas, trigger y policies consultadas en el principal |
+| El trigger corta de verdad | probado en los dos sentidos con rollback forzado: free rechaza, pro pasa |
+| Checksum del webhook | `firma_valida = true` en sandbox **y** en producción |
+| Cobro real | $2.000 COP aprobados, MASTERCARD, plan activado solo en **8 segundos** |
+| **3D Secure NO se exige** | `is_three_ds: false` en la transacción real → **no hay que construir el flujo 3RI** |
+| Cron sin secretos nuevos | corre dentro de `/api/cron/cartera`, que ya tenía `CRON_SECRET` |
+| Reconciliación | 7 tests; y el caso que la motiva ocurrió de verdad el 17-ago |
+
+### Lo que falta
+
+1. **Devolver `PLAN_PRO_PRECIO_CENTAVOS` a `20000000`** si se bajó para probar — y redesplegar, que
+   un cambio de variable no toma efecto hasta el deploy. Con $2.000 puestos, la primera clínica que
+   contrate paga dos mil pesos al mes para siempre.
+2. **Limpiar las tarjetas de prueba.** Una tarjeta personal que quedó registrada se cobra sola al
+   mes siguiente, por el monto que tenga la variable ese día.
+3. **Probar los tres caminos que faltan**, todos sin gastar plata: cancelación (debe quedar
+   `canceled` sin bajar el plan hasta el vencimiento), rechazo con la tarjeta `4111 1111 1111 1111`
+   de sandbox (debe quedar `past_due` con 6 días de gracia), y reconciliación (borrar la URL del
+   webhook, pagar, y disparar `/api/cron/suscripciones` a mano).
+4. **Confirmar el procesador.** El `recurrent: true` (Credential On File) sube la tasa de
+   aprobación, pero sólo aplica a VISA/Mastercard **con RBM** como procesador. Con otra combinación
+   Wompi lo ignora en silencio — no rompe nada, pero conviene saberlo.
+5. **Decidir qué pasa con las clínicas de cortesía.** La migración dejó a las 15 existentes en
+   `plan = 'pro'`, `subscription_status = 'cortesia'`: nadie perdió acceso al desplegar. Pasarlas a
+   free es un `update` de una línea, cuando se decida y **después de avisarles**.
+6. **Páginas legales.** Cobrar sin términos de servicio reales no es viable, y hoy siguen siendo un
    placeholder.
+
+> ⚠️ **La URL del webhook se configura por ambiente.** La que se guarda en modo de pruebas **no
+> viaja a producción**. Es el error que ya costó una tarde: el pago sale, Wompi lo aprueba, y el
+> plan nunca se activa porque el evento no llega a ninguna parte. Al cambiar de ambiente, volvé a
+> Programadores y confirmá que esté guardada.
 
 ### Lo que este trabajo no trae
 
@@ -446,9 +500,11 @@ En orden.
 | Motor: cobrar y aplicar | [src/lib/suscripcion/motor.ts](src/lib/suscripcion/motor.ts) |
 | Calendario y reintentos | [src/lib/suscripcion/periodo.ts](src/lib/suscripcion/periodo.ts) |
 | Barrido diario | [src/lib/suscripcion/barrido.ts](src/lib/suscripcion/barrido.ts) |
+| Reconciliación | [src/lib/suscripcion/reconciliar.ts](src/lib/suscripcion/reconciliar.ts) |
 | Webhook | [src/app/api/wompi/webhook/route.ts](src/app/api/wompi/webhook/route.ts) |
 | Alta / cancelar | [src/app/api/suscripcion/](src/app/api/suscripcion/) |
-| Cron | [src/app/api/cron/suscripciones/route.ts](src/app/api/cron/suscripciones/route.ts) |
+| Cron diario (dentro de cartera) | [src/app/api/cron/cartera/route.ts](src/app/api/cron/cartera/route.ts) |
+| Disparo manual | [src/app/api/cron/suscripciones/route.ts](src/app/api/cron/suscripciones/route.ts) |
 | Pantalla de Plan | [src/app/dashboard/plan/page.tsx](src/app/dashboard/plan/page.tsx) |
 | Ventana de invitación | [src/components/planes/modal-subir-a-pro.tsx](src/components/planes/modal-subir-a-pro.tsx) |
 | Migración | [0065_planes_y_suscripcion.sql](athos-service/supabase/migrations/0065_planes_y_suscripcion.sql) |

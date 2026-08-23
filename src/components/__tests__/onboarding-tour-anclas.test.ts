@@ -47,9 +47,23 @@ describe("anclas del tour de onboarding", () => {
   })
 
   it("quien pinta esos ítems sigue emitiendo un <a href> de verdad", () => {
-    // El selector de driver.js exige un ancla con href. Un <button onClick> o un <Link> que
-    // renderice otra cosa navegan igual pero el tour deja de encontrarlos.
+    // El selector de driver.js exige un ancla con href EN EL DOM. Un <button onClick> navega igual
+    // pero el tour deja de encontrarlo.
+    //
+    // SIRVEN LAS DOS FORMAS, y la distinción importa: este test decía `<a href={item.url}>` y sólo
+    // eso, con el argumento de que un `<Link>` «renderice otra cosa». No es así — `next/link`
+    // renderiza un `<a href>` real, y de hecho es la única forma correcta acá: el ancla cruda
+    // recargaba el documento y mataba la grabación en curso (ver `nav-main.tsx`). O sea que el test
+    // pedía justamente lo que había que quitar.
+    //
+    // Lo que se verifica es lo que el tour necesita —que el href salga al DOM como ancla—, no con
+    // qué componente. Un <button> no pasa.
+    //
+    // Y NO SE EXIGE QUE NO HAYA MÁS PROPS. El patrón era literal hasta el `/>` y se puso en rojo al
+    // sumarle `prefetch` al link — un cambio que no toca en nada lo que este test protege. Un test
+    // que falla por props que no le incumben enseña a editarlo sin leerlo, y el día que alguien
+    // cambie el `<Link>` por un `<button>` ya nadie lo va a estar mirando.
     const navMain = readFileSync(join(raiz, "nav-main.tsx"), "utf8")
-    expect(navMain).toMatch(/render=\{<a href=\{item\.url\} \/>\}/)
+    expect(navMain).toMatch(/render=\{<(?:Link|a) href=\{item\.url\}[^>]*\/>\}/)
   })
 })

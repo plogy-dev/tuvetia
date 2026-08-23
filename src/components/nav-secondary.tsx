@@ -1,6 +1,7 @@
 "use client"
 
 import * as React from "react"
+import Link from "next/link"
 import { usePathname } from "next/navigation"
 
 import { isNavActive } from "@/lib/nav-active"
@@ -32,10 +33,12 @@ export function NavSecondary({
               como dos iconos mudos mientras el resto sí decía su nombre al pasar el ratón. */}
           {items.map((item) => (
             <SidebarMenuItem key={item.title}>
+              {/* `<Link>`, no `<a href>`: un ancla cruda a ruta interna recarga el documento y mata
+                  la grabación en curso. La explicación completa está en `nav-main.tsx`. */}
               <SidebarMenuButton
                 isActive={isNavActive(pathname, item.url)}
                 tooltip={item.title}
-                render={<a href={item.url} />}
+                render={<Link href={item.url} prefetch />}
               >
                 {item.icon}
                 <span>{item.title}</span>

@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { TOPE_SIN_FACTURAR, hayMasQueElTope } from '@/lib/facturacion/sin-facturar';
 import {
   Receipt,
   Plus,
@@ -181,23 +182,25 @@ export default async function FacturacionPage() {
         )}
 
         {/* Puente CRM: qué clientes necesitan factura / envío */}
-        {(unbilled.length > 0 || unsentCount > 0) && (
+        {(unbilled.total > 0 || unsentCount > 0) && (
           <div className="mb-5 flex flex-wrap gap-2">
-            {unbilled.length > 0 && (
+            {unbilled.total > 0 && (
               <Link
                 href="/dashboard/facturacion/nueva"
                 className="inline-flex items-center gap-2 rounded-lg border border-warn/40 bg-card px-3 py-2 text-xs text-warn transition hover:bg-accent"
               >
                 <Stethoscope className="size-3.5" aria-hidden />
-                {unbilled.length === 1
+                {/* EL NÚMERO ES EL TOTAL, no el de la página. Es el mismo que anuncia el riel de
+                    pendientes, y si acá dijera el de la página los dos se contradirían. */}
+                {unbilled.total === 1
                   ? '1 consulta reciente sin facturar'
-                  : `${unbilled.length} consultas recientes sin facturar`}
+                  : `${hayMasQueElTope(unbilled.total) ? `${TOPE_SIN_FACTURAR}+` : unbilled.total} consultas recientes sin facturar`}
                 <span className="text-fg-faint">
-                  ({unbilled
+                  ({unbilled.consultas
                     .slice(0, 3)
                     .map((c) => c.patientName)
                     .join(', ')}
-                  {unbilled.length > 3 ? '…' : ''})
+                  {unbilled.total > 3 ? '…' : ''})
                 </span>
               </Link>
             )}

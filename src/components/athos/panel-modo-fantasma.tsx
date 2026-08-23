@@ -1,159 +1,207 @@
 "use client"
 
-// El panel del Modo Fantasma: baja desde arriba y cubre la app, como en el mockup.
+// El panel de la consulta en curso: cuelga del notch, no cubre la app.
 //
-// LA IDEA QUE IMPLEMENTA. Grabar no te saca de donde estás. Es la mitad visual de lo que el PR #82
-// ya construyó por dentro —la grabación sobrevive la navegación— y hasta ahora no tenía dónde verse:
-// para mirar la transcripción en vivo había que volver a la pantalla de la consulta.
+// LO QUE CAMBIA RESPECTO DE ANTES, y sale del prototipo del cliente. El panel bajaba desde arriba
+// ocupando hasta el 82% de la pantalla, con un velo detrás. O sea que mirar la transcripción tapaba
+// justamente aquello sobre lo que se estaba trabajando — y "grabar no te saca de donde estás", que
+// es la idea entera del Modo Fantasma, dejaba de cumplirse en el momento de mirarlo.
+//
+// Ahora son 540px colgando del notch. Cabe al lado de la agenda, de una ficha o de una factura, y el
+// velo sólo atenúa: se sigue viendo qué hay debajo.
+//
+// EN PESTAÑAS Y NO EN TRES COLUMNAS. A lo ancho de la pantalla entraban transcripción, Athos y
+// cuaderno a la vez; en 540px no. Y mirándolo de cerca tampoco hacía falta: son tres cosas que se
+// consultan de a una, y la que importa queda primero.
 //
 // POR QUÉ ESTO NO TOCA EL GRABADOR. `consultation-recorder.tsx` sigue siendo el único que pide el
-// micrófono, el consentimiento y llama a `iniciar()`. Este panel sólo OBSERVA `consultaViva` con
-// `useConsultaViva()`, exactamente como la pastilla. Es lo que habilita sacar el estado del árbol de
-// React: un segundo observador no cuesta nada y no puede romper al primero.
+// micrófono, el consentimiento y llama a `iniciar()`. Este panel sólo OBSERVA `consultaViva`,
+// exactamente como el notch. Es lo que habilita sacar el estado del árbol de React: un segundo
+// observador no cuesta nada y no puede romper al primero.
 //
-// La única acción que ejecuta es `detener()`, que es la misma llamada que la pastilla ya hacía.
-//
-// LO QUE NO HACE, Y ES A PROPÓSITO. El mockup muestra la transcripción SEPARADA POR HABLANTE
-// ("Titular" / "Veterinaria") y la nota SOAP propuesta dentro del panel. Ninguna de las dos se
-// puede hacer honestamente hoy: `athos-live.ts` entrega dos cadenas planas —estable y provisional—
-// sin roles, y la nota se genera y se aprueba en la pantalla de la consulta, con su propio flujo.
-// Inventar etiquetas de hablante sería adivinar quién dijo qué en una historia clínica.
+// LO QUE NO HACE, Y ES A PROPÓSITO. El prototipo muestra la transcripción SEPARADA POR HABLANTE
+// ("Titular" / "Veterinaria"). No se puede hacer honestamente hoy: `athos-live.ts` entrega dos
+// cadenas planas —estable y provisional— sin roles, e inventar etiquetas de hablante sería adivinar
+// quién dijo qué en una historia clínica.
 
+import { useState } from "react"
 import Link from "next/link"
-import { Loader2, TriangleAlert, X } from "lucide-react"
 
-import { Button } from "@/components/ui/button"
+import { AthosEnVivo } from "@/components/athos/athos-en-vivo"
+import { CasosParecidos } from "@/components/athos/casos-parecidos"
 import { Cuaderno } from "@/components/athos/cuaderno"
-import { consultaViva } from "@/lib/consulta-viva/sesion"
 import { useConsultaViva } from "@/lib/consulta-viva/usar"
+import type { InteligenciaViva } from "@/lib/consulta-viva/usar-inteligencia-viva"
 
-function mmss(total: number): string {
-  return `${String(Math.floor(total / 60)).padStart(2, "0")}:${String(total % 60).padStart(2, "0")}`
-}
+/**
+ * Las cinco pestañas del prototipo, en su orden.
+ *
+ * Eran tres —Athos, Mis notas, Transcripción— y el cliente pidió las suyas: "sugerencias, casos
+ * parecidos, etc., eso también debe estar". No es una lista más larga por gusto; separa cosas que
+ * estaban amontonadas:
+ *
+ *   · TRANSCRIPCIÓN — lo que se está diciendo, crudo.
+ *   · NOTAS EN VIVO — lo que Athos va ordenando de eso.
+ *   · CASOS PARECIDOS — la memoria de la propia clínica: "esto ya lo viste en marzo".
+ *   · SUGERENCIAS   — qué preguntar y qué no dejar pasar, con literatura detrás.
+ *   · MIS NOTAS     — la hoja en blanco del vet.
+ *
+ * Antes "Athos" mezclaba live notes y sugerencias en una sola pestaña, que son dos cosas con
+ * cadencias, costos y grados de certeza distintos.
+ */
+const PESTANAS = [
+  { id: "transcripcion", rotulo: "Transcripción" },
+  { id: "notas", rotulo: "Notas en vivo" },
+  { id: "casos", rotulo: "Casos parecidos" },
+  { id: "sugerencias", rotulo: "Sugerencias" },
+  { id: "cuaderno", rotulo: "Mis notas" },
+] as const
 
-export function PanelModoFantasma({ abierto, alCerrar }: { abierto: boolean; alCerrar: () => void }) {
+type Pestana = (typeof PESTANAS)[number]["id"]
+
+// OSCURO EN LOS DOS TEMAS, igual que el notch, con la clase `.consulta` que el sistema ya tiene:
+// declara la paleta oscura completa —en nuestro menta, no en el azul del prototipo— sobre cualquier
+// subárbol. Así el panel no lleva un solo color crudo y sus hijos, que están escritos con tokens
+// semánticos, se resuelven solos.
+
+export function PanelModoFantasma({
+  vivo,
+  abierto,
+  alCerrar,
+}: {
+  /** Lo trae `NotchDeConsulta`: el gancho vive allá para que las notas sobrevivan al contraer. */
+  vivo: InteligenciaViva & { vistoLaAlerta: () => void }
+  abierto: boolean
+  alCerrar: () => void
+}) {
   const estado = useConsultaViva()
+  const [pestana, setPestana] = useState<Pestana>("transcripcion")
+
 
   if (!abierto || estado.fase === "inactiva") return null
 
-  const grabando = estado.fase === "grabando"
-  const cerrando = estado.fase === "subiendo" || estado.fase === "transcribiendo"
   const fallo = estado.fase === "perdida"
 
-  const titular = grabando
-    ? "Escuchando la consulta"
-    : estado.fase === "subiendo"
-      ? "Guardando el audio"
-      : estado.fase === "transcribiendo"
-        ? "Transcribiendo"
-        : fallo
-          ? "La grabación se interrumpió"
-          : "Listo"
-
   return (
-    // `fixed inset-0` con el panel arriba y un velo debajo que cierra al tocarlo — la forma del
-    // mockup. z-50 para quedar por encima del dock (z-40) pero al nivel de los modales: mientras
-    // esto está abierto, es lo único con lo que se interactúa.
-    <div className="fixed inset-0 z-50 flex flex-col">
-      <div className="flex max-h-[82%] flex-col overflow-hidden border-b border-line bg-surface shadow-popover">
-        <div className="flex flex-wrap items-center gap-x-3 gap-y-2 border-b border-line px-4 py-3.5 md:px-6">
-          {grabando && (
-            <span aria-hidden className="size-2.5 shrink-0 rounded-full bg-brand motion-safe:animate-pulse" />
-          )}
-          {cerrando && <Loader2 aria-hidden className="size-4 shrink-0 animate-spin text-fg-faint" />}
-          {fallo && <TriangleAlert aria-hidden className="size-4 shrink-0 text-danger" />}
+    <>
+      {/* El velo ATENÚA, no tapa: cierra al tocarlo y deja ver el contexto de abajo, que es la
+          diferencia entre un panel y un modal. No detiene la grabación — contraer y terminar son
+          cosas distintas, y confundirlas acá cortaría una consulta. */}
+      <button
+        type="button"
+        aria-label="Contraer la consulta"
+        onClick={alCerrar}
+        className="fixed inset-0 z-30 cursor-default bg-black/20"
+      />
 
-          <span className="text-sm font-semibold">Modo Fantasma</span>
-          <span className="text-sm text-fg-muted">{titular}</span>
-          {/* El cronómetro va aria-hidden: una región viva que cambia cada segundo hace que el
-              lector de pantalla anuncie la hora sin parar. Mismo criterio que la pastilla. */}
-          <span aria-hidden className="font-mono text-sm tabular-nums">
-            {mmss(estado.segundos)}
-          </span>
-          {estado.pacienteNombre && (
-            <span className="rounded-md bg-surface-2 px-1.5 py-0.5 text-xs text-fg-muted">
-              {estado.pacienteNombre}
-            </span>
-          )}
-          {/* EL MOTIVO DE LA CONSULTA, que el cliente pidió expreso: «el iniciar consulta me dice
-              motivo de la consulta … y aquí me suelta el transcripto».
-              Es lo que contesta "¿de qué estábamos hablando?" sin salir del panel — y el vet lo
-              escribió hace veinte minutos, cuando arrancó. */}
-          {estado.motivo?.trim() && (
-            <span className="min-w-0 truncate text-xs text-fg-muted">
-              · {estado.motivo}
-            </span>
-          )}
-
-          <span className="ml-auto flex items-center gap-2">
-            {grabando && (
-              <Button size="sm" variant="outline" onClick={() => void consultaViva.detener()}>
-                Terminar
-              </Button>
-            )}
-            {estado.consultaId && (
-              <Button
-                size="sm"
-                variant="ghost"
-                render={<Link href={`/dashboard/consultas/${estado.consultaId}`} />}
-                onClick={alCerrar}
+      <div
+        // Cuelga del notch: lo posiciona el dock, y acá sólo se resuelve que los dos leen como una
+        // sola pieza — el notch pierde su redondeo de abajo y esto no tiene borde arriba.
+        className="consulta pointer-events-auto relative z-40 w-[540px] max-w-[calc(100vw-24px)] overflow-hidden rounded-b-[18px] border border-t-0 border-line bg-ink text-fg shadow-popover"
+      >
+        {/* LA TIRA SE DESBORDABA Y SE RECORTABA EN SILENCIO. Las cinco pestañas y el enlace "Ir a
+            la consulta" eran todos `shrink-0` en una fila sin `overflow`, dentro de un panel con
+            `overflow-hidden`: lo que no entraba se cortaba, y lo que no entraba era el enlace. En
+            el ancho completo (540px) ya rozaba; con `max-w-[calc(100vw-24px)]` en cualquier pantalla
+            angosta desaparecía del todo.
+            Se arregla por los dos lados: el enlace se va al pie —no es una pestaña, no tiene por
+            qué competir con ellas por el ancho— y la tira scrollea en vez de recortar, que es el
+            respaldo para cuando cinco etiquetas tampoco entren. */}
+        <div className="flex items-center gap-1 overflow-x-auto border-b border-line px-2">
+          {PESTANAS.map((p) => {
+            const activa = p.id === pestana
+            return (
+              <button
+                key={p.id}
+                type="button"
+                onClick={() => {
+                  setPestana(p.id)
+                  // MIRAR LA ALERTA ES LO QUE LA APAGA. Si se apagara sola al llegar la siguiente,
+                  // sería una luz que nadie vio.
+                  if (p.id === "sugerencias") vivo.vistoLaAlerta()
+                }}
+                aria-current={activa ? "page" : undefined}
+                className={`-mb-px shrink-0 border-b-2 px-2.5 py-2 text-[12.5px] font-medium transition-colors ${
+                  activa ? "border-brand text-fg" : "border-transparent text-fg-muted hover:text-fg"
+                }`}
               >
-                Ir a la consulta
-              </Button>
-            )}
-            <Button size="sm" variant="ghost" onClick={alCerrar} aria-label="Minimizar">
-              <X className="size-4" />
-              <span className="hidden sm:inline">Minimizar</span>
-            </Button>
-          </span>
+                {p.rotulo}
+                {/* El punto en la pestaña, además del aro del notch: con el panel ya abierto, el
+                    aro de afuera no se ve, y sin esto la sugerencia urgente quedaría escondida
+                    detrás de una pestaña que no llama. */}
+                {p.id === "sugerencias" && vivo.alerta && (
+                  <span aria-hidden className="ml-1.5 inline-block size-1.5 rounded-full bg-warn" />
+                )}
+              </button>
+            )
+          })}
+
         </div>
 
-        {/* DOS COLUMNAS EN ESCRITORIO: lo que se oye a la izquierda, lo que el vet escribe a la
-            derecha. Es la forma que hace del panel un cuaderno y no un visor — la transcripción
-            corre sola y el cuaderno es lo único con lo que se interactúa mientras se atiende.
+        {/* Alto acotado CON UN MÍNIMO: sin el mínimo, el panel salta de tamaño cada vez que llega una
+            nota nueva, y saltar es lo último que puede hacer algo que se mira de reojo. */}
+        <div className="max-h-[55svh] min-h-[180px] overflow-y-auto p-3.5">
+          {pestana === "notas" && <AthosEnVivo vivo={vivo} soloNotas />}
 
-            En un teléfono se apilan, y el CUADERNO VA PRIMERO: ahí no hay lugar para las dos, y
-            entre leer lo que se acaba de decir y poder anotar, lo segundo es lo que no se puede
-            hacer en ningún otro lado. */}
-        <div className="flex flex-1 flex-col-reverse gap-4 overflow-auto px-4 py-4 md:px-6 lg:grid lg:grid-cols-[1fr_minmax(0,22rem)] lg:gap-6">
-          <div className="min-w-0">
-            {fallo ? (
-              <p className="text-sm text-danger">{estado.error ?? "La grabación falló."}</p>
+          {pestana === "sugerencias" && <AthosEnVivo vivo={vivo} soloSugerencias />}
+
+          {pestana === "casos" && (
+            <CasosParecidos
+              consultaId={estado.consultaId}
+              transcripcion={`${estado.estable} ${estado.provisional}`.trim()}
+            />
+          )}
+
+          {pestana === "cuaderno" && <Cuaderno consultaId={estado.consultaId} filas={10} />}
+
+          {pestana === "transcripcion" &&
+            (fallo ? (
+              <p className="text-[13px] text-danger">{estado.error ?? "La grabación falló."}</p>
             ) : estado.estable || estado.provisional ? (
-              <p className="max-w-[75ch] text-sm leading-relaxed">
+              <p className="text-[13px] leading-relaxed">
                 {estado.estable}{" "}
-                {/* Lo provisional se pinta apagado: el proveedor todavía puede reemplazarlo, y en una
-                    historia clínica la diferencia entre "lo dijo" y "creo que lo dijo" importa. */}
+                {/* Lo provisional se pinta apagado: el proveedor todavía puede reemplazarlo, y en
+                    una historia clínica la diferencia entre "lo dijo" y "creo que lo dijo"
+                    importa. */}
                 <span className="text-fg-muted">{estado.provisional}</span>
               </p>
             ) : (
-              <p className="text-sm text-fg-muted">
+              <p className="text-[13px] text-fg-muted">
                 {estado.vivo
                   ? "Escuchando… el texto aparece a medida que se habla."
                   : "La transcripción en vivo no está disponible; la consulta se transcribe completa al terminar."}
               </p>
-            )}
-          </div>
-
-          <Cuaderno consultaId={estado.consultaId} filas={8} className="min-w-0 lg:border-l lg:border-line lg:pl-6" />
+            ))}
         </div>
 
-        {grabando && (
-          <p className="border-t border-line px-4 py-3 text-[13px] text-fg-muted md:px-6">
-            Grabando con el micrófono del dispositivo. La transcripción se guarda sólo si usted
-            aprueba la nota.
-          </p>
+        {/* EL PIE. Antes existía sólo mientras se grababa, para la nota del micrófono. Ahora
+            también sostiene "Ir a la consulta", y por eso se pinta siempre que haya una consulta:
+            el enlace tiene que seguir estando en `Guardando…` y en el fallo, que son justo los dos
+            momentos en que la pastilla NO pinta su botón de ampliar — sin él, el panel se quedaba
+            sin ninguna salida hacia la consulta. */}
+        {(estado.fase === "grabando" || estado.consultaId) && (
+          <div className="flex items-center gap-3 border-t border-line px-3.5 py-2">
+            {estado.fase === "grabando" && (
+              <p className="min-w-0 text-[11px] leading-snug text-fg-muted">
+                {estado.pausada
+                  ? // Decirlo explícito importa: el micrófono sigue tomado —el navegador lo sigue
+                    // mostrando— y el vet tiene que saber que eso NO significa que se esté grabando.
+                    "En pausa: no se está capturando nada. El micrófono sigue tomado para poder reanudar sin volver a pedir permiso."
+                  : "Grabando con el micrófono del dispositivo. La transcripción se guarda sólo si usted aprueba la nota."}
+              </p>
+            )}
+            {estado.consultaId && (
+              <Link
+                href={`/dashboard/consultas/${estado.consultaId}`}
+                onClick={alCerrar}
+                className="ml-auto shrink-0 text-[11.5px] text-fg-muted hover:underline"
+              >
+                Ir a la consulta
+              </Link>
+            )}
+          </div>
         )}
       </div>
-
-      {/* El velo. Cierra al tocarlo: es la salida rápida del mockup. No detiene la grabación —
-          minimizar y terminar son cosas distintas, y confundirlas acá cortaría una consulta. */}
-      <button
-        type="button"
-        aria-label="Minimizar el Modo Fantasma"
-        onClick={alCerrar}
-        className="flex-1 cursor-default bg-fg/20"
-      />
-    </div>
+    </>
   )
 }

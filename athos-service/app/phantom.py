@@ -14,7 +14,6 @@ from psycopg.types.json import Json
 
 from app.config import get_settings
 from app.db import fetch_all, get_conn
-from app.generation.allergy_gate import evaluate_gate
 from app.generation.citation_fidelity import check_fidelity, drop_and_renumber
 from app.generation.condition_alerts import detect_conditions, explain_conditions
 from app.generation.dose_guard import patient_data_complete, redact_doses
@@ -136,8 +135,11 @@ def suggest(consultation_id: str, clinic_id: str, user_id: str | None = None) ->
     # A->B (glosario + LLM liviano de respaldo) + cascada, con el Tier 2 solapado sobre el A->B
     query, chunks, passed = build_and_retrieve(transcript_text, patient.species)
 
-    # Gate DURO desde `allergies` (no el modelo)
-    gate_triggered, severe = evaluate_gate(clinic_id, patient_id)
+    # Gate DURO desde `allergies` (no el modelo). Reusa las alergias severas que load_patient_context
+    # YA cargó (evita una 2ª query/conexión a `allergies` por el mismo dato — importa en Micro),
+    # igual que el chat: el gate es "hay alguna alergia severa registrada".
+    severe = patient.severe_allergies
+    gate_triggered = bool(severe)
 
     # Juez de evidencia: ¿los pasajes recuperados sostienen ESTE caso? Acá va ANTES de generar (a
     # diferencia del chat, donde corre en paralelo): el Fantasma es asíncrono — se dispara al cerrar

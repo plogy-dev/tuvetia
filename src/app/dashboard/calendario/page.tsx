@@ -5,6 +5,8 @@ import { AppointmentCalendarLazy as AppointmentCalendar } from "@/components/cal
 import { DataError } from "@/components/data-error"
 import { DiaDeHoy, type CitaDeHoy } from "@/components/calendar/dia-de-hoy"
 import { huecosDelDia } from "@/lib/agenda/huecos"
+import { filtroDeConsulta, puedeVerLaAgendaCompleta } from "@/lib/agenda/filtro"
+import { franjasQueMandan, type FranjaDeAlguien } from "@/lib/agenda/horario-de-cada-quien"
 import { bogotaTodayISO } from "@/lib/date-utils"
 import { localWeekday } from "@/lib/athos-agent/agenda"
 import { APPOINTMENT_SELECT, type AppointmentRow, type PatientOption, type SelectOption } from "@/lib/appointments"
@@ -36,17 +38,31 @@ export default async function CalendarioPage() {
   } = await supabase.auth.getUser()
 
   // clinic_id explícito para el selector de vets (defensa en profundidad, no solo RLS).
-  const clinicId = user
-    ? ((await supabase.from("profiles").select("clinic_id").eq("id", user.id).single()).data as
-        | { clinic_id: string | null }
-        | null)?.clinic_id ?? null
+  //
+  // `role` y `ve_agenda_completa` viajan en la MISMA consulta que ya se hacía: ver la agenda de
+  // toda la clínica pasó a ser un permiso otorgable (0070), y quién mira decide qué citas se piden.
+  const perfil = user
+    ? ((await supabase
+        .from("profiles")
+        .select("clinic_id, role, ve_agenda_completa")
+        .eq("id", user.id)
+        .single()
+      ).data as { clinic_id: string | null; role: string | null; ve_agenda_completa: boolean | null } | null)
     : null
+  const clinicId = perfil?.clinic_id ?? null
+  const veTodo = puedeVerLaAgendaCompleta(perfil)
+  const acotarA = filtroDeConsulta(perfil, user?.id ?? null)
 
   const [{ data: appts, error: apptsError }, { data: pts }, { data: owns }, { data: profs }] =
     await Promise.all([
-      supabase
-        .from("appointments")
-        .select(APPOINTMENT_SELECT)
+      // EL PERMISO SE APLICA ACÁ, en la consulta, y no en el navegador. Antes la pantalla se
+      // traía las citas de la clínica entera y el interruptor las tapaba del lado del cliente: o
+      // sea que las citas de los demás viajaban igual en la página, y "mi agenda" era una vista,
+      // no un límite. Sin este filtro, el permiso sería un cartel.
+      (acotarA
+        ? supabase.from("appointments").select(APPOINTMENT_SELECT).or(acotarA)
+        : supabase.from("appointments").select(APPOINTMENT_SELECT)
+      )
         .lte("starts_at", rangeEnd.toISOString())
         .gte("ends_at", rangeStart.toISOString())
         .order("starts_at", { ascending: true }),
@@ -77,9 +93,12 @@ export default async function CalendarioPage() {
   const { data: franjasHoy } = clinicId
     ? await supabase
         .from("clinic_hours")
-        .select("opens_at, closes_at")
+        .select("weekday, opens_at, closes_at, vet_id")
         .eq("clinic_id", clinicId)
         .eq("weekday", localWeekday(hoy))
+        // La de la clínica y la de quien está mirando (0069): esta lista es SU día, no el de la
+        // puerta. Cuál manda lo decide `franjasQueMandan`, no el filtro.
+        .or(user ? `vet_id.is.null,vet_id.eq.${user.id}` : "vet_id.is.null")
     : { data: null }
 
   const citasDeHoy: CitaDeHoy[] = ((appts as unknown as AppointmentRow[] | null) ?? [])
@@ -93,7 +112,12 @@ export default async function CalendarioPage() {
 
   const huecos = huecosDelDia({
     date: hoy,
-    franjas: ((franjasHoy as { opens_at: string; closes_at: string }[] | null) ?? []),
+    // EL HORARIO DE QUIEN MIRA, no el de la clínica. Un vet que entra a las 2 veía "libre de 8 a
+    // 14" como si le sobrara media jornada, porque la clínica abre a las 8.
+    franjas: franjasQueMandan(
+      (franjasHoy as FranjaDeAlguien[] | null) ?? [],
+      user?.id ?? null,
+    ),
     // Los huecos se calculan contra TODAS las citas vivas del día, no sólo las que se listan:
     // una cita cancelada libera el espacio, una confirmada no.
     ocupados: ((appts as unknown as AppointmentRow[] | null) ?? [])
@@ -123,6 +147,9 @@ export default async function CalendarioPage() {
         patients={patients}
         owners={owners}
         vets={vets}
+        miId={user?.id ?? null}
+        veTodo={veTodo}
+        acotarA={acotarA}
       />
     </div>
   )

@@ -44,6 +44,7 @@ export function InvoiceCart({
   patientId,
   patientName,
   consultationId,
+  renglonesIniciales,
   defaultDocKind,
   uvtValueCents,
   defaultTermsDays,
@@ -56,6 +57,23 @@ export function InvoiceCart({
   patientId?: string;
   patientName?: string;
   consultationId?: string;
+  /**
+   * Lo que se recetó en la consulta, ya cruzado con el catálogo (`lib/facturacion/lo-recetado`).
+   *
+   * ARRANCA EL CARRITO LLENO en vez de vacío. Antes, venir desde una consulta traía el paciente y
+   * el titular pero ninguna línea: el vet tenía que releer el plan en otra pestaña y volver a
+   * teclear lo que ya estaba escrito.
+   *
+   * TODO ENTRA EN CANTIDAD 1 — la posología no se convierte en unidades. Ver el módulo: si el
+   * cálculo falla, falla en la factura de un cliente, y un número que ya viene puesto y parece
+   * razonable no lo revisa nadie.
+   */
+  renglonesIniciales?: {
+    descripcion: string;
+    catalogItemId: string | null;
+    unitPriceCents: number;
+    taxRate: number;
+  }[];
   defaultDocKind: DocKind;
   uvtValueCents: number;
   defaultTermsDays: number;
@@ -70,10 +88,21 @@ export function InvoiceCart({
   const draftRef = useRef<{ key: string; id: string; url: string; warnings: string[] } | null>(null);
   const [draftUrl, setDraftUrl] = useState<string | null>(null);
   const [warnings, setWarnings] = useState<string[]>([]);
-  const [lines, setLines] = useState<CartLine[]>([]);
+  const [lines, setLines] = useState<CartLine[]>(() =>
+    (renglonesIniciales ?? []).map((r, i) => ({
+      key: i,
+      catalogItemId: r.catalogItemId,
+      description: r.descripcion,
+      qty: 1,
+      unitPriceCents: r.unitPriceCents,
+      taxRate: r.taxRate,
+    })),
+  );
   const [docKind, setDocKind] = useState<DocKind>(defaultDocKind);
   const [plan, setPlan] = useState<PaymentPlan>(() => makeDefaultPlan(defaultTermsDays));
-  const [nextKey, setNextKey] = useState(1);
+  // Arranca DESPUÉS de las líneas sembradas, o la primera que se agregue a mano pisaría la clave
+  // de una de ellas y React reusaría la fila equivocada.
+  const [nextKey, setNextKey] = useState((renglonesIniciales?.length ?? 0) + 1);
 
   const itemById = useMemo(() => new Map(items.map((i) => [i.id, i])), [items]);
 

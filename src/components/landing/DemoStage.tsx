@@ -290,7 +290,7 @@ export default function DemoStage() {
                 <div className="pane">
                   <div className="paneh">
                     <div>
-                      <h4>Live notes</h4>
+                      <h4>Notas en vivo</h4>
                       <p>Athos lo arma solo a medida que escucha</p>
                     </div>
                     <div className="upd">

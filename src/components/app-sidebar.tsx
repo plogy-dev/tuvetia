@@ -1,6 +1,7 @@
 "use client"
 
 import * as React from "react"
+import Link from "next/link"
 
 import { AthosSidebarSection } from "@/components/athos/athos-sidebar-section"
 import { NavClinic } from "@/components/nav-clinic"
@@ -51,9 +52,11 @@ function BrandGlyph({ className }: { className?: string }) {
 // separa dos modos de trabajo distintos: lo que se usa CON UN PACIENTE DELANTE y lo que se usa
 // entre consultas.
 //
-// El Modo Fantasma queda en Consultorio, que es su lugar natural, y sigue siendo un <a href> real:
-// `onboarding-tour.tsx` engancha su tercer paso en `a[href="/dashboard/consultas"]`, y sacarlo o
-// convertirlo en botón rompería el tour EN SILENCIO. Hay test que lo cubre.
+// El Modo Fantasma queda en Consultorio, que es su lugar natural, y sigue emitiendo un <a href>
+// real en el DOM: `onboarding-tour.tsx` engancha su tercer paso en `a[href="/dashboard/consultas"]`,
+// y sacarlo o convertirlo en botón rompería el tour EN SILENCIO. Hay test que lo cubre.
+//
+// Ese <a> lo pone `<Link>`, que es lo que hay que usar y no un ancla cruda: ver `nav-main.tsx`.
 //
 // SE RENOMBRAN DOS ETIQUETAS, NO LAS RUTAS. "Calendario" → "Agenda" y "Facturación" → "Ventas" son
 // los nombres del mockup. Las URLs siguen siendo `/dashboard/calendario` y `/dashboard/facturacion`:
@@ -68,21 +71,26 @@ const data = {
     { title: "Athos", url: "/dashboard/asistente", icon: <BotIcon /> },
     { title: "Modo Fantasma", url: "/dashboard/consultas", icon: <GhostIcon /> },
   ],
-  // EL ORDEN LO PIDIÓ EL CLIENTE en la grabación del 12-ago: «primero Pacientes, luego Ventas,
-  // luego Comunicaciones». Antes abría con Dashboard, que es una superficie de LECTURA — se mira,
-  // no se trabaja en ella. Agenda queda pegada a Pacientes porque son la misma jornada; Dashboard y
-  // Conexiones bajan al final por lo mismo: una se consulta y la otra se toca una vez.
+  // EL ORDEN LO DICTÓ LUCIANO EL 19-AGO, y es el de la JORNADA: «como en el orden en el que tú
+  // empezarías el día… el dashboard primero y que sea la vista predeterminada, después pacientes,
+  // agenda, ventas».
+  //
+  // Y DASHBOARD VUELVE A ENCABEZAR. El 12-ago se lo había bajado con el argumento de que es una
+  // superficie de LECTURA —se mira, no se trabaja en ella— y de que abrir en métricas no es abrir
+  // en trabajo. El cliente decidió lo contrario por una razón mejor: al llegar a la clínica lo
+  // primero no es actuar, es SABER CÓMO ESTÁ EL DÍA — cuántas citas, qué quedó pendiente. Es
+  // también la pantalla en la que ahora se aterriza al entrar.
   //
   // TITULARES YA NO ESTÁ ACÁ. No se borró: pasó a ser una vista dentro de Pacientes
   // (`components/patients/vista-pacientes-titulares.tsx`), que es la fusión que pidió el cliente.
   // La ruta `/dashboard/owners` sigue existiendo y sigue siendo el único lugar donde vive el
   // consentimiento de grabación del titular — por eso la vista se conserva y no se disuelve.
   crm: [
+    { title: "Dashboard", url: "/dashboard/tablero", icon: <LayoutDashboardIcon /> },
     { title: "Pacientes", url: "/dashboard/patients", icon: <UsersIcon /> },
     { title: "Agenda", url: "/dashboard/calendario", icon: <CalendarIcon /> },
     { title: "Ventas", url: "/dashboard/facturacion", icon: <ReceiptIcon /> },
     { title: "Comunicaciones", url: "/dashboard/comunicaciones", icon: <MessageCircleIcon /> },
-    { title: "Dashboard", url: "/dashboard/tablero", icon: <LayoutDashboardIcon /> },
   ],
   // «CONEXIONES» SE FUE DE ACÁ, y con otro nombre. David lo pidió el 12-ago: «el tema de
   // comunicaciones y conexiones, que le quede muy claro al usuario».
@@ -125,7 +133,7 @@ function ChipConfiguracion({ porcentaje }: { porcentaje: number }) {
   return (
     <SidebarMenuButton
       tooltip={`Puesta a punto de la clínica: ${porcentaje}% completo`}
-      render={<a href="/dashboard" />}
+      render={<Link href="/dashboard" />}
       className="text-fg-muted"
     >
       <SlidersHorizontalIcon />
@@ -162,7 +170,7 @@ export function AppSidebar({
           <SidebarMenuItem>
             <SidebarMenuButton
               className="data-[slot=sidebar-menu-button]:p-1.5!"
-              render={<a href="/dashboard" />}
+              render={<Link href="/dashboard" />}
             >
               <BrandGlyph className="size-5!" />
               <span className="font-display text-base font-bold tracking-[-0.02em]">Tuvetia</span>
@@ -180,8 +188,6 @@ export function AppSidebar({
         {/* Cada grupo trae su rótulo, sus secciones y su acción: "Iniciar consulta" en Consultorio,
             "Nuevo paciente" en CRM. */}
         <NavMain consultorio={data.consultorio} crm={data.crm} />
-        {/* Segundo nivel: sólo aparece dentro de Athos y del Modo Fantasma, y se paga solo ahí. */}
-        <AthosSidebarSection />
         <SidebarMenu className="mt-auto px-2">
           <SidebarMenuItem>
             <ChipConfiguracion porcentaje={progresoConfiguracion} />
@@ -190,6 +196,13 @@ export function AppSidebar({
         {/* `mt-auto` se mudó al bloque de arriba: con los dos empujando, el de Configuración
             quedaba pegado al menú y Ayuda al fondo, con un hueco entre medio. */}
         <NavSecondary items={data.navSecondary} />
+        {/* EL HISTORIAL, ABAJO DEL TODO. Lo pidió David el 19-ago —"las consultas y los chats,
+            abajo y plegables"— y estaba justo debajo del menú principal, o sea en el medio: con
+            cuarenta consultas cargadas empujaba Configuración y Ayuda fuera de la barra.
+
+            Sigue apareciendo SÓLO dentro de Athos y del Modo Fantasma, así que en el resto de la
+            app este lugar queda vacío y la barra se ve igual que siempre. */}
+        <AthosSidebarSection />
       </SidebarContent>
       <SidebarFooter>
         <NavUser user={user} />

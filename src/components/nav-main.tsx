@@ -117,14 +117,24 @@ function Items({ items, grupo }: { items: NavItem[]; grupo: "consulta" | "crm" }
     <SidebarMenu>
       {items.map((item) => (
         <SidebarMenuItem key={item.title}>
-          {/* OJO: `onboarding-tour.tsx` engancha sus pasos con selectores CSS sobre
+          {/* `<Link>` Y NO `<a href>`, Y NO ES COSMÉTICO — ver el comentario largo de `NavMain`.
+              Un ancla cruda a una ruta interna recarga el documento entero y mata la grabación
+              en curso.
+
+              OJO: `onboarding-tour.tsx` engancha sus pasos con selectores CSS sobre
               `a[href="/dashboard/..."]`, y hay un test que lo cubre
-              (`__tests__/onboarding-tour-anclas.test.ts`). Estos ítems tienen que seguir
-              renderizando un <a href> de verdad y visible. */}
+              (`__tests__/onboarding-tour-anclas.test.ts`). `<Link>` renderiza un `<a href>` de
+              verdad en el DOM, así que el selector sigue valiendo. */}
+          {/* `prefetch` EXPLÍCITO. Next lo hace solo con las rutas estáticas, y las del nav son
+              dinámicas: sin esto, cada sección se empieza a cargar recién al hacer clic. Como el
+              shell persiste entre clicks (por eso se navega con `<Link>` y no con `<a href>`), lo
+              único que falta cargar son los datos — y precargarlos al montar la barra es lo que
+              hace que cambiar de sección se sienta instantáneo. Lo hacen ellos con el mismo
+              argumento. */}
           <SidebarMenuButton
             tooltip={item.title}
             isActive={isNavActive(pathname, item.url)}
-            render={<a href={item.url} />}
+            render={<Link href={item.url} prefetch />}
           >
             <Indicador grupo={grupo} />
             {/* El icono SÓLO existe en la barra colapsada. Ahí el punto no sirve —serían siete
@@ -163,39 +173,32 @@ function Items({ items, grupo }: { items: NavItem[]; grupo: "consulta" | "crm" }
  * apuntan al `svg` como hijo. Un `<span>` de por medio con display propio agregaría una caja al
  * flex y descuadraría el centrado de 32×32 de la barra colapsada; con `contents` el envoltorio no
  * genera caja y el svg queda como hijo directo a efectos de layout.
+ *
+ * SE NAVEGA CON `<Link>`, NUNCA CON `<a href>`. Es la causa raíz de que el notch de grabación
+ * desapareciera, reportada en vivo en la reunión del 17-ago: se empezaba a grabar, se tocaba
+ * cualquier ítem de esta barra, el navegador preguntaba «¿salir del sitio?» y la sesión moría.
+ *
+ * En Next, un `<a href>` a una ruta interna NO navega por el cliente: descarga el documento de
+ * nuevo. Y una grabación no sobrevive a eso —`MediaRecorder` y los blobs mueren con el documento,
+ * y `getUserMedia` no se re-adquiere sin un gesto del usuario; está escrito en `sesion.ts`—. El
+ * diálogo que veía el cliente era el `beforeunload` que la propia sesión engancha para avisar.
+ *
+ * El store de `consulta-viva` YA estaba hecho para sobrevivir a la navegación: su cerrojo de sesión
+ * única existe porque «antes navegar cortaba la grabación, así que no podía haber dos». Esa
+ * persistencia nunca llegó a funcionar porque esta barra recargaba la página. Con `<Link>` la
+ * navegación es del cliente, el módulo no se reinicia y la sesión sigue viva.
+ *
+ * De paso deja de recargarse la app entera en cada clic del menú, que era el costo que esto tenía
+ * incluso sin grabar.
  */
 export function NavMain({ consultorio, crm }: { consultorio: NavItem[]; crm: NavItem[] }) {
   return (
     <>
+      {/* CLÍNICA ARRIBA, CONSULTA ABAJO. Lo invirtió Luciano el 19-ago: "yo lo que haría es
+          intercambiar clínica por consulta y consulta abajo".
+          Tiene sentido con el orden nuevo: la jornada empieza mirando cómo está la clínica —
+          dashboard, pacientes, agenda— y la consulta es lo que se abre cuando llega el animal. */}
       <SidebarGroup>
-        <Rotulo>Consulta</Rotulo>
-        <SidebarGroupContent className="flex flex-col gap-2">
-          <Items items={consultorio} grupo="consulta" />
-          {/* "Iniciar consulta" vive DENTRO del consultorio, no suelta al final de la barra: es la
-              acción del grupo que la contiene. Reusa el drawer de la página de Consultas — sólo
-              cambia dónde se monta. */}
-          <SidebarMenu>
-            <SidebarMenuItem>
-              {/* SECUNDARIO, no menta relleno. En el mockup este botón es blanco con borde: el
-                  menta se reserva para la acción de la pantalla en la que estás, y un botón menta
-                  permanente en la barra compite con todas ellas a la vez. */}
-              <NewConsultationDrawer
-                label="Iniciar consulta"
-                trigger={
-                  <SidebarMenuButton
-                    tooltip="Iniciar consulta"
-                    variant="outline"
-                    className="min-w-8 justify-center font-medium"
-                  />
-                }
-              />
-            </SidebarMenuItem>
-          </SidebarMenu>
-        </SidebarGroupContent>
-      </SidebarGroup>
-
-      {/* El divisor del mockup: la línea es lo que hace legible que son dos mundos, no dos rótulos. */}
-      <SidebarGroup className="mt-1 border-t border-line-soft pt-3">
         <Rotulo>Clínica</Rotulo>
         <SidebarGroupContent className="flex flex-col gap-2">
           <Items items={crm} grupo="crm" />
@@ -206,6 +209,49 @@ export function NavMain({ consultorio, crm }: { consultorio: NavItem[]; crm: Nav
                 trigger={<SidebarMenuButton variant="outline" tooltip="Nuevo paciente" />}
               />
               <PendingProposalsButton />
+            </SidebarMenuItem>
+          </SidebarMenu>
+        </SidebarGroupContent>
+      </SidebarGroup>
+
+      {/* El divisor: la línea es lo que hace legible que son dos mundos, no dos rótulos. */}
+      <SidebarGroup className="mt-1 border-t border-line-soft pt-3">
+        <Rotulo>Consulta</Rotulo>
+        <SidebarGroupContent className="flex flex-col gap-2">
+          <Items items={consultorio} grupo="consulta" />
+          {/* "Iniciar consulta" vive DENTRO del grupo de la consulta: es la acción del grupo que la
+              contiene. Reusa el drawer de la página de Consultas — sólo cambia dónde se monta.
+
+              MENTA RELLENO, y es un cambio del 19-ago: "esto siempre mantenerlo como un botón que
+              sobresalga con el color que teníamos antes, un verdecito" (Luciano).
+              Estaba en `outline` con el argumento de que el menta se reserva para la acción de la
+              PANTALLA en la que estás, y que un botón menta permanente compite con todas. El
+              cliente decidió lo contrario, y su razón es mejor: iniciar una consulta no compite con
+              las acciones de las pantallas, es LA acción del producto — todo lo demás existe
+              alrededor de ella. */}
+          <SidebarMenu>
+            <SidebarMenuItem>
+              <NewConsultationDrawer
+                label="Iniciar consulta"
+                trigger={
+                  /* `[&>span]:hidden` EN MODO ICONO, Y NO ES COSMÉTICO: es lo que centra el `+`.
+
+                     Colapsada, la barra fuerza el botón a `size-8` con `p-2` y `overflow-hidden`
+                     (ver `sidebarMenuButtonVariants`), pero la ETIQUETA SIGUE OCUPANDO ESPACIO en el
+                     flex. Con `justify-center`, el centrado se calcula sobre `icono + gap + texto`
+                     —bastante más ancho que los 32px de la caja— y el desborde recorta la derecha:
+                     el icono termina corrido a la izquierda.
+
+                     Los demás ítems no sufren esto porque NO llevan `justify-center`: su icono queda
+                     pegado al padding izquierdo, que en `p-2` + `size-8` da centrado por aritmética.
+                     Acá el botón sí lo necesita —es el único con relleno menta, y sin centrar de
+                     verdad se nota—, así que se resuelve sacando del cálculo lo que no se ve. */
+                  <SidebarMenuButton
+                    tooltip="Iniciar consulta"
+                    className="min-w-8 justify-center bg-brand font-medium text-on-brand group-data-[collapsible=icon]:[&>span]:hidden hover:bg-brand-deep hover:text-on-brand active:bg-brand-deep active:text-on-brand"
+                  />
+                }
+              />
             </SidebarMenuItem>
           </SidebarMenu>
         </SidebarGroupContent>

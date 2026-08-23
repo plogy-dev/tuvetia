@@ -22,6 +22,10 @@ import {
   TZ_OFFSET,
 } from "./agenda"
 import { CONEXION_CORREO } from "./conversacion"
+import {
+  franjasQueMandan,
+  type FranjaDeAlguien,
+} from "@/lib/agenda/horario-de-cada-quien"
 import { buscarCorreos, estadoConexion, leerConversacion } from "@/lib/composio/correo"
 
 type SB = SupabaseClient
@@ -176,16 +180,30 @@ export function buildAthosTools(supabase: SB, ctx: AgentContext) {
 
     get_clinic_hours: tool({
       description:
-        "Horarios de atención de la clínica por día de semana (0=domingo … 6=sábado). Si está vacío, la clínica no los configuró — dile al vet que los cargue en Configuración.",
+        "Horarios de atención de la clínica por día de semana (0=domingo … 6=sábado). Si está vacío, la clínica no los configuró — dile al vet que los cargue en Configuración. " +
+        "Devuelve además `mine` cuando quien pregunta tiene horario propio distinto al de la clínica.",
       inputSchema: z.object({}),
       execute: async () => {
         const { data, error } = await supabase
           .from("clinic_hours")
-          .select("weekday, opens_at, closes_at, slot_minutes")
+          .select("weekday, opens_at, closes_at, slot_minutes, vet_id")
+          // La fila de la clínica y la propia, en una sola consulta. `vet_id` viaja en el select
+          // porque es lo único que las distingue.
+          .or(ctx.userId ? `vet_id.is.null,vet_id.eq.${ctx.userId}` : "vet_id.is.null")
           .order("weekday")
           .order("opens_at")
         if (error) return { error: error.message }
-        return { configured: (data ?? []).length > 0, hours: data ?? [] }
+        const filas = (data ?? []) as (FranjaDeAlguien & { slot_minutes: number })[]
+        const deLaClinica = filas.filter((f) => f.vet_id === null)
+        // SE DEVUELVEN LOS DOS, no el efectivo ya resuelto. Que el modelo sepa que "la clínica abre
+        // 8–18 pero vos atendés 14–20" es lo que le deja responder bien las dos preguntas: la del
+        // titular ("¿a qué hora abren?") y la del vet ("¿hasta qué hora tengo hoy?").
+        const propias = filas.filter((f) => f.vet_id !== null)
+        return {
+          configured: deLaClinica.length > 0,
+          hours: deLaClinica,
+          ...(propias.length ? { mine: propias } : {}),
+        }
       },
     }),
 
@@ -216,7 +234,11 @@ export function buildAthosTools(supabase: SB, ctx: AgentContext) {
         const [{ data: hours, error: hErr }, apptsRes] = await Promise.all([
           supabase
             .from("clinic_hours")
-            .select("opens_at, closes_at, slot_minutes")
+            .select("weekday, opens_at, closes_at, slot_minutes, vet_id")
+            // LAS DOS DE UNA VEZ: la de la clínica y la de esta persona (0069). Cuál manda lo
+            // decide `franjasQueMandan` abajo, no la consulta — la regla es "si definió ese día,
+            // el suyo; si no, el de la clínica", y eso no se escribe en un filtro sin dos viajes.
+            .or(vet_id ? `vet_id.is.null,vet_id.eq.${vet_id}` : "vet_id.is.null")
             .eq("weekday", weekday)
             .order("opens_at"),
           // LA AGENDA ES DE UNA PERSONA, no de la clínica. Sin filtrar por vet, una clínica con tres
@@ -234,7 +256,14 @@ export function buildAthosTools(supabase: SB, ctx: AgentContext) {
             .in("status", ["scheduled", "confirmed", "in_progress"]),
         ])
         if (hErr) return { error: hErr.message }
-        if (!hours?.length)
+        // EL HORARIO DE QUIEN ATIENDE, no el de la puerta. Un vet que entra a las 2 aparecía libre
+        // a las 8 porque la clínica abre a las 8 — es el mismo defecto que hacía salir los correos
+        // con la hora equivocada ("el horario es el suyo y no es el mío", 17-ago).
+        const franjas = franjasQueMandan(
+          (hours ?? []) as (FranjaDeAlguien & { slot_minutes: number })[],
+          vet_id ?? null,
+        )
+        if (!franjas.length)
           return {
             configured: false,
             slots: [],
@@ -242,11 +271,12 @@ export function buildAthosTools(supabase: SB, ctx: AgentContext) {
           }
         const slots = calcularCupos({
           date,
-          franjas: hours as { opens_at: string; closes_at: string; slot_minutes: number }[],
+          franjas,
           ocupados: (apptsRes.data ?? []) as { starts_at: string; ends_at: string }[],
           durationMin: duration_min,
         })
-        return { configured: true, date, slots }
+        // `personal` para que el modelo pueda decirlo: "según TU horario, no el de la clínica".
+        return { configured: true, date, slots, personal: franjas.some((f) => f.vet_id !== null) }
       },
     }),
 

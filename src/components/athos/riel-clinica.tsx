@@ -1,4 +1,12 @@
+"use client"
+
+import { useState, useSyncExternalStore } from "react"
 import Link from "next/link"
+
+import { preferenciaPlegada } from "@/lib/ui/preferencia-plegada"
+
+/** Si el vet dejó el riel plegado. Ver `lib/ui/preferencia-plegada`. */
+const PLEGADO = preferenciaPlegada("tuvetia:riel-clinica-plegado")
 
 // "La clínica hoy" — el riel de 320px que acompaña a la conversación de Athos.
 //
@@ -9,6 +17,7 @@ import Link from "next/link"
 //
 // Server component: los datos los pasa la página, ya resueltos.
 
+import { ChevronDown, PanelLeftOpen, PanelRightClose } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { estadoDelCupo, proporcionUsada, type CupoVisible } from "@/lib/cupo"
 import { formatCOP } from "@/lib/facturacion/format"
@@ -134,6 +143,8 @@ function CupoDeIA({ presupuesto }: { presupuesto: CupoVisible | null }) {
  *
  * No consulta nada: recibe lo que la página ya resolvió para el riel grande.
  */
+const CLAVE_TIRA = "tuvetia_tira_clinica_abierta"
+
 export function TiraClinica({
   citas,
   pendientes,
@@ -143,6 +154,28 @@ export function TiraClinica({
   pendientes: PendienteDelRiel[]
   presupuesto?: CupoVisible | null
 }) {
+  // La preferencia se recuerda: quien la abre la quiere abierta, y quien la cierra no quiere que
+  // vuelva sola en cada navegación. `useSyncExternalStore` porque `localStorage` no existe en el
+  // servidor y leerlo en el primer render rompería la hidratación — mismo patrón que el riel de
+  // configuración.
+  const guardada = useSyncExternalStore(
+    () => () => {},
+    () => (typeof window !== "undefined" ? localStorage.getItem(CLAVE_TIRA) === "1" : false),
+    () => false,
+  )
+  const [local, setLocal] = useState<boolean | null>(null)
+  const abierta = local ?? guardada
+
+  function alternar() {
+    const siguiente = !abierta
+    setLocal(siguiente)
+    try {
+      localStorage.setItem(CLAVE_TIRA, siguiente ? "1" : "0")
+    } catch {
+      // Modo incógnito o storage lleno: se pierde la preferencia, no la tira.
+    }
+  }
+
   const partes = [citas.length === 1 ? "1 cita" : `${citas.length} citas`]
   // Sólo el primero: en una línea no entran tres, y hoy `pendientes` trae como mucho cartera.
   if (pendientes.length > 0) partes.push(pendientes[0].etiqueta)
@@ -154,10 +187,44 @@ export function TiraClinica({
   else if (estado === "escaso") partes.push(`quedan ${presupuesto?.restantes} consultas con IA`)
 
   return (
-    <div className="flex items-center gap-2 rounded-lg border border-line-soft px-3 py-2 text-xs xl:hidden">
-      <span className="shrink-0 font-semibold uppercase tracking-[0.08em] text-fg-faint">
-        La clínica hoy
-      </span>
+    // Misma columna que el hilo y el compositor de Athos. Es la pieza que se pinta por debajo de
+    // `xl`, o sea justo donde el ancho ya escasea.
+    //
+    // SE PLIEGA, Y ARRANCA PLEGADA. Lo pidieron los dos el 19-ago:
+    //
+    //   David:   "que predeterminado esté cerrada, porque cuando tú entras y ves las tres es
+    //             demasiado ruido"
+    //   Luciano: "demasiada información, exacto"
+    //
+    // Plegada queda el rótulo y el número —"3 pendientes"—, que es lo que responde "¿tengo algo?"
+    // sin obligar a leer nada. Desplegada, el detalle. Y la preferencia se recuerda: quien la abre
+    // una vez la quiere abierta, y quien la cierra no quiere que vuelva sola en cada navegación.
+    <div className="mx-auto flex w-full max-w-[780px] flex-col rounded-lg border border-line-soft text-xs xl:hidden">
+      <button
+        type="button"
+        onClick={alternar}
+        aria-expanded={abierta}
+        className="flex items-center gap-2 px-3 py-2 text-left"
+      >
+        <span className="shrink-0 font-semibold uppercase tracking-[0.08em] text-fg-faint">
+          La clínica hoy
+        </span>
+        {/* PLEGADA NO SE CALLA: dice cuántas cosas hay. Un plegable que sólo dice su nombre obliga
+            a abrirlo para saber si valía la pena, que es la mitad del ruido que se vino a quitar. */}
+        {!abierta && (
+          <span className="min-w-0 flex-1 truncate text-fg-muted">{partes.length} en el día</span>
+        )}
+        <ChevronDown
+          aria-hidden
+          className={`ml-auto size-3.5 shrink-0 text-fg-faint transition-transform ${
+            abierta ? "rotate-180" : ""
+          }`}
+        />
+        <span className="sr-only">{abierta ? "Ocultar el detalle" : "Ver el detalle"}</span>
+      </button>
+
+      {abierta && (
+      <div className="flex items-center gap-2 border-t border-line-soft px-3 py-2">
       <span className="min-w-0 flex-1 truncate text-fg-muted">{partes.join(" · ")}</span>
       {/* Al tablero y no a la agenda: es la pantalla que tiene TODO lo que la tira resume, incluido
           lo que aquí no cupo. */}
@@ -167,6 +234,8 @@ export function TiraClinica({
       >
         Ver
       </Link>
+      </div>
+      )}
     </div>
   )
 }
@@ -203,8 +272,50 @@ export function RielClinica({
    */
   mostrarDinero: boolean
 }) {
+  // SE PLIEGA A LA DERECHA, y se acuerda. Es la misma molestia que el historial de la barra y las
+  // métricas del tablero: una columna de 320px que está siempre y que a veces estorba. Quien la
+  // cierra no quiere que vuelva sola en cada navegación.
+  const plegado = useSyncExternalStore(
+    PLEGADO.suscribir,
+    PLEGADO.leer,
+    PLEGADO.enElServidor,
+  )
+
+  // PLEGADO NO ES DESMONTADO. La columna se queda con el ancho de la solapa en vez de desaparecer:
+  // si el riel se fuera del todo, el hilo de Athos se ensancharía de golpe y volver a abrirlo
+  // reflowearía la conversación entera. Además el botón tiene que seguir en algún lado.
+  if (plegado) {
+    return (
+      <aside className="hidden shrink-0 flex-col items-center border-l border-line py-4 xl:flex">
+        <button
+          type="button"
+          onClick={() => PLEGADO.escribir(false)}
+          aria-label="Mostrar el resumen de la clínica"
+          aria-expanded={false}
+          title="Mostrar el resumen de la clínica"
+          className="grid size-8 place-items-center rounded-[7px] text-fg-faint transition-colors hover:bg-fg/5 hover:text-fg focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+        >
+          <PanelLeftOpen className="size-4" aria-hidden />
+        </button>
+      </aside>
+    )
+  }
+
   return (
     <aside className="hidden w-80 shrink-0 flex-col gap-6 overflow-auto border-l border-line p-5 xl:flex">
+      {/* La solapa va ARRIBA DEL TODO y alineada a la derecha: es el borde por el que se pliega, y
+          ponerla al pie obligaría a bajar hasta el final para cerrar algo que estorba arriba. */}
+      <button
+        type="button"
+        onClick={() => PLEGADO.escribir(true)}
+        aria-label="Ocultar el resumen de la clínica"
+        aria-expanded
+        title="Ocultar el resumen de la clínica"
+        className="-mb-2 -mr-1 -mt-1 ml-auto grid size-8 shrink-0 place-items-center rounded-[7px] text-fg-faint transition-colors hover:bg-fg/5 hover:text-fg focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+      >
+        <PanelRightClose className="size-4" aria-hidden />
+      </button>
+
       {/* EL RESUMEN DEL DÍA, arriba de todo: es lo primero que se lee al abrir la app.
           Va SIN encabezado propio — un rótulo "Resumen del día" encima de dos frases es más
           cromo que contenido, y el texto ya empieza diciendo de qué habla. */}

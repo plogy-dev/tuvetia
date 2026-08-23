@@ -21,6 +21,7 @@ import { useCallback, useEffect, useRef, useState } from "react"
 import { AudioLines, Loader2, Mic, ShieldCheck, Square } from "lucide-react"
 import { toast } from "sonner"
 
+import { comoReloj } from "@/lib/duracion"
 import { consultaViva } from "@/lib/consulta-viva/sesion"
 import { useConsultaViva } from "@/lib/consulta-viva/usar"
 import { createClient } from "@/lib/supabase/client"
@@ -62,7 +63,7 @@ export function ConsultationRecorder({
   const lista = esLaMia && sesion.fase === "terminada"
   const otraEnCurso = !esLaMia && sesion.fase === "grabando"
 
-  const mmss = `${String(Math.floor(sesion.segundos / 60)).padStart(2, "0")}:${String(sesion.segundos % 60).padStart(2, "0")}`
+  const mmss = comoReloj(sesion.segundos)
 
   // Inserta la fila de consentimiento de ESTA consulta (el trigger de BD la exige siempre).
   // owner_scope=true cuando el titular acepta por primera vez -> cubre sus próximas consultas.
@@ -92,6 +93,9 @@ export function ConsultationRecorder({
       await consultaViva.iniciar({
         consultaId: consultationId,
         clinicId,
+        // Con el paciente en la sesión, Athos puede leer su ficha mientras la consulta pasa: es lo
+        // que gobierna el guard de dosis y el aviso de alergias severas en las sugerencias en vivo.
+        pacienteId: patientId,
         pacienteNombre: patientName ?? null,
         motivo: motivo ?? null,
         alTranscribir: onTranscribed,
@@ -100,7 +104,7 @@ export function ConsultationRecorder({
     } catch (e) {
       toast.error((e as Error).message)
     }
-  }, [consultationId, clinicId, patientName, motivo, onTranscribed])
+  }, [consultationId, clinicId, patientId, patientName, motivo, onTranscribed])
 
   // Arranque: si el titular YA dio su consentimiento (vigente, no revocado), no se re-pregunta —
   // se registra la fila de esta consulta citando ese consentimiento y se graba directo.

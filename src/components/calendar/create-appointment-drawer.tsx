@@ -43,6 +43,16 @@ import {
 
 const NONE = "__none__"
 
+/**
+ * El texto del ítem vacío, uno solo para los tres selectores.
+ *
+ * Antes cada uno decía lo suyo ("Elegí un paciente", "Elegí un titular"…) y ninguno se veía: sin
+ * `items`, el `SelectValue` pintaba el valor crudo `__none__`. Con la lista puesta ya se leen, y se
+ * unifican en una palabra — un formulario con tres frases distintas para el mismo hueco se lee como
+ * tres cosas distintas.
+ */
+const SELECCIONAR = "Seleccionar"
+
 export type AppointmentFormInitial = {
   id?: string
   title?: string
@@ -225,9 +235,13 @@ export function CreateAppointmentDrawer({
             <div className="grid grid-cols-2 gap-4">
               <Field>
                 <FieldLabel htmlFor="appt-start">Inicio</FieldLabel>
+                {/* `datetime-local` se pinta vacío como `dd/mm/aaaa --:--`, que no dice si el campo
+                    está vacío o roto. El `aria-label` le da a un lector de pantalla la frase que el
+                    control no tiene. */}
                 <Input
                   id="appt-start"
                   type="datetime-local"
+                  aria-label="Fecha y hora de inicio"
                   value={startsAt}
                   onChange={(e) => setStartsAt(e.target.value)}
                   required
@@ -238,6 +252,7 @@ export function CreateAppointmentDrawer({
                 <Input
                   id="appt-end"
                   type="datetime-local"
+                  aria-label="Fecha y hora de fin"
                   value={endsAt}
                   onChange={(e) => setEndsAt(e.target.value)}
                   required
@@ -246,14 +261,15 @@ export function CreateAppointmentDrawer({
             </div>
             <Field>
               <FieldLabel htmlFor="appt-patient">Paciente</FieldLabel>
+              {/* `items` NO ES OPCIONAL, aunque compile sin él. Es de dónde saca `SelectValue` la
+                  ETIQUETA del valor elegido; sin la lista pinta el valor CRUDO, y por eso estos
+                  cuatro campos mostraban `__none__` y `scheduled` en pantalla. El patrón correcto
+                  ya estaba en `new-consultation-drawer.tsx`; acá faltaba en los cuatro. */}
               <Select
                 value={patientId}
                 onValueChange={(v) => handlePatientChange((v as string) ?? NONE)}
-                // `items` NO es opcional acá: Base UI documenta que sin él `<Select.Value>`
-                // renderiza el VALOR CRUDO, y el valor de estas opciones es un uuid. Sin esto el
-                // formulario mostraba "20a66a41-0244-4fb2-..." donde va el nombre del paciente.
                 items={[
-                  { label: "Elegí un paciente", value: NONE },
+                  { label: SELECCIONAR, value: NONE },
                   ...patients.map((p) => ({ label: p.label, value: p.id })),
                 ]}
               >
@@ -262,7 +278,7 @@ export function CreateAppointmentDrawer({
                 </SelectTrigger>
                 <SelectContent>
                   <SelectGroup>
-                    <SelectItem value={NONE}>Elegí un paciente</SelectItem>
+                    <SelectItem value={NONE}>{SELECCIONAR}</SelectItem>
                     {patients.map((p) => (
                       <SelectItem key={p.id} value={p.id}>
                         {p.label}
@@ -283,7 +299,7 @@ export function CreateAppointmentDrawer({
                     setOwnerMismatch(null)
                   }}
                   items={[
-                    { label: "Elegí un titular", value: NONE },
+                    { label: SELECCIONAR, value: NONE },
                     ...owners.map((o) => ({ label: o.label, value: o.id })),
                   ]}
                 >
@@ -292,7 +308,7 @@ export function CreateAppointmentDrawer({
                   </SelectTrigger>
                   <SelectContent>
                     <SelectGroup>
-                      <SelectItem value={NONE}>Elegí un titular</SelectItem>
+                      <SelectItem value={NONE}>{SELECCIONAR}</SelectItem>
                       {owners.map((o) => (
                         <SelectItem key={o.id} value={o.id}>
                           {o.label}
@@ -309,7 +325,7 @@ export function CreateAppointmentDrawer({
                   value={vetId}
                   onValueChange={(v) => setVetId((v as string) ?? NONE)}
                   items={[
-                    { label: "Elegí un veterinario", value: NONE },
+                    { label: SELECCIONAR, value: NONE },
                     ...vets.map((v) => ({ label: v.label, value: v.id })),
                   ]}
                 >
@@ -318,7 +334,7 @@ export function CreateAppointmentDrawer({
                   </SelectTrigger>
                   <SelectContent>
                     <SelectGroup>
-                      <SelectItem value={NONE}>Elegí un veterinario</SelectItem>
+                      <SelectItem value={NONE}>{SELECCIONAR}</SelectItem>
                       {vets.map((v) => (
                         <SelectItem key={v.id} value={v.id}>
                           {v.label}
@@ -366,15 +382,22 @@ export function CreateAppointmentDrawer({
             </Field>
             <Field>
               <FieldLabel htmlFor="appt-notes">Notas</FieldLabel>
+              {/* `rows={3}` y no 2: con dos filas la caja quedaba más baja que el resto de los
+                  campos y se leía como un renglón suelto. */}
               <Textarea
                 id="appt-notes"
                 value={notes}
                 onChange={(e) => setNotes(e.target.value)}
-                rows={2}
+                rows={3}
               />
             </Field>
             {error && <FieldDescription className="text-destructive">{error}</FieldDescription>}
           </FieldGroup>
+          {/* AIRE ANTES DEL PIE. El `DrawerFooter` es hermano de este form y va pegado abajo, así
+              que la caja de notas terminaba tocando el botón de crear cita: el último campo y la
+              acción destructiva quedaban a la misma altura visual, sin nada que los separara.
+              Va acá dentro —y no como margen del footer— porque el form es el que hace scroll. */}
+          <div className="h-4 shrink-0" aria-hidden />
         </form>
         <DrawerFooter>
           <Button type="submit" form="appointment-form" disabled={loading || deleting}>

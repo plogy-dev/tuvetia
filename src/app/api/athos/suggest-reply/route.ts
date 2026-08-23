@@ -10,7 +10,7 @@ import { agentModel } from "@/lib/athos-agent/model"
 import { registrarUso } from "@/lib/athos-agent/usage"
 import { rateLimit } from "@/lib/athos-agent/rate-limit"
 import { consultarPresupuesto, mensajeSinCupo } from "@/lib/athos-agent/presupuesto"
-import type { AgentContext } from "@/lib/athos-agent/actions"
+import { proposeAction, type AgentContext } from "@/lib/athos-agent/actions"
 
 export const runtime = "nodejs"
 export const maxDuration = 60
@@ -147,10 +147,28 @@ export async function POST(req: Request) {
       }
     }
     if (!draft || !actionId) {
-      // El modelo corrió pero no llamó a `send_whatsapp_message`. Con la conversación vacía ya
-      // cortamos arriba, así que acá es otra cosa: el modelo decidió que no correspondía responder
-      // (p. ej. el último mensaje no pide nada) o se quedó sin pasos. Se dice qué hacer, no solo
-      // que falló.
+      // El modelo corrió pero no llamó a `send_whatsapp_message`. Con DeepSeek —cuyo tool-calling
+      // es flojo (ver model.ts)— el caso más común es que redactó la respuesta EN PROSA en vez de
+      // pasarla por la tool. Si hay texto usable no lo tiramos: lo persistimos como propuesta
+      // editable (es exactamente lo que el vet pidió) en vez de devolver 502 con el cupo ya cobrado.
+      const texto = result.text?.trim()
+      if (texto) {
+        const prop = await proposeAction(
+          ctx,
+          "send_whatsapp_message",
+          { to_phone: digitsPhone, body: texto, owner_id: owner_id ?? null, in_reply_to: null },
+          `Enviar WhatsApp a ${digitsPhone}: "${texto.length > 120 ? `${texto.slice(0, 119)}…` : texto}"`,
+          { ownerId: owner_id ?? null },
+        )
+        if ("action_id" in prop && prop.action_id)
+          return NextResponse.json({ draft: texto, action_id: prop.action_id })
+        console.error(
+          "athos/suggest-reply: proposeAction (fallback) falló:",
+          "error" in prop ? prop.error : "sin action_id",
+        )
+      }
+      // No hubo tool-call ni texto usable: el modelo decidió que no correspondía responder (p. ej.
+      // el último mensaje no pide nada). Se dice qué hacer, no sólo que falló.
       return NextResponse.json(
         {
           error:

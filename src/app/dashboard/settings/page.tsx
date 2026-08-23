@@ -59,9 +59,12 @@ export default async function SettingsPage() {
   const waConnected = (wa as { status?: string } | null)?.status === "connected"
 
   // Horarios de atención (RLS de la clínica) — los usa Athos para citas y respuestas automáticas.
+  // `vet_id` viaja porque desde la 0069 hay dos horarios en la misma tabla: el de la clínica
+  // (nulo) y el de cada persona. La RLS de SELECT deja ver los dos — el de un compañero se lee
+  // para poder agendar con él; lo que no se hace es escribirlo.
   const { data: hoursRows } = await supabase
     .from("clinic_hours")
-    .select("id, weekday, opens_at, closes_at, slot_minutes")
+    .select("id, weekday, opens_at, closes_at, slot_minutes, vet_id")
     .order("weekday")
     .order("opens_at")
 
@@ -140,9 +143,14 @@ export default async function SettingsPage() {
           <HelpTip>
             Athos usa estos horarios para proponer citas con cupos reales y para responder
             &quot;¿a qué hora abren?&quot; por WhatsApp. Sin horarios, no propone ni responde eso.
+            Si tu horario no es el de la clínica, cargá el tuyo en <b>El mío</b>: reemplaza al de la
+            clínica sólo en los días que definas, y sólo para vos.
           </HelpTip>
         </div>
-        <ClinicHoursSettings initialHours={(hoursRows as ClinicHourRow[] | null) ?? []} />
+        <ClinicHoursSettings
+          initialHours={(hoursRows as ClinicHourRow[] | null) ?? []}
+          vetId={user?.id ?? null}
+        />
       </div>
 
       {/* Perfil (editable) */}

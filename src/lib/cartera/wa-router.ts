@@ -10,6 +10,12 @@ import 'server-only';
 // Si maneja el mensaje devuelve { handled: true } y el webhook NO debe correr
 // el agente general (evita respuesta duplicada — riesgo del doble agente).
 //
+// Y AL REVÉS TAMBIÉN IMPORTA: lo que NO es de cobranza se suelta con
+// { handled: false }. Un intent `OTRO` reclamado dejaba al titular en silencio,
+// porque la acción de `OTRO` declara `reply: null` y el modo auto general nunca
+// llegaba a verlo — "sin secuestrar los chats de citas" incluye no secuestrar
+// las preguntas sueltas de alguien que además debe plata.
+//
 // Adaptación al destino: no hay wa_conversations/wa_messages — los entrantes
 // viven en whatsapp_messages (esquema Meta-nativo + failed_at/error_detail) y
 // el titular se resuelve por teléfono contra owners. El orquestador cablea
@@ -126,6 +132,25 @@ export async function applyCarteraInbound(
     { todayISO: bogotaTodayISO(), clinicId },
   );
 
+  // NO ES DE COBRANZA → NO SE RECLAMA. `OTRO` es "no clasificable", y su acción declara
+  // `reply: null` — "sin respuesta automática, solo escala". Reclamarlo igual dejaba al titular en
+  // SILENCIO: `routeInbound` corta en `handled` y el modo auto general nunca llegaba a verlo. Una
+  // pregunta trivial —"¿a qué hora abren?"— dejaba de responderse sola por el sólo hecho de que esa
+  // persona tuviera una factura pendiente.
+  //
+  // Soltarlo lo devuelve al camino de cualquier otro entrante, que es lo que es. Y no se pierde el
+  // aviso: si el modo auto está apagado, el mensaje queda en la bandeja igual que el de alguien que
+  // no debe nada — que era el comportamiento correcto desde el principio. La tarea `OTRO` que se
+  // abría acá era la anomalía: sólo existía para deudores.
+  //
+  // CON ADJUNTO SÍ SE RECLAMA, aunque el intent sea `OTRO`. Una foto de alguien que debe plata es
+  // un comprobante hasta que se demuestre lo contrario, y soltarla perdería
+  // `storeReceiptReference` — o sea, un pago que el cliente cree haber avisado y del que no queda
+  // rastro. Entre responder de más y perder un comprobante, se pierde la respuesta.
+  if (classification.intent === 'OTRO' && !hasMedia) {
+    return { handled: false };
+  }
+
   const result = await executeCarteraInbound(admin, clinicId, {
     channel: 'WHATSAPP',
     ownerId: owner.id,
@@ -157,6 +182,7 @@ export async function applyCarteraInbound(
         ownerId: owner.id,
         sentBy: null,
         agentMode: 'auto',
+        origen: 'athos',
       });
     } catch (e) {
       console.error('[cartera/wa-router] no se pudo responder:', e);

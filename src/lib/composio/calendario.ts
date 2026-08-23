@@ -22,6 +22,7 @@ import "server-only"
 // que una sola cuenta conectada sirve para los dos. Conectar o desconectar Microsoft afecta a ambos,
 // y eso tiene que quedar dicho en la pantalla — no es un detalle de implementación.
 
+import { quienTieneElCalendario } from "@/lib/calendario/quien-lo-tiene"
 import { createAdminClient } from "@/lib/supabase/admin"
 
 import { cuentasDe, desconectarDe, ejecutarTool, enlazar } from "./cliente"
@@ -291,6 +292,11 @@ type CitaParaSincronizar = {
  * `clinics.owner_id` (migración 0048) es quien creó la clínica. Se cae a cualquier perfil con rol
  * `admin` porque las clínicas creadas antes de esa migración no tienen `owner_id`, y sin este
  * respaldo sus citas no llegarían a ningún calendario sin ningún motivo visible.
+ *
+ * LA REGLA VIVE EN `lib/calendario/quien-lo-tiene` y no acá, porque la pantalla de Conexiones
+ * —la que decide quién ve el botón para conectarlo— tiene que dar LA MISMA respuesta. Estuvo
+ * escrita dos veces y distinto: allá sin el respaldo, así que en una clínica sin `owner_id` las
+ * citas se empujaban al calendario del primer admin y ese admin nunca veía cómo conectarlo.
  */
 async function calendarioDeLaClinica(admin: AdminClient, clinicId: string): Promise<string | null> {
   const { data: clinica } = await admin
@@ -299,7 +305,7 @@ async function calendarioDeLaClinica(admin: AdminClient, clinicId: string): Prom
     .eq("id", clinicId)
     .maybeSingle()
   const owner = (clinica as { owner_id: string | null } | null)?.owner_id
-  if (owner) return owner
+  if (owner) return quienTieneElCalendario(owner)
 
   const { data: perfil } = await admin
     .from("profiles")
@@ -308,7 +314,7 @@ async function calendarioDeLaClinica(admin: AdminClient, clinicId: string): Prom
     .eq("role", "admin")
     .limit(1)
     .maybeSingle()
-  return (perfil as { id: string } | null)?.id ?? null
+  return quienTieneElCalendario(null, perfil as { id: string } | null)
 }
 
 /**

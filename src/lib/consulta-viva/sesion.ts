@@ -55,6 +55,14 @@ export type FaseGrabacion =
 export type EstadoConsultaViva = {
   fase: FaseGrabacion
   consultaId: string | null
+  /**
+   * La clínica y el paciente, expuestos porque el panel del Modo Fantasma flota sobre CUALQUIER
+   * pantalla y necesita los dos para pedirle a Athos que mire la consulta en curso. Estaban sólo en
+   * `params`, que es privado del módulo — y sacarlos de la URL no sirve: el panel puede estar
+   * abierto en la agenda.
+   */
+  clinicId: string | null
+  pacienteId: string | null
   pacienteNombre: string | null
   /**
    * El motivo de la consulta (`consultations.chief_complaint`).
@@ -65,7 +73,22 @@ export type EstadoConsultaViva = {
    * de la consulta … y aquí me suelta el transcripto».
    */
   motivo: string | null
+  /**
+   * Segundos GRABADOS. No avanza en pausa: es lo que el vet entiende por "cuánto llevo".
+   *
+   * Ojo, no es lo mismo que el reloj de pared — ver `segundosDeReloj` y el tope de seguridad.
+   */
   segundos: number
+  /**
+   * La consulta está en pausa: el micrófono sigue tomado pero no se captura nada.
+   *
+   * ES UN BOOLEANO Y NO UNA FASE NUEVA, a propósito. `fase` gobierna el cerrojo de sesión única, la
+   * pastilla, el panel, el corte por pérdida de micrófono y todo el camino de cierre; agregarle un
+   * séptimo valor obligaría a auditar cada `switch` del producto para que una pausa no se lea como
+   * "no está grabando". Y semánticamente esto ES una grabación en curso: sigue tomada, sigue
+   * cerrando el paso a otra consulta, y sigue teniendo audio que perder al recargar.
+   */
+  pausada: boolean
   /** Texto confirmado por el proveedor de transcripción. */
   estable: string
   /** Hipótesis que el proveedor todavía puede reemplazar. */
@@ -78,9 +101,12 @@ export type EstadoConsultaViva = {
 const INACTIVA: EstadoConsultaViva = {
   fase: "inactiva",
   consultaId: null,
+  clinicId: null,
+  pacienteId: null,
   pacienteNombre: null,
   motivo: null,
   segundos: 0,
+  pausada: false,
   estable: "",
   provisional: "",
   vivo: false,
@@ -90,6 +116,8 @@ const INACTIVA: EstadoConsultaViva = {
 type Parametros = {
   consultaId: string
   clinicId: string
+  /** Para que Athos pueda leer la ficha mientras la consulta pasa (guard de dosis y alergias). */
+  pacienteId?: string | null
   pacienteNombre?: string | null
   /** Motivo de la consulta, para mostrarlo mientras se graba. */
   motivo?: string | null
@@ -104,6 +132,21 @@ const oyentes = new Set<() => void>()
 let grabador: MediaRecorder | null = null
 let stream: MediaStream | null = null
 let vivoRef: LiveTranscription | null = null
+
+/**
+ * Segundos de RELOJ DE PARED desde que arrancó, pausas incluidas.
+ *
+ * POR QUÉ HAY DOS CONTADORES. `snapshot.segundos` se congela en pausa, que es lo que el vet espera
+ * ver. Pero el tope de 90 minutos no existe para medir la consulta: existe porque un micrófono
+ * tomado toda la tarde es audio de terceros que nadie consintió. Y `MediaRecorder.pause()` NO suelta
+ * el micrófono — deja de capturar, pero el dispositivo sigue tomado y el navegador sigue mostrando
+ * el indicador de grabación.
+ *
+ * O sea que si el tope contara sólo lo grabado, pausar y olvidarse dejaría el micrófono abierto para
+ * siempre: exactamente el fallo que el tope vino a evitar, con un paso de más. El tope se mide con
+ * este contador; el cronómetro que se muestra, con el otro.
+ */
+let segundosDeReloj = 0
 let cronometro: ReturnType<typeof setInterval> | null = null
 let trozos: Blob[] = []
 let params: Parametros | null = null
@@ -178,6 +221,9 @@ function limpiarRecursos(): void {
   stream?.getTracks().forEach((t) => t.stop())
   stream = null
   grabador = null
+  // Si no se reinicia, la siguiente consulta arrancaría con el reloj de la anterior y se cortaría
+  // sola antes de tiempo. `iniciar` también lo pone en cero: acá por si se limpia sin arrancar otra.
+  segundosDeReloj = 0
   desengancharSalida()
   borrarMigaja()
 }
@@ -263,9 +309,12 @@ export const consultaViva = {
       emitir({
         fase: "grabando",
         consultaId: p.consultaId,
+        clinicId: p.clinicId,
+        pacienteId: p.pacienteId ?? null,
         pacienteNombre: p.pacienteNombre ?? null,
         motivo: p.motivo ?? null,
         segundos: 0,
+        pausada: false,
         estable: "",
         provisional: "",
         vivo: live.activa,
@@ -294,14 +343,22 @@ export const consultaViva = {
     engancharSalida()
     dejarMigaja(p.consultaId, p.pacienteNombre ?? null)
 
+    segundosDeReloj = 0
     cronometro = setInterval(() => {
-      const s = snapshot.segundos + 1
-      emitir({ segundos: s })
-      if (s === AVISO_SEGUNDOS) {
-        toast.warning("Llevás 45 minutos grabando. Si la consulta terminó, detené la grabación.")
+      // El reloj de pared corre SIEMPRE, incluso en pausa: es el que gobierna el tope, y el micrófono
+      // sigue tomado mientras se pausa. El cronómetro visible sólo avanza si se está capturando.
+      segundosDeReloj += 1
+      if (!snapshot.pausada) emitir({ segundos: snapshot.segundos + 1 })
+
+      if (segundosDeReloj === AVISO_SEGUNDOS) {
+        toast.warning(
+          snapshot.pausada
+            ? "La consulta lleva 45 minutos abierta y está en pausa. Si terminó, cerrala."
+            : "Llevás 45 minutos grabando. Si la consulta terminó, detené la grabación.",
+        )
       }
-      if (s >= TOPE_SEGUNDOS) {
-        toast.warning("La grabación se detuvo a los 90 minutos. Se guarda todo lo capturado.")
+      if (segundosDeReloj >= TOPE_SEGUNDOS) {
+        toast.warning("La grabación se cerró a los 90 minutos. Se guarda todo lo capturado.")
         void consultaViva.detener()
       }
     }, 1000)
@@ -325,7 +382,9 @@ export const consultaViva = {
     // La fase cambia ANTES de tocar el micrófono. `track.onended` (más arriba) sólo actúa mientras
     // la fase es "grabando": adelantar esto vuelve IMPOSIBLE que el corte de los tracks se reentre
     // como una pérdida de micrófono, en vez de sólo improbable por lo que dice la spec.
-    emitir({ fase: "subiendo" })
+    // `pausada` se apaga acá: se puede cerrar una consulta estando en pausa, y arrastrar el flag
+    // dejaría a la pastilla diciendo "en pausa" mientras sube el audio.
+    emitir({ fase: "subiendo", pausada: false })
 
     // EL ÚLTIMO TROZO NO LLEGA SOLO.
     //
@@ -414,6 +473,46 @@ export const consultaViva = {
       trozos = []
       params = null
     }
+  },
+
+  /**
+   * Pausa la captura sin cerrar la consulta.
+   *
+   * LO PIDIÓ EL CLIENTE, con captura de pantalla: "posibilidad de pausar la consulta". El caso real
+   * es evidente en cuanto se piensa en la jornada: el titular se va a buscar el carnet, entra otra
+   * persona al consultorio, suena el teléfono. Sin pausa las opciones eran grabar eso o cerrar la
+   * consulta y perder el hilo.
+   *
+   * NO SUELTA EL MICRÓFONO, y no puede: `getUserMedia` exige un gesto del usuario para volver a
+   * pedirlo, así que soltarlo haría que reanudar necesitara otro permiso — y en Safari, otro
+   * diálogo. Deja de CAPTURAR, que es lo que importa: ni un byte del tramo en pausa llega al audio
+   * ni a la transcripción.
+   *
+   * EL VIVO PUEDE CAERSE EN UNA PAUSA LARGA. Sin audio, el relé de transcripción puede cerrar el
+   * socket por inactividad. No es pérdida de datos: `marcarCaido` deja `vivo: false` y la consulta
+   * se transcribe entera por lotes al cerrar, que es el camino que ya existía antes del vivo. Se
+   * degrada, no se rompe.
+   */
+  pausar(): void {
+    if (snapshot.fase !== "grabando" || snapshot.pausada) return
+    try {
+      grabador?.pause()
+    } catch {
+      // Un navegador sin `pause` no puede dejar la sesión mintiendo: si no se pausó, no se anuncia.
+      return
+    }
+    emitir({ pausada: true })
+  },
+
+  /** Reanuda la captura. El audio sigue en el mismo blob: la pausa no parte la grabación en dos. */
+  reanudar(): void {
+    if (snapshot.fase !== "grabando" || !snapshot.pausada) return
+    try {
+      grabador?.resume()
+    } catch {
+      return
+    }
+    emitir({ pausada: false })
   },
 
   /** Vuelve a inactiva tras una sesión terminada o fallida, para poder grabar otra. */

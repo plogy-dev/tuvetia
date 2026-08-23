@@ -62,3 +62,38 @@ def load_patient_context(clinic_id: str, patient_id: str,
         medications=meds,
         history_snippets=historia,
     )
+
+
+def load_recent_assessment(clinic_id: str, patient_id: str) -> str | None:
+    """La evaluación clínica más reciente de este paciente, para saber QUÉ buscar.
+
+    PARA QUÉ. Cuando el vet pregunta "¿qué piensas sobre la condición de Manchita?", la condición no
+    está en la pregunta: está acá. Sin esto, el retrieval busca a ciegas y el juez de evidencia
+    abstiene con razón. Ver `app/retrieval/referencial.py`, que documenta el caso con su traza.
+
+    QUÉ DEVUELVE. La `assessment` de la nota más reciente —que es donde el SOAP nombra el cuadro y
+    los diferenciales— y si estuviera vacía, la `subjective`. Nada más: el objetivo es una consulta
+    de búsqueda bien formada, no volcarle la historia entera al modelo.
+
+    DRAFT TAMBIÉN CUENTA. Se ordena por fecha sin filtrar por estado: en el caso que originó esto la
+    nota tenía 55 minutos y estaba en `draft`, porque la aprobación del vet ocurre después. Exigir
+    `approved` dejaría fuera justo la consulta que se acaba de terminar, que es la que el vet tiene
+    en la cabeza cuando pregunta. No hay riesgo de "aprobar por la ventana": esto no entra a la
+    historia clínica ni se cita — sólo orienta la búsqueda.
+
+    `clinic_id` explícito en el JOIN y en las dos tablas: el servicio corre con service_role y se
+    salta RLS (regla 7). `clinical_notes` no tiene `patient_id` propio, cuelga de `consultations`.
+    """
+    rows = fetch_all(
+        "select n.assessment, n.subjective "
+        "from public.clinical_notes n "
+        "join public.consultations c "
+        "  on c.id = n.consultation_id and c.clinic_id = n.clinic_id "
+        "where n.clinic_id = %s and c.patient_id = %s "
+        "order by n.created_at desc limit 1",
+        (clinic_id, patient_id),
+    )
+    if not rows:
+        return None
+    r = rows[0]
+    return (r["assessment"] or "").strip() or (r["subjective"] or "").strip() or None

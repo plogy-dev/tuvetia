@@ -1,4 +1,5 @@
 import * as React from "react"
+import { ArrowUpRight } from "lucide-react"
 
 import { cn } from "@/lib/utils"
 
@@ -13,27 +14,90 @@ export function StatCard({
   label,
   value,
   sub,
+  onVer,
   className,
 }: {
   label: React.ReactNode
   value: React.ReactNode
   /** Pista bajo la cifra: comparación, periodo, unidad. Opcional. */
   sub?: React.ReactNode
+  /**
+   * Qué hacer al tocar la cifra. Con `onVer` la tarjeta pasa a ser un BOTÓN y muestra la flecha.
+   *
+   * EL CLIENTE LO PIDIÓ TRES VECES, y la tercera precisó la forma. El 17-ago: «hacer que los
+   * widgets de estadísticas sean interactivos — hacer clic en "Citas de hoy" para ver la lista».
+   * El 18-ago: «las pastillas de datos en todos los módulos deben ser interactivas, permitiendo
+   * profundizar en los datos». Y el 19-ago, cuando quedó claro que lo obvio era navegar:
+   *
+   *     Luciano: "no que te full redireccione, sino que simplemente sea como una vista más
+   *               directa… como una sub página, como que sea la misma página pero una vista
+   *               más directa"
+   *     Felipe:  "como un mini previo"
+   *
+   * Y tiene razón, por el tablero mismo: la pregunta que dispara una cifra —"¿cuáles son esas 9
+   * citas?"— dura dos segundos, y navegar cuesta perder de vista todo lo demás que se estaba
+   * mirando, que es justamente para lo que existe un tablero. Por eso `onVer` es un callback y no
+   * un `href`: la tarjeta abre una vista rápida encima, y el enlace a la sección baja al pie de
+   * ella (ver `dashboard/vista-de-la-pastilla.tsx`).
+   *
+   * SIN `onVer` LA TARJETA SE QUEDA COMO ESTABA. Hay métricas que no tienen detalle que mostrar, y
+   * fingir que sí —cursor de mano, hover que reacciona— es una promesa que no se cumple al tocar.
+   */
+  onVer?: () => void
   className?: string
 }) {
+  // `button` o `div` según haya detalle que ver. El `as` es porque las dos firmas no coinciden y
+  // TypeScript no puede unificarlas sin ayuda.
+  const Contenedor = (onVer ? "button" : "div") as React.ElementType
+
   return (
     // Forma del `.tv-stat` del mockup: radio de card (12px), padding 24, SIN SOMBRA —el sistema
     // sólo permite una, la de popovers— y la cifra en MONO, no en display. Que el número vaya en
     // mono no es capricho: es la misma regla que gobierna todo el sistema, donde la mono se reserva
     // para valores clínicos y montos, o sea para lo que se lee como dato y no como texto.
-    <div className={cn("flex flex-col gap-2 rounded-xl border border-line bg-card p-6", className)}>
-      <p className="text-[13px] font-medium text-fg-muted">{label}</p>
+    // SIN BORDE Y SOBRE LA SUPERFICIE ELEVADA, no una card más.
+    //
+    // EL PROBLEMA QUE RESUELVE. En el tablero había SEIS cajas con exactamente el mismo
+    // `rounded-xl border bg-card`: las cuatro métricas, el gráfico y la lista de citas. Sin
+    // jerarquía, la pantalla se lee como una grilla de ladrillos y nada dice qué mirar primero —
+    // que es la mitad de lo que el cliente describió como "no me gusta cómo está organizada".
+    //
+    // Una métrica NO es un panel: es un dato suelto. Los paneles (el gráfico, la lista) llevan
+    // borde porque contienen cosas; una métrica es una cifra con su rótulo, y encerrarla en el
+    // mismo marco la pone al mismo nivel de algo que tiene diez filas adentro.
+    //
+    // Queda un solo nivel de contraste —relleno suave contra el fondo— y con eso las cuatro
+    // métricas leen como una FILA de datos, no como cuatro tarjetas compitiendo con los paneles.
+    //
+    // EL RADIO Y EL PADDING NO SE TOCAN: los 12px de card y el padding 24 salen del mockup de David
+    // y siguen valiendo. Lo que cambia es el MARCO, que es donde estaba el problema.
+    <Contenedor
+      {...(onVer ? { type: "button", onClick: onVer } : {})}
+      className={cn(
+        "group flex flex-col gap-2 rounded-xl bg-surface-2 p-6 text-left",
+        onVer &&
+          "transition-colors hover:bg-brand-soft focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none",
+        className,
+      )}
+    >
+      <p className="flex items-center gap-1.5 text-[13px] font-medium text-fg-muted">
+        {label}
+        {/* LA FLECHA ES LA ÚNICA SEÑAL de que la cifra se puede abrir, así que no puede aparecer
+            sólo en hover: en touch no hay hover, y con el dedo no existiría. Vive atenuada y se
+            enciende al pasar por encima. */}
+        {onVer && (
+          <ArrowUpRight
+            aria-hidden
+            className="size-3.5 shrink-0 text-fg-faint transition-colors group-hover:text-brand-text"
+          />
+        )}
+      </p>
       <p className="font-mono text-[28px] font-medium leading-[1.1] tracking-[-0.02em] tabular-nums text-fg">
         {value}
       </p>
       {sub ? (
         <p className="flex items-center gap-1.5 text-[13px] text-fg-muted">{sub}</p>
       ) : null}
-    </div>
+    </Contenedor>
   )
 }

@@ -1,6 +1,7 @@
 import Link from "next/link"
 import { ChevronDownIcon, ChevronRightIcon, GhostIcon, SearchIcon } from "lucide-react"
 
+import { ESTADO_DE_CONSULTA } from "@/lib/consultas/estado"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { EmptyState } from "@/components/ui/empty-state"
@@ -11,17 +12,12 @@ import { createClient } from "@/lib/supabase/server"
 import { bogotaDate } from "@/lib/date-utils"
 import { DataError } from "@/components/data-error"
 import { NewConsultationDrawer } from "@/components/new-consultation-drawer"
+import { FormularioDeFiltros } from "@/components/ui/formulario-de-filtros"
+import { tituloDeLaConsulta } from "@/lib/consultas/titulo"
 
 export const metadata = { title: "Modo Fantasma · Tuvetia" }
 
 
-const CONSULTATION_STATUS: Record<string, string> = {
-  open: "Abierta",
-  transcribing: "Transcribiendo",
-  generating_note: "Generando nota",
-  review: "En revisión",
-  completed: "Completada",
-}
 
 const NOTE_STATUS: Record<
   string,
@@ -40,7 +36,9 @@ type ConsultationRow = {
   // PostgREST devuelve el embed to-one (patient_id -> patients.id) como objeto,
   // pero el query builder no tipado lo infiere como arreglo.
   patient: { id: string; name: string; species: string } | null
-  notes: { id: string; status: string }[] | null
+  // `assessment` y `subjective` son para TITULAR la consulta cuando no hay motivo escrito a mano:
+  // ver `lib/consultas/titulo.ts`. No se muestran acá, sólo alimentan el título.
+  notes: { id: string; status: string; assessment: string | null; subjective: string | null }[] | null
 }
 
 type PatientGroup = {
@@ -87,7 +85,9 @@ export default async function ConsultasPage({
   const { data, error: listError } = await supabase
     .from("consultations")
     .select(
-      "id, status, chief_complaint, started_at, patient:patients(id, name, species), notes:clinical_notes(id, status)"
+      // `assessment` y `subjective` vienen para poder titular la consulta desde la nota cuando no
+      // hay motivo escrito: son dos columnas de una tabla que ya se estaba trayendo.
+      "id, status, chief_complaint, started_at, patient:patients(id, name, species), notes:clinical_notes(id, status, assessment, subjective)"
     )
     .order("started_at", { ascending: false })
     // notes[0] debe ser la nota MÁS RECIENTE: sin esto, PostgREST no garantiza orden y una
@@ -146,7 +146,10 @@ export default async function ConsultasPage({
 
       {/* Filtros: buscador por paciente · estado de la nota · orden por fecha */}
       <div className="mb-5 flex flex-wrap items-center gap-x-4 gap-y-2">
-        <form action="/dashboard/consultas" className="relative">
+        {/* NAVEGA POR EL CLIENTE. Un `<form method="get">` nativo recarga el documento, y esta es
+            LA PANTALLA DEL MODO FANTASMA: buscar una consulta anterior mientras se graba mataba la
+            grabación con el aviso de «¿salir del sitio?». Ver `lib/busqueda-en-la-url.ts`. */}
+        <FormularioDeFiltros action="/dashboard/consultas" className="relative">
           {asc && <input type="hidden" name="orden" value="asc" />}
           {notaF && <input type="hidden" name="nota" value={notaF} />}
           <SearchIcon className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground" />
@@ -157,7 +160,7 @@ export default async function ConsultasPage({
             className="h-8 w-56 pl-8"
             aria-label="Buscar paciente"
           />
-        </form>
+        </FormularioDeFiltros>
 
         <FilterChips label="Nota:">
           {NOTA_FILTERS.map((f) => (
@@ -252,10 +255,14 @@ export default async function ConsultasPage({
                       {fmtDate(c.started_at)}
                     </span>
                     <span className="min-w-0 flex-1 truncate text-sm text-muted-foreground">
-                      {c.chief_complaint ?? "—"}
+                      {tituloDeLaConsulta({
+                        chiefComplaint: c.chief_complaint,
+                        assessment: note?.assessment,
+                        subjective: note?.subjective,
+                      })}
                     </span>
                     <span className="hidden shrink-0 text-xs text-muted-foreground sm:block">
-                      {CONSULTATION_STATUS[c.status] ?? c.status}
+                      {ESTADO_DE_CONSULTA[c.status] ?? c.status}
                     </span>
                     {noteMeta ? (
                       <Badge variant={noteMeta.variant} className="shrink-0 text-xs">
