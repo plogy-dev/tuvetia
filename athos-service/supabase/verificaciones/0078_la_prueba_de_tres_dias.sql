@@ -85,11 +85,17 @@ begin
   -- ── 5. La clínica vieja en free+trial sigue SIN acceso ──────────────────────────────────────
   -- El gate lee `plan`. Que su estado diga 'trial' por el default histórico no le da nada, y el
   -- barrido no la ve porque su plan_renueva_en es null.
+  --
+  -- SE EXCLUYEN LAS TRES FILAS DE ESTA VERIFICACIÓN, y no es cosmético: `subscription_status` tiene
+  -- default `'trial'`, así que la del caso 4 —insertada con `plan_renueva_en` y sin plan— ES una
+  -- fila free+trial+fecha. La primera versión de este check no las excluía, se contaba a sí mismo y
+  -- fallaba siempre. Lo descubrió la corrida real del 23-ago contra el principal.
   select count(*) into v_legacy
     from public.clinics
    where subscription_status = 'trial'
      and plan = 'free'
-     and plan_renueva_en is not null;
+     and plan_renueva_en is not null
+     and id not in (v_nueva, v_deliberada, v_con_fecha);
 
   if v_legacy > 0 then
     raise exception 'FALLA: hay % clínica(s) en free+trial CON fecha — el barrido las tocaría', v_legacy;
