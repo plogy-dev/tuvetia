@@ -11,7 +11,7 @@ import {
   sendInvoiceEmailAction,
 } from '@/lib/facturacion/actions';
 import { MOTIVOS_NOTA_CREDITO } from '@/lib/facturacion/credit-notes';
-import { formatCOP } from '@/lib/facturacion/domain/money';
+import { formatCOP, pesosToCents } from '@/lib/facturacion/domain/money';
 import {
   makeDefaultPlan,
   PaymentSection,
@@ -30,6 +30,7 @@ export function InvoiceActionsPanel({
   status,
   totalCents,
   balanceCents,
+  creditedCents = 0,
   payerEmail,
   payerPhone,
   payerName,
@@ -44,6 +45,11 @@ export function InvoiceActionsPanel({
   status: string;
   totalCents: number;
   balanceCents: number;
+  /**
+   * Lo ya acreditado por notas crédito anteriores. Sin este dato el panel no puede decir la verdad:
+   * el servidor acredita `total - ya acreditado`, y la pantalla anunciaba el total entero.
+   */
+  creditedCents?: number;
   payerEmail?: string | null;
   payerPhone?: string | null;
   payerName?: string | null;
@@ -68,6 +74,10 @@ export function InvoiceActionsPanel({
   const [alcance, setAlcance] = useState<'todo' | 'parte'>('todo');
   const [montoPesos, setMontoPesos] = useState('');
   const [notice, setNotice] = useState<string | null>(null);
+  // Lo que el servidor va a acreditar de verdad: `anularFactura` calcula `total - ya acreditado`.
+  // La pantalla anunciaba el total entero, así que después de una parcial prometía un importe que
+  // no iba a emitir — y si el vet lo escribía en el campo, el servidor se lo rechazaba.
+  const acreditableCents = Math.max(0, totalCents - creditedCents);
 
   const [plan, setPlan] = useState<PaymentPlan>(() => makeDefaultPlan(defaultTermsDays));
   const [payMethod, setPayMethod] = useState<'EFECTIVO' | 'TRANSFERENCIA'>('EFECTIVO');
@@ -86,7 +96,10 @@ export function InvoiceActionsPanel({
     return digits ? `https://wa.me/${digits}?text=${text}` : `https://wa.me/?text=${text}`;
   }
 
-  function run(fn: () => Promise<{ ok: boolean; error?: string; msg?: string }>) {
+  function run(
+    fn: () => Promise<{ ok: boolean; error?: string; msg?: string }>,
+    alExito?: () => void,
+  ) {
     setError(null);
     setNotice(null);
     startTransition(async () => {
@@ -96,6 +109,7 @@ export function InvoiceActionsPanel({
         return;
       }
       if (r.msg) setNotice(r.msg);
+      alExito?.();
       router.refresh();
     });
   }
@@ -310,7 +324,11 @@ export function InvoiceActionsPanel({
                 {alcance === 'todo' ? (
                   <p className="text-xs text-fg-muted">
                     Se emite una <b className="text-fg">nota crédito</b> por{' '}
-                    <b className="text-fg">{formatCOP(totalCents)}</b> que anula {fullNumber ?? 'esta factura'}.
+                    <b className="text-fg">{formatCOP(acreditableCents)}</b> que anula{' '}
+                    {fullNumber ?? 'esta factura'}.
+                    {creditedCents > 0 && (
+                      <> Ya se acreditaron <b className="text-fg">{formatCOP(creditedCents)}</b> antes.</>
+                    )}
                     Consume un consecutivo propio y <b className="text-fg">no se puede deshacer</b>.
                     {balanceCents === 0 && (
                       <> El pago ya recibido <b className="text-fg">no se borra</b>: queda como saldo a favor del cliente.</>
@@ -327,7 +345,7 @@ export function InvoiceActionsPanel({
                         inputMode="numeric"
                         value={montoPesos}
                         onChange={(e) => setMontoPesos(e.target.value.replace(/[^0-9]/g, ''))}
-                        placeholder={String(Math.round(totalCents / 100))}
+                        placeholder={String(Math.round(acreditableCents / 100))}
                         className="mt-1 w-full rounded-lg border border-line bg-surface px-3 py-2 text-sm text-fg"
                       />
                     </div>
@@ -384,7 +402,7 @@ export function InvoiceActionsPanel({
                           invoiceId,
                           motivo,
                           detalle,
-                          montoCents: alcance === 'parte' ? Number(montoPesos) * 100 : null,
+                          montoCents: alcance === 'parte' ? pesosToCents(Number(montoPesos)) : null,
                         });
                         return r.ok
                           ? {
@@ -394,7 +412,20 @@ export function InvoiceActionsPanel({
                                 : `Nota crédito ${r.fullNumber} por ${formatCOP(r.totalCents)} — quedan ${formatCOP(r.acreditableRestante)} acreditables`,
                             }
                           : { ok: false, error: r.error };
-                      })
+                      },
+                      // SE CIERRA EL FORMULARIO AL EMITIR, y no es cosmético. Una PARCIAL deja la
+                      // factura EMITIDA, así que todo este bloque se vuelve a pintar con la caja
+                      // abierta, el monto escrito y el botón habilitado: un segundo clic —de
+                      // alguien que no vio el aviso— emitía otra nota crédito, quemaba otro
+                      // consecutivo DIAN y acreditaba de más. El servidor ya no puede frenarlo: la
+                      // guarda de "esta factura ya tiene una nota" se fue con las parciales.
+                      () => {
+                        setAnulando(false);
+                        setMontoPesos('');
+                        setAlcance('todo');
+                        setDetalle('');
+                      },
+                    )
                     }
                     className="inline-flex items-center gap-2 rounded-lg border border-warn bg-surface px-4 py-2 text-sm font-medium text-warn hover:bg-surface-2 transition disabled:opacity-60"
                   >

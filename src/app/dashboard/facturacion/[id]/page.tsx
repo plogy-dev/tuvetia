@@ -286,6 +286,7 @@ export default async function FacturaDetallePage({
               status={invoice.status}
               totalCents={invoice.total_cents}
               balanceCents={invoice.balance_cents}
+              creditedCents={invoice.credited_cents ?? 0}
               payerEmail={payer?.email ?? null}
               payerPhone={payer?.phone ?? null}
               payerName={payer?.name ?? null}

@@ -133,12 +133,19 @@ export async function anularFactura(
   //
   // Se consulta ANTES de tocar el rango, por lo mismo de siempre: un consecutivo consumido no se
   // devuelve. Y también es lo que impide que dos clics acrediten dos veces.
-  const { data: previas } = await supabase
+  const { data: previas, error: previasErr } = await supabase
     .from('credit_notes')
     .select('total_cents')
     .eq('clinic_id', clinicId)
     .eq('invoice_id', invoice.id)
     .eq('status', 'EMITIDA');
+  // SE REVISA EL ERROR, y no es ceremonia. Sin esto un SELECT fallido dejaba `previas` en null,
+  // `yaAcreditado` en 0 y `acreditable` en el total entero: una factura ya acreditada por completo
+  // habría aceptado otra nota por todo su valor. Todas las demás lecturas de esta función miran su
+  // error; la única que no lo hacía era justo la que cuida la plata.
+  if (previasErr) {
+    throw new Error(`No se pudo leer lo ya acreditado de esta factura: ${previasErr.message}`);
+  }
   const yaAcreditado = (previas ?? []).reduce(
     (acc, n) => acc + Number((n as { total_cents: number }).total_cents),
     0,
@@ -258,10 +265,18 @@ export async function anularFactura(
           .eq('id', invoice.payer_id)
           .maybeSingle()
       : Promise.resolve({ data: null }),
+    // EL CUFE DE LA FACTURA, y por eso el `neq`. Las notas crédito se registran en esta misma
+    // tabla con el `invoice_id` de la factura que corrigen, así que "el documento más reciente de
+    // esta factura" deja de ser la factura en cuanto existe una nota: la SEGUNDA parcial se le
+    // mandaba a la DIAN referenciando el CUFE de la PRIMERA nota en vez del de la factura.
+    //
+    // Con una sola nota por factura el defecto era inalcanzable. Habilitar las parciales lo volvió
+    // el camino normal.
     supabase
       .from('fiscal_documents')
       .select('cufe')
       .eq('invoice_id', invoice.id)
+      .neq('doc_kind', 'NOTA_CREDITO')
       .order('created_at', { ascending: false })
       .limit(1)
       .maybeSingle(),

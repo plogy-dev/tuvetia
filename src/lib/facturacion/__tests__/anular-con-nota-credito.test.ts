@@ -39,15 +39,25 @@ function clienteFalso(opts: {
   movimientos?: Array<{ item_id: string; lot_id: string | null; qty: number }>;
   rango?: Record<string, unknown> | null;
   rpcFalla?: boolean;
+  /** La lectura de las notas ya emitidas se cae. */
+  previasFallan?: boolean;
 }) {
   const escrituras: Escritura[] = [];
   const rpcs: string[] = [];
+  /** Filtros aplicados por tabla: `fiscal_documents` → `neq:doc_kind=NOTA_CREDITO`. */
+  const filtros: Record<string, string[]> = {};
 
   const cliente = {
     from(tabla: string) {
       let conteo = false;
       const nodo: Record<string, unknown> = {};
       for (const m of ['eq', 'order', 'limit', 'not', 'in']) nodo[m] = () => nodo;
+      // `neq` se anota además de encadenar: es la diferencia entre pedir el CUFE de la FACTURA y
+      // pedir el de la última nota crédito, y sin registrarlo no hay forma de afirmarlo.
+      nodo.neq = (col: string, val: unknown) => {
+        (filtros[tabla] ??= []).push(`neq:${col}=${String(val)}`);
+        return nodo;
+      };
 
       nodo.select = (_c?: string, o?: { head?: boolean }) => {
         conteo = Boolean(o?.head);
@@ -77,6 +87,9 @@ function clienteFalso(opts: {
       nodo.then = (resolver: (v: unknown) => unknown) => {
         if (conteo) return resolver({ data: null, count: 0, error: null });
         if (tabla === 'credit_notes') {
+          if (opts.previasFallan) {
+            return resolver({ data: null, error: { message: 'permission denied' } });
+          }
           return resolver({ data: (opts.acreditadas ?? []).map((c) => ({ total_cents: c })), error: null });
         }
         if (tabla === 'inventory_movements') return resolver({ data: opts.movimientos ?? [], error: null });
@@ -92,7 +105,7 @@ function clienteFalso(opts: {
     },
   };
 
-  return { cliente: cliente as unknown as SupabaseClient, escrituras, rpcs };
+  return { cliente: cliente as unknown as SupabaseClient, escrituras, rpcs, filtros };
 }
 
 const FACTURA_EMITIDA = {
@@ -335,5 +348,35 @@ describe('la nota crédito PARCIAL', () => {
     const r = await anularFactura(cliente, 'c1', { invoiceId: 'inv-1', motivo: 'ANULACION' });
     expect(r.anulada).toBe(true);
     expect(r.totalCents).toBe(100_000);
+  });
+});
+
+// ── Lo que encontró el review del 23-ago, el mismo día que las parciales entraron a producción ──
+describe('los defectos que trajeron las parciales', () => {
+  // EL CUFE TIENE QUE SER EL DE LA FACTURA. Las notas crédito se registran en `fiscal_documents`
+  // con el `invoice_id` de la factura que corrigen, así que "el documento más reciente de esta
+  // factura" deja de ser la factura en cuanto existe una nota: la SEGUNDA parcial se le mandaba a
+  // la DIAN referenciando el CUFE de la PRIMERA nota. Con una sola nota por factura era
+  // inalcanzable; con parciales es el camino normal.
+  it('la nota crédito referencia el CUFE de la FACTURA, no el de la nota anterior', async () => {
+    const { cliente, filtros } = clienteFalso({ factura: FACTURA_EMITIDA, acreditadas: [30_000] });
+    await anularFactura(cliente, 'clinic-1', { invoiceId: 'inv-1', motivo: 'ANULACION', montoCents: 10_000 });
+    expect(
+      filtros.fiscal_documents ?? [],
+      'sin excluir las notas crédito, se referencia la nota anterior en vez de la factura',
+    ).toContain('neq:doc_kind=NOTA_CREDITO');
+  });
+
+  // LA GUARDA DE LA PLATA REVISA SU PROPIO ERROR. Sin esto, un SELECT fallido dejaba `previas` en
+  // null, `yaAcreditado` en 0 y `acreditable` en el total entero: una factura ya acreditada por
+  // completo habría aceptado otra nota por todo su valor. Todas las demás lecturas de la función
+  // miran su error; la única que no lo hacía era justo ésta.
+  it('si no se puede leer lo ya acreditado, NO se acredita a ciegas', async () => {
+    const { cliente, rpcs } = clienteFalso({ factura: FACTURA_EMITIDA, previasFallan: true });
+    await expect(
+      anularFactura(cliente, 'clinic-1', { invoiceId: 'inv-1', motivo: 'ANULACION' }),
+    ).rejects.toThrow(/no se pudo leer lo ya acreditado/i);
+    // Y corta ANTES del consecutivo: un número quemado no se devuelve.
+    expect(rpcs).toEqual([]);
   });
 });
