@@ -1,4 +1,4 @@
-import { cookies } from "next/headers"
+import { cookies, headers } from "next/headers"
 import { redirect } from "next/navigation"
 
 import { AppSidebar } from "@/components/app-sidebar"
@@ -9,6 +9,7 @@ import { TabBarMovil } from "@/components/tab-bar-movil"
 import { OnboardingTour } from "@/components/onboarding-tour"
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar"
 import { sesionDelServidor } from "@/lib/supabase/sesion"
+import { crearMarcas } from "@/lib/perf/marcas"
 import { progresoDeConfiguracion } from "@/lib/onboarding/consultar"
 import { AthosProvider } from "@/components/athos/athos-provider"
 import { AthosDock } from "@/components/athos/athos-dock"
@@ -23,11 +24,27 @@ export default async function DashboardLayout({
 }: {
   children: React.ReactNode
 }) {
+  // ── INSTRUMENTACIÓN, temporal y sin costo para nadie ────────────────────────────────────────
+  //
+  // Mide en qué se van los ~800 ms de piso que tiene toda navegación del dashboard. Se activa SÓLO
+  // con la cabecera `x-perf: 1`, que ningún navegador manda solo: un usuario real nunca entra por
+  // este camino y no paga ni una comparación de más. Los números salen en un `data-perf` del nodo
+  // raíz, que aparece en el payload RSC y se puede leer con un `fetch` desde el navegador.
+  //
+  // Existe porque la tanda anterior estimó la mejora en 300-400 ms y midió 100: el modelo mental de
+  // dónde estaba el costo era incorrecto, y adivinar dos veces seguidas no es un método.
+  const midiendo = (await headers()).get("x-perf") === "1"
+  const { marcar, ahora, texto: marcasTexto } = crearMarcas(midiendo)
+  const t0 = ahora()
+
   // UNA sola validación de sesión por request: `sesionDelServidor` está memoizada con `cache()`, así
   // que este `getUser()` y el de la página que se esté cargando son el mismo viaje de red. Antes
   // eran dos (tres con el middleware), encadenados.
+  const tSesion = ahora()
   const { supabase, user } = await sesionDelServidor()
+  marcar("sesion", tSesion)
 
+  const tPerfil = ahora()
   const profile = user
     ? (
         await supabase
@@ -53,6 +70,7 @@ export default async function DashboardLayout({
           .single()
       ).data
     : null
+  marcar("perfil", tPerfil)
 
   // Vet nuevo (creador de clínica) sin el wizard completado -> a /bienvenida. Los invitados nunca
   // caen aquí (accept_invitation marca setup_completed_at) ni los usuarios preexistentes (backfill 0017).
@@ -110,6 +128,15 @@ export default async function DashboardLayout({
   // No cambia el renderizado: este layout ya era dinámico porque `createClient()` lee cookies.
   const sidebarOpen = (await cookies()).get("sidebar_state")?.value === "true"
 
+  // Se hoistea del JSX (estaba en línea, más abajo) para poder medirlo. Se awaiteaba igual durante
+  // el render, así que el orden efectivo es el mismo. Adentro hay MÁS de lo que su nombre sugiere:
+  // `requireClinicPage()` rehace `getUser()` y vuelve a consultar `profiles` —el mismo dato que
+  // este layout ya trajo tres líneas arriba— y recién después lanza sus seis conteos en paralelo.
+  const tProgreso = ahora()
+  const progreso = (await progresoDeConfiguracion()).porcentaje
+  marcar("progreso", tProgreso)
+  marcar("total", t0)
+
   return (
     <SidebarProvider
       className="app-theme"
@@ -121,6 +148,7 @@ export default async function DashboardLayout({
         } as React.CSSProperties
       }
     >
+      {midiendo && <span hidden data-perf={marcasTexto()} />}
       {/* `AthosProvider` envuelve el panel entero porque el widget necesita saber en qué pantalla
           está el vet. Sólo expone lo que se deriva de la RUTA, que cambia cuando el árbol se
           re-renderiza igual — nada mutable vive acá. El estado del widget vive en `AthosDock`, que
@@ -145,7 +173,7 @@ export default async function DashboardLayout({
           variant="inset"
           user={sidebarUser}
           clinic={sidebarClinic}
-          progresoConfiguracion={(await progresoDeConfiguracion()).porcentaje}
+          progresoConfiguracion={progreso}
         />
         <OnboardingTour onboarded={Boolean((profile as { onboarded_at?: string | null } | null)?.onboarded_at)} />
         {/* UN SOLO ESTADO DE LA CONSULTA VIVA para las dos superficies que la muestran: el notch,
