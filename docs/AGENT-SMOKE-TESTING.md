@@ -165,9 +165,11 @@ Se declara explícitamente para que nadie lea la suite como más cobertura de la
 5. **Que el modelo OBEDEZCA el párrafo anti-inyección.** §5 fija que la instrucción está escrita, no
    que el modelo la cumple: eso es comportamiento, y un prompt no es una garantía. Lo que sí es
    garantía es lo de siempre —ninguna escritura ocurre sin que un humano la apruebe (§1)—, así que
-   el residuo es acotado y conocido: una propuesta **verosímil** aprobada de apuro. Medirlo de
-   verdad pide un banco de casos adversarios (un correo con una orden adentro, y observar si el
-   agente la cita o la ejecuta), que hoy no existe y es el siguiente paso natural de este documento.
+   el residuo es acotado y conocido: una propuesta **verosímil** aprobada de apuro.
+   **Para medirlo ya existe el instrumento** (`AGENTE-ADVERSARIOS.md`, construido el 23-ago): 7
+   ataques por inyección y 3 controles, con juez determinístico. No corre acá porque llama a un
+   modelo real. ⚠️ **Al 23-ago está construido pero sin correr** —no hay credencial de proveedor en
+   la máquina— así que sobre esta pregunta seguimos sin cifra.
 
 ## Suite complementaria: smoke e2e contra el despliegue real
 
