@@ -346,6 +346,32 @@ vets estén en ese dominio, acceso de admin a la consola y a Google Cloud, y SPF
   Cubre la anulación TOTAL. La nota crédito **parcial** —corregir un importe sin anular— sigue sin
   construirse y es lo que queda de esta funcionalidad.
 
+- 🟡 **Los acuses de WhatsApp nunca llegan: todo mensaje enviado se queda en un solo check.**
+  Encontrado el 23-ago recorriendo Comunicaciones. Medido: **0 de 3.491** salientes tienen
+  `delivered_at` o `read_at` — incluidos los 13 que mandó Tuvetia, no sólo los del espejo del
+  teléfono del vet.
+
+  La cadena está casi entera y le falta un eslabón: la bandeja LEE los dos campos y pinta el tick
+  correspondiente (`inbox.tsx:561-569`), el webhook de **Meta** los ESCRIBE (`whatsapp/webhook`,
+  rama `value.statuses`)… pero producción corre **Evolution**, y ahí
+  `EVOLUTION_WEBHOOK_EVENTS = ["MESSAGES_UPSERT", "CONNECTION_UPDATE"]` — sin `MESSAGES_UPDATE`, que
+  es por donde Evolution manda los acuses. El webhook de Evolution tampoco lo manejaría: sólo tiene
+  esos dos `if`.
+
+  **Lo cosmético:** en el lenguaje de WhatsApp un solo check es "enviado, sin acuse", así que no
+  miente — pero tampoco avanza nunca.
+  **Lo que sí importa:** un envío que Evolution ACEPTA y después no entrega (número inexistente,
+  bloqueado) llega por ese mismo evento. Hoy es invisible. Los fallos SINCRÓNICOS sí se ven —
+  `whatsapp/send` los clasifica y se los devuelve al vet.
+
+  El arreglo son dos mitades: sumar `MESSAGES_UPDATE` a la suscripción y manejar el evento mapeando
+  el ACK de Evolution (`SERVER_ACK` / `DELIVERY_ACK` / `READ` / `ERROR`) a los campos que la bandeja
+  ya lee. NO se hizo el 23-ago a propósito: la forma exacta del payload de Evolution no se pudo
+  verificar contra una instancia viva, y escribir un handler adivinando la forma horas antes de una
+  entrega es la clase de cosa que parece hecha y no lo está. Si no calza, no rompe nada (actualiza
+  por `wa_message_id`, así que no encuentra fila y no hace nada) — pero tampoco sirve, y quedaría
+  dando la impresión contraria.
+
 - ⚠️ **Plantillas de correo en Supabase** (config, no código): son **DOS** —"Magic Link" y
   "Confirm signup"—, porque `signInWithOtp` manda una u otra según si el correo ya tiene cuenta.
   Texto exacto y verificación en `docs/CONFIGURAR-MAGIC-LINK.md`.
