@@ -66,9 +66,13 @@ function archivosDe(dir: string, out: string[] = []): string[] {
 }
 
 describe("embeds de PostgREST sobre relaciones ambiguas", () => {
-  const archivos = [...archivosDe("src/app"), ...archivosDe("src/lib")].filter(
-    (f) => !f.includes("__tests__"),
-  )
+  // `src/components` entra: un componente de SERVIDOR consulta igual que una página, y dejarlo
+  // fuera era un agujero del propio cerrojo.
+  const archivos = [
+    ...archivosDe("src/app"),
+    ...archivosDe("src/lib"),
+    ...archivosDe("src/components"),
+  ].filter((f) => !f.includes("__tests__"))
 
   it("todo embed de `clinics` nombra por qué clave embebe", () => {
     const infractores: string[] = []
@@ -79,8 +83,15 @@ describe("embeds de PostgREST sobre relaciones ambiguas", () => {
         // prosa para explicarla, y marcarla sería ruido que enseña a ignorar este test.
         const limpia = linea.trim()
         if (limpia.startsWith("//") || limpia.startsWith("*") || limpia.startsWith("/*")) continue
-        // `algo:clinics(` sin un `!clave` entre la tabla y el paréntesis.
-        for (const m of limpia.matchAll(/([a-z_][a-z0-9_]*):clinics(!?\w*)\(/gi)) {
+        // `clinics(` con o SIN alias. La primera versión exigía `algo:` delante, y `clinics(name,
+        // logo_url, plan)` a secas —que PostgREST acepta igual y es igual de ambiguo— pasaba en
+        // verde: alguien escribiendo la forma corta volvía a tumbar la app con la suite entera
+        // contenta. Se pide un `!clave` entre la tabla y el paréntesis, haya alias o no.
+        // Sin `i` y con frontera de palabra, y las dos por el mismo motivo: los nombres de tabla
+        // de PostgREST son minúsculas, así que buscar sin distinguir mayúsculas marcaba
+        // `barrerClinics(` y `remitenteDeClinicSender(` —funciones de TypeScript que no consultan
+        // nada— y un test que grita sobre código sano enseña a ignorarlo.
+        for (const m of limpia.matchAll(/(?:([a-z_][a-z0-9_]*):)?\bclinics(!?\w*)\(/g)) {
           if (!m[2].startsWith("!")) {
             infractores.push(`${archivo}:${i + 1}  ${m[0]}  → falta !profiles_clinic_id_fkey`)
           }

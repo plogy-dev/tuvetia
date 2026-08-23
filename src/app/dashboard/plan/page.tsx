@@ -3,6 +3,7 @@ import { PageHeader, PageShell } from "@/components/ui/page-shell"
 import { GestionDelPlan } from "@/components/planes/gestion-del-plan"
 import { historialDeCobros, planDeLaClinica } from "@/lib/suscripcion/consultar"
 import { precioProCentavos } from "@/lib/planes/precio"
+import { diasDePruebaRestantes } from "@/lib/planes"
 import { wompiConfigurado } from "@/lib/wompi/config"
 import { formatCOP, fmtDate } from "@/lib/facturacion/format"
 
@@ -53,6 +54,11 @@ export default async function PlanPage() {
       />
 
       <GestionDelPlan
+        // EL DÍA SE CUENTA ACÁ, en el servidor. `diasDePruebaRestantes` cae a `new Date()`, y
+        // llamarla dentro del render de un componente de cliente es la misma lectura impura que
+        // `lib/perf/marcas.ts` existe para evitar — con un agravante propio: en un render de las
+        // 23:59:59 el servidor y la hidratación cuentan días distintos y React reporta desajuste.
+        diasDePrueba={diasDePruebaRestantes(estadoDelPlan.renuevaEn)}
         plan={estadoDelPlan.plan}
         estado={estadoDelPlan.estado}
         renuevaEn={estadoDelPlan.renuevaEn}

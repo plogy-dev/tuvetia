@@ -26,10 +26,12 @@ begin
        values (v_clinic, 'EMITIDA', 'POS', 100000, 100000) returning id into v_invoice;
 
   -- ── 1. DOS PARCIALES QUE SUMAN EXACTO: tienen que entrar ────────────────────────────────────
-  insert into public.credit_notes (clinic_id, invoice_id, status, total_cents, reason_code)
-       values (v_clinic, v_invoice, 'EMITIDA', 60000, 'ANULACION');
-  insert into public.credit_notes (clinic_id, invoice_id, status, total_cents, reason_code)
-       values (v_clinic, v_invoice, 'EMITIDA', 40000, 'ANULACION');
+  -- `reason_text` es NOT NULL sin default, igual que `reason_code`. La primera versión de esta
+  -- verificación lo omitía y moría en el primer insert sin llegar a ejercitar el trigger.
+  insert into public.credit_notes (clinic_id, invoice_id, status, total_cents, reason_code, reason_text)
+       values (v_clinic, v_invoice, 'EMITIDA', 60000, 'ANULACION', 'Verificación 0079');
+  insert into public.credit_notes (clinic_id, invoice_id, status, total_cents, reason_code, reason_text)
+       values (v_clinic, v_invoice, 'EMITIDA', 40000, 'ANULACION', 'Verificación 0079');
 
   select count(*) = 2 into v_ok
     from public.credit_notes where invoice_id = v_invoice and status = 'EMITIDA';
@@ -39,8 +41,8 @@ begin
 
   -- ── 2. UN PESO DE MÁS NO ENTRA ──────────────────────────────────────────────────────────────
   begin
-    insert into public.credit_notes (clinic_id, invoice_id, status, total_cents, reason_code)
-         values (v_clinic, v_invoice, 'EMITIDA', 1, 'ANULACION');
+    insert into public.credit_notes (clinic_id, invoice_id, status, total_cents, reason_code, reason_text)
+         values (v_clinic, v_invoice, 'EMITIDA', 1, 'ANULACION', 'Verificación 0079');
     raise exception 'FALLA: se pudo acreditar por encima del total de la factura';
   exception when check_violation then
     null; -- Correcto: es lo que tiene que pasar.
@@ -49,8 +51,8 @@ begin
   -- ── 3. UNA NOTA NO EMITIDA NO CUENTA ────────────────────────────────────────────────────────
   -- Un borrador no acredita nada. Si contara, dos borradores dejarían la factura sin poder
   -- acreditarse aunque no se haya emitido una sola nota.
-  insert into public.credit_notes (clinic_id, invoice_id, status, total_cents, reason_code)
-       values (v_clinic, v_invoice, 'BORRADOR', 50000, 'ANULACION');
+  insert into public.credit_notes (clinic_id, invoice_id, status, total_cents, reason_code, reason_text)
+       values (v_clinic, v_invoice, 'BORRADOR', 50000, 'ANULACION', 'Verificación 0079');
 
   raise exception 'VERIFICACION 0079 OK — los 3 casos pasaron. Todo revertido.';
 end $$;
