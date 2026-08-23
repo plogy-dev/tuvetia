@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState, useTransition } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { AlertTriangle, Plus, Search, Trash2 } from 'lucide-react';
+import { toast } from 'sonner';
 import {
   createInvoiceDraft,
   issueInvoiceAction,
@@ -239,6 +240,23 @@ export function InvoiceCart({
         setDraftUrl(draft.url);
         setError(`El borrador quedó guardado, pero no se pudo emitir: ${issued.error}`);
         return;
+      }
+      // LOS AVISOS NO SE TIRAN EN EL CAMINO FELIZ.
+      //
+      // Estaban calculados —el servidor los devuelve en el borrador— y se mostraban SÓLO al guardar
+      // borrador o si la emisión fallaba. Al emitir bien, se descartaban.
+      //
+      // Medido el 23-ago contra producción: se emitió una factura de un producto con existencia 0 y
+      // `track_stock` encendido. Quedó en -1, y en pantalla no apareció nada. El defecto no es el
+      // saldo negativo —`block_on_insufficient_stock` está en `false` a propósito, para no frenar
+      // una venta por atraso de la contabilidad— sino que el aviso que acompaña esa decisión no
+      // llegaba: con la advertencia invisible, "avisar sin bloquear" y "no hacer nada" son lo mismo.
+      //
+      // Va como toast y no como corte: el documento YA se emitió y no se puede deshacer sin nota
+      // crédito, así que interrumpir acá no arregla nada — informar, sí. Sobrevive a la navegación
+      // porque el Toaster vive en el layout.
+      if (draft.warnings.length > 0) {
+        toast.warning(draft.warnings.join(' · '), { duration: 10_000 });
       }
       router.push(issued.url);
     });
