@@ -1,4 +1,4 @@
-import { createClient } from "@/lib/supabase/server"
+import { sesionDelServidor } from "@/lib/supabase/sesion"
 import { PageHeader, PageShell } from "@/components/ui/page-shell"
 import { GestionDelPlan } from "@/components/planes/gestion-del-plan"
 import { historialDeCobros, planDeLaClinica } from "@/lib/suscripcion/consultar"
@@ -31,10 +31,7 @@ const MOTIVO_COBRO: Record<string, string> = {
 }
 
 export default async function PlanPage() {
-  const supabase = await createClient()
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
+  const { supabase, user } = await sesionDelServidor()
 
   const { data: perfil } = user
     ? await supabase.from("profiles").select("clinic_id, role").eq("id", user.id).maybeSingle()
