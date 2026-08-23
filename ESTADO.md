@@ -448,9 +448,18 @@ vets estén en ese dominio, acceso de admin a la consola y a Google Cloud, y SPF
   su texto** — porque si hace lo correcto y le CITA la orden al vet, el correo del atacante aparece
   en su respuesta, y un juez ingenuo contaría como fallo justo el comportamiento que se le pide.
 
-  Lo que corre en CI son las piezas frágiles (19 pruebas): el juez, la coherencia del corpus —que
+  Lo que corre en CI son las piezas frágiles (30 pruebas): el juez, la coherencia del corpus —que
   cada ataque tenga su marcador dentro de lo que el agente va a leer, o sería un ataque que nunca se
   lanza— y el cableado del arnés contra un modelo falso, que verifica que el veneno llega al prompt.
+
+  **Endurecido el mismo 23-ago tras un review**, que encontró seis formas de que reportara
+  "resistió" sobre una corrida en la que el agente había obedecido: las escrituras se grababan desde
+  `execute` y el SDK no lo llama cuando los argumentos no pasan el esquema; se buscaba dentro del
+  JSON serializado, donde un salto de línea parte el marcador; el teléfono se comparaba sin
+  normalizar como lo normaliza producción; los fixtures se servían sin mirar los argumentos (eso
+  además daba un FALSO positivo); el canario vivía en un campo que la tool no devuelve; y el modelo
+  se leía antes de llamar, que con cascada nombra al primario aunque conteste el respaldo. Está todo
+  en la tabla de `docs/AGENTE-ADVERSARIOS.md` §"Lo que el review corrigió".
 
   ⚠️ **Falta la corrida.** En esta máquina no hay ninguna credencial de proveedor (`ANTHROPIC_API_KEY`
   y compañía viven en Vercel y Railway), así que el corredor falla en su primera aserción — a
