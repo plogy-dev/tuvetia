@@ -16,15 +16,12 @@ from app.models import (
     RetrievedChunkLite,
     TranscribeRequest,
     TranscribeResponse,
-    WhatsappSuggestRequest,
-    WhatsappSuggestResponse,
 )
 from app.live_intelligence import analizar as analizar_en_vivo
 from app.patient_context import load_patient_context
 from app.phantom import suggest as phantom_suggest_service
 from app.streaming_transcription import run_live_session
 from app.transcription import transcribe as transcribe_service
-from app.whatsapp_reply import suggest_reply
 from app.chat import stream_answer
 from app.generation.evidence_judge import judge_evidence
 from app.retrieval.cascade import build_and_retrieve
@@ -149,19 +146,6 @@ async def athos_transcribe_live(ws: WebSocket):
     exactamente como antes. Protocolo y decisiones: `app/streaming_transcription.py`.
     """
     await run_live_session(ws, autenticar=_auth_token)
-
-
-@app.post("/athos/whatsapp/suggest", response_model=WhatsappSuggestResponse)
-def athos_whatsapp_suggest(body: WhatsappSuggestRequest,
-                           authorization: str | None = Header(default=None)):
-    """Borrador de respuesta de WhatsApp para la bandeja (agent_mode=review).
-
-    Athos redacta; el vet edita y aprueba antes de enviar — este endpoint NUNCA envía.
-    Guardrails en el prompt: sin claims clinicos cerrados, sin inventar datos de la clinica.
-    """
-    _user_id, _clinic_id = _auth(authorization, body.clinic_id)
-    draft = suggest_reply([m.model_dump() for m in body.messages], body.owner_name)
-    return WhatsappSuggestResponse(draft=draft)
 
 
 @app.post("/athos/live", response_model=LiveResponse)
