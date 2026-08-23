@@ -35,10 +35,19 @@ function leer(ruta: string): string {
 const TABLERO = leer("app/dashboard/tablero/page.tsx")
 const DETALLE = leer("app/api/tablero/detalle/route.ts")
 const VISTA = leer("components/dashboard/vista-de-la-pastilla.tsx")
+const PACIENTES = leer("app/dashboard/patients/page.tsx")
 
-/** Las claves que la página le pasa a cada pastilla. */
+/**
+ * Las claves que las páginas le pasan a sus pastillas.
+ *
+ * SON DOS PANTALLAS desde el 22-ago: el tablero y Pacientes. Se escanean juntas a propósito — el
+ * acuerdo que este archivo protege es "toda cifra que se abre tiene quién la responda", y no
+ * depende de en qué pantalla esté.
+ */
 function clavesDelTablero(): string[] {
-  return [...TABLERO.matchAll(/metrica:\s*"([a-z0-9-]+)"/g)].map((m) => m[1])
+  return [TABLERO, PACIENTES].flatMap((f) =>
+    [...f.matchAll(/metrica:\s*"([a-z0-9-]+)"/g)].map((m) => m[1]),
+  )
 }
 
 /** Las claves que el endpoint sabe atender. */
@@ -58,7 +67,7 @@ describe("las pastillas del tablero y su detalle", () => {
   it("cada pastilla de la página tiene quién le responda el detalle", () => {
     const enPagina = clavesDelTablero()
     // Si esto queda en cero, el resto del archivo pasa sin mirar nada.
-    expect(enPagina.length).toBeGreaterThanOrEqual(4)
+    expect(enPagina.length).toBeGreaterThanOrEqual(8)
     const enEndpoint = clavesDelEndpoint()
     for (const clave of enPagina) {
       expect(enEndpoint, `la pastilla "${clave}" abre una vista que el endpoint no sabe llenar`).toContain(
@@ -115,8 +124,37 @@ describe("las pastillas del tablero y su detalle", () => {
     // tarjeta volvería a navegar. La tarjeta de cifra no enlaza a ningún lado, punto.
     expect(TARJETA).not.toContain("href")
     expect(TARJETA).not.toContain("next/link")
-    // Y la página tiene que pasarle las pastillas al componente que abre la vista.
+    // Y las páginas tienen que pasarle las pastillas al componente que abre la vista. Pacientes
+    // usaba `<StatCard>` suelto —cifras que no se podían tocar—, que es el estado al que no hay
+    // que volver.
     expect(TABLERO).toContain("<PastillasDelTablero")
+    expect(PACIENTES).toContain("<PastillasDelTablero")
+    expect(PACIENTES).not.toContain("<StatCard")
+  })
+
+  it("los pacientes activos excluyen a los fallecidos de los dos lados", () => {
+    // La tarjeta SIEMPRE dijo "Pacientes activos" y contaba todos. Hoy no se nota porque no hay
+    // ninguno marcado; el día que lo haya, la cifra habría empezado a mentir sin que nada fallara.
+    expect(PACIENTES).toMatch(/is_deceased["']?,\s*false/)
+    expect(ramaDelEndpoint("pacientes-activos")).toMatch(/is_deceased["']?,\s*false/)
+  })
+
+  it("las consultas en revisión miran la consulta, no la nota", () => {
+    // Es parecida a `notas-borrador` del tablero y NO es lo mismo: aquélla mira
+    // `clinical_notes.status`, ésta `consultations.status`. Confundirlas daría dos cifras que se
+    // parecen y no coinciden.
+    const rama = ramaDelEndpoint("consultas-revision")
+    expect(rama).toContain('from("consultations")')
+    expect(rama).toMatch(/status["']?,\s*["']review["']/)
+  })
+
+  it("las citas de Pacientes son las de HOY, no las de siete días", () => {
+    // La ventana del tablero es de 7 días y la de esta pantalla es el día. Reusar la métrica del
+    // tablero habría sido lo cómodo y habría mostrado once citas bajo una cifra que dice tres.
+    const rama = ramaDelEndpoint("citas-hoy")
+    expect(rama).toContain("inicioDelDia")
+    expect(rama).toContain("finDelDia")
+    expect(rama).not.toContain("enSieteDias")
   })
 
   it("el endpoint rechaza una métrica que no conoce", () => {

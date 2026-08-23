@@ -30,7 +30,17 @@ import {
 } from "@/components/ui/dialog"
 import { bogotaDateTime } from "@/lib/date-utils"
 
-export type MetricaDelTablero = "consultas-mes" | "pacientes" | "citas-7d" | "notas-borrador"
+// Las del tablero, más las cuatro de la pantalla de Pacientes. El nombre del tipo se queda: son
+// las métricas que saben abrirse en vista rápida, vengan de donde vengan.
+export type MetricaDelTablero =
+  | "consultas-mes"
+  | "pacientes"
+  | "citas-7d"
+  | "notas-borrador"
+  | "pacientes-activos"
+  | "citas-hoy"
+  | "consultas-revision"
+  | "pacientes-nuevos-mes"
 
 type Fila = { id: string; titulo: string; detalle: string | null; cuando: string | null }
 
@@ -55,6 +65,28 @@ const DESTINOS: Record<MetricaDelTablero, { fila: (id: string) => string; todo: 
     fila: (id) => `/dashboard/consultas/${id}`,
     todo: "/dashboard/consultas?nota=draft",
     verTodo: "Ver los borradores",
+  },
+
+  // ── Las de Pacientes ──────────────────────────────────────────────────────────────────────────
+  "pacientes-activos": {
+    fila: (id) => `/dashboard/patients/${id}`,
+    todo: "/dashboard/patients",
+    verTodo: "Ver todos los pacientes",
+  },
+  "citas-hoy": {
+    fila: () => "/dashboard/calendario",
+    todo: "/dashboard/calendario",
+    verTodo: "Ver la agenda",
+  },
+  "consultas-revision": {
+    fila: (id) => `/dashboard/consultas/${id}`,
+    todo: "/dashboard/consultas",
+    verTodo: "Ver las consultas",
+  },
+  "pacientes-nuevos-mes": {
+    fila: (id) => `/dashboard/patients/${id}`,
+    todo: "/dashboard/patients",
+    verTodo: "Ver todos los pacientes",
   },
 }
 
