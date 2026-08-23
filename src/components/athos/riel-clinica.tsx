@@ -3,6 +3,11 @@
 import { useState, useSyncExternalStore } from "react"
 import Link from "next/link"
 
+import { preferenciaPlegada } from "@/lib/ui/preferencia-plegada"
+
+/** Si el vet dejó el riel plegado. Ver `lib/ui/preferencia-plegada`. */
+const PLEGADO = preferenciaPlegada("tuvetia:riel-clinica-plegado")
+
 // "La clínica hoy" — el riel de 320px que acompaña a la conversación de Athos.
 //
 // Es el tablero, reducido a lo que se puede leer sin dejar de conversar. El mockup lo dibuja así a
@@ -12,7 +17,7 @@ import Link from "next/link"
 //
 // Server component: los datos los pasa la página, ya resueltos.
 
-import { ChevronDown } from "lucide-react"
+import { ChevronDown, PanelLeftOpen, PanelRightClose } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { estadoDelCupo, proporcionUsada, type CupoVisible } from "@/lib/cupo"
 import { formatCOP } from "@/lib/facturacion/format"
@@ -267,8 +272,50 @@ export function RielClinica({
    */
   mostrarDinero: boolean
 }) {
+  // SE PLIEGA A LA DERECHA, y se acuerda. Es la misma molestia que el historial de la barra y las
+  // métricas del tablero: una columna de 320px que está siempre y que a veces estorba. Quien la
+  // cierra no quiere que vuelva sola en cada navegación.
+  const plegado = useSyncExternalStore(
+    PLEGADO.suscribir,
+    PLEGADO.leer,
+    PLEGADO.enElServidor,
+  )
+
+  // PLEGADO NO ES DESMONTADO. La columna se queda con el ancho de la solapa en vez de desaparecer:
+  // si el riel se fuera del todo, el hilo de Athos se ensancharía de golpe y volver a abrirlo
+  // reflowearía la conversación entera. Además el botón tiene que seguir en algún lado.
+  if (plegado) {
+    return (
+      <aside className="hidden shrink-0 flex-col items-center border-l border-line py-4 xl:flex">
+        <button
+          type="button"
+          onClick={() => PLEGADO.escribir(false)}
+          aria-label="Mostrar el resumen de la clínica"
+          aria-expanded={false}
+          title="Mostrar el resumen de la clínica"
+          className="grid size-8 place-items-center rounded-[7px] text-fg-faint transition-colors hover:bg-fg/5 hover:text-fg focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+        >
+          <PanelLeftOpen className="size-4" aria-hidden />
+        </button>
+      </aside>
+    )
+  }
+
   return (
     <aside className="hidden w-80 shrink-0 flex-col gap-6 overflow-auto border-l border-line p-5 xl:flex">
+      {/* La solapa va ARRIBA DEL TODO y alineada a la derecha: es el borde por el que se pliega, y
+          ponerla al pie obligaría a bajar hasta el final para cerrar algo que estorba arriba. */}
+      <button
+        type="button"
+        onClick={() => PLEGADO.escribir(true)}
+        aria-label="Ocultar el resumen de la clínica"
+        aria-expanded
+        title="Ocultar el resumen de la clínica"
+        className="-mb-2 -mr-1 -mt-1 ml-auto grid size-8 shrink-0 place-items-center rounded-[7px] text-fg-faint transition-colors hover:bg-fg/5 hover:text-fg focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+      >
+        <PanelRightClose className="size-4" aria-hidden />
+      </button>
+
       {/* EL RESUMEN DEL DÍA, arriba de todo: es lo primero que se lee al abrir la app.
           Va SIN encabezado propio — un rótulo "Resumen del día" encima de dos frases es más
           cromo que contenido, y el texto ya empieza diciendo de qué habla. */}
