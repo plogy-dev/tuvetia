@@ -38,10 +38,16 @@ export default async function DashboardLayout({
           //
           // LA CLÍNICA VIENE EMBEBIDA, y ése es el segundo viaje que se elimina. Antes se consultaba
           // aparte y NO podía empezar hasta tener el `clinic_id` de acá: dos round-trips en cadena
-          // donde Postgres resuelve el join en uno. Mismo patrón que usa `clinica-de-la-sesion.ts`.
-          // Si la RLS niega la clínica, el embed llega `null` — que es lo que ya se contemplaba.
+          // donde Postgres resuelve el join en uno.
+          //
+          // ⚠️ `!profiles_clinic_id_fkey` NO ES OPCIONAL. Hay DOS claves foráneas entre `profiles` y
+          // `clinics` —`profiles.clinic_id` y `clinics.owner_id`— así que sin nombrar cuál se usa,
+          // PostgREST no puede resolver el embed y falla. Con `.single()` eso devuelve `data: null`,
+          // el perfil queda vacío, `estadoDeAcceso` lo lee como "sin onboarding" y el layout manda a
+          // /bienvenida: la app entera deja de abrir. Pasó en producción el 23-ago por omitir esta
+          // pista. `clinica-de-la-sesion.ts` ya la traía; acá se había perdido al copiar el patrón.
           .select(
-            "full_name, onboarded_at, clinic_id, setup_completed_at, role, is_active, clinic:clinics(name, logo_url, plan)",
+            "full_name, onboarded_at, clinic_id, setup_completed_at, role, is_active, clinic:clinics!profiles_clinic_id_fkey(name, logo_url, plan)",
           )
           .eq("id", user.id)
           .single()
