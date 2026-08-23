@@ -331,6 +331,13 @@ vets estén en ese dominio, acceso de admin a la consola y a Google Cloud, y SPF
   pregunta de fondo sigue abierta: generar sola cuesta una llamada al modelo por consulta cerrada, la
   capacidad es de Pro, y hay consultas que se graban y se abandonan. Medido antes del arreglo: cuatro
   consultas atascadas de cuatro días distintos, todas con transcript y ninguna con nota.
+- 🟡 **Correo masivo de una clínica a SUS clientes** (pedido el 22-ago). Evaluado y planeado en
+  `docs/PLAN-CORREO-A-CLIENTES.md`; sin construir. Media función ya existe —la cartera le escribe a
+  los titulares, así que transporte, identidad del remitente y manejo de fallos están resueltos— y **la
+  baja ya está** (migración 0077 + `/baja/[token]`, 22-ago). Falta la audiencia acotada, el envío
+  —que debe llamar a `sinLosDeBaja` y poner el enlace en el pie— y los rebotes. Se
+  recomienda arrancarlo DESPUÉS de la entrega: el dominio remitente es uno solo para todas las
+  clínicas, y una lista sucia le arruina la entregabilidad al resto.
 - ⚠️ **Template de email "Magic Link" en Supabase** (config, no código): debe emitir
   `{{ .SiteURL }}/auth/confirm?token_hash={{ .TokenHash }}&type=email&next=/dashboard`. Si sigue
   con `{{ .ConfirmationURL }}` (PKCE `?code=`), el magic link puede "no hacer nada" al abrirse en
