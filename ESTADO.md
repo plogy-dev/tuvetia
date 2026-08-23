@@ -372,6 +372,30 @@ vets estén en ese dominio, acceso de admin a la consola y a Google Cloud, y SPF
   por `wa_message_id`, así que no encuentra fila y no hace nada) — pero tampoco sirve, y quedaría
   dando la impresión contraria.
 
+- 🟡 **`calendar_integrations` guarda 3 `refresh_token` de Google de un camino que ya no existe.**
+  Encontrado el 23-ago recorriendo Conexiones.
+
+  El calendario migró a Composio; `google-calendar.ts` y `microsoft-calendar.ts` están **borrados**,
+  y la tabla no aparece en ninguna consulta del código — sólo en dos comentarios que la mencionan
+  como el camino viejo. Pero las tres filas siguen ahí, **las tres con `refresh_token`**: un refresh
+  token de Google da acceso continuado al calendario de esa persona hasta que se revoque.
+
+  **El riesgo es latente, no activo** —misma forma que el hallazgo de `appointments_importadas_respaldo`
+  de la auditoría del 18-ago—: la RLS está encendida con sus cuatro policies, y ni `anon` ni
+  `authenticated` tienen `SELECT` sobre la tabla (el grant es `awdDxtm`, sin la `r`). O sea que hoy
+  no las lee nadie desde el cliente. Lo que molesta es que sean credenciales **sin ningún propósito**:
+  el día que alguien corra un `grant select ... to authenticated`, o que se filtre una service_role,
+  son tres calendarios ajenos abiertos por nada.
+
+  Lo que corresponde: borrar las filas, y —para que sea completo— revocar los tokens del lado de
+  Google, porque borrarlos de la base no los invalida. Después, evaluar si la tabla misma sobra.
+
+  Lo que NO es un hallazgo, y conviene que quede escrito para que nadie lo "arregle": que ninguna
+  integración tenga canal de escucha (`channel_id` null en las tres) es **deliberado**. El calendario
+  es de UNA SOLA VÍA a propósito — `composio/calendario.ts` lo explica: el *pull* que existió trajo
+  19.649 filas del calendario personal de un vet ("Comer", "Dormir") contra 21 citas reales. No es un
+  filtro que falte: es que el canal no debe existir.
+
 - ⚠️ **Plantillas de correo en Supabase** (config, no código): son **DOS** —"Magic Link" y
   "Confirm signup"—, porque `signInWithOtp` manda una u otra según si el correo ya tiene cuenta.
   Texto exacto y verificación en `docs/CONFIGURAR-MAGIC-LINK.md`.
