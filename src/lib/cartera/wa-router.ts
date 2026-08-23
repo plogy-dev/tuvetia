@@ -157,6 +157,7 @@ export async function applyCarteraInbound(
         ownerId: owner.id,
         sentBy: null,
         agentMode: 'auto',
+        origen: 'athos',
       });
     } catch (e) {
       console.error('[cartera/wa-router] no se pudo responder:', e);

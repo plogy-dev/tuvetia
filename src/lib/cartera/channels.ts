@@ -104,12 +104,12 @@ export class RealMessaging implements MessagingPort {
         ownerId: msg.ownerId ?? null,
         sentBy: null, // lo envió el motor de cartera, no un humano
         agentMode: 'auto',
+        origen: 'athos', // el motor eligió el destinatario, no una persona
       });
       return { ok: true, provider: 'whatsapp', providerMessageId: waMessageId, status: 'ENVIADO' };
     } catch (e) {
-      // EL DESTINO NO ESTÁ REGISTRADO. Es el único camino automático que la guarda puede frenar:
-      // `auto-reply` y `wa-router` responden al número que ACABA de escribir, así que por la regla
-      // (b) nunca los bloquea. Cartera sí escribe primero, a un pagador que puede no estar cargado.
+      // EL DESTINO NO ESTÁ REGISTRADO como titular. Cartera le escribe a un pagador que puede no
+      // estar cargado en el CRM, y eso es Athos escribiendo — el cerco aplica.
       //
       // SE TRADUCE A FALLO NO TRANSITORIO, y eso no es un detalle de tipos: `transient: false` es
       // lo que hace que el scheduler abra una tarea `MENSAJE_NO_ENTREGADO` (§ `procesarRecordatorios`)
