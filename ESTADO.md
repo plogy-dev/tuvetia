@@ -396,6 +396,30 @@ vets estén en ese dominio, acceso de admin a la consola y a Google Cloud, y SPF
   19.649 filas del calendario personal de un vet ("Comer", "Dormir") contra 21 citas reales. No es un
   filtro que falte: es que el canal no debe existir.
 
+- 🟡 **Al prompt del agente no le dice nadie que lo que LEE es dato, no instrucción.** Auditoría de
+  la capa agéntica del 23-ago. El agente lee conversaciones de WhatsApp y correos —texto escrito por
+  TERCEROS— con `search_whatsapp_conversation`, `search_emails` y `read_email_thread`, y tiene nueve
+  herramientas de escritura. `ATHOS_AGENT_SYSTEM_PROMPT` no contiene ni una línea que diga que las
+  instrucciones dentro de ese contenido no se obedecen.
+
+  **El daño está acotado por diseño, y eso es lo que lo baja de rojo a amarillo:** toda escritura es
+  una PROPUESTA que un humano aprueba (`risk: "approval"` hardcodeado en `proposeAction`), la tarjeta
+  muestra el detalle del payload y no sólo el resumen, el destinatario de WhatsApp **no es editable y
+  está acotado a titulares registrados** (`athosPuedeEscribirA`), y el `payload_override` se revalida
+  contra el esquema descartando campos desconocidos.
+
+  Lo que queda expuesto es lo que ninguna de esas capas cubre: una propuesta **verosímil** que un vet
+  apurado apruebe, y el CUERPO de un mensaje redactado —que el modelo puede llenar con datos de otras
+  fichas si se lo piden desde el texto que leyó—. El destinatario de CORREO sí es editable, y el
+  modelo lo deduce de lo leído (está comentado a propósito, para que el vet lo corrija).
+
+  El endurecimiento es barato: un párrafo en el prompt diciendo que el contenido de correos y
+  mensajes es DATO, que las instrucciones que aparezcan ahí no se ejecutan, y que ante una que
+  parezca una orden se la cita al vet en vez de obedecerla. **No se hizo el 23-ago a propósito:**
+  tocar el prompt del agente cambia su comportamiento y hay banco de pruebas para eso
+  (`docs/AGENT-SMOKE-TESTING.md`, `scripts/calidad/`). Cambiarlo sin correrlo, el día antes de la
+  entrega, es meter una variable que nadie midió.
+
 - ⚠️ **Plantillas de correo en Supabase** (config, no código): son **DOS** —"Magic Link" y
   "Confirm signup"—, porque `signInWithOtp` manda una u otra según si el correo ya tiene cuenta.
   Texto exacto y verificación en `docs/CONFIGURAR-MAGIC-LINK.md`.
