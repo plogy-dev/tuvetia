@@ -62,22 +62,49 @@ export async function listCatalogItems(
     categoryId?: string;
   } = {},
 ): Promise<CatalogItemRow[]> {
-  let q = supabase
-    .from('catalog_items')
-    .select('*')
-    .eq('clinic_id', clinicId)
-    .order('name', { ascending: true })
-    .limit(500);
-  if (!opts.includeInactive) q = q.eq('active', true);
-  if (opts.itemType) q = q.eq('item_type', opts.itemType);
-  if (opts.categoryId) q = q.eq('category_id', opts.categoryId);
-  if (opts.query?.trim()) {
-    const term = `%${opts.query.trim()}%`;
-    q = q.or(`name.ilike.${term},sku.ilike.${term},barcode.ilike.${term}`);
+  // PAGINA, no corta. Antes era un `.limit(500)` pelado, y el truncamiento no se veía por ningún
+  // lado: ni error, ni aviso, ni un "500 de 812" en pantalla.
+  //
+  // DÓNDE MUERDE PEOR: el export de inventario a Excel (`api/facturacion/inventario/export`) llama
+  // acá con `includeInactive`. Un catálogo de 800 ítems salía como un archivo de 500 que parece
+  // completo — y ese archivo se usa para inventariar y para contabilidad. Además lo usan el
+  // selector de la factura nueva, compras, movimientos y la pantalla de inventario: en todas, los
+  // ítems que faltan simplemente no existen.
+  //
+  // Y APARECE JUSTO DESPUÉS DE IMPORTAR. Una clínica que sube su catálogo por Excel es la que más
+  // ítems tiene y la que va a contarlos: importa 800, ve 500, y concluye que la importación perdió
+  // 300.
+  //
+  // Es el mismo truncamiento silencioso de `getDashboardKpis` y `getStockMap` —el `max-rows` de
+  // PostgREST es 1000 y pedir más devuelve mil SIN error— con la misma receta. Ésta es la tercera.
+  //
+  // El `.order('id')` de desempate es lo que hace estable la paginación: `name` puede repetirse
+  // (dos presentaciones del mismo producto) y sin un segundo criterio Postgres no garantiza que la
+  // página 2 no repita filas de la 1.
+  const PAGE = 1000;
+  const todos: CatalogItemRow[] = [];
+  for (let from = 0; ; from += PAGE) {
+    let q = supabase
+      .from('catalog_items')
+      .select('*')
+      .eq('clinic_id', clinicId)
+      .order('name', { ascending: true })
+      .order('id')
+      .range(from, from + PAGE - 1);
+    if (!opts.includeInactive) q = q.eq('active', true);
+    if (opts.itemType) q = q.eq('item_type', opts.itemType);
+    if (opts.categoryId) q = q.eq('category_id', opts.categoryId);
+    if (opts.query?.trim()) {
+      const term = `%${opts.query.trim()}%`;
+      q = q.or(`name.ilike.${term},sku.ilike.${term},barcode.ilike.${term}`);
+    }
+    const { data, error } = await q;
+    if (error) throw new Error(`No se pudo listar el catálogo: ${error.message}`);
+    const filas = (data as CatalogItemRow[]) ?? [];
+    todos.push(...filas);
+    if (filas.length < PAGE) break;
   }
-  const { data, error } = await q;
-  if (error) throw new Error(`No se pudo listar el catálogo: ${error.message}`);
-  return (data as CatalogItemRow[]) ?? [];
+  return todos;
 }
 
 export async function getCatalogItems(

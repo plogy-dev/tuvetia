@@ -1,5 +1,5 @@
 /**
- * Las dos lecturas de `queries.ts` que suman: la plata del mes y las existencias.
+ * Las lecturas de `queries.ts` que se truncan solas: la plata del mes, las existencias y el catálogo.
  *
  * POR QUÉ ESTE ARCHIVO. `queries.ts` tiene 1017 líneas, es la capa donde vive el dinero, y no tenía
  * **un solo test**. El `domain/` de al lado tiene diecisiete. La diferencia no es casual: el dominio
@@ -27,7 +27,7 @@
 import { describe, expect, it } from "vitest"
 import type { SupabaseClient } from "@supabase/supabase-js"
 
-import { getDashboardKpis, getStockMap } from "@/lib/facturacion/queries"
+import { getDashboardKpis, getStockMap, listCatalogItems } from "@/lib/facturacion/queries"
 
 /** Un filtro aplicado, para poder exigir el aislamiento por clínica. */
 type Filtro = { tabla: string; columna: string; valor: unknown }
@@ -62,7 +62,13 @@ function clienteFalso(respuestas: Respuestas, filtros: Filtro[] = []) {
         const todas = respuestas[tabla] ?? []
         // `head: true` no trae filas: sólo el conteo, como PostgREST.
         if (conteo) return resolver({ data: null, count: todas.length, error: null })
-        return resolver({ data: todas.slice(desde, hasta + 1), error: null })
+        // EL `max-rows` DE POSTGREST, QUE ES EL PUNTO ENTERO DE ESTE ARCHIVO: por más que se pidan
+        // 5.000 filas, PostgREST devuelve MIL y no avisa. Sin este tope el falso sería más generoso
+        // que producción, y un test sobre una consulta que trunca pasaría en verde — que es justo
+        // lo que pasó con `listCatalogItems`.
+        const MAX_ROWS = 1000
+        const fin = Math.min(hasta + 1, desde + MAX_ROWS)
+        return resolver({ data: todas.slice(desde, fin), error: null })
       }
       return nodo
     },
@@ -180,3 +186,40 @@ describe("getStockMap suma todos los movimientos", () => {
     expect(filtros).toContainEqual({ tabla: "inventory_movements", columna: "clinic_id", valor: CLINICA })
   })
 })
+
+describe("listCatalogItems trae el catálogo entero, no la primera página", () => {
+  const item = (i: number) => ({ id: `it-${i}`, name: `Item ${i}`, active: true })
+
+  it("un catálogo chico llega completo", async () => {
+    const filtros: Filtro[] = []
+    const items = await listCatalogItems(
+      clienteFalso({ catalog_items: [item(1), item(2)] }, filtros),
+      CLINICA,
+    )
+
+    expect(items).toHaveLength(2)
+    // Y sigue acotado a la clínica en CADA página: un filtro que se aplicara sólo a la primera
+    // dejaría entrar el catálogo de otra clínica a partir de la fila 1001.
+    expect(filtros.every((f) => f.columna !== "clinic_id" || f.valor === CLINICA)).toBe(true)
+  })
+
+  // EL QUE JUSTIFICA EL ARREGLO. Antes era un `.limit(500)` pelado: 812 ítems salían como 500, sin
+  // error y sin aviso. El export de inventario a Excel llama acá — o sea que el archivo que se usa
+  // para inventariar y para contabilidad venía cortado y parecía completo.
+  it("con 2.500 ítems no se queda en las primeras mil", async () => {
+    const muchos = Array.from({ length: 2_500 }, (_, i) => item(i))
+    const items = await listCatalogItems(clienteFalso({ catalog_items: muchos }), CLINICA, {
+      includeInactive: true,
+    })
+
+    expect(items).toHaveLength(2_500)
+    // Sin repetir: una paginación sin orden estable devuelve filas de la página anterior.
+    expect(new Set(items.map((i) => i.id)).size).toBe(2_500)
+  })
+
+  it("justo en el borde de una página no pide una de más ni pierde la última fila", async () => {
+    const mil = Array.from({ length: 1_000 }, (_, i) => item(i))
+    expect(await listCatalogItems(clienteFalso({ catalog_items: mil }), CLINICA)).toHaveLength(1_000)
+  })
+})
+
