@@ -338,30 +338,39 @@ vets estén en ese dominio, acceso de admin a la consola y a Google Cloud, y SPF
   —que debe llamar a `sinLosDeBaja` y poner el enlace en el pie— y los rebotes. Se
   recomienda arrancarlo DESPUÉS de la entrega: el dominio remitente es uno solo para todas las
   clínicas, y una lista sucia le arruina la entregabilidad al resto.
-- 🔴 **Una factura emitida NO SE PUEDE CORREGIR: la nota crédito no existe.** Encontrado el 23-ago
-  intentando anular una factura de prueba recién emitida.
+- ~~**Una factura emitida NO SE PUEDE CORREGIR: la nota crédito no existe**~~ — **RESUELTO el
+  23-ago.** `src/lib/facturacion/credit-notes.ts` + `anularFacturaAction` + el bloque "Anular con
+  nota crédito" en la factura emitida. Sin migración: la base ya tenía todo (tabla con su CHECK de
+  motivos DIAN, rango `NOTA_CREDITO` admitido, `CREDIT_NOTE_APPLIED` y `DEVOLUCION` en sus CHECKs, y
+  `submitCreditNote` implementado en el sandbox) — faltaba sólo el caso de uso.
+  Cubre la anulación TOTAL. La nota crédito **parcial** —corregir un importe sin anular— sigue sin
+  construirse y es lo que queda de esta funcionalidad.
 
-  Lo que hay: la tabla **`credit_notes`** (con `invoice_id`, `numbering_range_id`, `full_number`,
-  `reason_code`, `reason_text`, `total_cents`) y el prefijo de numeración `SNC` en
-  `facturacion/constants.ts`. **Eso es todo.** `credit_notes` no aparece en NINGUNA línea de código:
-  nadie la lee ni la escribe. Lo único que pone `status='ANULADA'` en el repo es el módulo de
-  **compras**, no el de facturas. La pantalla de una factura emitida ofrece enviar por correo, por
-  WhatsApp e imprimir, y nada más.
+- 🟡 **Los acuses de WhatsApp nunca llegan: todo mensaje enviado se queda en un solo check.**
+  Encontrado el 23-ago recorriendo Comunicaciones. Medido: **0 de 3.491** salientes tienen
+  `delivered_at` o `read_at` — incluidos los 13 que mandó Tuvetia, no sólo los del espejo del
+  teléfono del vet.
 
-  Por qué importa más de lo que parece: la propia pantalla de emisión advierte *"Emitir asigna
-  consecutivo y transmite el documento — solo se corrige con nota crédito"*, y el inventario de
-  entrega lista *"motivos de nota crédito"* entre el andamiaje. Las dos cosas apuntan a una salida
-  que no está construida. **Si en una demo se emite algo con un error, no hay arreglo** — ni siquiera
-  marcarla anulada.
+  La cadena está casi entera y le falta un eslabón: la bandeja LEE los dos campos y pinta el tick
+  correspondiente (`inbox.tsx:561-569`), el webhook de **Meta** los ESCRIBE (`whatsapp/webhook`,
+  rama `value.statuses`)… pero producción corre **Evolution**, y ahí
+  `EVOLUTION_WEBHOOK_EVENTS = ["MESSAGES_UPSERT", "CONNECTION_UPDATE"]` — sin `MESSAGES_UPDATE`, que
+  es por donde Evolution manda los acuses. El webhook de Evolution tampoco lo manejaría: sólo tiene
+  esos dos `if`.
 
-  Tamaño real, para que no se subestime: numeración propia con su rango `SNC` (misma RPC de
-  consecutivo), motivos DIAN en `reason_code`, efecto sobre `balance_cents` y sobre la cartera del
-  titular, reversa del movimiento de inventario, su documento imprimible, y la nota crédito parcial
-  además de la total. No es una pantalla: es el reverso de la emisión.
+  **Lo cosmético:** en el lenguaje de WhatsApp un solo check es "enviado, sin acuse", así que no
+  miente — pero tampoco avanza nunca.
+  **Lo que sí importa:** un envío que Evolution ACEPTA y después no entrega (número inexistente,
+  bloqueado) llega por ese mismo evento. Hoy es invisible. Los fallos SINCRÓNICOS sí se ven —
+  `whatsapp/send` los clasifica y se los devuelve al vet.
 
-  Mientras no exista: en una demo, emitir sólo a propósito. Una factura de prueba se limpia por SQL
-  —y ojo, `fiscal_documents` y `payment_applications` apuntan con `RESTRICT`, así que hay que
-  borrarlas antes; los `invoice_events` caen por cascade.
+  El arreglo son dos mitades: sumar `MESSAGES_UPDATE` a la suscripción y manejar el evento mapeando
+  el ACK de Evolution (`SERVER_ACK` / `DELIVERY_ACK` / `READ` / `ERROR`) a los campos que la bandeja
+  ya lee. NO se hizo el 23-ago a propósito: la forma exacta del payload de Evolution no se pudo
+  verificar contra una instancia viva, y escribir un handler adivinando la forma horas antes de una
+  entrega es la clase de cosa que parece hecha y no lo está. Si no calza, no rompe nada (actualiza
+  por `wa_message_id`, así que no encuentra fila y no hace nada) — pero tampoco sirve, y quedaría
+  dando la impresión contraria.
 
 - ⚠️ **Plantillas de correo en Supabase** (config, no código): son **DOS** —"Magic Link" y
   "Confirm signup"—, porque `signInWithOtp` manda una u otra según si el correo ya tiene cuenta.
