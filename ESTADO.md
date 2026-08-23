@@ -341,9 +341,16 @@ vets estén en ese dominio, acceso de admin a la consola y a Google Cloud, y SPF
 - **`payload_override` no se revalida**: `/api/athos/actions/[id]/execute` mergea lo que mande el
   cliente sobre el payload propuesto sin volver a pasarlo por el schema del tool. Lo ejecuta un vet
   autenticado bajo su propia sesión (la RLS acota el alcance), pero conviene revalidar.
-- **Modo auto: ventana de duplicado**: en `auto-reply.ts:72` la idempotencia se consulta ANTES de
-  llamar al modelo y la fila se escribe DESPUÉS de enviar. Un reintento del webhook dentro de esa
-  ventana manda dos respuestas. Mismo patrón que se corrigió en las acciones de Athos (0028).
+- ~~**Modo auto: ventana de duplicado**~~ — **YA ESTABA ARREGLADO cuando se escribió esta línea.**
+  El defecto era real: la idempotencia se consultaba contra `athos_actions`, cuya fila se escribe
+  DESPUÉS de enviar, así que entre el chequeo y la escritura —debounce más modelo— un reintento del
+  webhook colaba una segunda respuesta al titular. Se cerró el **29-jul en `a64cfdc`** con un
+  compare-and-set sobre `auto_reply_claimed_at` (migración `0038`, columna verificada en el
+  principal el 22-ago). La entrada quedó acá casi un mes describiendo un bug que ya no existía.
+  Lo que sí faltaba —y se agregó el 22-ago— es un test que proteja el arreglo:
+  `src/lib/__tests__/auto-reply-no-duplica.test.ts` fija el `.is(…, null)`, el `.select()` y, sobre
+  todo, que la reserva ocurra ANTES de llamar al modelo. Sin eso se podía deshacer sin que nada
+  fallara, y el síntoma sólo aparece con un reintento real del webhook.
 - **`POST /athos/whatsapp/suggest` quedó sin llamadores**: la bandeja migró al agente de Next
   (`/api/athos/suggest-reply`). El endpoint sigue vivo en athos-service y `athosWhatsappSuggest` en
   `src/lib/athos.ts` también. Decidir con el equipo si se borra.
