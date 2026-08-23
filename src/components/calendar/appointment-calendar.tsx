@@ -45,7 +45,6 @@ import {
 import { HelpTip } from "@/components/help-tip"
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 import { citasVisibles, deOtros, sinAsignar, type FiltroDeAgenda } from "@/lib/agenda/filtro"
-import { IcsFeedButton } from "./ics-feed-button"
 import {
   AgendaEventContent,
   CalendarToolbar,
@@ -364,7 +363,6 @@ export function AppointmentCalendar({
               {huerfanas} sin asignar
             </span>
           )}
-          <IcsFeedButton />
           <Button onClick={newAppointment}>
             <PlusIcon /> Nueva cita
           </Button>
