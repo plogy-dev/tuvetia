@@ -215,7 +215,17 @@ export default async function FacturacionPage() {
           </div>
         )}
 
-        {/* ── Stat row ── */}
+        {/* ── Stat row ──
+            NO SE PINTA SI LA CLÍNICA NUNCA FACTURÓ. Cuatro tarjetas en «$ 0» sobre una pantalla
+            sin datos no informan: compiten con lo único que hay que hacer ahí, que es crear la
+            primera factura. Es el mismo criterio que el doc de facturación ya fijaba para el
+            tablero —«un $ 0 inventado se lee como un dato malo, no como un módulo apagado»— y que
+            esta pantalla no estaba aplicando.
+
+            La condición mira las TRES fuentes, no la lista: `invoices` puede venir vacía por un
+            filtro y las cifras seguir teniendo sentido. Con cero emitidas, cero borradores y cero
+            filas, no hay nada que resumir. */}
+        {(invoices.length > 0 || issuedCount > 0 || drafts > 0) && (
         <div className="mb-[22px] grid gap-3 [grid-template-columns:repeat(auto-fit,minmax(200px,1fr))]">
           <StatCard
             label={`Facturado en ${monthName}`}
@@ -247,13 +257,21 @@ export default async function FacturacionPage() {
             sub="por emitir"
           />
         </div>
+        )}
 
         {/* ── Tabla de facturas ── */}
         <div className="mb-[14px] overflow-hidden rounded-lg border border-line-soft bg-card">
           {invoices.length === 0 ? (
-            <div className="flex flex-col items-center gap-3 px-4 py-10 text-center">
-              <p className="text-sm text-fg-faint">Todavía no hay facturas.</p>
-              <Button render={<Link href="/dashboard/facturacion/nueva" />} variant="outline">
+            <div className="flex flex-col items-center gap-2 px-4 py-12 text-center">
+              <p className="text-base font-medium text-fg">Todavía no facturaste nada</p>
+              {/* QUÉ VA A PASAR AL APRETAR, dicho antes de apretar. El primer paso de «Nueva
+                  factura» es un buscador, no una factura, y sin avisarlo se lee como que el botón
+                  llevó a otro lado. */}
+              <p className="max-w-sm text-sm text-fg-muted">
+                Empezás eligiendo el paciente o el titular —o una venta de mostrador— y desde ahí
+                armás la factura.
+              </p>
+              <Button render={<Link href="/dashboard/facturacion/nueva" />} className="mt-2">
                 <Plus aria-hidden />
                 Crear la primera factura
               </Button>

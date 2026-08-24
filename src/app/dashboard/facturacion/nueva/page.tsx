@@ -92,6 +92,12 @@ export default async function NuevaFacturaPage({ searchParams }: { searchParams:
               Cambiar cliente
             </Link>
             <h1 className="text-2xl font-semibold tracking-tight text-fg">Nueva factura</h1>
+            {/* El paso 2 tenía EXACTAMENTE el mismo encabezado que el 1. Con el título repetido, la
+                única señal de haber avanzado era que el contenido cambió. */}
+            <p className="mt-1 text-sm text-fg-muted">
+              <span className="font-medium text-fg">Paso 2 de 2 · Qué le cobrás</span> Agregá
+              servicios o productos del catálogo, o escribí líneas libres.
+            </p>
           </header>
           {items.length === 0 && (
             <p className="mb-5 rounded-xl border border-line bg-surface-2 px-4 py-3 text-sm text-fg-muted">
@@ -172,8 +178,13 @@ export default async function NuevaFacturaPage({ searchParams }: { searchParams:
             Facturación
           </Link>
           <h1 className="text-2xl font-semibold tracking-tight text-fg">Nueva factura</h1>
-          <p className="mt-1 text-sm text-fg-faint">
-            Busca el paciente o el titular, o registra una venta de mostrador.
+          {/* SE DICE QUE SON DOS PASOS, y en cuál se está. Esta pantalla es un BUSCADOR: quien
+              aprieta «Nueva factura» espera una factura y encuentra una caja de búsqueda, sin nada
+              que le diga que todavía falta un paso. Nombrarlo cuesta una línea y quita la sensación
+              de haber llegado a otro lado. */}
+          <p className="mt-1 text-sm text-fg-muted">
+            <span className="font-medium text-fg">Paso 1 de 2 · ¿A quién le facturás?</span>{' '}
+            Buscá el paciente o el titular, o registrá una venta de mostrador.
           </p>
         </header>
 
