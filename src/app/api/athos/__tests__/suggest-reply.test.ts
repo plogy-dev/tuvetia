@@ -120,4 +120,48 @@ describe("POST /api/athos/suggest-reply", () => {
     expect(body.error).toMatch(/no propuso una respuesta/i)
     expect(body.error).toMatch(/escribe tú el borrador/i)
   })
+
+  // LO QUE ESTE BLOQUE HEREDA.
+  //
+  // Hasta hoy, el único sitio que fijaba "el borrador de WhatsApp no diagnostica ni inventa datos
+  // de la clínica" era un test del camino VIEJO (`athos-service/tests/test_whatsapp_reply.py`),
+  // sobre un endpoint que ya no llamaba nadie. Al borrar ese endpoint la regla se quedaba sin
+  // nadie que la sostuviera, y es de las que importan: lo que sale por acá lo lee el TITULAR, no
+  // el vet. Así que se fija sobre el prompt que de verdad se manda.
+  describe("los guardrails del borrador", () => {
+    const conMensajes = () => {
+      contarMensajes.mockResolvedValue({ count: 3 })
+      generateTextMock.mockResolvedValue({
+        steps: [
+          {
+            toolCalls: [{ toolName: "send_whatsapp_message", input: { body: "ok" } }],
+            toolResults: [{ toolName: "send_whatsapp_message", output: { action_id: "a-1" } }],
+          },
+        ],
+      })
+    }
+
+    it("el prompt prohíbe lo clínico y los datos inventados, y PROPONE en vez de enviar", async () => {
+      conMensajes()
+      await pedir()
+
+      const { system } = generateTextMock.mock.calls[0][0] as { system: string }
+      expect(system).toMatch(/nunca diagnósticos ni dosis/i)
+      expect(system).toMatch(/nunca inventes horarios o precios/i)
+      // Y que el verbo sea PROPONER: el envío es la aprobación humana de la acción, no un efecto
+      // del modelo. Si esto dijera "envía", Athos escribiría solo.
+      expect(system).toMatch(/PROPONE[\s\S]*send_whatsapp_message/)
+    })
+
+    it("y la regla de plataforma sigue escrita, no sólo la de esta pantalla", async () => {
+      // El prompt base está mockeado como "SYS" arriba —a estos tests no les importa su contenido—
+      // así que se pide el de verdad. Es la regla 4 del agente: vale en TODAS las superficies, y
+      // esta pantalla es sólo una de ellas.
+      const real = await vi.importActual<typeof import("@/lib/athos-agent/system-prompt")>(
+        "@/lib/athos-agent/system-prompt",
+      )
+      expect(real.ATHOS_AGENT_SYSTEM_PROMPT).toMatch(/nada clínico va por whatsapp al dueño/i)
+      expect(real.ATHOS_AGENT_SYSTEM_PROMPT).toMatch(/ni dosis, ni fuentes, ni horarios, ni precios/i)
+    })
+  })
 })

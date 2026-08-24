@@ -1,4 +1,8 @@
 import Link from "next/link"
+import {
+  PastillasDelTablero,
+  type Pastilla,
+} from "@/components/dashboard/pastillas-del-tablero"
 import { UploadIcon } from "lucide-react"
 
 import { CreatePatientDrawer } from "@/components/create-patient-drawer"
@@ -7,7 +11,6 @@ import { PatientsExplorer, type PatientRow } from "@/components/patients-explore
 import { Button } from "@/components/ui/button"
 import { PageHeader, PageShell } from "@/components/ui/page-shell"
 import { VistaPacientesTitulares } from "@/components/patients/vista-pacientes-titulares"
-import { StatCard } from "@/components/ui/stat-card"
 import { createClient } from "@/lib/supabase/server"
 
 export const metadata = { title: "Pacientes · Tuvetia" }
@@ -52,12 +55,21 @@ export default async function PatientsPage({
       )
       .order("created_at", { ascending: false })
       .limit(200),
-    supabase.from("patients").select("*", { count: "exact", head: true }),
+    // `is_deceased` FALSE: la tarjeta dice "Pacientes activos" y contaba TODOS. Hoy no se nota
+    // —no hay ninguno marcado— y el día que lo haya la cifra habría empezado a mentir sin que
+    // nada fallara. El detalle de la vista rápida usa el mismo filtro.
+    supabase.from("patients").select("*", { count: "exact", head: true }).eq("is_deceased", false),
+    // LOS MISMOS ESTADOS QUE EL TABLERO. Esta cifra la comparten las dos pantallas bajo la clave
+    // `citas-hoy`, y `/api/tablero/detalle` la responde UNA sola vez — no puede contestar distinto
+    // segun quien pregunto. Antes aca se contaban todas: una cita cancelada sumaba como "cita hoy"
+    // y al abrir la pastilla no aparecia. `pastillas-del-tablero.test.ts` vigila que no vuelvan a
+    // separarse.
     supabase
       .from("appointments")
       .select("*", { count: "exact", head: true })
       .gte("starts_at", dayStart.toISOString())
-      .lt("starts_at", dayEnd.toISOString()),
+      .lt("starts_at", dayEnd.toISOString())
+      .in("status", ["scheduled", "confirmed", "in_progress"]),
     supabase
       .from("consultations")
       .select("*", { count: "exact", head: true })
@@ -69,11 +81,19 @@ export default async function PatientsPage({
   ])
   const all = (data as unknown as PatientRow[] | null) ?? []
 
-  const metrics = [
-    { n: activos.count ?? 0, l: "Pacientes activos" },
-    { n: citasHoy.count ?? 0, l: "Citas hoy" },
-    { n: enRevision.count ?? 0, l: "Consultas en revisión" },
-    { n: nuevosMes.count ?? 0, l: "Nuevos del mes" },
+  // LAS CUATRO CIFRAS, AHORA SE ABREN. Lo pidió Luciano el 19-ago para el tablero —"no que te full
+  // redireccione, sino una vista más directa"— y vale igual acá: la pregunta que dispara una cifra
+  // ("¿cuáles son esas nueve?") dura dos segundos, y salir de la pantalla cuesta perder de vista
+  // todo lo demás.
+  //
+  // La `metrica` es la que responde `/api/tablero/detalle`, y sus filtros son COPIA de los conteos
+  // de arriba. Hay un test que lo vigila: una tarjeta que dice 9 y una vista que muestra 11 es peor
+  // que no tener la vista.
+  const metrics: Pastilla[] = [
+    { metrica: "pacientes-activos", label: "Pacientes activos", value: String(activos.count ?? 0), hint: "Sin contar los fallecidos" },
+    { metrica: "citas-hoy", label: "Citas hoy", value: String(citasHoy.count ?? 0), hint: "Agendadas para hoy" },
+    { metrica: "consultas-revision", label: "Consultas en revisión", value: String(enRevision.count ?? 0), hint: "Esperando que alguien las cierre" },
+    { metrica: "pacientes-nuevos-mes", label: "Nuevos del mes", value: String(nuevosMes.count ?? 0), hint: "Dados de alta este mes" },
   ]
 
   return (
@@ -104,11 +124,10 @@ export default async function PatientsPage({
 
       <VistaPacientesTitulares activa="/dashboard/patients" />
 
-      <div className="mb-5 grid grid-cols-2 gap-3 lg:grid-cols-4">
-        {metrics.map((m) => (
-          <StatCard key={m.l} label={m.l} value={String(m.n)} />
-        ))}
-      </div>
+      <PastillasDelTablero
+        pastillas={metrics}
+        clase="mb-5 grid grid-cols-2 gap-3 lg:grid-cols-4"
+      />
 
       <PatientsExplorer
         rows={all}

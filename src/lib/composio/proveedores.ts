@@ -14,6 +14,8 @@ import "server-only"
 // componentes de cliente y no pueden importar este archivo.
 export { NOMBRE_PROVEEDOR, type Proveedor } from "./proveedores-nombres"
 
+import { LARGO_DEL_PREVIEW } from "@/lib/email/cuerpo-legible"
+import { cuerpoEnTexto } from "@/lib/email/html-a-texto"
 import type { Proveedor } from "./proveedores-nombres"
 
 /** Un correo, ya normalizado — misma forma venga de donde venga. */
@@ -39,6 +41,15 @@ export interface CorreoNormalizado {
    * Puede venir vacío: Graph a veces sólo entrega `bodyPreview` en un listado.
    */
   cuerpo: string
+  /**
+   * ¿`cuerpo` es el correo ENTERO?
+   *
+   * Lo sabe el adaptador y nadie más: `false` significa que el proveedor sólo entregó su vista
+   * previa. Antes esto se DEDUCÍA comparando `cuerpo` con `preview`, y fallaba justo en el caso
+   * que importa — Graph puede mandar un `bodyPreview` de 255 caracteres, el preview se recorta a
+   * 200, los dos difieren, y la pantalla daba por completo un correo de dos páginas.
+   */
+  cuerpoCompleto: boolean
   fecha: string
   esPropio: boolean
   leido: boolean
@@ -139,10 +150,11 @@ const GMAIL: Adaptador = {
         de: m.sender ?? "(desconocido)",
         para: m.to ?? "",
         asunto: m.subject ?? "(sin asunto)",
-        preview: (m.preview?.body ?? m.messageText ?? "").slice(0, 200),
+        preview: (m.preview?.body ?? m.messageText ?? "").slice(0, LARGO_DEL_PREVIEW),
         // `messageText` primero acá: para el cuerpo entero es la fuente buena, mientras que para el
         // vistazo de la bandeja `preview.body` viene mejor recortado por Gmail.
         cuerpo: m.messageText ?? m.preview?.body ?? "",
+        cuerpoCompleto: Boolean(m.messageText),
         fecha: m.messageTimestamp ?? new Date().toISOString(),
         // La etiqueta SENT es más fiable que comparar direcciones: el vet puede tener alias, y
         // `sender` viene como "Nombre <correo>".
@@ -278,10 +290,17 @@ const OUTLOOK: Adaptador = {
         de: de || "(desconocido)",
         para: (m.toRecipients ?? []).map(direccionOutlook).filter(Boolean).join(", "),
         asunto: m.subject ?? "(sin asunto)",
-        preview: (m.bodyPreview ?? "").slice(0, 200),
+        preview: (m.bodyPreview ?? "").slice(0, LARGO_DEL_PREVIEW),
         // Graph entrega `body.content` cuando se lo pide; en un listado a veces sólo hay
         // `bodyPreview`, y entonces esto es lo mismo que el preview. Mejor eso que vacío.
-        cuerpo: m.body?.content ?? m.bodyPreview ?? "",
+        //
+        // Y VIENE EN HTML por defecto: `contentType` lo dice. Sin convertirlo, la bandeja pinta el
+        // fuente —`<html><head><meta http-equiv=…`— como si fuera el correo, y cartera clasifica la
+        // intención de la respuesta sobre etiquetas en vez de sobre lo que escribió la persona.
+        cuerpo: m.body?.content
+          ? cuerpoEnTexto(m.body.content, m.body.contentType)
+          : (m.bodyPreview ?? ""),
+        cuerpoCompleto: Boolean(m.body?.content),
         fecha: m.receivedDateTime ?? m.sentDateTime ?? new Date().toISOString(),
         // Graph no trae una etiqueta como SENT: se compara el remitente con la cuenta conectada.
         esPropio: Boolean(propio) && de.toLowerCase().includes(propio),

@@ -1,6 +1,6 @@
 import { CalendarDays, Mail, MessageCircle } from "lucide-react"
 
-import { createClient } from "@/lib/supabase/server"
+import { sesionDelServidor } from "@/lib/supabase/sesion"
 import { WhatsappSettings } from "@/components/settings/whatsapp-settings"
 import { CalendarSettings, type CalendarProvider } from "@/components/settings/calendar-settings"
 import { AthosEmailSettings } from "@/components/settings/athos-email-settings"
@@ -11,6 +11,11 @@ import {
   proveedoresDisponibles,
 } from "@/lib/composio/correo"
 import { estadoCalendario, type EstadoCalendario } from "@/lib/composio/calendario"
+import {
+  puedeConectarElCalendario,
+  quienTieneElCalendario,
+  type PerfilCandidato,
+} from "@/lib/calendario/quien-lo-tiene"
 import { HelpTip } from "@/components/help-tip"
 import { PageHeader, PageShell } from "@/components/ui/page-shell"
 
@@ -28,14 +33,11 @@ export const metadata = { title: "Integraciones · Tuvetia" }
 export const dynamic = "force-dynamic"
 
 export default async function ConexionesPage() {
-  const supabase = await createClient()
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
+  const { supabase, user } = await sesionDelServidor()
 
   const composioListo = composioConfigurado()
 
-  const [{ data: wa }, correoAthos, { data: clinica }] = await Promise.all([
+  const [{ data: wa }, correoAthos, { data: clinica }, { data: adminDeRespaldo }] = await Promise.all([
     supabase.from("whatsapp_integrations").select("status, phone_number, agent_mode").maybeSingle(),
     // La cuenta de correo que este miembro conectó por Composio: la que usa Athos por él.
     user && composioListo
@@ -44,10 +46,29 @@ export default async function ConexionesPage() {
     // De quién es el calendario de la clínica: su administrador. Con eso se resuelve tanto si quien
     // mira puede conectarlo como el estado que se le muestra.
     user ? supabase.from("clinics").select("owner_id").maybeSingle() : Promise.resolve({ data: null }),
+    // EL RESPALDO, y el nombre. Se pide siempre —no sólo cuando falta `owner_id`— porque también
+    // sirve para NOMBRAR al administrador más abajo, y una consulta más en la misma ola no cuesta
+    // una ida y vuelta.
+    user
+      ? supabase.from("profiles").select("id, full_name").eq("role", "admin").limit(1).maybeSingle()
+      : Promise.resolve({ data: null }),
   ])
 
-  const administrador = (clinica as { owner_id: string | null } | null)?.owner_id ?? null
-  const esAdministrador = Boolean(user && administrador && administrador === user.id)
+  // UNA SOLA REGLA para "de quién es el calendario", compartida con el camino que empuja la cita
+  // (`composio/calendario.ts`). Acá usaba sólo `owner_id`, y en una clínica sin él eso dejaba al
+  // primer `admin` recibiendo las citas en un calendario que nunca podía conectar.
+  const administrador = quienTieneElCalendario(
+    (clinica as { owner_id: string | null } | null)?.owner_id,
+    adminDeRespaldo as PerfilCandidato | null,
+  )
+  const esAdministrador = puedeConectarElCalendario(user?.id, administrador)
+
+  // Cómo se llama, para poder decirlo. Sólo se sabe si el administrador resultó ser el perfil que
+  // trajimos; si no, la frase cae a "el administrador" a secas, que es lo que decía antes.
+  const nombreDelAdministrador =
+    administrador && (adminDeRespaldo as PerfilCandidato | null)?.id === administrador
+      ? ((adminDeRespaldo as PerfilCandidato).full_name ?? null)
+      : null
 
   // El estado que importa es el del calendario DE LA CLÍNICA —el del administrador—, no el de quien
   // está mirando. Un veterinario que abre esta página necesita saber si las citas están llegando a
@@ -139,9 +160,14 @@ export default async function ConexionesPage() {
               ? calendarConnected
                 ? "Las citas de la clínica se crean en tu calendario, con el titular y el veterinario invitados."
                 : "Sos el administrador: conectá tu calendario para que las citas de la clínica se creen ahí, invitando al titular y al veterinario asignado."
-              : calendarConnected
-                ? "Las citas de la clínica se crean en el calendario del administrador. Cuando te asignen una, te llega la invitación por correo — no hace falta que conectes el tuyo."
-                : "El administrador todavía no conectó el calendario de la clínica, así que las citas quedan sólo en Tuvetia y nadie recibe invitación. Pedile que lo conecte desde esta misma pantalla."}
+              : /* SE NOMBRA AL ADMINISTRADOR. Decir "pedile al administrador" sin decir QUIÉN es
+                   deja al vet sin saber a quién pedirle — y, peor, se lee como "no me deja",
+                   que es exactamente cómo se reportó el 21-ago: alguien mirando una clínica de
+                   la que era veterinario y no dueño, concluyendo que el calendario no funcionaba.
+                   El nombre convierte un botón ausente en una explicación. */
+                calendarConnected
+                ? `Las citas de la clínica se crean en el calendario ${nombreDelAdministrador ? `de ${nombreDelAdministrador}` : "del administrador"}. Cuando te asignen una, te llega la invitación por correo — no hace falta que conectes el tuyo.`
+                : `${nombreDelAdministrador ?? "El administrador"} todavía no conectó el calendario de la clínica, así que las citas quedan sólo en Tuvetia y nadie recibe invitación. Sos veterinario en esta clínica, no su administrador, así que este conector no te aparece: pedíselo a ${nombreDelAdministrador ?? "el administrador"}.`}
           </p>
           {esAdministrador && (
             <CalendarSettings

@@ -28,8 +28,8 @@ def _patch_common(monkeypatch, *, passed: bool, captured: dict) -> None:
     monkeypatch.setattr(phantom, "build_and_retrieve", lambda text, sp: (
         StructuredQuery(raw=text, concepts=["Vomiting"], species=sp),
         [chunk] if passed else [], passed))
-    # gate DURO: Luna tiene alergia severa -> True (contra DB se prueba en test_allergy_gate)
-    monkeypatch.setattr(phantom, "evaluate_gate", lambda c, p: (True, ["pollo"]))
+    # gate DURO: se deriva de patient.severe_allergies (que load_patient_context ya mockea con
+    # ["pollo"] arriba) -> True. Contra la DB se prueba en test_allergy_gate.
 
     def fake_generate_note(transcript, literature, patient, severe, **_kw):
         captured["gen_literature"] = literature

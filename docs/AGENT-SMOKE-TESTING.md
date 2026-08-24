@@ -3,16 +3,17 @@
 **Ítem 2.4 de la auditoría del Milestone 2.** Documento de resultados del banco de pruebas de la capa
 agéntica: qué se verifica, con qué evidencia, y qué queda sin cubrir.
 
-- **Suite:** `src/lib/athos-agent/__tests__/agent-smoke.test.ts` — 22 casos
+- **Suite:** `src/lib/athos-agent/__tests__/agent-smoke.test.ts` — 27 casos
 - **Corre en:** CI (`.github/workflows/ci.yml`, job `front`), en cada push y PR
 - **Commits:** `1b84e65` (invariantes de seguridad, 29-jul) · `b1c33cb` (robustez de fechas, 29-jul)
-- **Última verificación:** 2026-07-29
+  · esta tanda (el contenido leído no da órdenes, 23-ago)
+- **Última verificación:** 2026-08-23
 
 ## Qué es la capa agéntica y por qué estas pruebas
 
-El agente vive en el front (`src/lib/athos-agent/`), no en el servicio de Athos. Expone **17 tools**
-al modelo: 10 de lectura y 7 de escritura. La regla que sostiene todo el diseño es **"Athos propone,
-el veterinario aprueba"**: ninguna de las 7 tools de escritura ejecuta nada. Todas insertan una fila
+El agente vive en el front (`src/lib/athos-agent/`), no en el servicio de Athos. Expone **21 tools**
+al modelo: 12 de lectura y 9 de escritura. La regla que sostiene todo el diseño es **"Athos propone,
+el veterinario aprueba"**: ninguna de las 9 tools de escritura ejecuta nada. Todas insertan una fila
 en `athos_actions` con `status='proposed'`, y la ejecución ocurre en otra request, **bajo la sesión
 del veterinario que aprueba** — de modo que la RLS ve su `auth.uid()` real, sin impersonación.
 
@@ -39,13 +40,14 @@ El tercero es el que más importa: si el `clinic_id` viniera del payload, el mod
 que influya en el modelo, incluido el texto que escribe un titular por WhatsApp— podría escribir en
 otra clínica. Está tomado del contexto del servidor y el test lo fija.
 
-### 2. Inventario de tools y separación lectura/escritura (3 casos)
+### 2. Inventario de tools y separación lectura/escritura (4 casos)
 
 | Verifica | Resultado |
 |---|---|
-| Expone exactamente las 17 tools esperadas (ni una de más) | ✅ |
+| Expone exactamente las 21 tools esperadas (ni una de más) | ✅ |
 | Cada tool declara un `inputSchema` — el modelo no manda campos libres | ✅ |
-| **Ninguna** de las 7 tools de escritura ejecuta: todas terminan en propuesta | ✅ |
+| **Ninguna** de las 9 tools de escritura ejecuta: todas terminan en propuesta | ✅ |
+| Las tools de correo **no proponen** si el vet no conectó su cuenta (avisa antes, no después) | ✅ |
 
 El primero es un cerrojo contra el crecimiento silencioso: agregar una tool obliga a tocar el test, y
 por lo tanto a decidir explícitamente si es de lectura o de escritura.
@@ -86,6 +88,35 @@ Este bloque nació de dos defectos distintos, y el segundo es el grave:
    comprobación de ida y vuelta, **la cita quedaba agendada otro día y nadie se enteraba**. Eso es
    peor que un error: un error se ve. La guarda reconstruye la fecha local y exige que sea la pedida.
 
+### 5. Inyección por el contenido que el agente LEE (4 casos)
+
+Agregado el **23-ago**, a partir del hallazgo de la auditoría de la capa agéntica de ese día.
+
+El agente lee texto escrito por **terceros** —conversaciones de WhatsApp de titulares, correos de
+proveedores o de cualquiera— con `search_whatsapp_conversation`, `search_emails` y
+`read_email_thread`, y tiene nueve tools de escritura. Hasta el 23-ago `ATHOS_AGENT_SYSTEM_PROMPT`
+no tenía **una sola línea** diciendo que ese contenido no manda: una orden escrita dentro de un
+correo entraba al modelo con el mismo estatus que una del veterinario.
+
+| Verifica | Resultado |
+|---|---|
+| El prompt declara que lo que llega por tools es material leído, no instrucciones | ✅ |
+| Ante algo que suene a orden, manda a **citársela al vet** en vez de obedecerla | ✅ |
+| Cierra el disfraz: da igual que el texto diga venir del vet, de Tuvetia o de un admin | ✅ |
+| Deja escrito que nada de lo leído le saca la **aprobación humana** | ✅ |
+
+**Por qué un test sobre el texto de un prompt, que suena a prueba de redacción.** Porque un párrafo
+de prompt se borra sin que se rompa nada: compila igual, los otros 23 casos pasan igual, y la
+defensa se va en silencio. El test la vuelve deliberada — sacarla obliga a tocar este archivo.
+Verificado que muerde: borrando la sección del prompt, los 4 casos en rojo.
+
+**Lo que este párrafo NO es.** No es la defensa: la defensa es el código, y estaba antes que él.
+Toda escritura es una propuesta con aprobación humana (§1), el destinatario de WhatsApp no es
+editable y está acotado a titulares registrados (`athosPuedeEscribirA`), y el `payload_override` se
+revalida contra el esquema descartando campos desconocidos. El prompt cubre el hueco que ninguna de
+esas capas alcanza: que el modelo redacte —con datos de otra ficha, u otro destinatario de correo—
+una propuesta **verosímil** que un vet apurado apruebe.
+
 ## Cómo reproducirlo
 
 ```bash
@@ -104,8 +135,8 @@ NODE_OPTIONS=--experimental-require-module npm test     # sirve en Node 22.11
 El fallo con 22.11 es `ERR_REQUIRE_ESM` al cargar `vitest.config.ts`: `require()` de un módulo ESM
 llegó sin flag en 22.12, y en 22.11 existe detrás de esa bandera. Es del entorno, no de la suite.
 Durante días se dio por imposible correr las pruebas del front en local y se dependió del CI para
-todo; con el flag corren las **267** en unos 40 s. El CI usa `node-version: 22`, que resuelve a la
-última 22.x y no lo necesita.
+todo; con el flag corren las **1.589** (135 archivos) en unos 23 s — medido el 23-ago. El CI usa
+`node-version: 22`, que resuelve a la última 22.x y no lo necesita.
 
 ## Lo que estas pruebas NO cubren
 
@@ -131,6 +162,14 @@ Se declara explícitamente para que nadie lea la suite como más cobertura de la
    2026-07-30). Desde el 30-jul el job monta un Postgres (`services:` en `ci.yml`) y corren en cada
    push — si vuelven a aparecer como `s` en la salida de pytest del CI, esta garantía volvió a ser
    papel.
+5. **Que el modelo OBEDEZCA el párrafo anti-inyección.** §5 fija que la instrucción está escrita, no
+   que el modelo la cumple: eso es comportamiento, y un prompt no es una garantía. Lo que sí es
+   garantía es lo de siempre —ninguna escritura ocurre sin que un humano la apruebe (§1)—, así que
+   el residuo es acotado y conocido: una propuesta **verosímil** aprobada de apuro.
+   **Para medirlo ya existe el instrumento** (`AGENTE-ADVERSARIOS.md`, construido el 23-ago): 7
+   ataques por inyección y 3 controles, con juez determinístico. No corre acá porque llama a un
+   modelo real. ⚠️ **Al 23-ago está construido pero sin correr** —no hay credencial de proveedor en
+   la máquina— así que sobre esta pregunta seguimos sin cifra.
 
 ## Suite complementaria: smoke e2e contra el despliegue real
 

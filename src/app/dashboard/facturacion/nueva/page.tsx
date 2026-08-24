@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { TOPE_SIN_FACTURAR, hayMasQueElTope } from '@/lib/facturacion/sin-facturar';
 import { ArrowLeft, Search, ShoppingBag, Stethoscope } from 'lucide-react';
 import { requireClinicPage } from '@/lib/facturacion/page-auth';
 import {
@@ -9,6 +10,7 @@ import {
 import { DEFAULT_UVT_VALUE_CENTS } from '@/lib/facturacion/constants';
 import { fmtDate } from '@/lib/facturacion/format';
 import { InvoiceCart } from '@/components/facturacion/InvoiceCart';
+import { sugerirRenglones } from '@/lib/facturacion/lo-recetado';
 import { FormularioDeFiltros } from "@/components/ui/formulario-de-filtros"
 
 export const metadata = { title: "Nueva factura · Tuvetia" }
@@ -49,13 +51,31 @@ export default async function NuevaFacturaPage({ searchParams }: { searchParams:
 
   // Una sola ola: settings, catálogo y consultas sin facturar no dependen entre
   // sí (los gates `showCart`/`q` salen del searchParams, no de settings).
-  const [settings, items, unbilled] = await Promise.all([
+  const [settings, items, unbilled, notaDeLaConsulta] = await Promise.all([
     getBillingSettings(supabase, clinicId),
     showCart ? listCatalogItems(supabase, clinicId) : Promise.resolve([]),
     !showCart && !q
       ? getUnbilledConsultations(supabase, clinicId)
-      : Promise.resolve([]),
+      : Promise.resolve({ consultas: [], total: 0 }),
+    // EL PLAN DE LA CONSULTA, si se vino desde una. SÓLO la nota APROBADA: cobrar a partir de un
+    // borrador que nadie firmó sería facturar lo que todavía se puede cambiar.
+    showCart && sp.consultationId
+      ? supabase
+          .from('clinical_notes')
+          .select('plan')
+          .eq('clinic_id', clinicId)
+          .eq('consultation_id', sp.consultationId)
+          .eq('status', 'approved')
+          .maybeSingle()
+      : Promise.resolve({ data: null }),
   ]);
+
+  // Lo recetado, cruzado con el catálogo. Sin nota aprobada o sin nada cobrable en el plan queda
+  // vacío y el carrito arranca como siempre — el camino de la factura suelta no cambia.
+  const renglonesIniciales = sugerirRenglones(
+    (notaDeLaConsulta as { data: { plan: string | null } | null }).data?.plan ?? null,
+    items.map((i) => ({ id: i.id, name: i.name, price_cents: i.price_cents, tax_rate: i.tax_rate })),
+  );
   const active = settings?.module_status === 'ACTIVO';
 
   // ── Paso carrito ──────────────────────────────────────────────────────────
@@ -89,6 +109,7 @@ export default async function NuevaFacturaPage({ searchParams }: { searchParams:
             patientId={sp.patientId}
             patientName={sp.patientName}
             consultationId={sp.consultationId}
+            renglonesIniciales={renglonesIniciales}
             defaultDocKind={settings?.default_doc_kind ?? 'POS'}
             uvtValueCents={settings?.uvt_value_cents ?? DEFAULT_UVT_VALUE_CENTS}
             defaultTermsDays={settings?.default_payment_terms_days ?? 15}
@@ -197,14 +218,19 @@ export default async function NuevaFacturaPage({ searchParams }: { searchParams:
             </Link>
 
             {/* Puente CRM: consultas cerradas que aún nadie facturó */}
-            {!q && unbilled.length > 0 && (
+            {!q && unbilled.total > 0 && (
               <section className="mb-6">
                 <h2 className="mb-2 flex items-center gap-1.5 text-xs font-medium uppercase tracking-wide text-fg-faint">
                   <Stethoscope className="size-3.5" aria-hidden />
-                  Consultas recientes sin facturar ({unbilled.length})
+                  {/* EL TOTAL Y NO LO QUE SE MUESTRA. Acá decía `unbilled.length`, o sea el
+                      largo de la página: con 43 sin facturar el título decía "(25)" y el vet
+                      contaba. Peor, el riel de pendientes anuncia el total y manda a esta
+                      pantalla — las dos cifras tenían que coincidir y no coincidían. */}
+                  Consultas recientes sin facturar (
+                  {hayMasQueElTope(unbilled.total) ? `${TOPE_SIN_FACTURAR}+` : unbilled.total})
                 </h2>
                 <ul className="divide-y divide-line rounded-xl border border-line bg-surface">
-                  {unbilled.map((c) => (
+                  {unbilled.consultas.map((c) => (
                     <li key={c.consultationId}>
                       <div className="flex items-center justify-between gap-3 px-4 py-3 text-sm">
                         <div className="min-w-0">
@@ -278,6 +304,16 @@ export default async function NuevaFacturaPage({ searchParams }: { searchParams:
                     </li>
                   ))}
                 </ul>
+                {/* SI SE RECORTÓ, SE DICE. Es la misma receta que `getDashboardKpis` y
+                    `getStockMap`: una lista que muestra menos de lo que hay sin avisarlo se lee
+                    como "ya no queda ninguna más". */}
+                {unbilled.total > unbilled.consultas.length && (
+                  <p className="mt-2 text-xs text-fg-faint">
+                    Se muestran las {unbilled.consultas.length} más recientes de{' '}
+                    {hayMasQueElTope(unbilled.total) ? `${TOPE_SIN_FACTURAR}+` : unbilled.total}.
+                    Facturá algunas y aparecerán las siguientes.
+                  </p>
+                )}
               </section>
             )}
 

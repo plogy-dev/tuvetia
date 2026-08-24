@@ -1,7 +1,7 @@
 import Link from "next/link"
 import { Mail } from "lucide-react"
 
-import { createClient } from "@/lib/supabase/server"
+import { sesionDelServidor } from "@/lib/supabase/sesion"
 import { DataError } from "@/components/data-error"
 import { EmailInbox } from "@/components/email/inbox"
 import { Button } from "@/components/ui/button"
@@ -17,10 +17,7 @@ export const dynamic = "force-dynamic"
 // deduplicación, hilado, y el correo entero de la clínica guardado en nuestros servidores. Leer
 // contra Gmail cuando alguien abre la página quita todo eso; el costo es esperar la respuesta.
 export default async function CorreoPage() {
-  const supabase = await createClient()
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
+  const { user } = await sesionDelServidor()
 
   const disponible = composioConfigurado()
   const conexion =

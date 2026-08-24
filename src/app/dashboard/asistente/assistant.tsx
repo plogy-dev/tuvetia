@@ -314,6 +314,23 @@ export function Assistant({
   // detectaba el contexto desde hacía rato y el veterinario no tenía forma de verlo.
   const detectado = useMemo(() => pacienteDetectado(messages), [messages])
 
+  // Los action_id de las propuestas que YA están pintadas inline en el hilo vivo. Se le pasan a
+  // PendingActions para que no las repita: tras el 2º mensaje, PendingActions recarga e incluye la
+  // propuesta del turno anterior —que sigue 'proposed' en la tabla y ya está arriba inline—, y la
+  // misma acción aparecía DOS veces (la 2ª daba 409 al aprobar).
+  const idsEnHilo = useMemo(() => {
+    const ids = new Set<string>()
+    for (const m of messages) {
+      for (const part of m.parts ?? []) {
+        if (isStaticToolUIPart(part) && part.state === "output-available") {
+          const prop = asProposed(part.output)
+          if (prop?.action_id) ids.add(prop.action_id)
+        }
+      }
+    }
+    return ids
+  }, [messages])
+
   function send() {
     const text = input.trim()
     if (!text) {
@@ -549,7 +566,7 @@ export function Assistant({
 
         {/* Lo que quedó esperando aprobación, leído de athos_actions. Las tarjetas del streaming
             se pierden al recargar (solo se persiste el texto del turno); esto no. */}
-        <PendingActions recargarToken={messages.length} />
+        <PendingActions recargarToken={messages.length} excluir={idsEnHilo} />
       </div>
 
       {/* Compositor. Franja separada por una línea, como en el mockup: la conversación termina y

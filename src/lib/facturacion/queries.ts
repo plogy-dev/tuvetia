@@ -5,6 +5,13 @@
 // es obligatorio en cada query (regla dura del contrato).
 
 import type { SupabaseClient } from '@supabase/supabase-js';
+import { bogotaTodayISO, finDelDiaBogota } from '@/lib/date-utils';
+import {
+  EMBED_DE_FACTURAS,
+  TOPE_SIN_FACTURAR,
+  desdeCuando,
+  soloSinFacturar,
+} from '@/lib/facturacion/sin-facturar';
 import type {
   BillingPayerRow,
   BillingSettingsRow,
@@ -55,22 +62,49 @@ export async function listCatalogItems(
     categoryId?: string;
   } = {},
 ): Promise<CatalogItemRow[]> {
-  let q = supabase
-    .from('catalog_items')
-    .select('*')
-    .eq('clinic_id', clinicId)
-    .order('name', { ascending: true })
-    .limit(500);
-  if (!opts.includeInactive) q = q.eq('active', true);
-  if (opts.itemType) q = q.eq('item_type', opts.itemType);
-  if (opts.categoryId) q = q.eq('category_id', opts.categoryId);
-  if (opts.query?.trim()) {
-    const term = `%${opts.query.trim()}%`;
-    q = q.or(`name.ilike.${term},sku.ilike.${term},barcode.ilike.${term}`);
+  // PAGINA, no corta. Antes era un `.limit(500)` pelado, y el truncamiento no se veía por ningún
+  // lado: ni error, ni aviso, ni un "500 de 812" en pantalla.
+  //
+  // DÓNDE MUERDE PEOR: el export de inventario a Excel (`api/facturacion/inventario/export`) llama
+  // acá con `includeInactive`. Un catálogo de 800 ítems salía como un archivo de 500 que parece
+  // completo — y ese archivo se usa para inventariar y para contabilidad. Además lo usan el
+  // selector de la factura nueva, compras, movimientos y la pantalla de inventario: en todas, los
+  // ítems que faltan simplemente no existen.
+  //
+  // Y APARECE JUSTO DESPUÉS DE IMPORTAR. Una clínica que sube su catálogo por Excel es la que más
+  // ítems tiene y la que va a contarlos: importa 800, ve 500, y concluye que la importación perdió
+  // 300.
+  //
+  // Es el mismo truncamiento silencioso de `getDashboardKpis` y `getStockMap` —el `max-rows` de
+  // PostgREST es 1000 y pedir más devuelve mil SIN error— con la misma receta. Ésta es la tercera.
+  //
+  // El `.order('id')` de desempate es lo que hace estable la paginación: `name` puede repetirse
+  // (dos presentaciones del mismo producto) y sin un segundo criterio Postgres no garantiza que la
+  // página 2 no repita filas de la 1.
+  const PAGE = 1000;
+  const todos: CatalogItemRow[] = [];
+  for (let from = 0; ; from += PAGE) {
+    let q = supabase
+      .from('catalog_items')
+      .select('*')
+      .eq('clinic_id', clinicId)
+      .order('name', { ascending: true })
+      .order('id')
+      .range(from, from + PAGE - 1);
+    if (!opts.includeInactive) q = q.eq('active', true);
+    if (opts.itemType) q = q.eq('item_type', opts.itemType);
+    if (opts.categoryId) q = q.eq('category_id', opts.categoryId);
+    if (opts.query?.trim()) {
+      const term = `%${opts.query.trim()}%`;
+      q = q.or(`name.ilike.${term},sku.ilike.${term},barcode.ilike.${term}`);
+    }
+    const { data, error } = await q;
+    if (error) throw new Error(`No se pudo listar el catálogo: ${error.message}`);
+    const filas = (data as CatalogItemRow[]) ?? [];
+    todos.push(...filas);
+    if (filas.length < PAGE) break;
   }
-  const { data, error } = await q;
-  if (error) throw new Error(`No se pudo listar el catálogo: ${error.message}`);
-  return (data as CatalogItemRow[]) ?? [];
+  return todos;
 }
 
 export async function getCatalogItems(
@@ -589,7 +623,18 @@ export async function getNearExpirySet(
   if (error) throw new Error(`No se pudieron leer lotes: ${error.message}`);
   const set = new Set<string>();
   for (const lot of (data as unknown as Pick<CatalogLotRow, 'item_id' | 'expires_on'>[]) ?? []) {
-    if (lot.expires_on && lotNearExpiry(new Date(lot.expires_on), now, windowDays)) {
+    // `finDelDiaBogota` Y NO `new Date(…)`. `expires_on` es una columna DATE: PostgREST la entrega
+    // como "2027-01-15", y la forma ISO sólo-fecha **se parsea siempre en UTC, por spec**. En
+    // Bogotá eso es el 14 a las 19:00 — o sea que el lote se daba por vencido cinco horas antes de
+    // que terminara su día.
+    //
+    // Es el MISMO defecto que ya se corrigió para `due_date` (ver `date-utils` y
+    // `vencimiento-zona.test.ts`), y a `expires_on` no le había llegado. Un lote vale hasta el
+    // final de su día: eso es lo que devuelve `finDelDiaBogota`.
+    //
+    // Sobre una ventana de 30 días las cinco horas casi nunca cambian la respuesta — pero cuando la
+    // cambian, cambian en el borde, que es justo el día en que alguien mira la alerta.
+    if (lot.expires_on && lotNearExpiry(finDelDiaBogota(lot.expires_on), now, windowDays)) {
       set.add(lot.item_id);
     }
   }
@@ -757,28 +802,65 @@ export interface UnbilledConsultation {
   ownerName: string;
 }
 
+/** El resultado de `getUnbilledConsultations`: la página, y cuántas hay de verdad. */
+export interface UnbilledConsultationsResult {
+  /** Las que se muestran, ya recortadas a `limit`. */
+  consultas: UnbilledConsultation[];
+  /**
+   * Cuántas hay sin facturar en la ventana, aunque no se muestren todas.
+   *
+   * Existe porque el riel de pendientes anuncia un número y manda acá: si la pantalla dice
+   * "(25)" cuando hay 43, el vet cuenta y la app queda mintiendo. Cuando llega al tope no se
+   * sabe el total exacto, se sabe que hay al menos ése — `hayMasQueElTope` lo distingue.
+   */
+  total: number;
+}
+
 /**
- * Consultas cerradas recientes que AÚN no tienen factura asociada — "quién
- * necesita factura". Dos queries + diff en JS (supabase-js no expone NOT
- * EXISTS); al volumen de una clínica es barato. El cliente filtraba
- * status='ended'; en el destino la consulta cerrada es status='completed'.
+ * Consultas cerradas recientes que AÚN no tienen factura — "quién necesita factura".
+ *
+ * ── EL DEFECTO QUE TENÍA, Y NO ERA EL TRUNCAMIENTO ──────────────────────────────────────────────
+ *
+ * El `.limit(25)` se aplicaba SOBRE LAS CONSULTAS y recién después se descartaban las facturadas.
+ * O sea que traía las 25 más recientes y filtraba: si esas 25 estaban todas facturadas, devolvía
+ * CERO — con quince sin facturar un mes atrás, invisibles. No era una lista corta, era una lista
+ * equivocada, y el síntoma es el peor posible: "Athos dice que tengo 12 y Ventas no muestra
+ * ninguna".
+ *
+ * Ahora el filtro va primero y el recorte al final. Medido contra el principal el 2026-08-22: hoy
+ * ninguna clínica pasa de 10 consultas completadas en 60 días, así que el defecto todavía no se
+ * ve — pero una clínica con dos consultas diarias llega a 25 en dos semanas.
+ *
+ * ── Y SE DEJA DE MENTIR SOBRE EL TOTAL ──────────────────────────────────────────────────────────
+ *
+ * Devuelve `total` además de la página. Es el mismo truncamiento silencioso que ya se corrigió en
+ * `getDashboardKpis` y en `getStockMap`, con la misma receta: si se recorta, se dice.
+ *
+ * LA REGLA VIVE EN `lib/facturacion/sin-facturar` y la comparte con el riel de pendientes. Que las
+ * dos respuestas salgan del mismo módulo es lo que impide que vuelvan a separarse — ya pasó con
+ * las facturas anuladas, arregladas en los dos lados por separado.
  */
 export async function getUnbilledConsultations(
   supabase: SupabaseClient,
   clinicId: string,
-  opts: { days?: number; limit?: number } = {},
-): Promise<UnbilledConsultation[]> {
-  const since = new Date();
-  since.setDate(since.getDate() - (opts.days ?? 60));
+  opts: { hoyISO?: string; limit?: number } = {},
+): Promise<UnbilledConsultationsResult> {
+  const desde = desdeCuando(opts.hoyISO ?? bogotaTodayISO());
 
+  // UNA SOLA QUERY, con el embed de facturas. Antes eran dos —consultas y después sus facturas—
+  // y la segunda sólo podía preguntar por las que la primera ya había recortado, que es de donde
+  // salía el defecto. `!left` explícito porque lo que interesa son justamente las que NO tienen
+  // ninguna: un embed normal las dejaría fuera.
   const { data: consults, error } = await supabase
     .from('consultations')
-    .select('id, started_at, patient:patients(id, name, species, owner:owners(id, full_name))')
+    .select(
+      `id, started_at, patient:patients(id, name, species, owner:owners(id, full_name)), ${EMBED_DE_FACTURAS}`,
+    )
     .eq('clinic_id', clinicId)
     .eq('status', 'completed')
-    .gte('started_at', since.toISOString())
+    .gte('started_at', desde)
     .order('started_at', { ascending: false })
-    .limit(opts.limit ?? 25);
+    .limit(TOPE_SIN_FACTURAR);
   if (error) throw new Error(`No se pudieron leer consultas: ${error.message}`);
 
   type Row = {
@@ -790,27 +872,17 @@ export async function getUnbilledConsultations(
       species: string | null;
       owner: { id: string; full_name: string } | null;
     } | null;
+    invoices: { status: string }[] | null;
   };
-  const rows = ((consults as unknown as Row[]) ?? []).filter((c) => c.patient?.owner);
-  if (rows.length === 0) return [];
 
-  const ids = rows.map((c) => c.id);
-  const { data: billed, error: bErr } = await supabase
-    .from('invoices')
-    .select('consultation_id')
-    .eq('clinic_id', clinicId)
-    .in('consultation_id', ids)
-    .neq('status', 'ANULADA');
-  if (bErr) throw new Error(`No se pudieron leer facturas: ${bErr.message}`);
-  const billedSet = new Set(
-    ((billed as { consultation_id: string | null }[]) ?? [])
-      .map((b) => b.consultation_id)
-      .filter(Boolean) as string[],
+  // El titular hace falta para facturar: sin él la fila no se puede usar aunque esté sin facturar.
+  const sinFacturar = soloSinFacturar((consults as unknown as Row[]) ?? []).filter(
+    (c) => c.patient?.owner,
   );
 
-  return rows
-    .filter((c) => !billedSet.has(c.id))
-    .map((c) => ({
+  return {
+    total: sinFacturar.length,
+    consultas: sinFacturar.slice(0, opts.limit ?? 25).map((c) => ({
       consultationId: c.id,
       startedAt: c.started_at,
       patientId: c.patient!.id,
@@ -818,7 +890,8 @@ export async function getUnbilledConsultations(
       patientSpecies: c.patient!.species,
       ownerId: c.patient!.owner!.id,
       ownerName: c.patient!.owner!.full_name,
-    }));
+    })),
+  };
 }
 
 /** Facturas EMITIDAS que todavía no se han enviado al cliente. */

@@ -2,7 +2,7 @@ import Link from "next/link"
 import { Building2, Clock, Download, Plug, User, Users } from "lucide-react"
 import { Button } from "@/components/ui/button"
 
-import { createClient } from "@/lib/supabase/server"
+import { sesionDelServidor } from "@/lib/supabase/sesion"
 import { ProfileSettings } from "@/components/settings/profile-settings"
 import { ClinicHoursSettings, type ClinicHourRow } from "@/components/settings/clinic-hours-settings"
 import {
@@ -21,10 +21,7 @@ export const metadata = { title: "Configuración · Tuvetia" }
 
 
 export default async function SettingsPage() {
-  const supabase = await createClient()
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
+  const { supabase, user } = await sesionDelServidor()
 
   const profile = user
     ? (

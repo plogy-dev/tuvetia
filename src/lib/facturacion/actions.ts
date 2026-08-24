@@ -26,6 +26,7 @@ import {
   type DraftPreview,
   type IssueResult,
 } from './invoices';
+import { anularFactura, esMotivoValido, type MotivoNotaCredito } from './credit-notes';
 import { ensurePayerForOwner, getOrCreateConsumidorFinal, listCatalogItems } from './queries';
 import { sendInvoiceByEmail } from './email';
 import { extractRecipeDraft } from './recipe-ingest';
@@ -806,4 +807,65 @@ export async function toggleInvoiceReminders(input: {
   }
 }
 
+// ─── Anular una factura con nota crédito ─────────────────────────────────────
+//
+// LA ÚNICA FORMA DE CORREGIR UNA FACTURA EMITIDA. Antes no existía: la pantalla lo prometía
+// ("solo se corrige con nota crédito"), la tabla estaba creada y el proveedor fiscal ya declaraba
+// `submitCreditNote` — pero no había nada que la emitiera. Ver `credit-notes.ts`.
 
+const AnularSchema = z.object({
+  invoiceId: z.string().uuid(),
+  // Los cinco motivos DIAN, espejo del CHECK de la tabla. Se valida acá además de en la base porque
+  // un motivo inválido debe dar un mensaje en español y no un error de constraint.
+  motivo: z.string().refine(esMotivoValido, 'Motivo no válido'),
+  detalle: z.string().trim().max(500).optional().nullable(),
+  // Sin monto = anulación total. Con monto = parcial; el tope contra lo ya acreditado lo pone
+  // `anularFactura`, que es quien sabe cuánto queda.
+  montoCents: z.number().int().positive().optional().nullable(),
+});
+
+export async function anularFacturaAction(input: {
+  invoiceId: string;
+  motivo: string;
+  detalle?: string | null;
+  montoCents?: number | null;
+}): Promise<
+  Result<{
+    fullNumber: string;
+    cufe: string | null;
+    movimientosDevueltos: number;
+    anulada: boolean;
+    acreditableRestante: number;
+    totalCents: number;
+  }>
+> {
+  try {
+    const { supabase, clinicId, userId } = await requireClinic();
+    const parsed = AnularSchema.safeParse(input);
+    if (!parsed.success) {
+      return { ok: false, error: parsed.error.issues[0]?.message ?? 'Datos inválidos' };
+    }
+    const d = parsed.data;
+    const result = await anularFactura(supabase, clinicId, {
+      invoiceId: d.invoiceId,
+      motivo: d.motivo as MotivoNotaCredito,
+      detalle: d.detalle ?? null,
+      montoCents: d.montoCents ?? null,
+      createdBy: userId,
+    });
+    revalidatePath('/dashboard/facturacion');
+    revalidatePath(`/dashboard/facturacion/${d.invoiceId}`);
+    // `Result<P>` es `{ ok: true } & P`: los campos van planos, no dentro de `data`.
+    return {
+      ok: true,
+      fullNumber: result.fullNumber,
+      cufe: result.cufe,
+      movimientosDevueltos: result.movimientosDevueltos,
+      anulada: result.anulada,
+      acreditableRestante: result.acreditableRestante,
+      totalCents: result.totalCents,
+    };
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : 'No se pudo anular la factura' };
+  }
+}

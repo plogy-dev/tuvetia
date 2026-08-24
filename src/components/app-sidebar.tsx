@@ -188,8 +188,6 @@ export function AppSidebar({
         {/* Cada grupo trae su rótulo, sus secciones y su acción: "Iniciar consulta" en Consultorio,
             "Nuevo paciente" en CRM. */}
         <NavMain consultorio={data.consultorio} crm={data.crm} />
-        {/* Segundo nivel: sólo aparece dentro de Athos y del Modo Fantasma, y se paga solo ahí. */}
-        <AthosSidebarSection />
         <SidebarMenu className="mt-auto px-2">
           <SidebarMenuItem>
             <ChipConfiguracion porcentaje={progresoConfiguracion} />
@@ -198,6 +196,13 @@ export function AppSidebar({
         {/* `mt-auto` se mudó al bloque de arriba: con los dos empujando, el de Configuración
             quedaba pegado al menú y Ayuda al fondo, con un hueco entre medio. */}
         <NavSecondary items={data.navSecondary} />
+        {/* EL HISTORIAL, ABAJO DEL TODO. Lo pidió David el 19-ago —"las consultas y los chats,
+            abajo y plegables"— y estaba justo debajo del menú principal, o sea en el medio: con
+            cuarenta consultas cargadas empujaba Configuración y Ayuda fuera de la barra.
+
+            Sigue apareciendo SÓLO dentro de Athos y del Modo Fantasma, así que en el resto de la
+            app este lugar queda vacío y la barra se ve igual que siempre. */}
+        <AthosSidebarSection />
       </SidebarContent>
       <SidebarFooter>
         <NavUser user={user} />

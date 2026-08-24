@@ -27,13 +27,16 @@ export function BotonDePersonalizar({
   metricas,
   facturacionActiva,
   clinicId,
+  esAdmin,
 }: {
   disposicion: Puesto[]
-  /** Las cifras de la tira, con las apagadas incluidas (0073). */
+  /** Las cifras de la tira, con las apagadas incluidas (0080). */
   metricas: PuestoDeMetrica[]
   /** Sin facturación activa, las cifras de plata no se ofrecen. */
   facturacionActiva: boolean
   clinicId: string | null
+  /** Sólo un admin puede dejar el tablero de entrada de la clínica (0075). */
+  esAdmin?: boolean
 }) {
   const [abierto, setAbierto] = useState(false)
 
@@ -49,6 +52,7 @@ export function BotonDePersonalizar({
       </Button>
       {abierto && (
         <PersonalizarTablero
+          esAdmin={esAdmin}
           disposicion={disposicion}
           metricas={metricas}
           facturacionActiva={facturacionActiva}

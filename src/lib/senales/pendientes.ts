@@ -41,6 +41,7 @@ const ORDEN = [
   "conversaciones",
   "tareas-cartera",
   "notas-sin-aprobar",
+  "sin-facturar",
   "cobros-vencidos",
   "vacunas",
 ] as const
@@ -62,6 +63,32 @@ export function notasSinAprobar(notas: { status: string }[]): Pendiente | null {
     id: "notas-sin-aprobar",
     etiqueta: plural(n, "nota sin aprobar", "notas sin aprobar"),
     detalle: "No entran a la historia clínica hasta que las firmes",
+  }
+}
+
+// ── Consultas atendidas que nadie facturó ─────────────────────────────────────────────────────
+
+/**
+ * Una consulta terminada sin factura es trabajo hecho que no se cobró.
+ *
+ * LO QUE SE PIDIÓ, el 19-ago: que Athos avise *"tenés esta factura por emitir de esta consulta"*.
+ *
+ * LA LISTA YA EXISTÍA —`getUnbilledConsultations`, en Ventas → Nueva factura— y ahí está el
+ * problema: **hay que ir a Ventas para enterarse**. Quien atiende no entra a Ventas hasta que va a
+ * cobrar, y para entonces ya se olvidó de la consulta de anteayer. Un aviso que exige ir a buscarlo
+ * no es un aviso.
+ *
+ * VA DEBAJO DE LAS NOTAS SIN APROBAR y por el orden del riel: primero lo que tiene a alguien de
+ * afuera esperando, después el trabajo del vet consigo mismo. Facturar tarde cuesta plata; una nota
+ * sin firmar es una consulta que, a efectos del expediente, no ocurrió.
+ */
+export function sinFacturar(consultas: { id: string }[]): Pendiente | null {
+  const n = consultas.length
+  if (n === 0) return null
+  return {
+    id: "sin-facturar",
+    etiqueta: plural(n, "consulta sin facturar", "consultas sin facturar"),
+    detalle: "Atendidas y cerradas, sin factura emitida",
   }
 }
 
@@ -267,6 +294,8 @@ export function pendientesDeLaClinica(s: {
   tareas?: { status: string }[]
   cobros?: { cuantas: number; totalCents: number }
   integraciones?: IntegracionParaSenal[]
+  /** Consultas terminadas que no tienen factura. */
+  sinFacturar?: { id: string }[]
   hoyISO: string
 }): Pendiente[] {
   const todas = [
@@ -274,6 +303,7 @@ export function pendientesDeLaClinica(s: {
     s.mensajes ? conversacionesSinResponder(s.mensajes) : null,
     s.tareas ? tareasEsperandoAUnaPersona(s.tareas) : null,
     s.notas ? notasSinAprobar(s.notas) : null,
+    s.sinFacturar ? sinFacturar(s.sinFacturar) : null,
     s.cobros ? cobrosVencidos(s.cobros.cuantas, s.cobros.totalCents) : null,
     s.vacunas ? vacunasPorVencer(s.vacunas, s.hoyISO) : null,
   ].filter((p): p is Pendiente => p !== null)

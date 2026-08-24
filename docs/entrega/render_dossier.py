@@ -13,6 +13,220 @@ C = list(CONTENIDO)
 A = C.append
 
 # ---------------------------------------------------------------------------------------------
+# Corte final del 16 de agosto: encabezado, semanas 5-7 y adendas.
+# contenido.py quedó congelado al 1 de agosto; los ajustes se aplican aquí, sobre la copia.
+# ---------------------------------------------------------------------------------------------
+for _i, (_t, _v) in enumerate(C):
+    if _t == "p" and _v.startswith("Contrato COT-2026-TUV-001"):
+        C[_i] = ("p", "Contrato COT-2026-TUV-001 · TUVET IA · Corte: 31 de julio de 2026 · "
+                      "Adenda: 3 de agosto · CORTE FINAL: 16 de agosto de 2026")
+        break
+
+SEMANAS_NUEVAS = [
+    ("h3", "Semana 5 — WhatsApp con tráfico real, calendario multi-proveedor "
+           "(31 de julio al 3 de agosto)"),
+    ("code", "2d1a7e5   31-jul   Bandeja en TIEMPO REAL: los mensajes entran al instante, no cada 15 s"),
+    ("code", "57005b1   01-ago   La cascada registraba el modelo equivocado — la traza ya dice la verdad"),
+    ("code", "1450614   02-ago   El modo auto de WhatsApp puede mirar la agenda y proponer citas"),
+    ("code", "e9f9a80   02-ago   Permiso de ADMIN exigido en las tres acciones que salen de la clínica sin vuelta atrás"),
+    ("code", "26dbb02   03-ago   Google Calendar por Composio, en vez de OAuth propio"),
+    ("code", "767152f   03-ago   Outlook Calendar por Composio — una sola ruta para los dos proveedores"),
+    ("code", "4e0f5ca   03-ago   El webhook de WhatsApp ya no descarta mensajes en silencio"),
+    ("code", "53314eb   03-ago   Fotos en el hilo de WhatsApp: se ven, en orden, y /f/<token> ya no da 404"),
+    ("code", "fdee418   03-ago   Un envío que falla lo dice en 20 segundos, no en 40"),
+    ("code", "470a5a2   03-ago   Mandarse un mensaje al número de la propia clínica daba un 400 sin explicación"),
+    ("code", "fc54fb8   03-ago   Normalización E.164: el número de la ficha sale con indicativo, y el error del proveedor se traduce"),
+    ("p", "El 3 de agosto WhatsApp queda operando con tráfico real bidireccional en producción, "
+          "tras corregir la configuración del servicio de transporte. El detalle, con su evidencia "
+          "y sus límites, está en la Adenda del final."),
+
+    ("h3", "Semana 6 — correo unificado, el asistente en toda la app y el rediseño "
+           "(3 al 12 de agosto)"),
+    ("code", "7a2f115   03-ago   El health no miraba el correo, la tarjeta mentía y un envío fallido no dejaba rastro"),
+    ("code", "30490d6   03-ago   La cobranza vuelve a leer las respuestas, ahora por Composio — IMAP se retira"),
+    ("code", "5a6a370   03-ago   Athos alcanzable desde cualquier pantalla, sabiendo qué estás mirando"),
+    ("code", "aaf9d28   03-ago   Cada propuesta registra de dónde vino, y cuánto cuesta cada superficie de IA"),
+    ("code", "80046f4   11-ago   La invitación de equipo se envía por Resend, con botón propio"),
+    ("code", "4fa7f64   11-ago   La grabación de una consulta ya no muere al cambiar de pantalla"),
+    ("code", "a8de57f   11-ago   Rediseño: blanco y menta, y la barra lateral se parte en consultorio y CRM"),
+    ("code", "5909a43   11-ago   Onboarding: un riel que dice qué le falta a la clínica"),
+    ("code", "bd5ffec   12-ago   Athos primero — la app abre en la conversación, con la clínica al lado"),
+    ("code", "e94c114   12-ago   El chat del asistente toma la forma familiar de ChatGPT"),
+
+    ("h3", "Semana 7 — la consulta en vivo, seguridad y topes (15 y 16 de agosto)"),
+    ("code", "462ed9e   15-ago   El cuaderno: durante la consulta el vet no tenía dónde escribir NADA"),
+    ("code", "aae70ef   15-ago   «Iniciar consulta» ahora inicia la consulta: grabación, transcripto y cuaderno juntos"),
+    ("code", "50e5216   15-ago   La alerta de alergia nombra el fármaco, y lo dice en el plan de la nota"),
+    ("code", "8656e7a   16-ago   La nota decía «evidencia suficiente» cuando el juez dijo lo contrario"),
+    ("code", "efeeb95   15-ago   La app no tenía ninguna red cuando algo se rompe: páginas de error en tres niveles"),
+    ("code", "21d6eb5   15-ago   El modelo podía falsificar la marca que existe para controlarlo"),
+    ("code", "dac3f1d   15-ago   Tope de gasto de IA por clínica, persistente entre lambdas"),
+    ("code", "e67bd2e   15-ago   El vet ve cuánto cupo de IA le queda antes de topárselo"),
+    ("code", "dea56b6   15-ago   Desactivar una cuenta la desactiva: gate en la base (migraciones 0059-0061)"),
+    ("code", "5b6ff86   16-ago   El interruptor de desactivación en el panel de administración"),
+    ("code", "5efed7f   16-ago   Desactivar también corta las APIs, no sólo las pantallas"),
+    ("code", "ab80de5   16-ago   Un paciente creado ya se puede corregir: edición de la ficha"),
+    ("code", "17a4caa   16-ago   El pago que el cliente ya entregó no puede perderse"),
+    ("code", "de6b825   16-ago   El asistente sabe qué pantalla tenés delante — y quién espera en la clínica (d56a216)"),
+    ("p", "El detalle de esta semana, con su evidencia y sus límites, está en la Segunda adenda "
+          "del final."),
+]
+_idx = next(i for i, (t, v) in enumerate(C) if t == "h1" and v.startswith("Evidencia"))
+C[_idx:_idx] = SEMANAS_NUEVAS
+
+# ---------------------------------------------------------------------------------------------
+# Adenda — corte del 3 de agosto
+# ---------------------------------------------------------------------------------------------
+A(("h1", "Adenda — corte del 3 de agosto de 2026"))
+A(("p", "Lo de abajo es evidencia posterior al corte del 31 de julio, tomada el 3 de agosto sobre "
+        "producción con los mismos criterios del resto del documento: se dice qué clase de "
+        "evidencia respalda cada afirmación, y dónde está el límite."))
+
+A(("h2", "Adenda A — WhatsApp: transporte verificado con tráfico real"))
+A(("p", "QUÉ ESTABA FALLANDO. El transporte de WhatsApp (Evolution, elegido el 28 de julio con "
+        "consentimiento registrado de la clínica) corría sin su cache configurado: la sesión "
+        "figuraba «conectada» pero no procesaba ni un mensaje — cero filas en la tabla de mensajes "
+        "en toda su historia, y cero también en la base interna del propio transporte. El "
+        "diagnóstico se hizo por capas y con evidencia en cada una: webhook registrado con URL y "
+        "token correctos (probado con una petición real → 200), ruta desplegada, y el hueco "
+        "aislado aguas arriba, en el servicio de transporte."))
+A(("p", "LA CORRECCIÓN. Configuración del servicio (3 de agosto), no código. El mismo día quedó "
+        "fluyendo tráfico real bidireccional: mensajes entrantes de un teléfono real, respuestas "
+        "desde la bandeja, y la sincronización de lo que el veterinario escribe desde su propio "
+        "teléfono (evidencia de estado: filas inbound y outbound del 3 de agosto en "
+        "whatsapp_messages, con cero fallidas de transporte)."))
+A(("p", "QUÉ MÁS QUEDÓ CERRADO EL MISMO DÍA (evidencia documental): el webhook ya no puede "
+        "descartar mensajes en silencio — cada evento deja una línea de log con su motivo "
+        "(4e0f5ca); las fotos se ven en el hilo, en orden, y la ruta /f/<token> existe (53314eb); "
+        "un envío que falla lo dice en ~20 segundos con un mensaje que explica el motivo "
+        "(fdee418, d632fb3)."))
+A(("h3", "Límites de la evidencia"))
+A(("quote", "Los envíos que parten de la ficha del titular fallaban si el teléfono estaba guardado "
+            "sin indicativo de país: el 3 de agosto quedaron dos acciones failed con el error "
+            "íntegro y verificable en athos_actions.error (el transporte responde exists:false "
+            "para el número sin 57). QUEDÓ CORREGIDO ESE MISMO DÍA: la normalización E.164 en el "
+            "único camino de salida, y el error crudo del proveedor traducido a un mensaje que "
+            "explica el motivo (fc54fb8). Las respuestas desde la bandeja nunca lo necesitaron "
+            "porque responden a números que llegaron por webhook, ya completos."))
+A(("quote", "El botón «Sugerir» de la bandeja registró su primer uso real el 3 de agosto sin "
+            "producir propuesta; está en diagnóstico (la cascada del agente resolvió a un modelo "
+            "distinto del previsto para superficies con herramientas)."))
+A(("quote", "El modo auto responde únicamente saludos, horarios y citas; ante cualquier cosa "
+            "clínica CALLA POR DISEÑO y el mensaje queda para el veterinario. Además arranca con "
+            "rampa anti-baneo (5 respuestas/día el primer día). Un silencio ante una pregunta "
+            "clínica es la salvaguarda operando, no un defecto."))
+
+A(("h2", "Adenda B — Calendario: de OAuth propio a Composio, y ahora también Outlook"))
+A(("p", "El 3 de agosto la integración de calendario migró a Composio (26dbb02) y se añadió "
+        "Outlook Calendar por la misma ruta (767152f): un solo camino de código para los dos "
+        "proveedores. Quedaron corregidos además tres defectos de ruteo: la cita va al calendario "
+        "del ADMINISTRADOR con el veterinario invitado (3e96aa8), la pantalla de conexiones "
+        "muestra el calendario DE LA CLÍNICA y no el de quien mira (23b116f), y una cita que no "
+        "llega al calendario AVISA en vez de fallar en silencio (032982d). La conexión es por "
+        "miembro, no por clínica: cada uno usa su propia cuenta."))
+
+A(("h2", "Adenda C — Verificación pre-demo del 3 de agosto (evidencia de estado y comportamiento)"))
+A(("p", "Verificación completa de producción la mañana del 3 de agosto:"))
+A(("tabla", [["Qué", "Resultado"],
+             ["Backend /health", "200 en 0,5 s"],
+             ["Endpoints protegidos sin credencial", "401 (el gate de auth opera)"],
+             ["CORS desde el dominio del frontend", "aceptado para el origen exacto"],
+             ["Pipeline RAG completo (petición real autenticada)",
+              "200 con evidence_level y 8 fragmentos con fuente y localizador"],
+             ["Latencia del pipeline RAG", "6,5 s en caliente · 19,9 s la primera consulta en frío"],
+             ["Corpus en producción", "~519.900 fragmentos indexados"],
+             ["Datos de demostración en la cuenta del cliente",
+              "22 pacientes, 24 notas (7 borradores por aprobar), 11 consultas listas para el "
+              "Modo Fantasma, 8 alergias (3 severas), memoria de paciente indexada"]]))
+A(("quote", "Límite: la cifra de latencia en frío importa operativamente — la primera consulta "
+            "tras un rato de inactividad tarda ~20 s. Para una demostración conviene hacer una "
+            "consulta de calentamiento minutos antes."))
+
+# ---------------------------------------------------------------------------------------------
+# Segunda adenda — corte final del 16 de agosto
+# ---------------------------------------------------------------------------------------------
+A(("h1", "Segunda adenda — corte final del 16 de agosto de 2026"))
+A(("p", "Trabajo posterior al 3 de agosto, con la misma regla del resto del documento: cada "
+        "afirmación dice qué clase de evidencia la respalda, y dónde está el límite."))
+
+A(("h2", "Adenda D — La consulta en vivo: una sola superficie para grabar, escribir y firmar"))
+A(("p", "Hasta el 15 de agosto la consulta estaba repartida: TRES superficies de grabación "
+        "distintas, DOS cuadernos que no se hablaban entre sí, y ningún lugar donde el veterinario "
+        "escribiera durante la consulta. El 15 de agosto se unificó (bb8a1d4, 84ee87c, aae70ef): "
+        "«iniciar consulta» inicia la grabación con el transcripto en vivo y el cuaderno lado a "
+        "lado, la grabación sobrevive al cambio de pantalla (4fa7f64), y el cuaderno persiste en "
+        "la base (migración 0058, con pruebas propias en el servicio y en el front). De 3-4 clics "
+        "entre «quiero grabar» y «grabando» quedaron 2."))
+A(("p", "Además la nota ganó dos garantías (evidencia documental): la alerta de alergia NOMBRA EL "
+        "FÁRMACO y lo dice en el plan, que es donde el vet decide (50e5216); y la nota ya no puede "
+        "decir «evidencia suficiente» cuando el juez de abstención dictaminó lo contrario "
+        "(8656e7a) — la etiqueta sale del veredicto real, no de un texto fijo."))
+
+A(("h2", "Adenda E — Seguridad y antifraude: la fase 1 operando, y lo que falta dicho de frente"))
+A(("p", "Lo construido entre el 15 y el 16 de agosto (evidencia documental y de estado):"))
+A(("b", "Desactivar una cuenta la desactiva. El gate vive en la base (migraciones 0059-0061), "
+        "verificado contra el Postgres de producción con 7 comprobaciones en OK. El bypass por "
+        "PATCH del propio usuario quedó cerrado (93b6aac, 0060), las APIs también se cortan —no "
+        "sólo las pantallas— (5efed7f), y el panel de administración tiene el interruptor "
+        "(5b6ff86)."))
+A(("b", "El modelo no puede falsificar la marca que existe para controlarlo (21d6eb5): la tarjeta "
+        "de aprobación es del código, no del texto del modelo."))
+A(("b", "Permiso de ADMIN exigido en las tres acciones que salen de la clínica sin vuelta atrás "
+        "(e9f9a80, del 2 de agosto)."))
+A(("b", "El panel de administración muestra el costo real por tokens (/admin/costos) y los "
+        "usuarios con su última fecha de ingreso, incluida la señal «nunca entró»."))
+A(("h3", "Límites de la evidencia"))
+A(("quote", "La desactivación automática NO EXISTE: no hay ningún cron que desactive por señales. "
+            "Hoy es un interruptor manual."))
+A(("quote", "Las señales de abuso (correos parecidos, direcciones IP) no están construidas. El "
+            "plan completo está en docs/ANTIFRAUDE-2026-08-15.md, que documenta también qué "
+            "señales dependen de la retención de logs de autenticación."))
+
+A(("h2", "Adenda F — El tope de gasto de IA: construido, y hoy apagado a propósito"))
+A(("p", "El 15 de agosto se construyó el tope mensual de gasto de IA por clínica (dac3f1d, "
+        "6f3f8b6): persiste en la base —sobrevive a la siguiente lambda—, las SEIS superficies que "
+        "consumen IA pasan por él (chat, bandeja, modo automático, cartera y las dos de visión), y "
+        "el veterinario VE CUÁNTO LE QUEDA antes de topárselo (e67bd2e), en vez de un corte a "
+        "ciegas."))
+A(("h3", "Límite de la evidencia"))
+A(("quote", "Verificado el 16 de agosto contra las variables de producción de Vercel: "
+            "ATHOS_TOPE_MENSUAL_POR_CLINICA no está configurada, así que hoy el tope NO CORTA "
+            "NADA. Es deliberado — el acta tiene abierta la decisión del límite exacto entre el "
+            "plan gratuito y el de pago — pero mientras esa decisión no se tome, el único freno "
+            "vivo es el límite de peticiones por minuto. Encenderlo es poner una variable, sin "
+            "redespliegue de código."))
+
+A(("h2", "Adenda G — El rediseño, el asistente en el centro, y la salud del código al corte final"))
+A(("p", "Entre el 11 y el 16 de agosto la interfaz cambió de forma (evidencia documental): blanco "
+        "y menta con la barra partida en consultorio y CRM (a8de57f), la app abre en la "
+        "conversación con Athos y la clínica al lado (bd5ffec), el chat toma la forma familiar de "
+        "ChatGPT (e94c114), tab bar en el teléfono (87d2fed), páginas de error en tres niveles "
+        "donde antes no había ninguna (efeeb95), y un riel de onboarding que dice qué le falta a "
+        "la clínica (5909a43). El asistente además SABE QUÉ PANTALLA TENÉS DELANTE (de6b825) y "
+        "QUIÉN ESTÁ ESPERANDO EN LA CLÍNICA, sin gastar un token (d56a216)."))
+A(("p", "Salud del código al corte, medida el 16 de agosto (docs/DIAGNOSTICO-2026-08-16.md):"))
+A(("tabla", [["Qué", "Resultado"],
+             ["Errores de tipos (tsc --noEmit)", "0"],
+             ["Avisos de lint (eslint --max-warnings=0)", "0"],
+             ["Pruebas del front", "743 en 69 archivos, todas en verde"],
+             ["Pruebas del servicio", "261 en verde"],
+             ["Build de producción", "OK"],
+             ["Rutas del dashboard sin enlace entrante", "0 de 32"]]))
+A(("h3", "Límites de la evidencia"))
+A(("quote", "La medición es del commit aae70ef (15-ago); los commits del 16 añadieron MÁS pruebas "
+            "(entre ellas, la primera suite de la ruta que ejecuta acciones: 32d72c2), así que el "
+            "número real al corte es mayor, no menor."))
+A(("quote", "Lo VISUAL del rediseño (radios, espaciados, el layout de la consulta) no se verificó "
+            "a ojo en esta máquina: está cubierto por tipos, lint, pruebas y build, y debe mirarse "
+            "en el despliegue de producción."))
+A(("quote", "El botón «Sugerir» de la bandeja de WhatsApp sigue EN DIAGNÓSTICO desde el 3 de "
+            "agosto (ver Adenda A). Desde aaf9d28 cada propuesta registra su procedencia y su "
+            "costo, que es el instrumento para ese diagnóstico."))
+A(("quote", "El CORREO migró: la lectura de respuestas de cobranza ya no es IMAP sino Composio "
+            "(30490d6, 3-ago). El Punto 6 describe el estado al 31 de julio; la arquitectura "
+            "vigente es la de Composio."))
+
+# ---------------------------------------------------------------------------------------------
 # El método: por qué el proyecto avanzó en ese orden
 # ---------------------------------------------------------------------------------------------
 A(("h1", "El método — por qué se avanzó en ese orden"))
@@ -176,6 +390,20 @@ VIDEOS = [
         "Preguntá: «¿cuál fue la última pregunta que te hice?» y mostrá que responde bien.",
     ], "Lo que prueba: que el historial persiste entre sesiones. La recarga es la parte "
        "importante: sin ella no se demuestra persistencia."),
+
+    ("P06b · WhatsApp en vivo", "2 a 3 minutos", [
+        "Mostrá la bandeja de Comunicaciones en la URL de producción, con el reloj visible.",
+        "Desde un teléfono, enviá un WhatsApp al número conectado de la clínica y decí antes qué "
+        "vas a escribir.",
+        "Mostrá el mensaje apareciendo en la bandeja AL INSTANTE (sin recargar: la bandeja es en "
+        "tiempo real).",
+        "Respondé desde la bandeja y mostrá el teléfono recibiendo la respuesta.",
+        "Mandá una FOTO desde el teléfono y mostrá que se ve en el hilo.",
+        "Escribí un mensaje desde el teléfono de la clínica (no desde la plataforma) y mostrá que "
+        "también aparece en el hilo: es la sincronización completa del número.",
+    ], "Lo que prueba: el ciclo entero de WhatsApp operando en producción — entrante en tiempo "
+       "real, respuesta, media y sincronización del teléfono propio. Es la evidencia de "
+       "comportamiento que respalda la Adenda A."),
 ]
 
 for titulo, duracion, pasos, prueba in VIDEOS:
@@ -230,6 +458,13 @@ for d in [
     "docs/AGENT-SMOKE-TESTING.md — resultados del smoke testing",
     "docs/CONFIGURACION-PRODUCCION.md — qué variable vive dónde",
     "INVENTARIO-COMPONENTES.md — inventario formal de componentes",
+    "docs/entrega/CAPA-AGENTICA-ESTADO.md — las 21 habilidades del asistente, cada una con su "
+    "frase de prueba y el resultado esperado",
+    "docs/EVOLUTION.md — operación del transporte de WhatsApp (decisión, riesgos y consentimiento)",
+    "WHATSAPP.md — arquitectura de la capa de WhatsApp multi-proveedor",
+    "FUNCIONALIDADES.md — mapa completo de funcionalidades, con el costo de operación de cada una",
+    "docs/ANTIFRAUDE-2026-08-15.md — el plan antifraude: qué está construido y qué señales faltan",
+    "docs/DIAGNOSTICO-2026-08-16.md — diagnóstico de cableado, UI y base de datos al corte final",
 ]:
     A(("b", d))
 
@@ -381,7 +616,7 @@ def pie(canvas, doc_):
     canvas.saveState()
     canvas.setFont("Helvetica", 7.5)
     canvas.setFillColor(colors.HexColor("#8a8a8a"))
-    canvas.drawString(2 * cm, 1.3 * cm, "Dossier de evidencias — Milestone 2 · COT-2026-TUV-001 · 31-jul-2026")
+    canvas.drawString(2 * cm, 1.3 * cm, "Dossier de evidencias — Milestone 2 · COT-2026-TUV-001 · corte final 16-ago-2026")
     canvas.drawRightString(19.4 * cm, 1.3 * cm, f"pág. {doc_.page}")
     canvas.restoreState()
 

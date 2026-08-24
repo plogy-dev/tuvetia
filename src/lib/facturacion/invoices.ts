@@ -256,7 +256,7 @@ export async function createDraftInvoice(
 
 // ─── Eventos y estados derivados ─────────────────────────────────────────────
 
-async function appendEvent(
+export async function appendEvent(
   supabase: SupabaseClient,
   invoiceId: string,
   type: InvoiceEventType,
@@ -436,10 +436,16 @@ async function insertPaymentWithApplication(
 
 // ─── Rango de numeración (auto-crea sandbox si no hay) ───────────────────────
 
-async function ensureActiveRange(
+/**
+ * ⚠️ SE EXPORTA PARA LA NOTA CRÉDITO, que necesita su propio rango (`NOTA_CREDITO`, prefijo `SNC`).
+ * No se duplicó nada a propósito: la disciplina del consecutivo —atómico, nunca reutilizado, y la
+ * consulta a la base cuando la RPC falla— es la misma para los dos documentos, y dos copias de eso
+ * divergen el día que alguien arregla una sola.
+ */
+export async function ensureActiveRange(
   supabase: SupabaseClient,
   clinicId: string,
-  docKind: DocKind,
+  docKind: DocKind | 'NOTA_CREDITO' | 'NOTA_DEBITO',
   createdBy?: string | null,
 ): Promise<NumberingRangeRow> {
   const existing = await getActiveRange(supabase, clinicId, docKind);
@@ -474,7 +480,7 @@ async function ensureActiveRange(
  * Es el lado seguro — deja una factura que hay que revisar a mano, en vez de un salto silencioso en
  * la numeración fiscal.
  */
-async function elRangoAvanzo(
+export async function elRangoAvanzo(
   supabase: SupabaseClient,
   rangeId: string,
   numeroAntes: number,

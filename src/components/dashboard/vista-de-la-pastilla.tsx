@@ -31,10 +31,17 @@ import {
 import { bogotaDateTime } from "@/lib/date-utils"
 import type { IdDeMetrica } from "@/lib/tablero/metricas"
 
-// EL TIPO SALE DEL CATÁLOGO y ya no se escribe a mano acá. Eran dos listas de ids —ésta y la de
-// `lib/tablero/metricas.ts`— y con dos listas, agregar una cifra y olvidarse de una compila igual y
-// falla al hacer clic. Ahora agregar una métrica al catálogo obliga a darle destino abajo.
-export type MetricaDelTablero = IdDeMetrica
+// EL TIPO SALE DEL CATALOGO, mas las dos de Pacientes que no estan en el.
+//
+// Eran dos listas de ids —esta y la de `lib/tablero/metricas.ts`— y con dos listas, agregar una
+// cifra y olvidarse de una compila igual y falla al hacer clic. Agregar una metrica al catalogo
+// ahora obliga a darle destino abajo.
+//
+// `pacientes-activos` y `consultas-revision` van a mano porque son de la pantalla de Pacientes y
+// no del tablero: no se pueden prender ni apagar, asi que no tienen por que estar en el catalogo.
+// Las otras dos de esa pantalla —`citas-hoy` y `pacientes-nuevos-mes`— si estan, y por eso no se
+// repiten aca.
+export type MetricaDelTablero = IdDeMetrica | "pacientes-activos" | "consultas-revision"
 
 type Fila = { id: string; titulo: string; detalle: string | null; cuando: string | null }
 
@@ -61,6 +68,12 @@ const DESTINOS: Record<MetricaDelTablero, { fila: (id: string) => string; todo: 
     verTodo: "Ver los borradores",
   },
 
+  // ── Las de Pacientes ──────────────────────────────────────────────────────────────────────────
+  "pacientes-activos": {
+    fila: (id) => `/dashboard/patients/${id}`,
+    todo: "/dashboard/patients",
+    verTodo: "Ver todos los pacientes",
+  },
   // ── Las que se pueden agregar desde «Armá tu tablero» ────────────────────────────────────────
   "consultas-hoy": {
     fila: (id) => `/dashboard/consultas/${id}`,
@@ -77,6 +90,11 @@ const DESTINOS: Record<MetricaDelTablero, { fila: (id: string) => string; todo: 
     fila: (id) => `/dashboard/owners/${id}`,
     todo: "/dashboard/owners",
     verTodo: "Ver todos los titulares",
+  },
+  "consultas-revision": {
+    fila: (id) => `/dashboard/consultas/${id}`,
+    todo: "/dashboard/consultas",
+    verTodo: "Ver las consultas",
   },
   "pacientes-nuevos-mes": {
     fila: (id) => `/dashboard/patients/${id}`,

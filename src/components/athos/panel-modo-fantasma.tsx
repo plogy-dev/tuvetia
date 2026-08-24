@@ -41,7 +41,7 @@ import type { InteligenciaViva } from "@/lib/consulta-viva/usar-inteligencia-viv
  * estaban amontonadas:
  *
  *   · TRANSCRIPCIÓN — lo que se está diciendo, crudo.
- *   · LIVE NOTES    — lo que Athos va ordenando de eso.
+ *   · NOTAS EN VIVO — lo que Athos va ordenando de eso.
  *   · CASOS PARECIDOS — la memoria de la propia clínica: "esto ya lo viste en marzo".
  *   · SUGERENCIAS   — qué preguntar y qué no dejar pasar, con literatura detrás.
  *   · MIS NOTAS     — la hoja en blanco del vet.
@@ -51,7 +51,7 @@ import type { InteligenciaViva } from "@/lib/consulta-viva/usar-inteligencia-viv
  */
 const PESTANAS = [
   { id: "transcripcion", rotulo: "Transcripción" },
-  { id: "notas", rotulo: "Live notes" },
+  { id: "notas", rotulo: "Notas en vivo" },
   { id: "casos", rotulo: "Casos parecidos" },
   { id: "sugerencias", rotulo: "Sugerencias" },
   { id: "cuaderno", rotulo: "Mis notas" },
@@ -99,7 +99,15 @@ export function PanelModoFantasma({
         // sola pieza — el notch pierde su redondeo de abajo y esto no tiene borde arriba.
         className="consulta pointer-events-auto relative z-40 w-[540px] max-w-[calc(100vw-24px)] overflow-hidden rounded-b-[18px] border border-t-0 border-line bg-ink text-fg shadow-popover"
       >
-        <div className="flex items-center gap-1 border-b border-line px-2">
+        {/* LA TIRA SE DESBORDABA Y SE RECORTABA EN SILENCIO. Las cinco pestañas y el enlace "Ir a
+            la consulta" eran todos `shrink-0` en una fila sin `overflow`, dentro de un panel con
+            `overflow-hidden`: lo que no entraba se cortaba, y lo que no entraba era el enlace. En
+            el ancho completo (540px) ya rozaba; con `max-w-[calc(100vw-24px)]` en cualquier pantalla
+            angosta desaparecía del todo.
+            Se arregla por los dos lados: el enlace se va al pie —no es una pestaña, no tiene por
+            qué competir con ellas por el ancho— y la tira scrollea en vez de recortar, que es el
+            respaldo para cuando cinco etiquetas tampoco entren. */}
+        <div className="flex items-center gap-1 overflow-x-auto border-b border-line px-2">
           {PESTANAS.map((p) => {
             const activa = p.id === pestana
             return (
@@ -128,15 +136,6 @@ export function PanelModoFantasma({
             )
           })}
 
-          {estado.consultaId && (
-            <Link
-              href={`/dashboard/consultas/${estado.consultaId}`}
-              onClick={alCerrar}
-              className="ml-auto shrink-0 px-2 py-2 text-[11.5px] text-fg-muted hover:underline"
-            >
-              Ir a la consulta
-            </Link>
-          )}
         </div>
 
         {/* Alto acotado CON UN MÍNIMO: sin el mínimo, el panel salta de tamaño cada vez que llega una
@@ -175,14 +174,32 @@ export function PanelModoFantasma({
             ))}
         </div>
 
-        {estado.fase === "grabando" && (
-          <p className="border-t border-line px-3.5 py-2 text-[11px] leading-snug text-fg-muted">
-            {estado.pausada
-              ? // Decirlo explícito importa: el micrófono sigue tomado —el navegador lo sigue
-                // mostrando— y el vet tiene que saber que eso NO significa que se esté grabando.
-                "En pausa: no se está capturando nada. El micrófono sigue tomado para poder reanudar sin volver a pedir permiso."
-              : "Grabando con el micrófono del dispositivo. La transcripción se guarda sólo si usted aprueba la nota."}
-          </p>
+        {/* EL PIE. Antes existía sólo mientras se grababa, para la nota del micrófono. Ahora
+            también sostiene "Ir a la consulta", y por eso se pinta siempre que haya una consulta:
+            el enlace tiene que seguir estando en `Guardando…` y en el fallo, que son justo los dos
+            momentos en que la pastilla NO pinta su botón de ampliar — sin él, el panel se quedaba
+            sin ninguna salida hacia la consulta. */}
+        {(estado.fase === "grabando" || estado.consultaId) && (
+          <div className="flex items-center gap-3 border-t border-line px-3.5 py-2">
+            {estado.fase === "grabando" && (
+              <p className="min-w-0 text-[11px] leading-snug text-fg-muted">
+                {estado.pausada
+                  ? // Decirlo explícito importa: el micrófono sigue tomado —el navegador lo sigue
+                    // mostrando— y el vet tiene que saber que eso NO significa que se esté grabando.
+                    "En pausa: no se está capturando nada. El micrófono sigue tomado para poder reanudar sin volver a pedir permiso."
+                  : "Grabando con el micrófono del dispositivo. La transcripción se guarda sólo si usted aprueba la nota."}
+              </p>
+            )}
+            {estado.consultaId && (
+              <Link
+                href={`/dashboard/consultas/${estado.consultaId}`}
+                onClick={alCerrar}
+                className="ml-auto shrink-0 text-[11.5px] text-fg-muted hover:underline"
+              >
+                Ir a la consulta
+              </Link>
+            )}
+          </div>
         )}
       </div>
     </>

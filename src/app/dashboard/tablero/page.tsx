@@ -1,7 +1,7 @@
 import { addWeeks, format, startOfWeek } from "date-fns"
 import { es } from "date-fns/locale/es"
 
-import { createClient } from "@/lib/supabase/server"
+import { sesionDelServidor } from "@/lib/supabase/sesion"
 import { DataError } from "@/components/data-error"
 import { PageHeader, PageShell } from "@/components/ui/page-shell"
 import {
@@ -49,7 +49,7 @@ function weeklySeries(dates: string[]): { label: string; count: number }[] {
 }
 
 export default async function DashboardPage() {
-  const supabase = await createClient()
+  const { supabase, user } = await sesionDelServidor()
 
   const now = new Date()
   const monthStart = new Date(now.getFullYear(), now.getMonth(), 1)
@@ -61,13 +61,13 @@ export default async function DashboardPage() {
     weekStartsOn: 1,
   })
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
   const { data: perfil } = user
-    ? await supabase.from("profiles").select("clinic_id").eq("id", user.id).maybeSingle()
+    ? await supabase.from("profiles").select("clinic_id, role").eq("id", user.id).maybeSingle()
     : { data: null }
   const clinicId = (perfil as { clinic_id: string | null } | null)?.clinic_id ?? null
+  // El rol decide si además del suyo puede dejar el tablero de ENTRADA de la clínica (0075). Es la
+  // misma comprobación que hace la RLS: acá sólo gobierna si se ofrece el botón, no si se permite.
+  const esAdmin = (perfil as { role: string | null } | null)?.role === "admin"
 
   const [
     consultasMes,
@@ -80,6 +80,7 @@ export default async function DashboardPage() {
     borradores,
     preferencia,
     ajustesDeFacturacion,
+    defaultDeLaClinica,
   ] = await Promise.all([
       supabase
         .from("consultations")
@@ -125,7 +126,7 @@ export default async function DashboardPage() {
       user && clinicId
         ? supabase
             .from("tablero_preferencias")
-            // `metricas` viaja en el MISMO select que `widgets` (0073): es la misma preferencia, de
+            // `metricas` viaja en el MISMO select que `widgets` (0080): es la misma preferencia, de
             // la misma persona, para la misma pantalla.
             .select("widgets, metricas")
             .eq("user_id", user.id)
@@ -137,6 +138,16 @@ export default async function DashboardPage() {
       clinicId
         ? supabase.from("billing_settings").select("module_status").eq("clinic_id", clinicId).maybeSingle()
         : Promise.resolve({ data: null }),
+      // EL TABLERO CON EL QUE ENTRA LA CLÍNICA (0075). Es el punto de PARTIDA de quien todavía no
+      // armó el suyo; la preferencia de arriba le gana siempre. Va en la misma ola porque no
+      // depende de ella: cuál de las dos rige lo decide `disposicionEfectiva`, no una consulta.
+      clinicId
+        ? supabase
+            .from("tablero_default_clinica")
+            .select("widgets")
+            .eq("clinic_id", clinicId)
+            .maybeSingle()
+        : Promise.resolve({ data: null }),
     ])
 
   // Un fallo de query no debe verse como "clínica en ceros": banner de error visible.
@@ -147,7 +158,7 @@ export default async function DashboardPage() {
   const facturacionActiva =
     (ajustesDeFacturacion as { data: { module_status: string } | null }).data?.module_status === "ACTIVO"
 
-  // QUÉ CIFRAS QUIERE ESTA PERSONA (0073), reconciliadas con las que existen hoy y filtradas por lo
+  // QUÉ CIFRAS QUIERE ESTA PERSONA (0080), reconciliadas con las que existen hoy y filtradas por lo
   // que esta clínica puede ofrecer. Sin preferencia guardada salen las cuatro de fábrica de siempre.
   const metricasDeLaPersona = metricasEfectivas(
     (preferencia as { data: { metricas?: MetricasGuardadas } | null } | { data: null }).data?.metricas ?? null,
@@ -251,9 +262,15 @@ export default async function DashboardPage() {
   // LA DISPOSICIÓN DE ESTA PERSONA, reconciliada con los widgets que existen HOY (0072). Un id
   // viejo se ignora y uno nuevo aparece al final: la preferencia guardada es una foto del día que
   // se guardó, y el código sigue cambiando.
-  const disposicion = disposicionEfectiva(
-    ((preferencia as { data: { widgets: Guardado } | null } | { data: null }).data?.widgets ?? null),
-  )
+  //
+  // Y SI NO ARMÓ EL SUYO, entra con el de la clínica (0075). Cuál rige lo decide la función pura,
+  // no esta pantalla: acá sólo se le pasan los dos orígenes.
+  const guardadoPropio =
+    (preferencia as { data: { widgets: Guardado } | null } | { data: null }).data?.widgets ?? null
+  const guardadoDeLaClinica =
+    (defaultDeLaClinica as { data: { widgets: Guardado } | null } | { data: null }).data?.widgets ??
+    null
+  const disposicion = disposicionEfectiva(guardadoPropio, guardadoDeLaClinica)
 
   // Cada bloque, ya armado. Se arma TODO y se pinta lo elegido: el costo está en las consultas —que
   // ya corrieron arriba— y no en construir el JSX. Armar sólo lo visible obligaría a mover las
@@ -296,12 +313,14 @@ export default async function DashboardPage() {
               grabación sola. Lo único propio es dónde se monta y cómo se llama el botón. */}
           <NewConsultationDrawer label="Empezar consulta" />
           {/* Le llega la lista COMPLETA de cifras —encendidas y apagadas— porque la pantalla de
-              elegir necesita las dos: `metricasElegidas` de arriba ya viene filtrada para pintar. */}
+              elegir necesita las dos: `metricasElegidas` de arriba ya viene filtrada para pintar.
+              `esAdmin` es otra cosa: habilita guardar el tablero con el que ENTRA la clínica. */}
           <BotonDePersonalizar
             disposicion={disposicion}
             metricas={metricasDeLaPersona}
             facturacionActiva={facturacionActiva}
             clinicId={clinicId}
+            esAdmin={esAdmin}
           />
         </div>
       </div>

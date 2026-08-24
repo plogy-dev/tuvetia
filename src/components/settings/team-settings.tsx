@@ -52,6 +52,16 @@ function initialsOf(name: string | null, fallback: string) {
     .join("")
 }
 
+/** Las dos opciones de rol, para los dos selects de esta pantalla.
+ *
+ * `items` NO es decorativo: Base UI lo usa para que `<SelectValue />` muestre la ETIQUETA y no el
+ * valor. Sin él se lee "vet" donde va "Veterinario" — que es lo que pasaba en la lista del equipo.
+ */
+const ROLES = [
+  { label: "Veterinario", value: "vet" },
+  { label: "Administrador", value: "admin" },
+]
+
 export function TeamSettings({
   isAdmin,
   members,
@@ -74,6 +84,7 @@ export function TeamSettings({
     Object.fromEntries(members.map((m) => [m.id, m.ve_agenda_completa === true])),
   )
   const [cambiandoPermiso, setCambiandoPermiso] = useState<string | null>(null)
+  const [cambiandoRol, setCambiandoRol] = useState<string | null>(null)
   // La invitación recién creada: el link para copiar y el token+email para poder enviarla.
   const [invite, setInvite] = useState<{ token: string; email: string; link: string } | null>(null)
   const [sending, setSending] = useState(false)
@@ -167,6 +178,38 @@ export function TeamSettings({
     router.refresh()
   }
 
+  /**
+   * Asciende o baja a alguien del equipo.
+   *
+   * SIN CONFIRMACIÓN, a diferencia de quitar. Cambiar un rol es reversible con el mismo control y
+   * en el mismo lugar; quitar a alguien lo saca de la clínica y hay que reinvitarlo. Pedir
+   * confirmación para lo reversible enseña a apretar "sí" sin leer, y así el día que aparezca la
+   * de quitar tampoco se lee.
+   *
+   * LA RPC ES LA QUE DECIDE. Acá se esconde el control sobre uno mismo, pero eso es comodidad, no
+   * autorización: `cambiar_rol_de_miembro` rechaza igual cambiarse el rol propio, tocar a alguien
+   * de otra clínica, y dejar la clínica sin administrador.
+   */
+  async function cambiarRol(member: TeamMember, rol: "vet" | "admin") {
+    if (rol === member.role) return
+    setCambiandoRol(member.id)
+    const { error } = await supabase.rpc("cambiar_rol_de_miembro", {
+      p_member_id: member.id,
+      p_rol: rol,
+    })
+    setCambiandoRol(null)
+    if (error) {
+      toast.error(`No se pudo cambiar el rol: ${error.message}`)
+      return
+    }
+    toast.success(
+      rol === "admin"
+        ? `${member.full_name ?? member.email} ahora es administrador`
+        : `${member.full_name ?? member.email} vuelve a ser veterinario`,
+    )
+    router.refresh()
+  }
+
   async function removeMember(member: TeamMember) {
     const ok = window.confirm(
       `¿Quitar a ${member.full_name ?? member.email} de la clínica? Deja de ver pacientes, consultas y agenda de tu equipo.`,
@@ -200,9 +243,41 @@ export function TeamSettings({
                 </div>
                 <div className="truncate text-xs text-muted-foreground">{m.email}</div>
               </div>
-              <span className="shrink-0 rounded-full bg-muted px-2 py-0.5 text-xs text-muted-foreground">
-                {ROLE_LABELS[m.role] ?? m.role}
-              </span>
+              {/* EL ROL, EDITABLE. Antes era sólo una etiqueta: ascender a un veterinario obligaba
+                  a QUITARLO y volver a invitarlo, y quitarlo lo saca de la clínica de verdad —
+                  deja de ver pacientes, consultas y agenda hasta que acepte la nueva invitación.
+
+                  SOBRE UNO MISMO SIGUE SIENDO UNA ETIQUETA. Un admin que se degrada pierde el
+                  control con el que se lo devolvería, y si es el único deja la clínica sin
+                  administrador: sin nadie que pueda invitar, quitar ni otorgar nada. La RPC lo
+                  rechaza igual; acá ni siquiera se ofrece. */}
+              {isAdmin && !isSelf ? (
+                <Select
+                  value={m.role}
+                  onValueChange={(v) => cambiarRol(m, ((v as string) ?? "vet") as "vet" | "admin")}
+                  disabled={cambiandoRol === m.id}
+                  items={ROLES}
+                >
+                  <SelectTrigger
+                    className="h-7 w-[132px] shrink-0 text-xs"
+                    aria-label={`Rol de ${m.full_name ?? m.email}`}
+                  >
+                    {cambiandoRol === m.id ? (
+                      <Loader2 className="size-3.5 animate-spin" />
+                    ) : (
+                      <SelectValue />
+                    )}
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="vet">Veterinario</SelectItem>
+                    <SelectItem value="admin">Administrador</SelectItem>
+                  </SelectContent>
+                </Select>
+              ) : (
+                <span className="shrink-0 rounded-full bg-muted px-2 py-0.5 text-xs text-muted-foreground">
+                  {ROLE_LABELS[m.role] ?? m.role}
+                </span>
+              )}
               {/* EL PERMISO DE AGENDA, sólo para quien puede otorgarlo y sólo sobre quien lo
                   necesita. A un admin no se le muestra: ya la ve por ser admin, y un interruptor
                   apagado que no cambia nada es peor que ninguno — invita a tocarlo. */}
@@ -293,7 +368,11 @@ export function TeamSettings({
               </Field>
               <Field>
                 <FieldLabel htmlFor="invite-role">Rol</FieldLabel>
-                <Select value={role} onValueChange={(v) => setRole(((v as string) ?? "vet") as "vet" | "admin")}>
+                <Select
+                  value={role}
+                  onValueChange={(v) => setRole(((v as string) ?? "vet") as "vet" | "admin")}
+                  items={ROLES}
+                >
                   <SelectTrigger id="invite-role" className="w-full">
                     <SelectValue />
                   </SelectTrigger>

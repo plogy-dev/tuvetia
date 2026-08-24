@@ -3,6 +3,7 @@
 // y el modo auto. SOLO servidor (usa service_role).
 
 import { createAdminClient } from "@/lib/supabase/admin"
+import { DestinoNoRegistrado, athosPuedeEscribirA, type OrigenDelEnvio } from "./destino-permitido"
 import { ErrorQueElVetPuedeResolver } from "./error-de-envio"
 import { normalizarTelefono } from "./telefono"
 import { providerFor, type WhatsAppIntegrationRow } from "./provider"
@@ -11,6 +12,16 @@ export type SendWhatsAppOptions = {
   ownerId?: string | null
   sentBy?: string | null // null en modo auto (lo envió Athos, no un humano)
   agentMode?: "auto" | "review" | "paused" | "intervene"
+  /**
+   * Quién eligió el número. Ver `destino-permitido`.
+   *
+   * POR DEFECTO `"athos"`, y a propósito: quien agregue un camino de salida nuevo y se olvide del
+   * parámetro se lo encuentra restringido, no abierto. Un olvido tiene que fallar del lado seguro.
+   *
+   * NO se deduce de `sentBy`: la ejecución de una acción aprobada manda el id del vet que apretó
+   * aprobar aunque el número lo haya puesto Athos.
+   */
+  origen?: OrigenDelEnvio
 }
 
 export type SendWhatsAppResult = {
@@ -60,6 +71,17 @@ export async function sendWhatsAppText(
       "No se puede enviar un WhatsApp al número de la propia clínica. Para probar, usá otro teléfono.",
       400,
     )
+  }
+
+  // EL CERCO ES PARA ATHOS, NO PARA EL VET. El WhatsApp es de la clínica: el veterinario le escribe
+  // a quien quiera, incluido alguien que todavía no está en el CRM. Athos sólo a titulares
+  // registrados — ver `destino-permitido`.
+  //
+  // VA ACÁ Y NO EN LA TOOL DEL AGENTE, por lo mismo que la normalización del teléfono: éste es el
+  // único camino de salida. En la tool dejaría fuera el modo auto y la cobranza, que también son
+  // Athos escribiendo.
+  if ((opts.origen ?? "athos") === "athos" && !(await athosPuedeEscribirA(admin, clinicId, destino))) {
+    throw new DestinoNoRegistrado(destino)
   }
 
   const { waMessageId } = await providerFor(integ).sendText(integ, destino, body)

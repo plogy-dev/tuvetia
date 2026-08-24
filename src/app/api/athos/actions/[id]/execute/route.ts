@@ -196,7 +196,15 @@ async function dispatch(
         action.clinic_id,
         String(p.to_phone ?? ""),
         String(p.body ?? ""),
-        { ownerId: (p.owner_id as string | null) ?? action.owner_id, sentBy: userId, agentMode: "review" },
+        {
+          ownerId: (p.owner_id as string | null) ?? action.owner_id,
+          sentBy: userId,
+          agentMode: "review",
+          // ORIGEN ATHOS AUNQUE LO APRUEBE UN HUMANO, y es el caso que obliga a declarar el origen
+          // en vez de deducirlo: `sentBy` es el vet que apretó aprobar, pero EL NÚMERO lo eligió el
+          // agente en `p.to_phone`. Mirar `sentBy` haría pasar por humana justo la vía de riesgo.
+          origen: "athos" as const,
+        },
       )
       return { wa_message_id: waMessageId, message }
     }

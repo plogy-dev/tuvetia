@@ -112,12 +112,61 @@ def _cited_from_answer(answer: str, literature, drop: frozenset[int] | None = No
     return used
 
 
+# Tope de CONCURRENCIA del trabajo de background best-effort (indexado de memoria + traza). En la DB
+# Micro (que cierra conexiones con pocas simultáneas) esos hilos competían con el propio request por
+# las 10 conexiones del pool y podían dispararle un PoolTimeout al camino del primer token. El
+# semáforo NO es una cola: si está lleno, el trabajo se SALTA —la memoria se indexa en el próximo
+# chat, la traza es best-effort—, así el request siempre tiene cupo de conexión. Nunca bloquea.
+_BG_SLOTS = threading.BoundedSemaphore(3)
+
+
+def _en_background(fn) -> None:
+    def _correr() -> None:
+        if not _BG_SLOTS.acquire(blocking=False):
+            log.info("chat: pool bajo presión, se saltea trabajo de background (%s)", fn.__name__)
+            return
+        try:
+            fn()
+        finally:
+            _BG_SLOTS.release()
+
+    threading.Thread(target=_correr, daemon=True).start()
+
+
+def _alergenos_en_respuesta(answer: str, severos: list[str]) -> list[str]:
+    """Backstop determinístico del gate de alergia en el chat: los alérgenos SEVEROS registrados cuyo
+    nombre aparece en la respuesta (palabra completa, sin distinguir mayúsculas). El gate ya avisa
+    cuáles son y el prompt no debe contradecirlos; pero —igual que con las dosis— el prompt no basta,
+    así que esto le da al front la señal para ELEVAR el aviso si la respuesta nombra uno. Advisory, no
+    bloquea: aun si la mención es para EVITARLO, que el vet lo confirme cierra el hueco sin costo."""
+    if not answer or not severos:
+        return []
+    low = answer.lower()
+    hits: list[str] = []
+    for a in severos:
+        term = (a or "").strip().lower()
+        # >=4 chars: evita que un alérgeno muy corto sobre-marque por coincidencia.
+        if len(term) >= 4 and re.search(rf"\b{re.escape(term)}\b", low):
+            hits.append(a)
+    return hits
+
+
 def _thread_history(rows) -> list[dict]:
     """Filas de athos_messages (más antiguo->más reciente) -> mensajes {role, content} para el LLM.
     Limpia los extremos: el historial debe EMPEZAR con 'user' y TERMINAR con 'assistant' (turnos
     completos), para no romper la alternancia que espera la API al anexar la pregunta actual."""
-    hist = [{"role": r["role"], "content": r["content"]}
-            for r in rows if r.get("role") in ("user", "assistant") and (r.get("content") or "").strip()]
+    raw = [{"role": r["role"], "content": r["content"]}
+           for r in rows if r.get("role") in ("user", "assistant") and (r.get("content") or "").strip()]
+    # Colapsa las rachas de un mismo rol: un turno que falló a mitad (se logueó el 'user' pero el
+    # stream del 'assistant' no) deja dos 'user' seguidos, y Anthropic —el RESPALDO de la cascada de
+    # proveedores— rechaza roles no alternados con HTTP 400. Sin esto, la cascada fallaría justo al
+    # caer a Claude, que es cuando más se la necesita. Se conserva el ÚLTIMO de cada racha.
+    hist: list[dict] = []
+    for m in raw:
+        if hist and hist[-1]["role"] == m["role"]:
+            hist[-1] = m
+        else:
+            hist.append(m)
     while hist and hist[0]["role"] != "user":
         hist.pop(0)
     while hist and hist[-1]["role"] != "assistant":
@@ -224,7 +273,7 @@ def stream_answer(question: str, patient_id: str, clinic_id: str, user_id: str |
             except Exception as e:  # noqa: BLE001 — la memoria nunca rompe el chat
                 log.warning("chat: falló el indexado de memoria: %s", e)
 
-        threading.Thread(target=_indexar_memoria, daemon=True).start()
+        _en_background(_indexar_memoria)
     # Reusa las alergias severas que load_patient_context YA cargó (evita una 2ª query/conexión a
     # `allergies` por el mismo dato). En consulta general el contexto es vacío -> lista vacía.
     severe = patient.severe_allergies
@@ -248,7 +297,7 @@ def stream_answer(question: str, patient_id: str, clinic_id: str, user_id: str |
             except Exception as e:  # noqa: BLE001
                 log.warning("chat: falló la traza en background: %s", e)
 
-        threading.Thread(target=_trace_background, daemon=True).start()
+        _en_background(_trace_background)
 
     if gate:
         yield _sse({"type": "warning",
@@ -415,6 +464,11 @@ def stream_answer(question: str, patient_id: str, clinic_id: str, user_id: str |
     undeclared = find_undeclared(answer)
     if undeclared:
         log.info("afirmaciones ejecutables sin declarar: %s", len(undeclared))
+    # Backstop del gate de alergia: ¿la respuesta NOMBRA un alérgeno severo del paciente? El front lo
+    # usa para elevar el aviso (aditivo, como unverified_sources/undeclared_claims).
+    alergenos_en_respuesta = _alergenos_en_respuesta(answer, severe)
+    if alergenos_en_respuesta:
+        log.info("respuesta menciona alérgenos severos registrados: %s", alergenos_en_respuesta)
     # `unverified_sources` es aditivo para el front: son los `[n]` que quedaron escritos en el texto
     # ya emitido pero cuya fuente el auditor descartó. El chat es streaming, así que el texto no se
     # puede reescribir hacia atrás — el front debería atenuarlos o quitarlos al recibir este evento.
@@ -423,4 +477,5 @@ def stream_answer(question: str, patient_id: str, clinic_id: str, user_id: str |
                 "allergy_gate_triggered": gate, "insufficient_evidence": False,
                 "evidence_level": level, "ai_model": cascade.usado or get_settings().llm_model,
                 "unverified_sources": sorted(fidelity.unfaithful),
-                "undeclared_claims": undeclared})
+                "undeclared_claims": undeclared,
+                "allergy_in_answer": alergenos_en_respuesta})

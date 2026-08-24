@@ -112,6 +112,13 @@ export async function GET(req: Request) {
       (c) => ({ id: c.id, titulo: c.patient?.name ?? "Consulta", detalle: c.patient?.species ?? null, cuando: c.started_at }),
     )
   } else if (metrica === "citas-hoy") {
+    // ESTA CIFRA LA COMPARTEN DOS PANTALLAS, el tablero y Pacientes, y por eso se responde una sola
+    // vez: el endpoint es una cadena `if/else` y no puede contestar distinto según quién preguntó.
+    //
+    // MANDA EL FILTRO DEL TABLERO. Pacientes la contaba sin mirar el estado, así que una cita
+    // cancelada seguía sumando como "cita hoy". Al unir las dos pantallas había que elegir uno solo,
+    // y éste es el que no miente. El conteo de `dashboard/patients/page.tsx` se ajustó para
+    // coincidir — si vuelven a discrepar, `pastillas-del-tablero.test.ts` lo caza.
     const { data, error: e } = await supabase
       .from("appointments")
       .select("id, title, starts_at, patient:patients(name)")
@@ -133,6 +140,43 @@ export async function GET(req: Request) {
     error = e?.message ?? null
     filas = ((data as unknown as { id: string; full_name: string; phone: string | null; created_at: string }[] | null) ?? []).map(
       (o) => ({ id: o.id, titulo: o.full_name, detalle: o.phone, cuando: o.created_at }),
+    )
+  // ── Las de PACIENTES ──────────────────────────────────────────────────────────────────────────
+  //
+  // Lo mismo que pidió Luciano para el tablero, en la otra pantalla que tiene una fila de cifras:
+  // que al tocarlas se abra el detalle sin sacarte de donde estás.
+  //
+  // LOS FILTROS SON COPIA EXACTA de los de `dashboard/patients/page.tsx`, y hay un test que lo
+  // vigila: una tarjeta que dice 9 y una vista que muestra 11 es peor que no tener la vista.
+  //
+  // `citas-hoy` y `pacientes-nuevos-mes` NO están acá: las comparte con el tablero y se responden
+  // una sola vez, arriba.
+  } else if (metrica === "pacientes-activos") {
+    // `is_deceased` FALSE, igual que el conteo. La tarjeta siempre dijo "Pacientes activos" y
+    // contaba todos: hoy no se nota porque no hay ninguno marcado, y el día que lo haya la cifra
+    // habría empezado a mentir sin que nada fallara.
+    const { data, error: e } = await supabase
+      .from("patients")
+      .select("id, name, species, created_at")
+      .eq("is_deceased", false)
+      .order("created_at", { ascending: false })
+      .limit(TOPE)
+    error = e?.message ?? null
+    filas = ((data as { id: string; name: string; species: string | null; created_at: string }[] | null) ?? []).map(
+      (p) => ({ id: p.id, titulo: p.name, detalle: p.species, cuando: p.created_at }),
+    )
+  } else if (metrica === "consultas-revision") {
+    // `consultations.status = 'review'` — NO es lo mismo que `notas-borrador` del tablero, que
+    // mira `clinical_notes.status`. Son dos cifras parecidas de tablas distintas.
+    const { data, error: e } = await supabase
+      .from("consultations")
+      .select("id, started_at, patient:patients(name, species)")
+      .eq("status", "review")
+      .order("started_at", { ascending: false })
+      .limit(TOPE)
+    error = e?.message ?? null
+    filas = ((data as unknown as { id: string; started_at: string; patient: { name: string; species: string | null } | null }[] | null) ?? []).map(
+      (c) => ({ id: c.id, titulo: c.patient?.name ?? "Consulta", detalle: "En revisión", cuando: c.started_at }),
     )
   } else if (metrica === "pacientes-nuevos-mes") {
     const { data, error: e } = await supabase

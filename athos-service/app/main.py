@@ -1,8 +1,11 @@
 """FastAPI: rutas de Athos. /health está implementado; el resto llama a los módulos."""
+from contextlib import asynccontextmanager
+
 from fastapi import FastAPI, Header, HTTPException, WebSocket
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 
+from app.arranque import anunciar
 from app.config import get_settings
 from app.auth import verify_jwt, resolve_clinic_id
 from app.models import (
@@ -16,22 +19,30 @@ from app.models import (
     RetrievedChunkLite,
     TranscribeRequest,
     TranscribeResponse,
-    WhatsappSuggestRequest,
-    WhatsappSuggestResponse,
 )
 from app.live_intelligence import analizar as analizar_en_vivo
 from app.patient_context import load_patient_context
 from app.phantom import suggest as phantom_suggest_service
 from app.streaming_transcription import run_live_session
 from app.transcription import transcribe as transcribe_service
-from app.whatsapp_reply import suggest_reply
 from app.chat import stream_answer
 from app.generation.evidence_judge import judge_evidence
 from app.retrieval.cascade import build_and_retrieve
 from app.trace.logs import log_retrieval
 
 settings = get_settings()
-app = FastAPI(title="Athos RAG service")
+@asynccontextmanager
+async def lifespan(_app: FastAPI):
+    """Al arrancar, el servicio dice con qué modelos quedó y qué credenciales le faltan.
+
+    Es lo único que separa "Railway perdió las variables" de "Athos no responde y no sabemos por
+    qué": el healthcheck da verde en los dos casos. Ver `app/arranque.py`.
+    """
+    anunciar(get_settings())
+    yield
+
+
+app = FastAPI(title="Athos RAG service", lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,
@@ -149,19 +160,6 @@ async def athos_transcribe_live(ws: WebSocket):
     exactamente como antes. Protocolo y decisiones: `app/streaming_transcription.py`.
     """
     await run_live_session(ws, autenticar=_auth_token)
-
-
-@app.post("/athos/whatsapp/suggest", response_model=WhatsappSuggestResponse)
-def athos_whatsapp_suggest(body: WhatsappSuggestRequest,
-                           authorization: str | None = Header(default=None)):
-    """Borrador de respuesta de WhatsApp para la bandeja (agent_mode=review).
-
-    Athos redacta; el vet edita y aprueba antes de enviar — este endpoint NUNCA envía.
-    Guardrails en el prompt: sin claims clinicos cerrados, sin inventar datos de la clinica.
-    """
-    _user_id, _clinic_id = _auth(authorization, body.clinic_id)
-    draft = suggest_reply([m.model_dump() for m in body.messages], body.owner_name)
-    return WhatsappSuggestResponse(draft=draft)
 
 
 @app.post("/athos/live", response_model=LiveResponse)

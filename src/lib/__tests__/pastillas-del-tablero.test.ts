@@ -37,20 +37,27 @@ function leer(ruta: string): string {
 const TABLERO = leer("app/dashboard/tablero/page.tsx")
 const DETALLE = leer("app/api/tablero/detalle/route.ts")
 const VISTA = leer("components/dashboard/vista-de-la-pastilla.tsx")
+const PACIENTES = leer("app/dashboard/patients/page.tsx")
 
 /**
- * Todas las cifras que se pueden encender.
+ * Todas las cifras que se pueden abrir, de las DOS pantallas que tienen pastillas.
  *
- * SALE DEL CATÁLOGO Y YA NO DE LA PÁGINA. Antes se raspaban los `metrica: "…"` del fuente del
- * tablero, porque las cuatro estaban escritas ahí a mano. Con las métricas elegibles (0073) la
- * página las arma desde `lib/tablero/metricas.ts` y no queda ningún literal que raspar.
+ * EL TABLERO SALE DEL CATALOGO y ya no de la pagina: con las metricas elegibles la pagina las arma
+ * desde `lib/tablero/metricas.ts` y no queda ningun literal que raspar. Cubre las ONCE que alguien
+ * puede prender, no solo las que vienen de fabrica — que son justamente las que nadie va a probar a
+ * mano antes de que un veterinario les haga clic.
  *
- * El cambio hace el test MÁS fuerte, no más débil: antes cubría las cuatro que había en pantalla;
- * ahora cubre las ONCE que alguien puede prender —incluidas las que nadie prendió todavía, que son
- * justamente las que nadie va a probar a mano antes de que un veterinario les haga clic.
+ * PACIENTES SE SIGUE RASPANDO: sus pastillas estan escritas a mano en la pagina. El acuerdo que
+ * este archivo protege —toda cifra que se abre tiene quien la responda— no depende de en que
+ * pantalla este, asi que las dos se miran juntas.
  */
 function clavesDelTablero(): string[] {
-  return CATALOGO_DE_METRICAS.map((m) => m.id)
+  return [
+    ...new Set([
+      ...CATALOGO_DE_METRICAS.map((m) => m.id),
+      ...[...PACIENTES.matchAll(/metrica:\s*"([a-z0-9-]+)"/g)].map((m) => m[1]),
+    ]),
+  ]
 }
 
 /** Las claves que el endpoint sabe atender. */
@@ -70,7 +77,7 @@ describe("las pastillas del tablero y su detalle", () => {
   it("cada pastilla de la página tiene quién le responda el detalle", () => {
     const enPagina = clavesDelTablero()
     // Si esto queda en cero, el resto del archivo pasa sin mirar nada.
-    expect(enPagina.length).toBeGreaterThanOrEqual(4)
+    expect(enPagina.length).toBeGreaterThanOrEqual(8)
     const enEndpoint = clavesDelEndpoint()
     for (const clave of enPagina) {
       expect(enEndpoint, `la pastilla "${clave}" abre una vista que el endpoint no sabe llenar`).toContain(
@@ -127,8 +134,47 @@ describe("las pastillas del tablero y su detalle", () => {
     // tarjeta volvería a navegar. La tarjeta de cifra no enlaza a ningún lado, punto.
     expect(TARJETA).not.toContain("href")
     expect(TARJETA).not.toContain("next/link")
-    // Y la página tiene que pasarle las pastillas al componente que abre la vista.
+    // Y las páginas tienen que pasarle las pastillas al componente que abre la vista. Pacientes
+    // usaba `<StatCard>` suelto —cifras que no se podían tocar—, que es el estado al que no hay
+    // que volver.
     expect(TABLERO).toContain("<PastillasDelTablero")
+    expect(PACIENTES).toContain("<PastillasDelTablero")
+    expect(PACIENTES).not.toContain("<StatCard")
+  })
+
+  it("los pacientes activos excluyen a los fallecidos de los dos lados", () => {
+    // La tarjeta SIEMPRE dijo "Pacientes activos" y contaba todos. Hoy no se nota porque no hay
+    // ninguno marcado; el día que lo haya, la cifra habría empezado a mentir sin que nada fallara.
+    expect(PACIENTES).toMatch(/is_deceased["']?,\s*false/)
+    expect(ramaDelEndpoint("pacientes-activos")).toMatch(/is_deceased["']?,\s*false/)
+  })
+
+  it("las consultas en revisión miran la consulta, no la nota", () => {
+    // Es parecida a `notas-borrador` del tablero y NO es lo mismo: aquélla mira
+    // `clinical_notes.status`, ésta `consultations.status`. Confundirlas daría dos cifras que se
+    // parecen y no coinciden.
+    const rama = ramaDelEndpoint("consultas-revision")
+    expect(rama).toContain('from("consultations")')
+    expect(rama).toMatch(/status["']?,\s*["']review["']/)
+  })
+
+  it("las citas de hoy son las de HOY, no las de siete días", () => {
+    // La otra ventana del endpoint es de 7 días (`citas-7d`). Reusarla acá habría sido lo cómodo y
+    // habría mostrado once citas bajo una cifra que dice tres.
+    const rama = ramaDelEndpoint("citas-hoy")
+    expect(rama).toContain("inicioDeHoy")
+    expect(rama).toContain("finDeHoy")
+    expect(rama).not.toContain("enSieteDias")
+  })
+
+  it("las citas de hoy cuentan lo mismo en el tablero, en Pacientes y en el detalle", () => {
+    // LAS TRES, y por eso este test existe: `citas-hoy` la muestran DOS pantallas y el endpoint la
+    // responde UNA sola vez. Pacientes la contaba sin mirar el estado, así que una cita cancelada
+    // sumaba en la tarjeta y no aparecía al abrirla. Si alguien vuelve a separarlas, esto falla.
+    const ESTADOS = `.in("status", ["scheduled", "confirmed", "in_progress"])`
+    expect(ramaDelEndpoint("citas-hoy")).toContain(ESTADOS)
+    expect(TABLERO).toContain(ESTADOS)
+    expect(PACIENTES).toContain(ESTADOS)
   })
 
   it("el endpoint rechaza una métrica que no conoce", () => {

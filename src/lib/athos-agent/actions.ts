@@ -20,6 +20,18 @@ export type AgentContext = {
   model: string
 }
 
+/**
+ * Lo que el modelo lee cuando propone algo, y de donde saca que la acción NO está hecha.
+ *
+ * Se exporta —en vez de vivir inline en el `return`— porque el banco adversario le tiene que
+ * contestar al modelo EXACTAMENTE esto. Si el banco improvisara otra nota, el modelo razonaría
+ * distinto a partir de ahí y estaríamos midiendo a un agente que no existe. Antes había una copia
+ * literal en `adversarios/arnes.ts` con un test que comparaba las dos cadenas; esto lo vuelve
+ * imposible de desincronizar.
+ */
+export const NOTA_PROPUESTA =
+  "Acción registrada como PROPUESTA — pendiente de aprobación del veterinario en la tarjeta. No está ejecutada."
+
 export type ProposedActionResult =
   | {
       action_id: string
@@ -71,6 +83,6 @@ export async function proposeAction(
     action_id: (data as { id: string }).id,
     status: "proposed",
     summary,
-    note: "Acción registrada como PROPUESTA — pendiente de aprobación del veterinario en la tarjeta. No está ejecutada.",
+    note: NOTA_PROPUESTA,
   }
 }

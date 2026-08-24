@@ -169,8 +169,46 @@ export const ESTADO_LEGIBLE: Record<EstadoSuscripcion, string> = {
  * ¿Esta suscripción se cobra sola el mes que viene?
  *
  * `cortesia` NO se cobra —es Pro regalado, sin tarjeta— y por eso la pantalla no le ofrece
- * cancelar: no hay nada que cancelar.
+ * cancelar: no hay nada que cancelar. `trial` tampoco: no hay tarjeta y no se convierte sola.
  */
 export function seRenueva(estado: EstadoSuscripcion): boolean {
   return estado === "active" || estado === "past_due"
+}
+
+// ── La prueba de tres días ─────────────────────────────────────────────────────────────────────
+//
+// Decidida en la reunión del 22-ago. Una prueba NO es un plan nuevo ni una columna nueva: es
+// `plan = 'pro'` con `subscription_status = 'trial'` y una fecha en `plan_renueva_en`. La estampa
+// un trigger al nacer la clínica (migración 0078) y la baja el barrido cuando vence.
+//
+// POR ESO NO HAY NADA ACÁ QUE DÉ ACCESO. `tieneAcceso` sigue leyendo `plan` y sólo `plan`, sin
+// enterarse de que existen las pruebas — que es la propiedad que hace que esto no pueda abrir un
+// agujero. Lo de abajo es para CONTAR y para DECIR, no para decidir.
+
+/** Cuántos días dura. El otro lado de este número está en la migración 0078. */
+export const DIAS_DE_PRUEBA = 3
+
+/**
+ * ¿Está usando la prueba gratuita AHORA?
+ *
+ * Pide las dos cosas: el estado `trial` y el plan `pro`. Con el estado solo no alcanza —`trial` es
+ * además el default histórico de la columna, y hay una clínica vieja en `free` que lo tiene sin
+ * haber probado nada—. El plan es el que manda, acá igual que en el gate.
+ */
+export function enPrueba(estado: EstadoSuscripcion, plan: Plan): boolean {
+  return estado === "trial" && plan === "pro"
+}
+
+/**
+ * Cuántos días enteros le quedan de prueba. 0 = hoy es el último.
+ *
+ * Redondea HACIA ARRIBA, que es como lo cuenta quien la está usando: a las 23:00 del primer día
+ * todavía "quedan 2 días", no 1,04. Nunca devuelve negativos — una prueba vencida que el barrido
+ * todavía no bajó muestra 0, no "-2 días".
+ */
+export function diasDePruebaRestantes(renuevaEn: string | null, ahora = new Date()): number {
+  if (!renuevaEn) return 0
+  const fin = new Date(renuevaEn).getTime()
+  if (!Number.isFinite(fin)) return 0
+  return Math.max(0, Math.ceil((fin - ahora.getTime()) / 86_400_000))
 }

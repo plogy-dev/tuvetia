@@ -12,8 +12,10 @@ import {
   ExternalLink,
   FileText,
   Loader2,
+  Receipt,
   Save,
   Sparkles,
+  Stethoscope,
 } from "lucide-react"
 import { toast } from "sonner"
 
@@ -21,6 +23,7 @@ import { athosPhantomSuggest, type Citation, type ConditionAlert } from "@/lib/a
 import { tituloDeLaConsulta } from "@/lib/consultas/titulo"
 import { Cockpit, type PestanaDelCockpit } from "@/components/athos/cockpit"
 import { InformeAlTitular } from "@/components/consultas/informe-al-titular"
+import { hayAlgoQueCobrar } from "@/lib/facturacion/lo-recetado"
 import { useConsultaViva } from "@/lib/consulta-viva/usar"
 import { useRouter } from "next/navigation"
 import { createClient } from "@/lib/supabase/client"
@@ -372,7 +375,8 @@ export default function NotaConsultaPage({ params }: { params: Promise<{ id: str
   // quitó hace poco.
   if (grabandoEsta) {
     return (
-      <div className="consulta flex flex-1 flex-col">
+      // El cockpit NO fuerza superficie oscura — ver el comentario del return principal.
+      <div className="flex flex-1 flex-col">
         <Cockpit
           pestana={pestanaCockpit}
           alCambiarPestana={setPestanaCockpit}
@@ -383,18 +387,24 @@ export default function NotaConsultaPage({ params }: { params: Promise<{ id: str
   }
 
   return (
-    // `consulta` = superficie GRAFITO. Es el segundo contexto del sistema de diseño v2: el CRM va en
-    // blanco y la consulta abierta en oscuro. No es estética — es lo que separa el "cockpit" de la
-    // consulta del resto de la app, y de un vistazo dice si estás con un paciente delante o no.
+    // LA CONSULTA YA NO SE PONE OSCURA, y es un cambio de decisión, no un arreglo de descuido.
     //
-    // La clase sólo reasigna variables (`globals.css`), así que TODO lo de adentro —cards, badges,
-    // el hilo de Athos, los bloques del calendario— se repinta heredando. Ningún componente de acá
-    // sabe en qué contexto está, que es justamente el punto.
+    // Llevaba la clase `consulta` —superficie grafito— porque el sistema de diseño v2 de David tenía
+    // dos contextos: el CRM en blanco y la consulta abierta en oscuro, para que de un vistazo se
+    // supiera si había un paciente delante. Era deliberado y estaba escrito acá.
     //
-    // El padding que antes tenía el contenedor centrado sube a este: `dashboard/layout.tsx` no pone
-    // ninguno alrededor de `{children}`, así que el grafito tiene que llegar solo hasta el borde del
-    // área de contenido. Si el padding se quedara adentro, quedaría un marco blanco alrededor.
-    <div className="consulta flex flex-1 flex-col px-4 py-4 md:py-6 lg:px-6">
+    // POR QUÉ SE CAE. El 19-ago se cambió la referencia de diseño al prototipo de Luciano, y ese
+    // prototipo NO tiene superficie oscura por sección: tiene un único `.dark` global que prende el
+    // usuario cuando quiere. Entrar al Modo Fantasma y que la pantalla se apague sola es, contra esa
+    // referencia, un salto de tema que nadie pidió — y encima ignora al vet que eligió tema claro.
+    //
+    // LO QUE SÍ SIGUE OSCURO ES EL NOTCH (`grabacion-pastilla.tsx` y su panel). Eso no es lo mismo:
+    // es un objeto flotante, chico, que tiene que despegarse del fondo para verse desde cualquier
+    // pantalla — y es exactamente como se ve en las capturas del prototipo. Lo que se quita es que
+    // se oscurezca LA SECCIÓN entera.
+    //
+    // El padding se queda: `dashboard/layout.tsx` no pone ninguno alrededor de `{children}`.
+    <div className="flex flex-1 flex-col px-4 py-4 md:py-6 lg:px-6">
     <div className="mx-auto flex w-full max-w-7xl flex-col gap-4 md:gap-5">
       <Link
         href="/dashboard/consultas"
@@ -412,14 +422,28 @@ export default function NotaConsultaPage({ params }: { params: Promise<{ id: str
           plegado: sigue estando, deja de competir. */}
       <div className="flex min-w-0 flex-col gap-4 md:gap-5">
 
-      {/* Cabecera del paciente */}
-      <div className="rounded-xl border bg-card p-4 md:p-6">
+      {/* LA CABECERA NO ES UNA TARJETA, es una banda — medido contra su `ConsultationHubView`.
+          Era el primero de SEIS paneles `rounded-xl border bg-card` apilados, todos del mismo peso:
+          la pantalla se leía como una grilla de ladrillos y nada decía qué mirar primero. Una
+          cabecera con borde propio compite con lo que encabeza; una banda con una línea abajo le da
+          un techo a la página y deja que el primer bloque con borde sea la nota, que es a lo que se
+          entra.
+
+          Y arriba un RÓTULO EN VERSALITA como el de ellos: dice de qué es esta pantalla antes de
+          decir de quién, que es el orden en que se lee. */}
+      <div className="border-b border-line-soft pb-4 md:pb-5">
         <div className="flex flex-wrap items-center gap-4">
           <div className="grid size-12 shrink-0 place-items-center rounded-xl bg-secondary text-xl font-bold">
             {initial}
           </div>
           <div className="min-w-0 flex-1">
-            <h1 className="text-xl font-semibold tracking-tight md:text-2xl">
+            <div className="flex items-center gap-2">
+              <Stethoscope className="size-3.5 shrink-0 text-fg-muted" aria-hidden />
+              <span className="text-[10px] font-semibold uppercase tracking-[0.18em] text-fg-faint">
+                Consulta con Athos
+              </span>
+            </div>
+            <h1 className="mt-1 text-xl font-semibold tracking-tight md:text-2xl">
               {consultation ? (
                 <Link
                   href={`/dashboard/patients/${consultation.patient_id}`}
@@ -449,13 +473,21 @@ export default function NotaConsultaPage({ params }: { params: Promise<{ id: str
           </div>
         </div>
         <div className="mt-4 flex flex-wrap gap-2">
-          <span className="inline-flex items-center gap-1.5 rounded-md border bg-secondary px-2.5 py-1 text-xs font-medium">
-            <span className={`size-1.5 rounded-full ${approved ? "bg-foreground" : "bg-muted-foreground"}`} />
+          {/* PÍLDORAS, NO CHIPS CON BORDE. Es la forma de ellos —`h-[21px] rounded-full`, relleno
+              suave y sin borde— y acá cambia algo más que el radio: cuatro rectángulos con borde
+              debajo de una cabecera con borde son cinco rectángulos, y el estado de la nota, que es
+              lo único que hay que mirar ahí, no se distinguía de los demás. */}
+          <span
+            className={`inline-flex h-[21px] items-center gap-[5px] rounded-full px-2 text-[11.5px] font-medium ${
+              approved ? "bg-brand-soft text-brand-text" : "bg-secondary text-fg-muted"
+            }`}
+          >
+            <span className={`size-1.5 rounded-full ${approved ? "bg-brand" : "bg-fg-faint"}`} />
             {note ? (approved ? "Aprobada" : "Borrador — requiere aprobación") : "Sin nota"}
           </span>
           {note?.ai_generated_at && (
-            <span className="inline-flex items-center gap-1.5 rounded-md border bg-secondary px-2.5 py-1 text-xs text-muted-foreground">
-              Redactada por <span className="text-foreground">Athos</span>
+            <span className="inline-flex h-[21px] items-center gap-[5px] rounded-full bg-secondary px-2 text-[11.5px] text-fg-muted">
+              Redactada por <span className="text-fg">Athos</span>
             </span>
           )}
           {/* EL RÓTULO SALE DEL VEREDICTO DEL JUEZ, NO DE CONTAR CITAS.
@@ -814,6 +846,30 @@ export default function NotaConsultaPage({ params }: { params: Promise<{ id: str
                 <FileText className="size-4" />
                 Informe para el titular
               </Button>
+              {/* LA FACTURA, DESDE ACÁ. Lo pidió Luciano el 19-ago: que Athos avise "tenés esta
+                  factura por emitir de esta consulta".
+
+                  La lista de consultas sin facturar YA EXISTÍA —en Ventas → Nueva factura— y ahí
+                  estaba el problema: hay que ir a Ventas para enterarse, y quien atiende no entra a
+                  Ventas hasta que va a cobrar. Para entonces ya se olvidó de la de anteayer.
+
+                  El carrito arranca CON LO RECETADO: la página de nueva factura lee el plan de la
+                  nota aprobada y lo cruza con el catálogo. Todo en cantidad 1 — la posología no se
+                  convierte en unidades, porque si ese cálculo falla, falla en la factura de un
+                  cliente y nadie revisa un número que ya viene puesto y parece razonable. */}
+              {approved && hayAlgoQueCobrar(soap.plan) && pet?.owner_id && (
+                <Button
+                  variant="outline"
+                  render={
+                    <Link
+                      href={`/dashboard/facturacion/nueva?ownerId=${pet.owner_id}&patientId=${consultation.patient_id}&patientName=${encodeURIComponent(pet.name)}&consultationId=${consultation.id}`}
+                    />
+                  }
+                >
+                  <Receipt className="size-4" />
+                  Facturar lo recetado
+                </Button>
+              )}
               {note.ai_generated_at && (
                 <span className="ml-auto text-xs text-muted-foreground">Redactada por Athos</span>
               )}

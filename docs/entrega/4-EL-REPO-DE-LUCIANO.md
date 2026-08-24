@@ -102,16 +102,41 @@ contenido. La suya es más robusta; la nuestra es más barata de operar.
 
 Sigue el orden que se acordó — Athos, Modo Fantasma, Pacientes — ahora con números concretos:
 
-1. **Bajar el radio.** `rounded-xl` (18px) → el radio del sistema. Está en 75 archivos, es mecánico y
-   es lo que más cambia la percepción. Con un test de fuente que lo fije, como los de contraste.
-2. **Bajar la densidad del chat de Athos**: columna 780px, avatar 26px cuadrado-redondeado, texto
-   13,5px, burbuja con esquina asimétrica (`rounded-[14px] rounded-br-[4px]`), sugerencias como
-   píldoras.
-3. **Apretar el sidebar**: 232px, ítems de 33px, texto 13,5px, radio 7px.
-4. **La escala de tipo del notch**, que es donde más se nota la diferencia.
+1. ~~**Bajar el radio.**~~ **DECIDIDO EN CONTRA el 22-ago — no se hace.** Ver §5.1 abajo.
+2. ✅ **Bajar la densidad del chat de Athos** — #131 (pantalla completa) y #162 (el hilo del widget,
+   que se había quedado atrás con burbujas de 16px y la respuesta dentro de un recuadro).
+3. ✅ **Apretar el sidebar** — #163: 232px, ítems de 33px, texto 13,5px, radio 7px.
+4. ✅ **La escala de tipo del notch** — #164. El defecto no era falta de letra chica: dos de los
+   cuatro rótulos del panel estaban a 14px, el mismo tamaño que el texto que encabezaban.
 
-Y una que sale gratis y ya validamos por otro lado: **`prefetch` en los enlaces del nav**. Ellos lo
-ponen explícito con el mismo argumento que nos llevó al PR #122 — que el shell persiste entre clicks.
+✅ Y la que salía gratis: **`prefetch` en los enlaces del nav**, en el mismo #163.
+
+También se depuró **Pacientes** (#161), que no estaba en esta lista: la tabla a 13px, `rounded-lg`,
+`px-[14px]` y avatar de 32px, medido contra su `PatientTable.tsx`. La **segmentación** sigue sin
+tocarse — ver §6.
+
+### 5.1 Por qué el radio se decidió EN CONTRA
+
+Este punto era el primero de la lista y el que "más cambia la percepción". No se hace, y conviene
+que quede escrito para que nadie lo reabra sin el contexto.
+
+**Este documento recomienda volver exactamente a lo que el cliente ya rechazó.** El 12-ago, en
+revisión, David dijo que la app se veía *"demasiado cuadrada, ladrilluda, muy rígida — muy
+AI-based"* y pidió bordes **más redondos**. El radio se subió por eso, el 15-ago, en el commit
+`619bfba` — tres días ANTES de que se escribiera este documento. El porqué quedó anotado en
+`globals.css` junto al token.
+
+Y hay una trampa de vocabulario: los dos textos dicen "ladrillo" para cosas opuestas. David lo usó
+para la versión **cuadrada** (la que seguía el mockup al pie); §2 de este documento lo usa para la
+nuestra **redonda**. Leer §2 sin saber eso lleva derecho a deshacer el pedido del cliente.
+
+**Y la señal más reciente es positiva.** En las reuniones del 19 y del 21-ago nadie mencionó la
+forma; Luciano dijo *"las pastillitas quedan bien, qué elegancia"* y *"está quedando muy chingón"*.
+Este documento es del 17: anterior a las dos.
+
+Lo que sigue valiendo de §2 es todo lo demás — densidad, escala de tipo, anchos —, y eso ya se
+aplicó. El radio es la excepción, y la excepción tiene dueño: lo decide David mirando la pantalla,
+no la comparación con el repo.
 
 ---
 

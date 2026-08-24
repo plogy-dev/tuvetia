@@ -17,11 +17,13 @@
 import { useEffect, useRef, useState } from "react"
 import { useChat } from "@ai-sdk/react"
 import { DefaultChatTransport } from "ai"
-import { Bot, Loader2, SendHorizontal, X } from "lucide-react"
+import { Bot, Loader2, SendHorizontal, Sparkles, X } from "lucide-react"
 import { toast } from "sonner"
 
 import { AthosMensajes } from "@/components/athos/athos-mensajes"
 import { useAthosContexto } from "@/components/athos/athos-provider"
+import { useCapacidad } from "@/components/planes/plan-provider"
+import { useModalPro } from "@/components/planes/modal-subir-a-pro"
 import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
 
@@ -41,6 +43,17 @@ export function AthosWidget() {
     onError: (e) => toast.error(`Athos no pudo responder: ${e.message}`),
   })
   const busy = status === "submitted" || status === "streaming"
+
+  // EL PLAN, IGUAL QUE EN LAS OTRAS DOS SUPERFICIES DE ATHOS.
+  //
+  // Este widget nació sin esto y era el único que no preguntaba. En una clínica `free` abría
+  // entero, invitaba a escribir, y lo que devolvía el Enter era el toast de `onError`: «Athos no
+  // pudo responder», que se lee como una falla del producto y no como lo que es —una función de
+  // Pro—. La pantalla de Athos y el cajón de consulta ya mostraban la invitación; acá se descubría
+  // chocando. Y es la superficie que está en TODAS las pantallas, así que era la más fácil de
+  // encontrar por accidente.
+  const { puede: puedeUsarAthos } = useCapacidad("athos")
+  const { pedirPro, ventana } = useModalPro("athos")
 
   useEffect(() => {
     if (abierto) hiloRef.current?.scrollTo({ top: hiloRef.current.scrollHeight })
@@ -70,6 +83,15 @@ export function AthosWidget() {
   function enviar(texto: string) {
     const t = texto.trim()
     if (!t || busy) return
+
+    // Antes de mandar nada, y SIN borrar lo escrito: el corte del servidor es igual de firme (402),
+    // lo que se evita acá es el viaje y el error crudo. Si el vet sube de plan, su pregunta sigue
+    // donde la dejó — mismo criterio que `asistente/assistant.tsx`.
+    if (!puedeUsarAthos) {
+      pedirPro()
+      return
+    }
+
     setInput("")
     // El CONTEXTO ENTERO, no sólo el paciente. `derivarContexto` distingue ocho pantallas y el
     // widget ya las conoce —las pinta abajo, en "Estás en {ctx.descripcion}"— pero al agente le
@@ -83,20 +105,25 @@ export function AthosWidget() {
 
   if (!abierto) {
     return (
-      <button
-        ref={burbujaRef}
-        type="button"
-        onClick={() => setAbierto(true)}
-        aria-label="Abrir Athos"
-        aria-expanded={false}
-        className="pointer-events-auto grid size-12 place-items-center rounded-full bg-primary text-primary-foreground shadow-popover transition hover:brightness-110 focus-visible:outline-2 focus-visible:outline-offset-2"
-      >
-        <Bot className="size-5" />
-      </button>
+      <>
+        {ventana}
+        <button
+          ref={burbujaRef}
+          type="button"
+          onClick={() => setAbierto(true)}
+          aria-label="Abrir Athos"
+          aria-expanded={false}
+          className="pointer-events-auto grid size-12 place-items-center rounded-full bg-primary text-primary-foreground shadow-popover transition hover:brightness-110 focus-visible:outline-2 focus-visible:outline-offset-2"
+        >
+          <Bot className="size-5" />
+        </button>
+      </>
     )
   }
 
   return (
+    <>
+    {ventana}
     <div
       role="dialog"
       aria-modal="false"
@@ -122,8 +149,8 @@ export function AthosWidget() {
         )}
         <AthosMensajes messages={messages} />
         {busy && (
-          <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-            <Loader2 className="size-3 animate-spin" /> Athos está escribiendo…
+          <div className="flex items-center gap-[9px] text-[13px] text-fg-faint">
+            <Loader2 className="size-3.5 animate-spin" /> Athos está escribiendo…
           </div>
         )}
       </div>
@@ -131,9 +158,16 @@ export function AthosWidget() {
       {/* La etiqueta de contexto va pegada al composer y no en el encabezado: es donde el vet mira
           mientras escribe, y es lo que evita que "¿qué le doy?" cambie de significado sin que se
           entere. */}
-      <p className="truncate border-t px-3 pt-2 text-[11px] text-muted-foreground">
-        Estás en {ctx.descripcion}
-      </p>
+      {!puedeUsarAthos && input.trim() ? (
+        <p className="flex items-center gap-1.5 border-t px-3 pt-2 text-[11px] text-brand-text">
+          <Sparkles className="size-3 shrink-0" aria-hidden />
+          Athos es parte del plan Pro. Al enviar te mostramos cómo activarlo.
+        </p>
+      ) : (
+        <p className="truncate border-t px-3 pt-2 text-[11px] text-muted-foreground">
+          Estás en {ctx.descripcion}
+        </p>
+      )}
 
       <div className="flex items-end gap-2 px-3 pb-3 pt-2">
         <Textarea
@@ -155,5 +189,6 @@ export function AthosWidget() {
         </Button>
       </div>
     </div>
+    </>
   )
 }

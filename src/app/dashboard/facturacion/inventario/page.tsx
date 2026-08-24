@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { ArrowLeft, AlertTriangle, ArrowLeftRight, FileUp, BookOpen, ShoppingCart } from 'lucide-react';
+import { ArrowLeft, AlertTriangle, ArrowLeftRight, FileDown, FileUp, BookOpen, ShoppingCart } from 'lucide-react';
 import { requireClinicPage } from '@/lib/facturacion/page-auth';
 import {
   ensureDefaultCategories,
@@ -185,18 +185,41 @@ export default async function InventarioPage({
               <ArrowLeftRight className="size-4" aria-hidden />
               Movimientos
             </Link>
-            {/* El destino existe y explica por qué está deshabilitado, pero prometía "Importar" a
-                secas: se llegaba esperando importar y salía un "próximamente". Que se sepa antes
-                de hacer clic. */}
+            {/* BAJAR EL INVENTARIO A EXCEL. Es un <a> y no un botón con JS porque la respuesta es
+                un archivo: así anda el click derecho, "abrir en otra pestaña" y la descarga no
+                depende de que el JS haya cargado.
+
+                `download` NO ES DECORATIVO. Un <a> a una ruta interna recarga el documento, y con
+                él se muere el MediaRecorder de una consulta en curso — hay un test de la casa que
+                vigila exactamente eso. Con `download` el navegador baja el archivo SIN navegar, así
+                que se puede exportar el inventario en medio de una grabación sin cortarla. El
+                nombre del archivo lo pone el `Content-Disposition` de la ruta.
+
+                VA ANTES DE IMPORTAR porque juntos son un ciclo y ése es su orden: bajás el
+                inventario, lo corregís en Excel, lo guardás como CSV y lo volvés a subir. Por eso
+                los encabezados del export son exactamente los que el importador reconoce, con un
+                test que hace ese viaje de ida y vuelta. */}
+            <a
+              href="/api/facturacion/inventario/export"
+              download
+              title="Descarga el inventario completo en .xlsx — con precios en pesos y las existencias de hoy."
+              className="inline-flex items-center gap-2 rounded-lg border border-line bg-surface px-3 py-2 text-sm text-fg-muted hover:bg-surface-2 hover:text-fg transition"
+            >
+              <FileDown className="size-4" aria-hidden />
+              Exportar
+            </a>
+            {/* Ya no dice "pronto": importar por CSV funciona. El `.xlsx` sigue afuera —la lib que
+                lo lee tiene una CVE sin parche— y eso se explica adentro, que es donde importa; en
+                el botón sólo va la parte que el vet necesita saber antes de entrar. */}
             <Link
               href="/dashboard/facturacion/inventario/importar"
-              title="La importación desde Excel está deshabilitada mientras reemplazamos la librería de planillas; al entrar te contamos las alternativas."
+              title="Importá el catálogo desde una planilla en CSV. Si la tenés en Excel: Guardar como → CSV."
               className="inline-flex items-center gap-2 rounded-lg border border-line bg-surface px-3 py-2 text-sm text-fg-muted hover:bg-surface-2 hover:text-fg transition"
             >
               <FileUp className="size-4" aria-hidden />
               Importar
               <span className="rounded-full border border-line-soft px-1.5 py-px text-[10px] uppercase tracking-wide text-fg-faint">
-                pronto
+                csv
               </span>
             </Link>
           </div>

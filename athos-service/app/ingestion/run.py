@@ -164,6 +164,20 @@ def main() -> None:
         except EmbeddingError as e:
             stop_reason = f"límite de Cohere (lote final): {e}"
 
+    # ANALYZE tras la carga: sin esto, las estadísticas del planner quedan viejas y el Tier 1
+    # (full-text + MeSH) elige un plan malo — medido, una ingesta grande lo llevó de 143 ms a 13 s,
+    # de vuelta al filo del statement_timeout. Es barato y sólo actualiza estadísticas (no toca datos).
+    if stats["docs"]:
+        try:
+            conn = _connect()
+            with conn.cursor() as cur:
+                cur.execute("analyze public.corpus_chunks")
+            conn.commit()
+            conn.close()
+            print("ANALYZE public.corpus_chunks: hecho (planner al día)", flush=True)
+        except Exception as e:  # noqa: BLE001 — el ANALYZE no debe tumbar el reporte final
+            print(f"[aviso] ANALYZE falló ({e}); correr a mano: analyze public.corpus_chunks", flush=True)
+
     tok = client.total_billed_tokens
     print(f"STOP: {stop_reason}", flush=True)
     print(f"Listo: {stats['docs']} documentos nuevos, {stats['chunks']} chunks, "

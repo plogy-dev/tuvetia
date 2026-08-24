@@ -1,4 +1,4 @@
-import { cookies } from "next/headers"
+import { cookies, headers } from "next/headers"
 import { redirect } from "next/navigation"
 
 import { AppSidebar } from "@/components/app-sidebar"
@@ -8,7 +8,8 @@ import { SiteHeader } from "@/components/site-header"
 import { TabBarMovil } from "@/components/tab-bar-movil"
 import { OnboardingTour } from "@/components/onboarding-tour"
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar"
-import { createClient } from "@/lib/supabase/server"
+import { sesionDelServidor } from "@/lib/supabase/sesion"
+import { crearMarcas } from "@/lib/perf/marcas"
 import { progresoDeConfiguracion } from "@/lib/onboarding/consultar"
 import { AthosProvider } from "@/components/athos/athos-provider"
 import { AthosDock } from "@/components/athos/athos-dock"
@@ -23,11 +24,27 @@ export default async function DashboardLayout({
 }: {
   children: React.ReactNode
 }) {
-  const supabase = await createClient()
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
+  // ── INSTRUMENTACIÓN, temporal y sin costo para nadie ────────────────────────────────────────
+  //
+  // Mide en qué se van los ~800 ms de piso que tiene toda navegación del dashboard. Se activa SÓLO
+  // con la cabecera `x-perf: 1`, que ningún navegador manda solo: un usuario real nunca entra por
+  // este camino y no paga ni una comparación de más. Los números salen en un `data-perf` del nodo
+  // raíz, que aparece en el payload RSC y se puede leer con un `fetch` desde el navegador.
+  //
+  // Existe porque la tanda anterior estimó la mejora en 300-400 ms y midió 100: el modelo mental de
+  // dónde estaba el costo era incorrecto, y adivinar dos veces seguidas no es un método.
+  const midiendo = (await headers()).get("x-perf") === "1"
+  const { marcar, ahora, texto: marcasTexto } = crearMarcas(midiendo)
+  const t0 = ahora()
 
+  // UNA sola validación de sesión por request: `sesionDelServidor` está memoizada con `cache()`, así
+  // que este `getUser()` y el de la página que se esté cargando son el mismo viaje de red. Antes
+  // eran dos (tres con el middleware), encadenados.
+  const tSesion = ahora()
+  const { supabase, user } = await sesionDelServidor()
+  marcar("sesion", tSesion)
+
+  const tPerfil = ahora()
   const profile = user
     ? (
         await supabase
@@ -35,11 +52,25 @@ export default async function DashboardLayout({
           // `role` es para el pie de la barra lateral e `is_active` para el gate de cuenta
           // desactivada. Van en ESTE select y no en consultas aparte: el perfil ya se estaba
           // trayendo, así que las dos columnas salen gratis.
-          .select("full_name, onboarded_at, clinic_id, setup_completed_at, role, is_active")
+          //
+          // LA CLÍNICA VIENE EMBEBIDA, y ése es el segundo viaje que se elimina. Antes se consultaba
+          // aparte y NO podía empezar hasta tener el `clinic_id` de acá: dos round-trips en cadena
+          // donde Postgres resuelve el join en uno.
+          //
+          // ⚠️ `!profiles_clinic_id_fkey` NO ES OPCIONAL. Hay DOS claves foráneas entre `profiles` y
+          // `clinics` —`profiles.clinic_id` y `clinics.owner_id`— así que sin nombrar cuál se usa,
+          // PostgREST no puede resolver el embed y falla. Con `.single()` eso devuelve `data: null`,
+          // el perfil queda vacío, `estadoDeAcceso` lo lee como "sin onboarding" y el layout manda a
+          // /bienvenida: la app entera deja de abrir. Pasó en producción el 23-ago por omitir esta
+          // pista. `clinica-de-la-sesion.ts` ya la traía; acá se había perdido al copiar el patrón.
+          .select(
+            "full_name, onboarded_at, clinic_id, setup_completed_at, role, is_active, clinic:clinics!profiles_clinic_id_fkey(name, logo_url, plan)",
+          )
           .eq("id", user.id)
           .single()
       ).data
     : null
+  marcar("perfil", tPerfil)
 
   // Vet nuevo (creador de clínica) sin el wizard completado -> a /bienvenida. Los invitados nunca
   // caen aquí (accept_invitation marca setup_completed_at) ni los usuarios preexistentes (backfill 0017).
@@ -50,6 +81,7 @@ export default async function DashboardLayout({
     setup_completed_at: string | null
     role: string | null
     is_active: boolean | null
+    clinic: { name: string; logo_url: string | null; plan: string | null } | null
   } | null
   // Adónde va este usuario. El orden vive en `lib/acceso.ts` y está probado ahí — se toma la misma
   // decisión en `/bienvenida`, y las dos ya se desincronizaron una vez con un lazo de redirecciones.
@@ -66,13 +98,11 @@ export default async function DashboardLayout({
   // sin ninguna pista. No hay lazo: /bienvenida ya NO rebota acá cuando falta la clínica.
   if (user && acceso !== "activo") redirect("/bienvenida")
 
-  // `plan` viaja en el MISMO select que el nombre y el logo: la barra lateral y el widget de Athos
-  // necesitan saberlo en cada carga, y una consulta aparte por algo que ya se está trayendo es un
-  // round-trip regalado en la ruta más caliente de la app.
-  const { data: clinic } = p?.clinic_id
-    ? await supabase.from("clinics").select("name, logo_url, plan").eq("id", p.clinic_id).maybeSingle()
-    : { data: null }
-  const c = clinic as { name: string; logo_url: string | null; plan: string | null } | null
+  // Ya vino con el perfil, en el mismo viaje. `plan` viaja ahí también: la barra lateral y el widget
+  // de Athos lo necesitan en cada carga, y una consulta aparte por algo que ya se está trayendo es
+  // un round-trip regalado en la ruta más caliente de la app.
+  const c = (p as unknown as { clinic: { name: string; logo_url: string | null; plan: string | null } | null } | null)
+    ?.clinic ?? null
 
   const sidebarUser = {
     name: profile?.full_name || user?.email || "Usuario",
@@ -98,6 +128,15 @@ export default async function DashboardLayout({
   // No cambia el renderizado: este layout ya era dinámico porque `createClient()` lee cookies.
   const sidebarOpen = (await cookies()).get("sidebar_state")?.value === "true"
 
+  // Se hoistea del JSX (estaba en línea, más abajo) para poder medirlo. Se awaiteaba igual durante
+  // el render, así que el orden efectivo es el mismo. Adentro hay MÁS de lo que su nombre sugiere:
+  // `requireClinicPage()` rehace `getUser()` y vuelve a consultar `profiles` —el mismo dato que
+  // este layout ya trajo tres líneas arriba— y recién después lanza sus seis conteos en paralelo.
+  const tProgreso = ahora()
+  const progreso = (await progresoDeConfiguracion()).porcentaje
+  marcar("progreso", tProgreso)
+  marcar("total", t0)
+
   return (
     <SidebarProvider
       className="app-theme"
@@ -109,6 +148,7 @@ export default async function DashboardLayout({
         } as React.CSSProperties
       }
     >
+      {midiendo && <span hidden data-perf={marcasTexto()} />}
       {/* `AthosProvider` envuelve el panel entero porque el widget necesita saber en qué pantalla
           está el vet. Sólo expone lo que se deriva de la RUTA, que cambia cuando el árbol se
           re-renderiza igual — nada mutable vive acá. El estado del widget vive en `AthosDock`, que
@@ -133,7 +173,7 @@ export default async function DashboardLayout({
           variant="inset"
           user={sidebarUser}
           clinic={sidebarClinic}
-          progresoConfiguracion={(await progresoDeConfiguracion()).porcentaje}
+          progresoConfiguracion={progreso}
         />
         <OnboardingTour onboarded={Boolean((profile as { onboarded_at?: string | null } | null)?.onboarded_at)} />
         {/* UN SOLO ESTADO DE LA CONSULTA VIVA para las dos superficies que la muestran: el notch,

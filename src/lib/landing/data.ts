@@ -70,7 +70,8 @@ export const vetNotes = [
 
 export const PILL_TABS: Array<[string, string]> = [
   ["transcript", "Transcripción"],
-  ["live-notes", "Live notes"],
+  // El id se queda en inglés: es la clave que lee `engine.ts`, no algo que alguien vea.
+  ["live-notes", "Notas en vivo"],
   ["similar", "Casos parecidos"],
   ["suggestions", "Sugerencias"],
   ["vet-notes", "Notas del vet"],

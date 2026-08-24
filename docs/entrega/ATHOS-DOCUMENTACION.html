@@ -1,0 +1,1021 @@
+<title>Athos por dentro</title>
+<style>
+  :root {
+    --bg: #F6FAF8;
+    --surface: #FFFFFF;
+    --surface-2: #EFF5F2;
+    --ink: #17221E;
+    --muted: #5C6B65;
+    --line: #DCE7E2;
+    --accent: #0E8C7A;
+    --accent-soft: #DFF2EE;
+    --warn: #B45309;
+    --warn-soft: #FDF3E3;
+    --danger: #B3261E;
+    --danger-soft: #FBEAE9;
+    --ok: #1E7B34;
+    --ok-soft: #E7F4EA;
+    --code-bg: #EFF5F2;
+    --shadow: 0 1px 2px rgba(23,34,30,.06), 0 4px 16px rgba(23,34,30,.05);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #0F1513;
+      --surface: #161D1A;
+      --surface-2: #1B2420;
+      --ink: #E4ECE8;
+      --muted: #93A39C;
+      --line: #263129;
+      --accent: #3FC3AC;
+      --accent-soft: #14332D;
+      --warn: #E2A84A;
+      --warn-soft: #33270F;
+      --danger: #F2887F;
+      --danger-soft: #3A1714;
+      --ok: #7ED494;
+      --ok-soft: #14301B;
+      --code-bg: #1B2420;
+      --shadow: none;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #0F1513;
+    --surface: #161D1A;
+    --surface-2: #1B2420;
+    --ink: #E4ECE8;
+    --muted: #93A39C;
+    --line: #263129;
+    --accent: #3FC3AC;
+    --accent-soft: #14332D;
+    --warn: #E2A84A;
+    --warn-soft: #33270F;
+    --danger: #F2887F;
+    --danger-soft: #3A1714;
+    --ok: #7ED494;
+    --ok-soft: #14301B;
+    --code-bg: #1B2420;
+    --shadow: none;
+  }
+
+  * { box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  @media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--ink);
+    font-family: ui-sans-serif, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    font-size: 16px;
+    line-height: 1.65;
+  }
+  code, pre, .mono {
+    font-family: ui-monospace, "Cascadia Code", "SF Mono", Consolas, Menlo, monospace;
+  }
+  code {
+    background: var(--code-bg);
+    border: 1px solid var(--line);
+    border-radius: 5px;
+    padding: .08em .35em;
+    font-size: .86em;
+    white-space: nowrap;
+  }
+  pre {
+    background: var(--code-bg);
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    padding: 14px 16px;
+    overflow-x: auto;
+    font-size: .82rem;
+    line-height: 1.55;
+  }
+  pre code { background: none; border: none; padding: 0; white-space: pre; }
+  a { color: var(--accent); text-decoration: none; }
+  a:hover, a:focus-visible { text-decoration: underline; }
+  a:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 3px; }
+
+  .layout { display: flex; min-height: 100vh; }
+
+  /* ── Sidebar ── */
+  .sidebar {
+    width: 272px;
+    flex: 0 0 272px;
+    border-right: 1px solid var(--line);
+    background: var(--surface);
+    position: sticky;
+    top: 0;
+    height: 100vh;
+    overflow-y: auto;
+    padding: 22px 18px 40px;
+  }
+  .brand { display: flex; align-items: center; gap: 10px; margin-bottom: 6px; }
+  .brand-mark {
+    width: 34px; height: 34px; border-radius: 9px;
+    background: var(--accent); color: #fff;
+    display: grid; place-items: center;
+    font-weight: 700; font-size: 17px;
+  }
+  .brand-name { font-weight: 700; font-size: 1.02rem; letter-spacing: -.01em; }
+  .brand-sub { font-size: .74rem; color: var(--muted); margin: 0 0 18px 44px; }
+  .nav-group { margin: 18px 0 4px; }
+  .nav-group > .nav-title {
+    font-size: .68rem; font-weight: 700; text-transform: uppercase;
+    letter-spacing: .09em; color: var(--muted); margin: 0 0 6px 10px;
+  }
+  .nav-group a {
+    display: block; padding: 5px 10px; border-radius: 7px;
+    color: var(--ink); font-size: .865rem;
+  }
+  .nav-group a:hover { background: var(--surface-2); text-decoration: none; }
+  .nav-group a.sub { padding-left: 22px; color: var(--muted); font-size: .82rem; }
+
+  /* ── Main ── */
+  .content { flex: 1; min-width: 0; }
+  .inner { max-width: 860px; margin: 0 auto; padding: 40px 36px 120px; }
+  .section { margin-top: 64px; scroll-margin-top: 24px; }
+  .section:first-child { margin-top: 0; }
+
+  .eyebrow {
+    font-size: .7rem; font-weight: 700; text-transform: uppercase;
+    letter-spacing: .1em; color: var(--accent); margin: 0 0 6px;
+  }
+  h1 { font-size: 2.15rem; line-height: 1.15; letter-spacing: -.02em; margin: 0 0 14px; text-wrap: balance; }
+  h2 { font-size: 1.5rem; letter-spacing: -.015em; margin: 0 0 12px; text-wrap: balance;
+       padding-bottom: 8px; border-bottom: 1px solid var(--line); }
+  h3 { font-size: 1.08rem; margin: 26px 0 8px; }
+  h4 { font-size: .95rem; margin: 20px 0 6px; }
+  p, li { max-width: 72ch; }
+  .lead { font-size: 1.08rem; color: var(--muted); max-width: 65ch; }
+
+  /* ── Cards ── */
+  .card-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 14px; margin: 18px 0; }
+  .card {
+    background: var(--surface); border: 1px solid var(--line);
+    border-radius: 12px; padding: 16px 16px 14px; box-shadow: var(--shadow);
+  }
+  .card h4 { margin: 0 0 4px; font-size: .95rem; }
+  .card p { margin: 0; font-size: .84rem; color: var(--muted); }
+  .card .chip { margin-bottom: 8px; }
+
+  .chip {
+    display: inline-block; font-size: .68rem; font-weight: 700;
+    padding: 2px 9px; border-radius: 99px;
+    background: var(--accent-soft); color: var(--accent);
+    letter-spacing: .03em;
+  }
+  .chip.warn { background: var(--warn-soft); color: var(--warn); }
+  .chip.danger { background: var(--danger-soft); color: var(--danger); }
+  .chip.ok { background: var(--ok-soft); color: var(--ok); }
+  .chip.neutral { background: var(--surface-2); color: var(--muted); }
+
+  /* ── Callouts ── */
+  .callout {
+    border: 1px solid var(--line); border-left: 4px solid var(--accent);
+    background: var(--surface); border-radius: 10px;
+    padding: 12px 16px; margin: 16px 0; font-size: .9rem;
+  }
+  .callout > p { margin: 6px 0; }
+  .callout .co-title { font-weight: 700; font-size: .82rem; text-transform: uppercase; letter-spacing: .06em; color: var(--accent); }
+  .callout.warn { border-left-color: var(--warn); }
+  .callout.warn .co-title { color: var(--warn); }
+  .callout.danger { border-left-color: var(--danger); }
+  .callout.danger .co-title { color: var(--danger); }
+  .callout.ok { border-left-color: var(--ok); }
+  .callout.ok .co-title { color: var(--ok); }
+
+  /* ── Tables ── */
+  .tbl-wrap { overflow-x: auto; margin: 16px 0; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); }
+  table { border-collapse: collapse; width: 100%; font-size: .845rem; }
+  th, td { text-align: left; padding: 9px 12px; border-bottom: 1px solid var(--line); vertical-align: top; }
+  th { font-size: .72rem; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); background: var(--surface-2); }
+  tr:last-child td { border-bottom: none; }
+  td code { white-space: nowrap; }
+  .num { font-variant-numeric: tabular-nums; }
+
+  /* ── Steps ── */
+  .steps { list-style: none; margin: 16px 0; padding: 0; counter-reset: paso; }
+  .steps > li {
+    counter-increment: paso; position: relative;
+    padding: 0 0 18px 44px; max-width: none;
+  }
+  .steps > li::before {
+    content: counter(paso);
+    position: absolute; left: 0; top: 0;
+    width: 28px; height: 28px; border-radius: 99px;
+    background: var(--accent-soft); color: var(--accent);
+    font-weight: 700; font-size: .82rem;
+    display: grid; place-items: center;
+  }
+  .steps > li::after {
+    content: ""; position: absolute; left: 13.5px; top: 32px; bottom: 2px;
+    width: 1px; background: var(--line);
+  }
+  .steps > li:last-child::after { display: none; }
+  .steps b.t { display: block; margin-bottom: 2px; }
+  .steps p { margin: 2px 0; font-size: .89rem; color: var(--muted); }
+
+  /* ── Figures ── */
+  figure { margin: 20px 0; }
+  figure svg { max-width: 100%; height: auto; display: block; margin: 0 auto; color: var(--ink); }
+  figcaption { font-size: .8rem; color: var(--muted); text-align: center; margin-top: 8px; max-width: 70ch; margin-left: auto; margin-right: auto; }
+  .fig-frame { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 18px; overflow-x: auto; }
+
+  .hr { border: none; border-top: 1px solid var(--line); margin: 36px 0; }
+  .kv { display: grid; grid-template-columns: max-content 1fr; gap: 4px 18px; font-size: .88rem; margin: 14px 0; }
+  .kv dt { font-weight: 600; }
+  .kv dd { margin: 0; color: var(--muted); }
+
+  @media (max-width: 900px) {
+    .sidebar { display: none; }
+    .inner { padding: 28px 18px 90px; }
+    .mobile-nav { display: block; }
+  }
+  .mobile-nav { display: none; margin-bottom: 22px; }
+  .mobile-nav details { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 10px 14px; }
+  .mobile-nav summary { cursor: pointer; font-weight: 600; font-size: .9rem; }
+  .mobile-nav a { display: block; padding: 4px 0; font-size: .88rem; }
+</style>
+
+<div class="layout">
+<nav class="sidebar" aria-label="Navegación de la documentación">
+  <div class="brand"><div class="brand-mark">A</div><div class="brand-name">Athos por dentro</div></div>
+  <p class="brand-sub">TuvetIA · corte 2026-08-21</p>
+
+  <div class="nav-group">
+    <p class="nav-title">Empezar</p>
+    <a href="#que-es">¿Qué es Athos?</a>
+    <a href="#los-dos-athos">Los dos "Athos"</a>
+    <a href="#el-mapa">El mapa de todo</a>
+    <a href="#principios">Los 7 principios</a>
+  </div>
+  <div class="nav-group">
+    <p class="nav-title">El cerebro clínico</p>
+    <a href="#retrieval">Cómo busca la literatura</a>
+    <a href="#glosario">El glosario ES→EN</a>
+    <a href="#generacion">Cómo redacta (y los guardianes)</a>
+    <a href="#chat">El chat de la consulta</a>
+    <a href="#fantasma">El Modo Fantasma</a>
+    <a href="#transcripcion">La transcripción</a>
+    <a href="#memoria">La memoria del paciente</a>
+  </div>
+  <div class="nav-group">
+    <p class="nav-title">El asistente</p>
+    <a href="#agente">El agente y sus 22 herramientas</a>
+    <a href="#aprobacion">Propone, el vet aprueba</a>
+    <a href="#presupuesto">Modelos, cascada y tope de gasto</a>
+  </div>
+  <div class="nav-group">
+    <p class="nav-title">Construcción</p>
+    <a href="#frontend">El frontend</a>
+    <a href="#datos">Los datos y las migraciones</a>
+    <a href="#ingesta">La ingesta del corpus</a>
+    <a href="#variables">Variables de entorno</a>
+    <a href="#entornos">Entornos y despliegue</a>
+  </div>
+  <div class="nav-group">
+    <p class="nav-title">Operar</p>
+    <a href="#calidad">Cómo se mide la calidad</a>
+    <a href="#limites">Límites conocidos</a>
+    <a href="#donde">Dónde está cada cosa</a>
+  </div>
+</nav>
+
+<main class="content"><div class="inner">
+
+<div class="mobile-nav">
+  <details>
+    <summary>Índice</summary>
+    <a href="#que-es">¿Qué es Athos?</a>
+    <a href="#los-dos-athos">Los dos "Athos"</a>
+    <a href="#el-mapa">El mapa de todo</a>
+    <a href="#principios">Los 7 principios</a>
+    <a href="#retrieval">Cómo busca la literatura</a>
+    <a href="#glosario">El glosario</a>
+    <a href="#generacion">Cómo redacta</a>
+    <a href="#chat">El chat de la consulta</a>
+    <a href="#fantasma">El Modo Fantasma</a>
+    <a href="#transcripcion">La transcripción</a>
+    <a href="#memoria">La memoria del paciente</a>
+    <a href="#agente">El agente</a>
+    <a href="#aprobacion">Aprobación de acciones</a>
+    <a href="#presupuesto">Modelos y tope de gasto</a>
+    <a href="#frontend">El frontend</a>
+    <a href="#datos">Los datos</a>
+    <a href="#ingesta">La ingesta</a>
+    <a href="#variables">Variables de entorno</a>
+    <a href="#entornos">Entornos y despliegue</a>
+    <a href="#calidad">Calidad</a>
+    <a href="#limites">Límites conocidos</a>
+    <a href="#donde">Dónde está cada cosa</a>
+  </details>
+</div>
+
+<!-- ═══════════════ QUÉ ES ═══════════════ -->
+<section class="section" id="que-es">
+  <p class="eyebrow">Documentación de traspaso · versión didáctica</p>
+  <h1>Athos: qué es, qué hace y cómo está construido</h1>
+  <p class="lead">Athos es la inteligencia clínica de TuvetIA: responde consultas veterinarias <b>citando literatura verificable</b>, escribe la nota SOAP de cada consulta a partir de la grabación, y asiste a la clínica con 22 habilidades que <b>nunca ejecutan nada sin aprobación del veterinario</b>. Esta página explica todo el sistema — cada pieza, cada variable y la lógica detrás de cada decisión — para que cualquier persona del equipo lo entienda de punta a punta.</p>
+
+  <div class="card-grid">
+    <div class="card"><span class="chip">Chat clínico</span><h4>Pregunta y cita</h4><p>El vet pregunta; Athos responde con marcadores <code>[n]</code> enlazados a artículos reales (PubMed). Si la literatura no alcanza, lo dice.</p></div>
+    <div class="card"><span class="chip">Modo Fantasma</span><h4>De la voz a la nota</h4><p>Graba la consulta, la transcribe con diarización y redacta la nota SOAP en borrador. El vet revisa, edita y aprueba.</p></div>
+    <div class="card"><span class="chip">Asistente</span><h4>22 habilidades</h4><p>Busca pacientes, agenda citas, redacta WhatsApp y correos… pero solo <b>propone</b>: cada acción espera una tarjeta de aprobación.</p></div>
+    <div class="card"><span class="chip">Corpus</span><h4>520.000 fragmentos</h4><p>61.544 documentos veterinarios indexados con embeddings, texto completo y descriptores MeSH.</p></div>
+  </div>
+
+  <div class="callout">
+    <p class="co-title">Cómo leer esta documentación</p>
+    <p>Esta página es la versión <b>didáctica</b>. La referencia técnica exhaustiva —con rutas <code>archivo:línea</code>, SQL literal y la lista completa de deuda— está en <code>docs/entrega/ATHOS-TRASPASO-TECNICO.md</code> del monorepo. Las dos se escribieron juntas y cuentan lo mismo.</p>
+  </div>
+</section>
+
+<!-- ═══════════════ LOS DOS ATHOS ═══════════════ -->
+<section class="section" id="los-dos-athos">
+  <p class="eyebrow">Lo primero que hay que entender</p>
+  <h2>Hay DOS "Athos", y confundirlos es el error más caro</h2>
+  <p>Bajo el mismo nombre conviven <b>dos sistemas distintos</b> que se despliegan en lugares distintos, se autentican distinto y usan modelos distintos. Todo lo demás de esta documentación se apoya en esta distinción.</p>
+
+  <div class="tbl-wrap"><table>
+    <tr><th></th><th>Athos-service (el RAG clínico)</th><th>El agente Athos (en Next)</th></tr>
+    <tr><td><b>Qué es</b></td><td>Microservicio Python que busca en la literatura y redacta con citas verificables</td><td>Asistente con herramientas que opera sobre los datos de la clínica</td></tr>
+    <tr><td><b>Dónde corre</b></td><td>FastAPI en <b>Railway</b> (<code>skeleton/athos-service/</code>)</td><td>Route handlers de <b>Vercel</b> (<code>/api/athos/*</code>)</td></tr>
+    <tr><td><b>Quién lo llama</b></td><td>El navegador, directo (CORS + JWT en cabecera)</td><td>El navegador llama a Next; Next llama al modelo (cookie de sesión)</td></tr>
+    <tr><td><b>Responde</b></td><td>Chat con citas (SSE), nota SOAP, transcripción, <code>/athos/retrieve</code></td><td>Consultas de datos + <b>propuestas</b> de acción (citas, WhatsApp, correos, fichas)</td></tr>
+    <tr><td><b>Motor</b></td><td>LLM por env vars de Railway + Cohere (embeddings y rerank)</td><td><code>@ai-sdk/*</code> por env vars de Vercel</td></tr>
+    <tr><td><b>Cliente en el front</b></td><td><code>src/lib/athos.ts</code> y <code>athos-live.ts</code></td><td><code>useChat</code> de <code>@ai-sdk/react</code></td></tr>
+  </table></div>
+
+  <p>El <b>único puente</b> entre ambos: cuando el agente necesita evidencia científica, su herramienta <code>search_clinical_evidence</code> llama a <code>POST /athos/retrieve</code> del servicio de Railway (desde el servidor, con el token del vet y timeout de 20&nbsp;s).</p>
+
+  <h3>Dónde ve cada cosa el usuario</h3>
+  <div class="tbl-wrap"><table>
+    <tr><th>Superficie</th><th>Motor</th><th>¿Herramientas?</th></tr>
+    <tr><td>Pantalla <b>Athos</b> (<code>/dashboard/asistente</code>) — es la pantalla de inicio</td><td>Agente de Next</td><td>Sí, las 22</td></tr>
+    <tr><td>Burbuja flotante (toda la app)</td><td>Agente de Next (<code>source: widget</code>)</td><td>Sí</td></tr>
+    <tr><td>Botón "Sugerir" de la bandeja de WhatsApp</td><td>Agente de Next</td><td>Sí</td></tr>
+    <tr><td>Chat de onboarding</td><td>Agente de Next</td><td>Sí</td></tr>
+    <tr><td>"Hilo de la consulta" (dentro de una consulta)</td><td>Athos-service, SSE</td><td>No — RAG puro</td></tr>
+    <tr><td>Nota del Modo Fantasma</td><td>Athos-service</td><td>No — RAG puro</td></tr>
+  </table></div>
+</section>
+
+<!-- ═══════════════ EL MAPA ═══════════════ -->
+<section class="section" id="el-mapa">
+  <p class="eyebrow">Arquitectura</p>
+  <h2>El mapa de todo</h2>
+  <p>Tres plataformas, un solo repositorio. El monorepo <code>plogy-dev/tuvetia</code> (rama <code>master</code>) contiene el front Next.js en la raíz de <code>skeleton/</code> y el backend Python en <code>skeleton/athos-service/</code>. Cada merge a <code>master</code> despliega solo: Vercel reconstruye el front y Railway el backend (solo si cambió <code>athos-service/**</code>).</p>
+
+  <figure>
+    <div class="fig-frame">
+    <svg viewBox="0 0 760 430" role="img" aria-label="Mapa de arquitectura: el navegador habla con Vercel (front y agente) y directamente con Railway (athos-service); ambos leen y escriben en Supabase, que separa datos globales de datos por clínica.">
+      <defs>
+        <marker id="arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+          <path d="M0,0 L10,5 L0,10 z" fill="currentColor"/>
+        </marker>
+      </defs>
+      <g font-size="12" fill="currentColor">
+        <!-- navegador -->
+        <rect x="300" y="14" width="160" height="44" rx="10" fill="none" stroke="currentColor" stroke-width="1.4"/>
+        <text x="380" y="34" text-anchor="middle" font-weight="700">Navegador</text>
+        <text x="380" y="49" text-anchor="middle" font-size="10.5" opacity=".72">el veterinario</text>
+
+        <!-- vercel -->
+        <rect x="60" y="120" width="280" height="112" rx="12" fill="none" stroke="#0E8C7A" stroke-width="1.8"/>
+        <text x="200" y="141" text-anchor="middle" font-weight="700" fill="#0E8C7A">VERCEL — front Next.js</text>
+        <text x="200" y="160" text-anchor="middle" font-size="10.5">/dashboard · server components</text>
+        <text x="200" y="176" text-anchor="middle" font-size="10.5">/api/athos/agent (22 tools)</text>
+        <text x="200" y="192" text-anchor="middle" font-size="10.5">/api/athos/actions · /api/whatsapp/*</text>
+        <text x="200" y="208" text-anchor="middle" font-size="10.5">/api/cron/* (purga de audio, cartera)</text>
+
+        <!-- railway -->
+        <rect x="420" y="120" width="280" height="112" rx="12" fill="none" stroke="currentColor" stroke-width="1.4"/>
+        <text x="560" y="141" text-anchor="middle" font-weight="700">RAILWAY — athos-service</text>
+        <text x="560" y="160" text-anchor="middle" font-size="10.5">/athos/chat (SSE) · /athos/phantom/suggest</text>
+        <text x="560" y="176" text-anchor="middle" font-size="10.5">/athos/transcribe (+ /live WS)</text>
+        <text x="560" y="192" text-anchor="middle" font-size="10.5">/athos/retrieve · /health</text>
+        <text x="560" y="208" text-anchor="middle" font-size="10.5">FastAPI · Python 3.12 · uvicorn</text>
+
+        <!-- supabase -->
+        <rect x="120" y="300" width="520" height="106" rx="12" fill="none" stroke="currentColor" stroke-width="1.4"/>
+        <text x="380" y="321" text-anchor="middle" font-weight="700">SUPABASE — Postgres + pgvector (proyecto principal)</text>
+        <line x1="380" y1="332" x2="380" y2="396" stroke="currentColor" stroke-dasharray="4 4" opacity=".5"/>
+        <text x="250" y="348" text-anchor="middle" font-size="10.5" font-weight="700">GLOBAL (sin clinic_id)</text>
+        <text x="250" y="364" text-anchor="middle" font-size="10.5">corpus_chunks (520k) · glossary_*</text>
+        <text x="510" y="348" text-anchor="middle" font-size="10.5" font-weight="700">POR CLÍNICA (RLS)</text>
+        <text x="510" y="364" text-anchor="middle" font-size="10.5">patients · allergies · clinical_notes</text>
+        <text x="510" y="379" text-anchor="middle" font-size="10.5">athos_actions · transcripts · trazas</text>
+        <text x="250" y="392" text-anchor="middle" font-size="10.5">Storage: consultation-audios</text>
+
+        <!-- flechas -->
+        <path d="M340 58 L230 118" fill="none" stroke="currentColor" stroke-width="1.3" marker-end="url(#arr)"/>
+        <text x="252" y="82" font-size="10.5" opacity=".8">cookie de sesión</text>
+        <path d="M420 58 L530 118" fill="none" stroke="currentColor" stroke-width="1.3" marker-end="url(#arr)"/>
+        <text x="452" y="82" font-size="10.5" opacity=".8" text-anchor="start">Bearer JWT (CORS)</text>
+        <path d="M340 176 L418 176" fill="none" stroke="#0E8C7A" stroke-width="1.6" marker-end="url(#arr)"/>
+        <text x="380" y="168" font-size="10" text-anchor="middle" fill="#0E8C7A">POST /athos/retrieve</text>
+        <path d="M200 232 L240 298" fill="none" stroke="currentColor" stroke-width="1.3" marker-end="url(#arr)"/>
+        <text x="150" y="266" font-size="10.5" opacity=".8">sesión del vet (RLS)</text>
+        <path d="M560 232 L520 298" fill="none" stroke="currentColor" stroke-width="1.3" marker-end="url(#arr)"/>
+        <text x="548" y="266" font-size="10.5" opacity=".8" text-anchor="start">service_role + clinic_id</text>
+      </g>
+    </svg>
+    </div>
+    <figcaption>El navegador habla con los dos sistemas: con Vercel por cookie de sesión y con Railway directo (no hay proxy: por eso <code>NEXT_PUBLIC_ATHOS_URL</code> es pública y el backend declara CORS). La base compartida es el backbone de integración.</figcaption>
+  </figure>
+
+  <dl class="kv">
+    <dt>Front en vivo</dt><dd><code>https://tuvetia.vercel.app</code> (= último <code>master</code>, automático)</dd>
+    <dt>Backend en vivo</dt><dd><code>https://athos-service-production.up.railway.app</code> (Root Directory <code>athos-service/</code>)</dd>
+    <dt>Arranque del backend</dt><dd><code>uvicorn app.main:app --host 0.0.0.0 --port $PORT</code> · healthcheck <code>/health</code> · build NIXPACKS</dd>
+    <dt>Tercer servicio</dt><dd>Evolution API (WhatsApp no oficial) en Railway, con su propio Postgres y sus propias variables</dd>
+  </dl>
+
+  <div class="callout warn">
+    <p class="co-title">Checkout viejo — no editar</p>
+    <p>Existe un checkout <code>C:\DevsJesus\tuvetia\athos-service\</code> fuera de <code>skeleton/</code>: está <b>DEPRECATED</b> (código viejo, sin remote). La única fuente de verdad es el monorepo. Todo cambio ahí afuera no se despliega y genera divergencia.</p>
+  </div>
+</section>
+
+<!-- ═══════════════ PRINCIPIOS ═══════════════ -->
+<section class="section" id="principios">
+  <p class="eyebrow">La lógica detrás de todo</p>
+  <h2>Los 7 principios (impuestos por código, no por prompts)</h2>
+  <p>Cada uno nació de una medición o de un incidente. La regla de la casa es que las garantías clínicas <b>viven en el código</b>: pedírselas al modelo por prompt se probó y falló.</p>
+
+  <ol class="steps">
+    <li><b class="t">Cita o se calla</b><p>Sin evidencia suficiente, Athos lo declara en vez de inventar. El modelo <b>no puede</b> inventar una fuente: solo emite el identificador de un fragmento recuperado, y el título, año y enlace los reconstruye el código desde el corpus (<code>Citation.from_chunk</code>).</p></li>
+    <li><b class="t">Lenguaje de posibilidad</b><p>"Compatible con", "sugestivo de" — nunca un diagnóstico cerrado. Está en los prompts y en la presentación del front.</p></li>
+    <li><b class="t">Gate de alergia severa, antes de cualquier plan</b><p>Determinístico, desde la tabla <code>allergies</code> con <code>severity='severe'</code>. Nunca depende del LLM. En la nota, además, un trigger de base de datos impide aprobar sin reconocerla.</p></li>
+    <li><b class="t">Sin dosis si faltan datos</b><p>Si falta especie, peso o edad, <code>dose_guard.py</code> tapa la cifra (conservando fármaco, vía y frecuencia). Medido: pedirlo por prompt dejaba pasar cifras en 2 de 23 respuestas, y con un prompt más resolutivo empeoraba a 9 de 23.</p></li>
+    <li><b class="t">Aprobación humana, siempre</b><p>Ninguna nota entra a la historia sin pasar de <code>draft</code> a <code>approved</code> por el vet. Ninguna acción del agente se ejecuta sin su tarjeta de aprobación.</p></li>
+    <li><b class="t">Aislamiento por clínica</b><p>El corpus y el glosario son globales; los datos de paciente llevan <code>clinic_id</code> + RLS. <b>Nunca</b> hay JOIN entre ambos mundos: la fusión ocurre en memoria. Como el servicio usa <code>service_role</code> (que se salta la RLS), cada query del lado paciente lleva el <code>clinic_id</code> explícito — cubierto por tests cross-tenant.</p></li>
+    <li><b class="t">Mínima IA</b><p>El retrieval es determinístico (glosario + SQL + pgvector): no gasta tokens. La IA solo se usa para <b>entender</b> la consulta (modelo liviano) y <b>redactar</b> la respuesta (modelo de redacción). El glosario curado hizo caer la distilación con LLM del 100% al ~9% de las consultas.</p></li>
+  </ol>
+</section>
+
+<!-- ═══════════════ RETRIEVAL ═══════════════ -->
+<section class="section" id="retrieval">
+  <p class="eyebrow">El cerebro clínico · 1</p>
+  <h2>Cómo busca la literatura: la cascada de retrieval</h2>
+  <p>Cuando el vet pregunta (o cuando el Fantasma recibe una transcripción), Athos <b>no le pide al modelo que busque</b>. Busca con un pipeline determinístico que casi no gasta tokens, y solo usa IA en dos puntos acotados: entender la consulta y juzgar si la evidencia alcanza. Todo vive en <code>app/retrieval/cascade.py</code>.</p>
+
+  <figure>
+    <div class="fig-frame">
+    <svg viewBox="0 0 760 372" role="img" aria-label="La cascada de retrieval: la consulta pasa por el glosario (A a B), dos búsquedas paralelas (léxica y vectorial), fusión con umbral, rerank de Cohere y el juez de evidencia que decide la banda.">
+      <defs>
+        <marker id="arr2" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+          <path d="M0,0 L10,5 L0,10 z" fill="currentColor"/>
+        </marker>
+      </defs>
+      <g font-size="11.5" fill="currentColor">
+        <rect x="20" y="20" width="180" height="52" rx="10" fill="none" stroke="currentColor" stroke-width="1.4"/>
+        <text x="110" y="42" text-anchor="middle" font-weight="700">Consulta del vet</text>
+        <text x="110" y="58" text-anchor="middle" font-size="10" opacity=".72">o transcripción (Fantasma)</text>
+
+        <rect x="20" y="130" width="180" height="66" rx="10" fill="none" stroke="currentColor" stroke-width="1.4"/>
+        <text x="110" y="150" text-anchor="middle" font-weight="700">A→B · glosario</text>
+        <text x="110" y="166" text-anchor="middle" font-size="10">ES → conceptos EN + MeSH</text>
+        <text x="110" y="181" text-anchor="middle" font-size="10">si no alcanza: LLM liviano</text>
+
+        <rect x="250" y="112" width="220" height="46" rx="10" fill="none" stroke="currentColor" stroke-width="1.4"/>
+        <text x="360" y="131" text-anchor="middle" font-weight="700">Tier 1 · léxico + MeSH</text>
+        <text x="360" y="147" text-anchor="middle" font-size="10">SQL sobre tsv y metadata→mesh · 40 candidatos</text>
+
+        <rect x="250" y="180" width="220" height="46" rx="10" fill="none" stroke="#0E8C7A" stroke-width="1.8"/>
+        <text x="360" y="199" text-anchor="middle" font-weight="700" fill="#0E8C7A">Tier 2 · vectorial (SIEMPRE)</text>
+        <text x="360" y="215" text-anchor="middle" font-size="10">Cohere embed sobre el texto crudo · 40</text>
+
+        <rect x="520" y="112" width="220" height="52" rx="10" fill="none" stroke="currentColor" stroke-width="1.4"/>
+        <text x="630" y="132" text-anchor="middle" font-weight="700">Fusión 24 + 16 → umbral</text>
+        <text x="630" y="148" text-anchor="middle" font-size="10">score determinístico ≥ 0.35 (antes del rerank)</text>
+
+        <rect x="520" y="192" width="220" height="46" rx="10" fill="none" stroke="currentColor" stroke-width="1.4"/>
+        <text x="630" y="211" text-anchor="middle" font-weight="700">Rerank Cohere · deja 15</text>
+        <text x="630" y="227" text-anchor="middle" font-size="10">rerank-v3.5 · cross-encoder</text>
+
+        <rect x="520" y="268" width="220" height="66" rx="10" fill="none" stroke="#0E8C7A" stroke-width="1.8"/>
+        <text x="630" y="288" text-anchor="middle" font-weight="700" fill="#0E8C7A">Juez de evidencia</text>
+        <text x="630" y="304" text-anchor="middle" font-size="10">LLM liviano lee 6 pasajes → 0-10</text>
+        <text x="630" y="319" text-anchor="middle" font-size="10">none · limited · sufficient</text>
+
+        <path d="M110 72 L110 128" fill="none" stroke="currentColor" stroke-width="1.3" marker-end="url(#arr2)"/>
+        <path d="M200 156 L248 138" fill="none" stroke="currentColor" stroke-width="1.3" marker-end="url(#arr2)"/>
+        <text x="212" y="139" font-size="9.5" opacity=".8">conceptos</text>
+        <path d="M150 72 C 210 96, 240 160, 248 196" fill="none" stroke="#0E8C7A" stroke-width="1.5" marker-end="url(#arr2)"/>
+        <text x="196" y="102" font-size="9.5" fill="#0E8C7A">texto crudo, en paralelo</text>
+        <path d="M470 135 L518 138" fill="none" stroke="currentColor" stroke-width="1.3" marker-end="url(#arr2)"/>
+        <path d="M470 203 C 495 200, 505 175, 518 158" fill="none" stroke="currentColor" stroke-width="1.3" marker-end="url(#arr2)"/>
+        <path d="M630 164 L630 190" fill="none" stroke="currentColor" stroke-width="1.3" marker-end="url(#arr2)"/>
+        <path d="M630 238 L630 266" fill="none" stroke="currentColor" stroke-width="1.3" marker-end="url(#arr2)"/>
+      </g>
+    </svg>
+    </div>
+    <figcaption>El Tier 2 arranca <b>antes</b> que el A→B (embebe el texto crudo, no necesita conceptos): los dos pasos más lentos corren solapados. El umbral se evalúa antes del rerank a propósito: prender o apagar el reranker cambia <i>qué</i> literatura llega, nunca <i>cuándo</i> Athos se abstiene.</figcaption>
+  </figure>
+
+  <ol class="steps">
+    <li><b class="t">A→B: entender la consulta (casi gratis)</b><p>El glosario convierte el español del vet (o del dueño: "toma mucha agua") en conceptos canónicos en inglés + descriptores MeSH, con matching determinístico de frases. Solo si el glosario resuelve menos de 3 conceptos <b>o ninguno nombra una condición concreta</b> (994 descriptores diagnósticos en <code>mesh_diagnostic.json</code> — tres signos genéricos no son un diagnóstico), un modelo liviano destila la consulta. La fusión es aditiva: la IA nunca reemplaza al glosario.</p></li>
+    <li><b class="t">Tier 0: la especie es preferencia, no exclusión</b><p>El 63% del corpus es especie "mixto", así que filtrar por especie descartaría literatura válida. En su lugar, la especie suma puntos (+0.15) igual que la vigencia (+0.05) y el tier editorial (A +0.05). Una stoplist de 22 descriptores demasiado comunes (<code>Dogs</code> está en 43.033 fragmentos) se quita del criterio temático.</p></li>
+    <li><b class="t">Tier 1: búsqueda léxica + MeSH (SQL, gratis)</b><p>Dos ramas separadas — por descriptor MeSH del fragmento y por texto completo — unidas con <code>union all</code>. Nota de guerra: con <code>OR</code> la consulta tardaba 15 segundos sobre 520.000 fragmentos (al filo del timeout); separadas, 42 milisegundos con los mismos resultados. Devuelve 40 candidatos.</p></li>
+    <li><b class="t">Tier 2: búsqueda semántica (siempre, ~US$0,0006)</b><p>Cohere embed-v4.0 (1024 dims) + pgvector con índice HNSW. No es un fallback: corre en <b>toda</b> consulta desde que se midió que el Tier 1 puede ser "fuerte pero equivocado" (en hipertiroidismo felino traía 0/8 fragmentos de tiroides; el vectorial, 8/8). Si Cohere falla, se degrada al Tier 1 sin romper nada.</p></li>
+    <li><b class="t">Fusión y umbral</b><p>Se conservan 24 léxicos + 16 semánticos (tope por modalidad, para que lo incidental no sepulte lo relevante). El umbral (0.35) es hoy un filtro barato: está <b>saturado</b> (pasó en 187 de 187 casos medidos) — la abstención real la decide el juez.</p></li>
+    <li><b class="t">Rerank: de 40 a los 15 mejores</b><p>Cohere rerank-v3.5 (cross-encoder: mira consulta y documento juntos). Sin él, 4 de cada 5 fragmentos que llegaban a la generación no eran de la condición consultada; con él, el fragmento correcto pasó de estar en el top-15 el 38% de las veces al 70%. Degrada con gracia ante cualquier fallo.</p></li>
+    <li><b class="t">El juez de evidencia: ¿esto alcanza?</b><p>Un modelo liviano lee los 6 mejores pasajes y puntúa 0–10 → banda: <b>none</b> (≤2, se abstiene), <b>limited</b> (≤6, responde declarando evidencia limitada), <b>sufficient</b> (7+). Una corroboración determinística por MeSH frena o rescata la banda. Calibrado sobre 188 casos: seguridad 92,6% / utilidad 65,5%. <b>Falla abierta</b>: si el juez se cae, se responde igual — es control de calidad, no un punto de falla.</p></li>
+  </ol>
+
+  <div class="callout warn">
+    <p class="co-title">Regla para cualquier consumidor</p>
+    <p>El "no hay evidencia" se cuelga SIEMPRE de <code>evidence_level</code> (la banda del juez), <b>nunca</b> de <code>passed</code> (el umbral saturado). Esto aplica al front, al agente de Next y a cualquier integración futura.</p>
+  </div>
+</section>
+
+<!-- ═══════════════ GLOSARIO ═══════════════ -->
+<section class="section" id="glosario">
+  <p class="eyebrow">El cerebro clínico · 2</p>
+  <h2>El glosario: el puente español → inglés</h2>
+  <p>El corpus está en inglés y el vet consulta en español. El puente es un diccionario médico propio — el activo que más determina la calidad del retrieval. Es <b>global</b> (compartido por todas las clínicas) y vive en tres tablas: <code>glossary_term</code> (el concepto canónico en inglés + su MeSH), <code>glossary_synonym</code> (las frases en español o inglés que lo nombran, incluido el lenguaje coloquial del dueño) y <code>glossary_relation</code> (creada pero sin uso).</p>
+
+  <h3>La perilla de seguridad: <code>approved</code> vs <code>candidate</code></h3>
+  <p>El retrieval usa <b>exclusivamente</b> sinónimos con <code>review_status='approved'</code>. Todo lo que se siembra automáticamente entra como <code>candidate</code> — es decir, <b>inerte</b> hasta que alguien lo aprueba. Así, ampliar el glosario nunca puede romper producción por accidente.</p>
+
+  <h3>Cómo se amplía sin romper nada (el pipeline de curación)</h3>
+  <ol class="steps">
+    <li><b class="t">Proponer</b><p><code>glosario_generar.py</code>: un modelo liviano propone sinónimos ES (técnicos y coloquiales) para los descriptores MeSH del corpus. No toca la base: deja un archivo de propuestas.</p></li>
+    <li><b class="t">Validar</b><p><code>glosario_validar.py</code>: cinco guardas determinísticas — frecuencia del MeSH (un descriptor presente en el 8% del corpus llenaría el top-40 de ruido), ambigüedad, longitud mínima, colisiones entre sinónimos, y choque con lo curado a mano (que siempre gana).</p></li>
+    <li><b class="t">Sembrar inerte y medir</b><p><code>glosario_sembrar.py</code> inserta como <code>candidate</code>; <code>glosario_gate.py</code> mide el riesgo que el golden no ve: un glosario más rico puede resolver 3 conceptos <i>incidentales</i> y saltarse la distilación que habría inferido el síndrome.</p></li>
+    <li><b class="t">Aprobar por tandas, con reversa</b><p><code>--aprobar-tanda N</code> promueve los de mayor cobertura; el origen <code>es_llm_mesh</code> permite revertir exactamente lo que sembró el script y nada más.</p></li>
+  </ol>
+
+  <div class="callout">
+    <p class="co-title">Impacto medido</p>
+    <p>El set curado inicial (41 términos, 218 sinónimos coloquiales como "llena la caja de arena" → Polyuria) bajó la distilación con LLM del 100% al ~9% de las consultas. La tanda 1 de curación amplió a ~150 descriptores / 521 sinónimos aprobados; quedan ~2.100 candidatos.</p>
+  </div>
+</section>
+
+<!-- ═══════════════ GENERACIÓN ═══════════════ -->
+<section class="section" id="generacion">
+  <p class="eyebrow">El cerebro clínico · 3</p>
+  <h2>Cómo redacta, y los guardianes que lo vigilan</h2>
+  <p>La redacción es <b>una sola llamada</b> al modelo (dos, si la primera vuelve vacía). Todo lo demás — antes y después — son garantías determinísticas o auditores acotados. La idea rectora: <b>el modelo redacta; el código garantiza</b>.</p>
+
+  <h3>El motor: proveedores intercambiables con cascada</h3>
+  <p><code>llm_client.py</code> habla tres dialectos por variable de entorno: <code>anthropic</code> (SDK oficial, con prompt caching), <code>openai</code>-compatible (DeepSeek — el proveedor elegido por el cliente por costos — y Kimi) y <code>google</code> (Gemini por su endpoint compatible). <code>provider_cascade.py</code> encadena candidatos con el formato <code>"modelo@proveedor,modelo@proveedor"</code>:</p>
+
+  <div class="tbl-wrap"><table>
+    <tr><th>Tarea</th><th>Variable</th><th>Producción (Railway)</th></tr>
+    <tr><td>Redacción (chat + nota)</td><td><code>LLM_CASCADE_REDACCION</code></td><td>deepseek-v4-flash → gemini-3.6-flash → claude-sonnet-5</td></tr>
+    <tr><td>Caso difícil (banda <code>limited</code>, solo Fantasma)</td><td><code>LLM_CASCADE_DIFICIL</code></td><td>claude-sonnet-5 → deepseek-v4-flash → gemini-3.6-flash</td></tr>
+    <tr><td>Liviano (A→B, juez, auditores)</td><td><code>LLM_CASCADE_LIVIANO</code></td><td>deepseek-v4-flash → gemini-2.5-flash-lite → claude-haiku-4-5</td></tr>
+  </table></div>
+
+  <p>Detalles que importan: en streaming, la alternativa solo entra si el fallo ocurre <b>antes del primer token</b> (nunca se cosen dos respuestas); cada rama exige su propia credencial (un typo de proveedor mandaría una key al servidor equivocado — hay lista blanca); y el modelo que respondió <b>de verdad</b> queda registrado en <code>clinical_notes.ai_model</code> y <code>rag_answer_log.model</code> como <code>modelo@proveedor</code>.</p>
+
+  <h3>Los guardianes, en orden</h3>
+  <div class="tbl-wrap"><table>
+    <tr><th>Guardián</th><th>Tipo</th><th>Qué garantiza</th></tr>
+    <tr><td><b>Gate de alergia severa</b><br><code>allergy_gate.py</code></td><td><span class="chip ok">determinístico</span></td><td>Lee <code>allergies</code> con <code>severity='severe'</code>. Advierte <b>antes</b> de cualquier plan, marca la nota, y en el front bloquea la aprobación (checkbox + trigger en la base). Nunca depende del modelo.</td></tr>
+    <tr><td><b>Backstop de alergia dicha</b></td><td><span class="chip ok">determinístico</span></td><td>Si en la consulta se <i>mencionó</i> una alergia que no está en la ficha, un escaneo del transcript (ES+EN, con detección de negaciones) enciende <code>allergy_transcript_flag</code> aunque el modelo no la haya visto.</td></tr>
+    <tr><td><b>Gate de dosis</b><br><code>dose_guard.py</code></td><td><span class="chip ok">determinístico</span></td><td>Sin especie + peso + edad, tapa la cifra (<code>[dosis omitida…]</code>) conservando fármaco, vía y frecuencia. En el chat usa un colchón de 48 caracteres para que el streaming no parta la cifra. Hueco conocido: solo dosis por peso (mg/kg).</td></tr>
+    <tr><td><b>Procedencia de citas</b><br><code>citations.py</code></td><td><span class="chip ok">determinístico</span></td><td>Una cita cuyo fragmento no fue recuperado se descarta: es una fuente inventada. La cita final (título, año, URL) se reconstruye desde el corpus, no desde lo que escribió el modelo.</td></tr>
+    <tr><td><b>Fidelidad de citas</b><br><code>citation_fidelity.py</code></td><td><span class="chip">LLM liviano</span></td><td>¿El pasaje citado <i>sostiene</i> lo afirmado? Existe porque la procedencia no alcanza: 18 de 24 respuestas citaban al menos un pasaje decorativo. Calibrado para descartar el 18% (la primera versión descartaba el 58%). Corre después de la respuesta: no suma latencia.</td></tr>
+    <tr><td><b>Fidelidad de la nota</b><br><code>transcript_fidelity.py</code></td><td><span class="chip neutral">mixto</span></td><td>¿La nota dice cosas que la consulta no contiene? (medido: 17 de 40 notas). Una señal determinística (diferencia de conjuntos del glosario) dispara una <b>reparación</b> que reescribe S/O con las palabras de la consulta (términos sin respaldo: 28 → 4), y un auditor <b>señala</b> lo que queda — nunca borra: podría sacar un hallazgo real del expediente.</td></tr>
+    <tr><td><b>Afirmaciones sin declarar</b><br><code>undeclared.py</code></td><td><span class="chip ok">determinístico</span></td><td>Fármacos y cifras ejecutables sin cita y sin la marca "criterio clínico" se informan al vet (no se censuran).</td></tr>
+    <tr><td><b>Alertas de condición</b><br><code>condition_alerts.py</code></td><td><span class="chip neutral">mixto</span></td><td>11 condiciones curadas (diabetes, ERC, hipertiroidismo…) detectadas determinísticamente en el análisis → panel ámbar "afectaciones en este paciente" (explicación grounded en la literatura). Nunca bloqueante — distinto del gate de alergia.</td></tr>
+  </table></div>
+
+  <div class="callout danger">
+    <p class="co-title">Por qué no se resuelve "mejorando el prompt"</p>
+    <p>Se intentó, con medición, y empeoró: la regla de dosis por prompt dejaba pasar 2/23 (y 9/23 con un prompt más resolutivo); pedir citas estrictas por prompt subió las citas decorativas. Por eso cada garantía tiene su pieza de código, y los auditores tienen interruptores (<code>FIDELITY_ENABLED</code>, <code>TRANSCRIPT_FIDELITY_ENABLED</code>, <code>JUDGE_ENABLED</code>) para apagarlos sin tocar código.</p>
+  </div>
+</section>
+
+<!-- ═══════════════ CHAT ═══════════════ -->
+<section class="section" id="chat">
+  <p class="eyebrow">El cerebro clínico · 4</p>
+  <h2>El chat de la consulta, paso a paso</h2>
+  <p><code>POST /athos/chat</code> responde por <b>SSE</b> (streaming) con tres tipos de evento: <code>warning</code> (avisos), <code>token</code> (texto) y <code>done</code> (el cierre con citas y metadatos). Vive completo en <code>app/chat.py</code>. Es el chat "RAG puro" embebido en la pantalla de consulta; con memoria de hilo por paciente.</p>
+
+  <ol class="steps">
+    <li><b class="t">Contexto y retrieval</b><p>Carga la ficha (especie, peso, edad, alergias severas, medicación) y corre la cascada. Sin <code>patient_id</code> es "consulta general": sin ficha, sin memoria, sin traza.</p></li>
+    <li><b class="t">Memoria del paciente, gratis</b><p>Recupera hasta 5 fragmentos de la historia del propio paciente reutilizando el vector que el Tier 2 ya calculó (cero llamadas extra). Van al prompt marcados "NO es literatura: no la cites".</p></li>
+    <li><b class="t">Aviso de alergias, antes que nada</b><p>Si hay alergias severas, el primer evento es un <code>warning</code> con los alérgenos — antes del primer token de respuesta.</p></li>
+    <li><b class="t">El juez corre en paralelo</b><p>Mientras el modelo redacta, el juez evalúa la evidencia en otro hilo. Los tokens quedan <b>retenidos</b> hasta el veredicto (máximo 4 s): si dice <code>none</code>, se corta el stream y se descarta lo generado — <b>el vet nunca ve texto que haya que desdecir</b>; si dice <code>limited</code>, primero sale el aviso de evidencia limitada; si tarda, se responde igual.</p></li>
+    <li><b class="t">Dosis vigiladas en vivo</b><p>Cada trozo emitido pasa por el gate de dosis (con su colchón anti-streaming). La primera vez que tapa una cifra, avisa por qué.</p></li>
+    <li><b class="t">Cierre honesto</b><p>Tras la respuesta: el auditor de fidelidad revisa las citas (las caídas van en <code>unverified_sources</code> para que el front las atenúe), se listan las afirmaciones ejecutables sin declarar, y se persiste en <code>athos_messages</code> <b>lo que el vet debería haber visto</b> (dosis tapadas, marcadores caídos quitados) para que el error no se recicle como contexto del turno siguiente.</p></li>
+  </ol>
+
+  <p>El evento <code>done</code> trae: <code>citations</code> (solo las fuentes realmente usadas, enlazables a PubMed), <code>allergy_gate_triggered</code>, <code>evidence_level</code>, <code>ai_model</code> (el real), <code>unverified_sources</code> y <code>undeclared_claims</code>.</p>
+</section>
+
+<!-- ═══════════════ FANTASMA ═══════════════ -->
+<section class="section" id="fantasma">
+  <p class="eyebrow">El cerebro clínico · 5</p>
+  <h2>El Modo Fantasma: de la consulta hablada a la nota firmada</h2>
+  <p>El Fantasma convierte una consulta grabada en una nota SOAP citada, en borrador, que el vet revisa y aprueba. Es el flujo con más piezas — y el módulo más caro por uso (una consulta de 20 minutos cuesta ~US$0,09 solo de transcripción).</p>
+
+  <figure>
+    <div class="fig-frame">
+    <svg viewBox="0 0 760 210" role="img" aria-label="Flujo del Modo Fantasma: consentimiento, grabación con transcripción en vivo, cierre y subida del audio, generación de la nota en borrador, revisión y aprobación del veterinario.">
+      <defs>
+        <marker id="arr3" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+          <path d="M0,0 L10,5 L0,10 z" fill="currentColor"/>
+        </marker>
+      </defs>
+      <g font-size="11" fill="currentColor">
+        <rect x="14" y="30" width="130" height="58" rx="10" fill="none" stroke="currentColor" stroke-width="1.4"/>
+        <text x="79" y="53" text-anchor="middle" font-weight="700">Consentimiento</text>
+        <text x="79" y="69" text-anchor="middle" font-size="9.5">Ley 1581 · bloqueante</text>
+        <text x="79" y="81" text-anchor="middle" font-size="9.5">(trigger en la DB)</text>
+
+        <rect x="168" y="30" width="140" height="58" rx="10" fill="none" stroke="#0E8C7A" stroke-width="1.8"/>
+        <text x="238" y="53" text-anchor="middle" font-weight="700" fill="#0E8C7A">Grabación</text>
+        <text x="238" y="69" text-anchor="middle" font-size="9.5">webm/opus · trozos de 1 s</text>
+        <text x="238" y="81" text-anchor="middle" font-size="9.5">transcripción EN VIVO (WS)</text>
+
+        <rect x="332" y="30" width="130" height="58" rx="10" fill="none" stroke="currentColor" stroke-width="1.4"/>
+        <text x="397" y="53" text-anchor="middle" font-weight="700">Cierre</text>
+        <text x="397" y="69" text-anchor="middle" font-size="9.5">audio → bucket privado</text>
+        <text x="397" y="81" text-anchor="middle" font-size="9.5">transcript persistido</text>
+
+        <rect x="486" y="30" width="130" height="58" rx="10" fill="none" stroke="currentColor" stroke-width="1.4"/>
+        <text x="551" y="49" text-anchor="middle" font-weight="700">Nota (draft)</text>
+        <text x="551" y="65" text-anchor="middle" font-size="9.5">retrieval + juez + gates</text>
+        <text x="551" y="77" text-anchor="middle" font-size="9.5">SOAP citada [n]</text>
+
+        <rect x="640" y="30" width="106" height="58" rx="10" fill="none" stroke="currentColor" stroke-width="1.4"/>
+        <text x="693" y="53" text-anchor="middle" font-weight="700">Aprobación</text>
+        <text x="693" y="69" text-anchor="middle" font-size="9.5">draft → approved</text>
+        <text x="693" y="81" text-anchor="middle" font-size="9.5">nota inmutable</text>
+
+        <path d="M144 59 L166 59" fill="none" stroke="currentColor" stroke-width="1.3" marker-end="url(#arr3)"/>
+        <path d="M308 59 L330 59" fill="none" stroke="currentColor" stroke-width="1.3" marker-end="url(#arr3)"/>
+        <path d="M462 59 L484 59" fill="none" stroke="currentColor" stroke-width="1.3" marker-end="url(#arr3)"/>
+        <path d="M616 59 L638 59" fill="none" stroke="currentColor" stroke-width="1.3" marker-end="url(#arr3)"/>
+
+        <text x="380" y="130" text-anchor="middle" font-size="10.5" opacity=".85">estados de la consulta:</text>
+        <text x="380" y="150" text-anchor="middle" font-size="10.5"><tspan font-weight="700">open</tspan> → transcribing → generating_note → <tspan font-weight="700">review</tspan> → completed</text>
+        <text x="380" y="178" text-anchor="middle" font-size="9.5" opacity=".7">si la transcripción en vivo falla, el sistema cae al camino por lotes sin perder nada; el audio se purga a los 4 días (cron)</text>
+      </g>
+    </svg>
+    </div>
+    <figcaption>Grabar, transcribir y generar son pasos separados: la nota se genera solo cuando el vet pulsa "Generar sugerencia" — nunca automáticamente.</figcaption>
+  </figure>
+
+  <h3>Qué pasa dentro del backend al generar</h3>
+  <ol class="steps">
+    <li><b class="t">Cargar el material</b><p>La consulta (404 si no es de esa clínica), el <b>último</b> transcript (si no hay, la nota parte del motivo de consulta) y la ficha del paciente. También el <b>cuaderno</b> del vet (<code>consultations.notebook</code>): notas escritas a mano durante la consulta que, ante contradicción con lo hablado, <b>priman</b> — un peso anotado es una medición; el dicho al pasar, una estimación.</p></li>
+    <li><b class="t">Retrieval + gate de alergia + juez</b><p>La misma cascada del chat, sobre el transcript. Aquí el juez corre <b>antes</b> de generar (nadie espera): su banda decide además el routing — con evidencia <code>limited</code> la nota se redacta con la cascada "difícil" (Claude primero).</p></li>
+    <li><b class="t">Una sola llamada de redacción</b><p>SOAP + citas + flag de alergia en un único JSON (máx. 4000 tokens, hasta 2 intentos). Si el modelo no devuelve nota utilizable, el endpoint responde 502 <b>sin insertar nada</b> — antes de este guardia, las notas vacías entraban en blanco a la historia.</p></li>
+    <li><b class="t">Verificación y limpieza</b><p>Citas verificadas y renumeradas a <code>[1][2][3]</code> en las cuatro secciones; dosis tapadas si falta ficha; el auditor de fidelidad descarta citas decorativas <b>y renumera</b>; la reparación de S/O reescribe lo que la consulta no respalda; lo que queda dudoso viaja en <code>unsupported_claims</code>.</p></li>
+    <li><b class="t">Persistencia y honestidad</b><p>La nota entra a <code>clinical_notes</code> como <code>draft</code> con su <code>evidence_level</code>, las alertas de condición y el modelo real que la escribió. Regla dura: 0 citas ⟺ <code>insufficient_evidence</code> — una nota sin literatura lo declara, no lo disimula.</p></li>
+  </ol>
+
+  <div class="callout ok">
+    <p class="co-title">La aprobación está protegida en la base, no solo en el navegador</p>
+    <p>El trigger <code>clinical_notes_guard</code> (migración 0054) hace dos cosas: la nota aprobada es <b>inmutable</b>, y si el gate de alergia disparó, no se puede aprobar sin <code>allergy_acknowledged_at</code>. El checkbox del front es cortesía; la barrera es la base de datos.</p>
+  </div>
+</section>
+
+<!-- ═══════════════ TRANSCRIPCIÓN ═══════════════ -->
+<section class="section" id="transcripcion">
+  <p class="eyebrow">El cerebro clínico · 6</p>
+  <h2>La transcripción: en vivo, con red de seguridad</h2>
+  <p>Proveedor: <b>Deepgram nova-2</b> (español, con diarización — separa hablantes). Hay dos caminos que comparten una sola implementación de segmentos y roles:</p>
+
+  <h3>El camino en vivo (WebSocket)</h3>
+  <p>Mientras el vet graba, el navegador manda los trozos de audio (1 s) por <code>WS /athos/transcribe/live</code>; Athos los reenvía a Deepgram y devuelve texto estable + provisional en tiempo real. Detalles finos: el JWT viaja en el primer mensaje (un WebSocket no admite cabeceras), un keepalive cada 5 s evita que Deepgram cierre, y el cierre es en dos tiempos — primero se drena el final de la consulta (donde está el plan), el navegador sube el audio al bucket, y recién entonces se persiste el transcript (la clave foránea exige que el audio exista primero).</p>
+
+  <h3>La red de seguridad (por lotes)</h3>
+  <p>Si el vivo falla en cualquier punto, el navegador recibe <code>fallback: true</code> y, al cerrar, llama a <code>POST /athos/transcribe</code>: baja el audio del bucket y lo transcribe entero. El vet no pierde nada.</p>
+
+  <h3>¿Quién habló: el vet o el dueño?</h3>
+  <p>Asumir "el vet abre la consulta" invertía diálogos enteros (el dueño suele abrir: "Doctor, mi perro no come"). <code>speaker_roles.py</code> lo resuelve <b>sin IA</b>: dos léxicos con pesos (el titular dice "doctor", "mi perro", "le doy…"; el vet dice "vamos a auscultar", "compatible con", "hemograma") puntúan el texto completo de cada hablante; si el margen no supera 2.0, se declara "no se sabe" y se marca <code>role_inferred=false</code> en vez de adivinar.</p>
+
+  <div class="callout warn">
+    <p class="co-title">Retención del audio: 4 días</p>
+    <p>El audio se guarda en el bucket privado <code>consultation-audios</code> con <code>retain_until</code> a +4 días; un cron de Vercel (03:00 UTC) lo purga. Sin <code>CRON_SECRET</code> configurado, la purga no corre y la retención de la Ley 1581 se incumple <b>en silencio</b>.</p>
+  </div>
+</section>
+
+<!-- ═══════════════ MEMORIA ═══════════════ -->
+<section class="section" id="memoria">
+  <p class="eyebrow">El cerebro clínico · 7</p>
+  <h2>La memoria del paciente</h2>
+  <p>Además del corpus global, Athos recuerda la historia de <b>cada paciente</b>: un índice vectorial por clínica y paciente (<code>patient_embeddings</code>, mismo modelo y dimensión que el corpus) sobre sus notas aprobadas y transcripciones.</p>
+  <ul>
+    <li><b>Qué se indexa:</b> notas <code>approved</code>/<code>locked</code> y transcripts. Los borradores <b>nunca</b>: son salida cruda del modelo y realimentarían su propio error.</li>
+    <li><b>Cuándo:</b> en segundo plano desde el chat (el backend no tiene un evento de "nota aprobada", así que cada consulta deja lista la memoria para la siguiente). La memoria jamás rompe el chat.</li>
+    <li><b>Cómo recuerda gratis:</b> la búsqueda reutiliza el vector que el Tier 2 ya calculó para la consulta — cero llamadas extra a Cohere, cero latencia añadida.</li>
+    <li><b>Dónde se usa:</b> solo en el chat (hasta 5 fragmentos, marcados "NO es literatura"). El Fantasma hoy <b>no</b> la usa — hueco conocido, ver <a href="#limites">Límites</a>.</li>
+  </ul>
+  <p>Aparte de esta memoria semántica, el chat tiene <b>memoria de hilo</b>: los últimos 8 turnos con ese paciente (tabla <code>athos_messages</code>) se inyectan como historial. El hilo es implícito por paciente — no hay <code>thread_id</code>.</p>
+</section>
+
+<!-- ═══════════════ AGENTE ═══════════════ -->
+<section class="section" id="agente">
+  <p class="eyebrow">El asistente · 1</p>
+  <h2>El agente y sus 22 herramientas</h2>
+  <p>El agente vive en el <b>front</b> (<code>src/lib/athos-agent/</code> + <code>/api/athos/agent</code>), no en el servicio de Railway. Es el "Athos" con el que se conversa en la pantalla principal, la burbuja, la bandeja de WhatsApp y el onboarding. Corre con el AI SDK de Vercel (<code>streamText</code>, máximo 8 pasos de herramientas por turno).</p>
+
+  <p>Cada request pasa por una fila de controles antes de llegar al modelo: sesión válida (401) → límite de ritmo 30 req/min por usuario (429) → cuenta activa (403) → <b>presupuesto de la clínica</b> (402) → contexto (clínica, señales del día, pantalla que el vet tiene delante) → modelo por variable de entorno → herramientas.</p>
+
+  <h3>Las 22 herramientas</h3>
+  <div class="tbl-wrap"><table>
+    <tr><th>Tipo</th><th>Herramientas</th><th>Cómo operan</th></tr>
+    <tr>
+      <td><b>13 de lectura</b></td>
+      <td><code>search_patients</code> · <code>get_patient_summary</code> · <code>get_owner_by_phone</code> · <code>search_consultations</code> · <code>get_consultation_details</code> · <code>list_appointments_on_day</code> · <code>get_clinic_hours</code> · <code>list_available_slots</code> · <code>search_whatsapp_conversation</code> · <code>search_emails</code> · <code>read_email_thread</code> · <code>search_clinical_evidence</code> · contexto de pantalla</td>
+      <td>Corren con la <b>sesión del vet</b>: la RLS aplica de verdad. La de evidencia llama a <code>/athos/retrieve</code> del backend y cuelga su "no hay evidencia" de <code>evidence_level</code>.</td>
+    </tr>
+    <tr>
+      <td><b>9 de acción</b></td>
+      <td><code>send_whatsapp_message</code> · <code>send_email</code> · <code>reply_email</code> · <code>create_appointment</code> · <code>update_appointment</code> · <code>create_owner</code> · <code>create_patient</code> · <code>create_owner_and_patient</code> · <code>update_patient_record</code></td>
+      <td><b>No ejecutan.</b> Insertan una fila <code>proposed</code> en <code>athos_actions</code> y el vet ve una tarjeta de aprobación.</td>
+    </tr>
+  </table></div>
+
+  <p>El agente además <b>sabe qué pantalla tiene delante el vet</b> (paciente, consulta, agenda…): el front deriva el contexto de la ruta y lo pasa al prompt — validado con esquemas; falsearlo solo haría que el modelo "mire otra pantalla", porque toda lectura sigue pasando por RLS. Desde agosto también percibe la sala de espera sin gastar tokens.</p>
+</section>
+
+<!-- ═══════════════ APROBACIÓN ═══════════════ -->
+<section class="section" id="aprobacion">
+  <p class="eyebrow">El asistente · 2</p>
+  <h2>Athos propone, el veterinario ejecuta</h2>
+  <p>Es la decisión de diseño más importante del producto, y está en el <b>esquema de la base</b>, no en el prompt: la tabla <code>athos_actions</code> tiene política de lectura por clínica, pero <b>ninguna</b> política de escritura — solo las rutas del servidor pueden insertar, y la ejecución corre con la sesión del vet que aprueba.</p>
+
+  <figure>
+    <div class="fig-frame">
+    <svg viewBox="0 0 760 300" role="img" aria-label="Ciclo de aprobación: el modelo llama una herramienta de escritura, se inserta una propuesta, el vet ve la tarjeta y puede editarla, y la ejecución corre con la sesión del vet, con validación y reserva atómica.">
+      <defs>
+        <marker id="arr4" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+          <path d="M0,0 L10,5 L0,10 z" fill="currentColor"/>
+        </marker>
+      </defs>
+      <g font-size="11" fill="currentColor">
+        <rect x="20" y="24" width="200" height="52" rx="10" fill="none" stroke="currentColor" stroke-width="1.4"/>
+        <text x="120" y="46" text-anchor="middle" font-weight="700">El modelo llama una tool</text>
+        <text x="120" y="62" text-anchor="middle" font-size="10">p. ej. create_appointment</text>
+
+        <rect x="280" y="24" width="200" height="52" rx="10" fill="none" stroke="currentColor" stroke-width="1.4"/>
+        <text x="380" y="46" text-anchor="middle" font-weight="700">Fila en athos_actions</text>
+        <text x="380" y="62" text-anchor="middle" font-size="10">status = proposed · vence a los 7 días</text>
+
+        <rect x="540" y="24" width="200" height="52" rx="10" fill="none" stroke="#0E8C7A" stroke-width="1.8"/>
+        <text x="640" y="46" text-anchor="middle" font-weight="700" fill="#0E8C7A">Tarjeta de aprobación</text>
+        <text x="640" y="62" text-anchor="middle" font-size="10">el vet puede EDITAR el contenido</text>
+
+        <rect x="280" y="140" width="200" height="70" rx="10" fill="none" stroke="currentColor" stroke-width="1.4"/>
+        <text x="380" y="161" text-anchor="middle" font-weight="700">POST /execute</text>
+        <text x="380" y="177" text-anchor="middle" font-size="10">re-valida el payload (descarta</text>
+        <text x="380" y="190" text-anchor="middle" font-size="10">campos desconocidos) · reserva</text>
+        <text x="380" y="203" text-anchor="middle" font-size="10">atómica contra el doble clic</text>
+
+        <rect x="20" y="140" width="200" height="70" rx="10" fill="none" stroke="currentColor" stroke-width="1.4"/>
+        <text x="120" y="164" text-anchor="middle" font-weight="700">Ejecuta con la SESIÓN</text>
+        <text x="120" y="180" text-anchor="middle" font-weight="700">del vet que aprueba</text>
+        <text x="120" y="197" text-anchor="middle" font-size="10">la RLS ve el auth.uid() real</text>
+
+        <rect x="540" y="140" width="200" height="70" rx="10" fill="none" stroke="currentColor" stroke-width="1.4"/>
+        <text x="640" y="164" text-anchor="middle" font-weight="700">Traza completa</text>
+        <text x="640" y="181" text-anchor="middle" font-size="10">executed | failed | rejected</text>
+        <text x="640" y="196" text-anchor="middle" font-size="10">+ audit_logs + modelo proponente</text>
+
+        <path d="M220 50 L278 50" fill="none" stroke="currentColor" stroke-width="1.3" marker-end="url(#arr4)"/>
+        <text x="249" y="42" font-size="9.5" text-anchor="middle" opacity=".8">service_role</text>
+        <path d="M480 50 L538 50" fill="none" stroke="currentColor" stroke-width="1.3" marker-end="url(#arr4)"/>
+        <path d="M640 76 C 640 110, 500 130, 482 156" fill="none" stroke="#0E8C7A" stroke-width="1.5" marker-end="url(#arr4)"/>
+        <text x="590" y="112" font-size="9.5" fill="#0E8C7A">aprueba (o rechaza)</text>
+        <path d="M278 175 L222 175" fill="none" stroke="currentColor" stroke-width="1.3" marker-end="url(#arr4)"/>
+        <path d="M220 190 C 300 232, 460 232, 538 196" fill="none" stroke="currentColor" stroke-width="1.3" marker-end="url(#arr4)"/>
+        <text x="380" y="248" font-size="10.5" text-anchor="middle" opacity=".8">El agente NUNCA escribe directo: propone con service_role, ejecuta el humano.</text>
+        <text x="380" y="278" font-size="10" text-anchor="middle" opacity=".7">En la bandeja de WhatsApp, "Enviar" el borrador ES aprobar la acción. Las propuestas pendientes sobreviven a recargas (se releen de la tabla).</text>
+      </g>
+    </svg>
+    </div>
+    <figcaption>El ciclo completo está probado en producción — incluida la cascada de proveedores: cuando Anthropic se quedó sin crédito (2-ago), la columna del "modelo proponente" muestra el paso automático a DeepSeek sin intervención de nadie.</figcaption>
+  </figure>
+
+  <p>Estados posibles de una acción: <code>proposed → approved → executed | failed</code>, o <code>rejected</code>, o <code>expired</code> (7 días). Al ejecutar: 409 si ya no está <code>proposed</code> (doble clic), 410 si venció, 400 si el payload editado no valida. Cada resultado queda en <code>audit_logs</code> con quién aprobó y qué modelo propuso.</p>
+</section>
+
+<!-- ═══════════════ PRESUPUESTO ═══════════════ -->
+<section class="section" id="presupuesto">
+  <p class="eyebrow">El asistente · 3</p>
+  <h2>Modelos, cascada y tope de gasto</h2>
+  <p>Los modelos <b>nunca están hardcodeados</b>: cada rol se configura por variable de entorno de Vercel, y una cascada <code>modelo@proveedor,…</code> da continuidad si un proveedor falla.</p>
+  <div class="tbl-wrap"><table>
+    <tr><th>Rol</th><th>Variables</th><th>Default</th></tr>
+    <tr><td>Agente (chat, bandeja, widget)</td><td><code>ATHOS_AGENT_PROVIDER</code> / <code>ATHOS_AGENT_MODEL</code> / <code>ATHOS_AGENT_CASCADE</code></td><td>claude-sonnet-5</td></tr>
+    <tr><td>Modo auto de WhatsApp</td><td><code>ATHOS_AUTO_*</code> (hereda del agente)</td><td>claude-haiku-4-5</td></tr>
+    <tr><td>Visión (recetas y facturas por foto)</td><td><code>ATHOS_VISION_MODEL</code> / <code>ATHOS_VISION_CASCADE</code></td><td>claude-haiku-4-5</td></tr>
+  </table></div>
+  <p>Proveedores válidos: <code>anthropic</code>, <code>deepseek</code>, <code>google</code> (⚠️ se llama <code>google</code>, no "gemini"). La cascada manda sobre el par proveedor/modelo.</p>
+
+  <h3>El tope de gasto por clínica</h3>
+  <p>Cada llamada al modelo queda registrada en <code>athos_agent_usage</code> (superficie, proveedor, modelo, tokens, y desde qué modelo se cayó si respondió un respaldo). Sobre esa tabla, <code>ATHOS_TOPE_MENSUAL_POR_CLINICA</code> corta el servicio con un mensaje claro (HTTP 402):</p>
+  <ul>
+    <li>Variable <b>vacía</b> → tope de contención de <b>1000</b> llamadas/mes por clínica.</li>
+    <li><code>ninguno</code> → sin tope.</li>
+    <li><code>0</code> → kill-switch (apaga el agente).</li>
+  </ul>
+  <div class="callout warn">
+    <p class="co-title">Decisión de negocio abierta</p>
+    <p>Al corte del 16-ago la variable <b>no está puesta en Vercel Production</b>: el tope construido no corta nada. Encenderlo es ponerla (y redeployar para que tome efecto). El medidor visible para la clínica (<code>CupoDeIA</code>, en el riel del asistente) ya existe.</p>
+  </div>
+  <p>El modo automático de WhatsApp (responder solo al titular) es <b>opt-in por clínica</b> y tiene sus propios frenos: reserva atómica del mensaje entrante, espera de 5 s, máximo 8 respuestas/hora por conversación y límite diario con calentamiento progresivo.</p>
+</section>
+
+<!-- ═══════════════ FRONTEND ═══════════════ -->
+<section class="section" id="frontend">
+  <p class="eyebrow">Construcción · 1</p>
+  <h2>El frontend de Athos</h2>
+  <p>Todo lo de Athos en el front es ownership del equipo Plogy. Las piezas, por capas:</p>
+  <div class="tbl-wrap"><table>
+    <tr><th>Capa</th><th>Piezas</th><th>Notas</th></tr>
+    <tr><td><b>Clientes del backend</b></td><td><code>src/lib/athos.ts</code> · <code>athos-live.ts</code> · <code>athos-history.ts</code></td><td>SSE parseado a mano; el WS de transcripción nunca lanza (marca <code>fallback</code>); los errores del backend se muestran tachando nombres de proveedores.</td></tr>
+    <tr><td><b>Grabación</b></td><td><code>src/lib/consulta-viva/</code> (sesión singleton + hook + cuaderno)</td><td>Fases <code>inactiva → grabando → subiendo → transcribiendo → terminada</code> (o <code>perdida</code>). Tres superficies observan el mismo singleton: la pastilla global, el panel y la pantalla de consulta. Aviso a 45 min, corte a 90.</td></tr>
+    <tr><td><b>El agente</b></td><td><code>src/lib/athos-agent/</code> (tools, modelo, cascada, presupuesto, contexto)</td><td>Toda la lógica está en <code>.ts</code> puros y testeados — los componentes solo renderizan.</td></tr>
+    <tr><td><b>Componentes</b></td><td><code>src/components/athos/</code>: dock, widget, mensajes, tarjeta de aprobación, propuestas pendientes, hilo de consulta, panel del Fantasma, cuaderno, fuentes (<code>SourceCard</code>), riel clínico</td><td>Las citas <code>[n]</code> se renderizan como enlaces al artículo; el plan cruza las alergias del paciente y marca alérgenos en rojo/ámbar (determinístico).</td></tr>
+    <tr><td><b>Páginas</b></td><td><code>/dashboard/asistente</code> (inicio) · <code>/dashboard/consultas</code> · <code>/dashboard/consultas/[id]</code> · <code>/admin/uso</code> · <code>/admin/costos</code></td><td>La pantalla de la consulta es donde convergen nota + hilo + grabador + cuaderno.</td></tr>
+  </table></div>
+
+  <p>Regla de acceso a datos en el front: <b>cuatro clientes de Supabase</b>, y usar el que corresponde importa — server/client con la sesión del vet (la RLS aplica), el proxy que solo refresca cookies, y <code>admin</code> (service_role) <b>solo</b> donde la RLS no puede expresar la operación: las propuestas del agente y los webhooks, siempre con <code>clinic_id</code> explícito.</p>
+</section>
+
+<!-- ═══════════════ DATOS ═══════════════ -->
+<section class="section" id="datos">
+  <p class="eyebrow">Construcción · 2</p>
+  <h2>Los datos: dos mundos que nunca se cruzan</h2>
+  <p>La regla que organiza todo el modelo de datos: lo <b>global</b> (conocimiento) y lo <b>por clínica</b> (pacientes) viven en tablas separadas, sin claves entre sí, y solo se combinan en memoria al armar un prompt.</p>
+
+  <div class="card-grid">
+    <div class="card"><span class="chip">Global</span><h4>El conocimiento</h4><p><code>corpus_chunks</code> (contenido, embedding 1024, metadata con mesh/tier/especie, texto indexado) y el glosario. Sin <code>clinic_id</code>. Cerrado a la API pública (default-deny); Athos lo lee con conexión privilegiada.</p></div>
+    <div class="card"><span class="chip ok">Por clínica</span><h4>Los pacientes</h4><p><code>patients</code>, <code>allergies</code>, <code>consultations</code>, <code>transcripts</code>, <code>clinical_notes</code>, <code>patient_embeddings</code>, <code>athos_actions</code>… todas con <code>clinic_id</code> + RLS (<code>private.my_clinic_id()</code>).</p></div>
+    <div class="card"><span class="chip neutral">Trazas</span><h4>Todo deja rastro</h4><p><code>athos_messages</code> (el hilo del chat), <code>rag_retrieval_log</code> (qué se recuperó), <code>rag_answer_log</code> (qué se respondió, con qué modelo), <code>athos_agent_usage</code> (el gasto del agente), <code>audit_logs</code>.</p></div>
+  </div>
+
+  <h3>Índices que sostienen el sistema</h3>
+  <ul>
+    <li><b>HNSW</b> (coseno) sobre los embeddings del corpus y de la memoria de paciente — reemplaza al ivfflat original; el del corpus pesa ~4 GB (rebuild costoso: coordinar).</li>
+    <li><b>GIN de expresión</b> sobre <code>metadata->'mesh'</code> — sin él, la rama MeSH del Tier 1 hacía un escaneo completo (~44 s); con él, ~2 s.</li>
+    <li>GIN de <code>tsv</code> (texto completo) y el índice del hilo <code>(clinic_id, patient_id, created_at desc)</code>.</li>
+  </ul>
+
+  <h3>Migraciones: las reglas de vida o muerte</h3>
+  <ul>
+    <li><code>supabase/migrations/*.sql</code> (64 archivos) es la <b>única fuente de verdad</b> de los cambios propios. Flujo dev → PR → principal, aplicando los mismos archivos. El <code>bootstrap/</code> es solo para levantar dev.</li>
+    <li>Tabla por-clínica sin RLS + test cross-tenant <b>no se mergea</b>.</li>
+    <li>⚠️ <b>El registro de migraciones del principal miente</b> (archivos aplicados sin registrar, filas sin archivo, números que significan cosas distintas). Un <code>db push</code> ciego re-aplicaría el índice HNSW de 4 GB. La única verdad es la introspección del catálogo — automatizada en <code>scripts/calidad/auditar_esquema.py</code>.</li>
+    <li>Hitos del esquema propio: 0001 (núcleo RAG), 0002 (HNSW), 0003 (GIN de mesh), 0004/0025 (alertas y banda de evidencia en la nota), 0029 (acciones del agente), 0046/0052 (telemetría de uso), 0054 (nota aprobada inmutable + gate en DB), 0058 (cuaderno).</li>
+  </ul>
+</section>
+
+<!-- ═══════════════ INGESTA ═══════════════ -->
+<section class="section" id="ingesta">
+  <p class="eyebrow">Construcción · 3</p>
+  <h2>La ingesta del corpus</h2>
+  <p>El corpus (61.544 documentos markdown con metadata YAML, en inglés, validados por el proveedor) <b>no vive en el repo</b>: se ingiere por CLI (<code>python -m app.ingestion.run</code>) — el endpoint público de ingesta se eliminó por seguridad.</p>
+  <ol class="steps">
+    <li><b class="t">Idempotencia por huella</b><p>Cada documento tiene un <code>content_hash</code>; al arrancar, una sola query carga todos los ya ingeridos y se saltan sin gastar un token. Interrumpir y re-correr es seguro y barato.</p></li>
+    <li><b class="t">Chunking que respeta las tablas</b><p>Fragmentos de ~800 palabras con solape de ~100, con una regla clínica: <b>una tabla de dosis jamás se parte</b> (es un bloque atómico) ni se duplica en el solape. Cada fragmento lleva su <code>locator</code> (la sección del documento).</p></li>
+    <li><b class="t">Embedding + texto indexado</b><p>Cohere embed-v4.0 (1024 dims) en lotes de 90, con guard de presupuesto por tokens facturados; el índice de texto completo se calcula en Postgres con el diccionario del idioma del documento.</p></li>
+    <li><b class="t">Orden proporcional por especie</b><p>El manifiesto se reordena para que cualquier prefijo de la corrida sea representativo de las 8 especies — si el presupuesto corta a la mitad, el corpus parcial sigue balanceado.</p></li>
+  </ol>
+  <div class="callout">
+    <p class="co-title">Ampliación en curso (2026-08-19)</p>
+    <p>Llegaron dos entregas nuevas. Decisión aprobada: indexar <b>solo el núcleo clínico de mascotas</b> (≈15.800 docs "companion" que pasaron control de calidad) — producción/ganadería/equino quedan fuera porque el retrieval no filtra por alcance y ensuciarían las búsquedas. Mismo pipeline, misma idempotencia. Detalle en <code>athos-service/docs/INGESTA-CORPUS-2026-08-19.md</code>.</p>
+  </div>
+  <div class="callout warn">
+    <p class="co-title">Huecos conocidos de la ingesta</p>
+    <p>El paso "etiquetar con glosario" del diseño nunca se implementó (el Tier 1 vive del MeSH del proveedor + texto completo); no hay versionado (<code>is_current=false</code>) — un documento re-entregado entra duplicado; y solo se leen <code>.md</code> (no hay normalización de PDFs).</p>
+  </div>
+</section>
+
+<!-- ═══════════════ VARIABLES ═══════════════ -->
+<section class="section" id="variables">
+  <p class="eyebrow">Construcción · 4</p>
+  <h2>Variables de entorno: tres almacenes, tres trampas</h2>
+  <p>Hay <b>tres lugares</b> donde viven variables — Vercel (front + agente), Railway-athos (backend) y Railway-Evolution (WhatsApp) — y una variable en el lugar equivocado <b>no da error: simplemente no hace nada</b>. Además, el backend cachea la configuración al arrancar: <b>cambiar una variable exige reiniciar el servicio</b>.</p>
+
+  <h3>Railway (athos-service) — las que definen el comportamiento</h3>
+  <div class="tbl-wrap"><table>
+    <tr><th>Grupo</th><th>Variables</th><th>Qué controlan</th></tr>
+    <tr><td>Bases de datos</td><td><code>DATABASE_URL</code> · <code>CORPUS_DATABASE_URL</code></td><td>Paciente+trazas / corpus (si la 2ª está vacía, usa la 1ª — hoy ambas al principal)</td></tr>
+    <tr><td>Auth y Storage</td><td><code>SUPABASE_URL</code> · <code>SUPABASE_SERVICE_ROLE_KEY</code> · <code>SUPABASE_JWKS_URL</code> · <code>SUPABASE_JWT_SECRET</code></td><td>Verificación del JWT (ES256/HS256) y descarga del audio. <code>SUPABASE_URL</code> debe ser el MISMO proyecto donde el front sube el audio</td></tr>
+    <tr><td>Modelos</td><td><code>LLM_PROVIDER/BASE_URL/MODEL/LIGHT_MODEL/API_KEY</code> + <code>ANTHROPIC_API_KEY</code> · <code>GEMINI_API_KEY</code> + <code>LLM_CASCADE_REDACCION/LIVIANO/DIFICIL</code></td><td>Proveedor primario (hoy DeepSeek) y las cascadas</td></tr>
+    <tr><td>Retrieval</td><td><code>EMBEDDING_*</code> (dim <b>1024</b>) · <code>RERANK_*</code></td><td>Cohere embed y rerank (la key del rerank cae a la de embeddings)</td></tr>
+    <tr><td>Juez y auditores</td><td><code>JUDGE_*</code> · <code>FIDELITY_ENABLED</code> · <code>TRANSCRIPT_FIDELITY_ENABLED</code> · <code>NOTE_FIDELITY_MODEL</code></td><td>La abstención y los auditores; son también los interruptores de rollback</td></tr>
+    <tr><td>Transcripción</td><td><code>DEEPGRAM_API_KEY</code> · <code>STT_MODEL</code></td><td>nova-2 en español con diarización</td></tr>
+    <tr><td>App</td><td><code>CORS_ORIGINS</code></td><td>Orígenes del front, separados por coma</td></tr>
+  </table></div>
+  <div class="callout warn">
+    <p class="co-title">Dos trampas verificadas</p>
+    <p><code>SUPABASE_ANON_KEY</code> y <code>APP_ENV</code> están declaradas pero <b>ningún código las lee</b> (cambiarlas no hace nada). Y el <code>.env.example</code> está desactualizado: le faltan ~9 variables reales (todo el grupo del juez, el rerank, los auditores y <code>CORPUS_DATABASE_URL</code>).</p>
+  </div>
+
+  <h3>Vercel (front + agente) — las críticas</h3>
+  <div class="tbl-wrap"><table>
+    <tr><th>Variable</th><th>Por qué importa</th></tr>
+    <tr><td><code>NEXT_PUBLIC_ATHOS_URL</code></td><td>La dirección del backend. Debe ser <b>igual en production y preview</b> (los previews de compañeros pegan al mismo Athos)</td></tr>
+    <tr><td><code>SUPABASE_SERVICE_ROLE_KEY</code></td><td>Se salta TODA la RLS: propuestas del agente, webhooks, crons. Sin ella, el ciclo de aprobación falla en caliente</td></tr>
+    <tr><td><code>ANTHROPIC_API_KEY</code> / <code>DEEPSEEK_API_KEY</code> / <code>GEMINI_API_KEY</code></td><td>Los proveedores del agente (la de Anthropic la lee el SDK directo del entorno; no aparece en el código)</td></tr>
+    <tr><td><code>ATHOS_TOPE_MENSUAL_POR_CLINICA</code></td><td>El tope de gasto (hoy NO está puesta → sin tope efectivo)</td></tr>
+    <tr><td><code>CRON_SECRET</code></td><td>Sin ella no corre la purga de audio (Ley 1581) ni la cartera. Vive también en GitHub Actions</td></tr>
+    <tr><td>WhatsApp: <code>EVOLUTION_BASE_URL/API_KEY/WEBHOOK_TOKEN</code> · <code>META_*</code> · <code>WHATSAPP_TOKEN_KEY</code></td><td>La capa proveedor-agnóstica. ⚠️ El nombre correcto es <code>EVOLUTION_BASE_URL</code> (hubo un bug histórico con <code>EVOLUTION_API_URL</code>)</td></tr>
+    <tr><td>Correo: <code>COMPOSIO_API_KEY</code> + config IDs · <code>RESEND_API_KEY</code></td><td>El correo de Athos (por miembro) y el transaccional</td></tr>
+  </table></div>
+</section>
+
+<!-- ═══════════════ ENTORNOS ═══════════════ -->
+<section class="section" id="entornos">
+  <p class="eyebrow">Construcción · 5</p>
+  <h2>Entornos y despliegue</h2>
+  <div class="tbl-wrap"><table>
+    <tr><th>Qué</th><th>Apunta a</th></tr>
+    <tr><td>Servicios desplegados (Railway, Vercel)</td><td><b>Producción</b> (Supabase principal, ref <code>auxlnexhkmtoedrzfsnz</code>)</td></tr>
+    <tr><td>Corpus para mediciones de calidad</td><td>Producción, <b>solo lectura</b> (los 520k fragmentos solo viven ahí)</td></tr>
+    <tr><td>Agentes de IA (MCP)</td><td>Producción, <b>solo lectura</b></td></tr>
+    <tr><td><code>.env</code> de cada dev (datos de paciente)</td><td><b>Dev</b> (<code>tuvetia-athos-dev</code>, ref <code>gdiiagioiukadifejewv</code>)</td></tr>
+    <tr><td>Suite de pruebas (crea y borra clínicas)</td><td><b>Dev</b> — y un cortafuegos en <code>app/db.py</code> lo garantiza: bajo pytest, abrir la base de paciente del principal lanza un error</td></tr>
+  </table></div>
+  <p><b>La regla, en una línea:</b> lo que solo lee puede mirar producción; lo que escribe, nunca. El cortafuegos existe porque en julio la suite llegó a correr contra producción a través de mocks (sin daño, verificado) — y un mock que deja de aplicar no avisa, así que el corte se puso en el único punto por el que pasa todo: abrir la conexión.</p>
+  <h3>Desplegar y verificar</h3>
+  <ul>
+    <li>Merge a <code>master</code> → todo se despliega solo. Nunca desplegar a mano.</li>
+    <li>Verificación mínima: <code>GET /health</code> del backend, <code>GET /api/health</code> del front (chequea URL de Athos, keys, cascada con credenciales, <code>CRON_SECRET</code>…) y un chat con citas en vivo.</li>
+    <li><b>Athos frío tarda ~20 s</b> en la primera respuesta (el front puede abortar): calentarlo antes de una demo.</li>
+    <li>Rollbacks sin tocar código: apagar auditores/juez/rerank por variable, vaciar una cascada, o <code>ATHOS_TOPE_MENSUAL_POR_CLINICA=0</code> como kill-switch del agente. Todos exigen reiniciar el servicio.</li>
+  </ul>
+</section>
+
+<!-- ═══════════════ CALIDAD ═══════════════ -->
+<section class="section" id="calidad">
+  <p class="eyebrow">Operar · 1</p>
+  <h2>Cómo se mide la calidad (y cómo NO)</h2>
+  <p>Athos tiene un banco de calidad propio (<code>scripts/calidad/</code>, 33 scripts, solo-lectura salvo los de glosario) y bancos de casos anclados al corpus: la verdad de terreno es <i>si el fragmento correcto aparece</i>, no la opinión de un juez. Las reglas de método, aprendidas con mediciones:</p>
+  <ul>
+    <li><b>Si la mejora se puede contar, contala.</b> El juez LLM "absoluto" tiene ruido de ±1 punto entre corridas idénticas, y el juez comparativo prefiere la nota que ve segunda el 78% de las veces. Las métricas determinísticas ("0/24 cifras de dosis") no mienten.</li>
+    <li><b>A/B pareado o nada</b> para cambios de prompt: se recupera una vez por caso y las dos variantes redactan sobre la misma literatura.</li>
+    <li><b>Medir siempre contra producción.</b> Medir contra dev (67k chunks) fabricó un "recall ciego" que no existía.</li>
+    <li><b>Los scripts importan el código de producción</b> (el prompt del chat, el SQL del Tier 1) en vez de copiarlo — una copia mentiría en cuanto el código cambie.</li>
+  </ul>
+  <p>Cifras de referencia en producción (banco de 146 casos): el fragmento correcto está en el top-15 el <b>83,6%</b> de las veces, con mediana de primer acierto en el puesto 2. Antes del rerank era 37,8%.</p>
+  <p>Comandos de cabecera: <code>golden_eval.py</code> (antes y después de tocar la cascada), <code>recall_ciego.py</code> (¿en qué paso se perdió el target?), <code>phantom_eval.py</code> / <code>respuestas_eval.py</code> (nota y chat), <code>latencia_db.py</code> / <code>latencia_e2e.py</code>, y <code>auditar_esquema.py</code> (producción vs repo).</p>
+</section>
+
+<!-- ═══════════════ LÍMITES ═══════════════ -->
+<section class="section" id="limites">
+  <p class="eyebrow">Operar · 2</p>
+  <h2>Límites conocidos, dichos de frente</h2>
+  <p>Nada de esta lista es especulación: todo está verificado en código. La lista completa (30 ítems con referencias) está en el §18 del documento técnico; estos son los que más importan para operar:</p>
+  <div class="tbl-wrap"><table>
+    <tr><th>Límite</th><th>Implicación práctica</th></tr>
+    <tr><td>El umbral del retrieval está saturado</td><td>Todo "no hay evidencia" se decide con <code>evidence_level</code> (el juez), nunca con <code>passed</code></td></tr>
+    <tr><td>El rerank degrada en silencio</td><td>Si la key de Cohere falla, la calidad cae sin alarma en los logs — vigilarlo</td></tr>
+    <tr><td>El auditor de la nota es una red parcial</td><td>Atrapa 3 de 9 notas con invento (prioriza precisión). La nota NO está "auditada": el vet sigue siendo el control</td></tr>
+    <tr><td>El gate de dosis solo cubre dosis por peso</td><td>"500 mg cada 12 h" no se tapa (se informa como cifra sin declarar)</td></tr>
+    <tr><td>El Fantasma no usa la memoria del paciente</td><td>Los <code>history_snippets</code> solo alimentan el chat</td></tr>
+    <tr><td>La ingesta no versiona ni etiqueta con glosario</td><td>Documento re-entregado = duplicado; <code>metadata.glossary_terms</code> no existe en la práctica</td></tr>
+    <tr><td>El chat no escribe <code>rag_answer_log</code>; varias columnas de traza quedan NULL</td><td>La analítica de retrieval por tier no se puede reconstruir a posteriori</td></tr>
+    <tr><td>Config cacheada + settings muertas</td><td>Cambiar variables exige reiniciar; <code>SUPABASE_ANON_KEY</code> y <code>APP_ENV</code> no hacen nada</td></tr>
+    <tr><td>El tope de gasto está apagado en producción</td><td>El freno real hoy es el default de 1000 llamadas/mes… que solo aplica si la variable no existe — y el registro de uso sí está vivo</td></tr>
+    <tr><td><code>whatsapp_reply.py</code> está huérfano</td><td>Endpoint vivo sin consumidor (la bandeja usa el agente de Next): borrar o documentar</td></tr>
+    <tr><td>Sin timeout/abort en varias llamadas del front</td><td><code>athosPhantomSuggest</code> y <code>athosTranscribe</code> pueden colgar la UI si el backend no responde</td></tr>
+    <tr><td>El registro de migraciones del principal miente</td><td>Nunca <code>db push</code> ciego contra producción; usar introspección</td></tr>
+  </table></div>
+</section>
+
+<!-- ═══════════════ DÓNDE ═══════════════ -->
+<section class="section" id="donde">
+  <p class="eyebrow">Operar · 3</p>
+  <h2>Dónde está cada cosa</h2>
+  <div class="tbl-wrap"><table>
+    <tr><th>Busco…</th><th>Está en…</th></tr>
+    <tr><td>Los endpoints y la app FastAPI</td><td><code>athos-service/app/main.py</code></td></tr>
+    <tr><td>TODAS las variables del backend</td><td><code>athos-service/app/config.py</code> (clase <code>Settings</code>)</td></tr>
+    <tr><td>La cascada de retrieval y sus números</td><td><code>athos-service/app/retrieval/cascade.py</code></td></tr>
+    <tr><td>El glosario y su curación</td><td><code>athos-service/app/glossary/</code> + <code>scripts/calidad/glosario_*.py</code></td></tr>
+    <tr><td>Los gates y auditores</td><td><code>athos-service/app/generation/</code></td></tr>
+    <tr><td>El chat SSE / el Fantasma</td><td><code>athos-service/app/chat.py</code> / <code>app/phantom.py</code></td></tr>
+    <tr><td>La transcripción (lote / vivo / roles)</td><td><code>app/transcription.py</code> · <code>streaming_transcription.py</code> · <code>speaker_roles.py</code></td></tr>
+    <tr><td>El agente y sus 22 tools</td><td><code>src/lib/athos-agent/tools.ts</code> (+ <code>model.ts</code>, <code>cascada.ts</code>, <code>presupuesto.ts</code>)</td></tr>
+    <tr><td>El ciclo de aprobación</td><td><code>src/app/api/athos/actions/[id]/execute/route.ts</code> + <code>src/components/athos/action-approval-card.tsx</code></td></tr>
+    <tr><td>La grabación de consultas</td><td><code>src/lib/consulta-viva/sesion.ts</code></td></tr>
+    <tr><td>El esquema de la base</td><td><code>athos-service/supabase/migrations/</code> (64 archivos) + <code>bootstrap/000_base_schema.sql</code></td></tr>
+    <tr><td>La ingesta</td><td><code>athos-service/app/ingestion/run.py</code></td></tr>
+    <tr><td>El banco de calidad</td><td><code>athos-service/scripts/calidad/</code> (leé su README)</td></tr>
+  </table></div>
+
+  <h3>Documentos hermanos</h3>
+  <ul>
+    <li><b><code>docs/entrega/ATHOS-TRASPASO-TECNICO.md</code></b> — la referencia exhaustiva de este mismo contenido, con <code>archivo:línea</code> y la deuda completa.</li>
+    <li><code>athos-service/CLAUDE.md</code> — las reglas del servicio (la referencia diaria del que desarrolla).</li>
+    <li><code>athos-service/docs/MIGRACIONES.md</code> — el runbook de entornos y migraciones (leerlo antes de tocar el esquema).</li>
+    <li><code>docs/ARQUITECTURA.md</code> — el front y sus cuatro decisiones.</li>
+    <li><code>docs/entrega/CAPA-AGENTICA-ESTADO.md</code> — el agente explicado para no-técnicos, con verificación en 5 minutos.</li>
+  </ul>
+
+  <p style="margin-top:40px; font-size:.8rem; color:var(--muted); border-top:1px solid var(--line); padding-top:16px;">Documentación de traspaso de Athos · TuvetIA · generada el 2026-08-21 a partir del código en <code>plogy-dev/tuvetia @ master</code>. Si el código cambia, esta página se regenera — no se parchea de memoria.</p>
+</section>
+
+</div></main>
+</div>

@@ -18,10 +18,12 @@
 import { useEffect, useRef, useState } from "react"
 import { useChat } from "@ai-sdk/react"
 import { DefaultChatTransport } from "ai"
-import { Bot, Loader2, SendHorizontal } from "lucide-react"
+import { Bot, Loader2, SendHorizontal, Sparkles } from "lucide-react"
 import { toast } from "sonner"
 
 import { AthosMensajes } from "@/components/athos/athos-mensajes"
+import { useModalPro } from "@/components/planes/modal-subir-a-pro"
+import { tieneAcceso, type Plan } from "@/lib/planes"
 import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
 
@@ -33,7 +35,13 @@ const SUGERENCIAS = [
   "¿Qué hago después de configurar la clínica?",
 ]
 
-export function OnboardingAthos({ clinicName }: { clinicName: string }) {
+// EL PLAN LLEGA POR PROP, NO POR CONTEXTO, y no es un descuido: `PlanProvider` sólo envuelve
+// `/dashboard`, y esta pantalla vive fuera. Con `useCapacidad` acá se leería el default del
+// contexto —`free`, que es el correcto para "ante la duda, negar"— y una clínica Pro vería el muro
+// de pago en su primera pantalla. La página ya lee la clínica: el plan viaja en ese mismo select.
+export function OnboardingAthos({ clinicName, plan }: { clinicName: string; plan: Plan }) {
+  const puedeUsarAthos = tieneAcceso(plan, "athos")
+  const { pedirPro, ventana } = useModalPro("athos")
   const [input, setInput] = useState("")
   const hiloRef = useRef<HTMLDivElement>(null)
 
@@ -51,6 +59,18 @@ export function OnboardingAthos({ clinicName }: { clinicName: string }) {
   function enviar(texto: string) {
     const t = texto.trim()
     if (!t || busy) return
+
+    // EL GATE, y acá pesa más que en ninguna otra pantalla: toda clínica nace en `free`
+    // (`clinics.plan` default), así que ÉSTA es la primera vez que alguien le habla a Athos. Sin
+    // esto, las tres sugerencias de arriba invitan a un clic que devuelve el toast de `onError`
+    // —«Athos no pudo responder»— como primera impresión del producto.
+    //
+    // Cubre también los chips: los tres caminos —chip, Enter y botón— pasan por acá.
+    if (!puedeUsarAthos) {
+      pedirPro()
+      return
+    }
+
     setInput("")
     // Ya no miente: la 0057 amplió el CHECK de `athos_actions.source`. Antes mandaba "chat" porque
     // sólo se admitía chat|inbox|auto, y con dos superficies mintiendo (ésta y el widget) "chat"
@@ -59,6 +79,8 @@ export function OnboardingAthos({ clinicName }: { clinicName: string }) {
   }
 
   return (
+    <>
+    {ventana}
     <aside className="flex h-full min-h-0 w-full flex-col rounded-2xl border bg-card">
       <header className="flex items-center gap-2 border-b px-4 py-3">
         <div className="flex size-8 items-center justify-center rounded-lg bg-primary text-primary-foreground">
@@ -97,11 +119,18 @@ export function OnboardingAthos({ clinicName }: { clinicName: string }) {
         <AthosMensajes messages={messages} />
 
         {busy && (
-          <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-            <Loader2 className="size-3 animate-spin" /> Athos está escribiendo…
+          <div className="flex items-center gap-[9px] text-[13px] text-fg-faint">
+            <Loader2 className="size-3.5 animate-spin" /> Athos está escribiendo…
           </div>
         )}
       </div>
+
+      {!puedeUsarAthos && input.trim() ? (
+        <p className="flex items-center gap-1.5 border-t px-3 pt-2 text-[11px] text-brand-text">
+          <Sparkles className="size-3 shrink-0" aria-hidden />
+          Athos es parte del plan Pro. Al enviar te mostramos cómo activarlo.
+        </p>
+      ) : null}
 
       <div className="flex items-end gap-2 border-t p-3">
         <Textarea
@@ -122,5 +151,6 @@ export function OnboardingAthos({ clinicName }: { clinicName: string }) {
         </Button>
       </div>
     </aside>
+    </>
   )
 }

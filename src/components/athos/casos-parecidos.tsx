@@ -16,7 +16,9 @@
 
 import { useCallback, useEffect, useRef, useState } from "react"
 import Link from "next/link"
-import { Loader2, RotateCw, Search } from "lucide-react"
+import { RotateCw, Search } from "lucide-react"
+
+import { RotuloDeSeccion } from "@/components/athos/rotulo-de-seccion"
 
 import { bogotaDateOnly } from "@/lib/date-utils"
 
@@ -97,20 +99,23 @@ export function CasosParecidos({
 
   return (
     <div className="flex flex-col gap-3">
-      <div className="flex items-center gap-2">
-        <Search className="size-3.5 shrink-0 text-fg-faint" aria-hidden />
-        <span className="text-sm font-semibold">Casos parecidos</span>
-        {cargando && <Loader2 aria-hidden className="size-3.5 shrink-0 animate-spin text-fg-faint" />}
-        <button
+      <RotuloDeSeccion
+        icono={<Search className="size-3 shrink-0 text-fg-faint" aria-hidden />}
+        cargando={cargando}
+        acciones={
+          <button
           type="button"
           onClick={volverABuscar}
           disabled={cargando}
           className="ml-auto flex shrink-0 items-center gap-1 rounded-[7px] px-2 py-1 text-[11.5px] text-fg-muted transition-colors hover:bg-fg/10 hover:text-fg disabled:opacity-40"
         >
-          <RotateCw className="size-3" aria-hidden />
-          Volver a buscar
-        </button>
-      </div>
+            <RotateCw className="size-3" aria-hidden />
+            Volver a buscar
+          </button>
+        }
+      >
+        Casos parecidos
+      </RotuloDeSeccion>
 
       {/* QUÉ SE BUSCÓ, a la vista. Sin esto, "no encontré nada" es indistinguible de "busqué mal":
           con los términos delante el vet ve por qué y puede seguir hablando del cuadro. */}

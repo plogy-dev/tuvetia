@@ -16,6 +16,7 @@ import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
 import { EmptyState } from "@/components/ui/empty-state"
 import type { CorreoNormalizado } from "@/lib/composio/correo"
+import { cuerpoLegible } from "@/lib/email/cuerpo-legible"
 
 function fmtFecha(iso: string): string {
   const d = new Date(iso)
@@ -52,10 +53,14 @@ export function EmailInbox({
 
   const sel = useMemo(() => correos.find((c) => c.id === selId) ?? null, [correos, selId])
 
-  // Abrir el correo en su proveedor. Se muestra solo el comienzo acá, así que el enlace es la vía
-  // para leerlo entero. Lo arma el adaptador, no este componente: el de Outlook sale de `webLink`,
-  // porque una cuenta personal vive en outlook.live.com y una de trabajo en outlook.office.com.
+  // Abrir el correo en su proveedor. Desde que acá se muestra el cuerpo entero ya no es la única
+  // vía para leerlo, pero sigue haciendo falta: los adjuntos, el HTML con formato y el hilo previo
+  // viven allá. Lo arma el adaptador, no este componente: el de Outlook sale de `webLink`, porque
+  // una cuenta personal vive en outlook.live.com y una de trabajo en outlook.office.com.
   const enlaceExterno = sel?.enlace ?? ""
+  // Qué texto se pinta al abrir, y si hay que avisar que no es todo. La regla vive en `lib/email`
+  // porque la comparte con el recorte que hace el adaptador del proveedor.
+  const lectura = useMemo(() => cuerpoLegible(sel ?? {}), [sel])
 
   async function responder() {
     if (!sel || !draft.trim()) return
@@ -162,10 +167,17 @@ export function EmailInbox({
             </div>
 
             <div className="min-h-0 flex-1 overflow-y-auto p-4">
-              <p className="text-sm whitespace-pre-wrap">{sel.preview}</p>
-              <p className="mt-3 text-xs text-muted-foreground">
-                Se muestra el comienzo del correo. Para leerlo completo, abrilo en tu correo.
-              </p>
+              {/* EL CUERPO ENTERO, no el `preview`. Acá se pintaba el mismo campo recortado a 200
+                  caracteres que usa la lista de la izquierda, así que abrir un correo no mostraba
+                  nada que no se viera ya sin abrirlo. El cuerpo completo viajaba en el mismo objeto
+                  desde que cartera lo necesitó. Ver `lib/email/cuerpo-legible.ts`. */}
+              <p className="text-sm whitespace-pre-wrap">{lectura.texto}</p>
+              {!lectura.completo && (
+                <p className="mt-3 text-xs text-muted-foreground">
+                  Tu proveedor entregó sólo el comienzo de este correo. Para leerlo completo, abrilo
+                  en tu correo.
+                </p>
+              )}
             </div>
 
             {!sel.esPropio && (

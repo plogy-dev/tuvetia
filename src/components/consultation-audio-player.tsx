@@ -9,6 +9,7 @@ import { useState } from "react"
 import { Loader2, Play } from "lucide-react"
 import { toast } from "sonner"
 
+import { comoReloj } from "@/lib/duracion"
 import { createClient } from "@/lib/supabase/client"
 import { Button } from "@/components/ui/button"
 
@@ -17,7 +18,7 @@ const SIGNED_URL_TTL = 60 * 60 // 1 h
 
 function fmtDuration(secs?: number | null): string | null {
   if (!secs || secs <= 0) return null
-  return `${String(Math.floor(secs / 60)).padStart(2, "0")}:${String(secs % 60).padStart(2, "0")}`
+  return comoReloj(secs)
 }
 
 export function ConsultationAudioPlayer({

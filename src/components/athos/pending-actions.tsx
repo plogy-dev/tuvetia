@@ -16,7 +16,14 @@ import { useEffect, useState } from "react"
 import { createClient } from "@/lib/supabase/client"
 import { ActionApprovalCard, type ProposedAction } from "@/components/athos/action-approval-card"
 
-export function PendingActions({ recargarToken }: { recargarToken?: number }) {
+export function PendingActions({
+  recargarToken,
+  excluir,
+}: {
+  recargarToken?: number
+  /** action_id que ya están pintados inline en el hilo vivo: no se repiten acá. */
+  excluir?: Set<string>
+}) {
   const [supabase] = useState(() => createClient())
   const [acciones, setAcciones] = useState<ProposedAction[]>([])
 
@@ -44,14 +51,16 @@ export function PendingActions({ recargarToken }: { recargarToken?: number }) {
     // quedó en el aire después de desmontar, que es lo que evita `vivo`.
   }, [supabase, recargarToken])
 
-  if (acciones.length === 0) return null
+  // No repetir las que ya están pintadas inline en el hilo vivo (mismo action_id).
+  const visibles = excluir ? acciones.filter((a) => !excluir.has(a.id)) : acciones
+  if (visibles.length === 0) return null
 
   return (
     <div className="flex flex-col gap-2 border-t pt-3">
       <span className="text-xs font-medium text-muted-foreground">
-        {acciones.length === 1 ? "Tenés 1 propuesta sin aprobar" : `Tenés ${acciones.length} propuestas sin aprobar`}
+        {visibles.length === 1 ? "Tenés 1 propuesta sin aprobar" : `Tenés ${visibles.length} propuestas sin aprobar`}
       </span>
-      {acciones.map((a) => (
+      {visibles.map((a) => (
         <ActionApprovalCard
           key={a.id}
           action={a}
