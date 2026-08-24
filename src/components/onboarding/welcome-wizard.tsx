@@ -13,7 +13,18 @@
 
 import { useState } from "react"
 import { useRouter } from "next/navigation"
-import { Check, Clock, Copy, Loader2, PawPrint, Receipt, Sparkles, UserPlus } from "lucide-react"
+import {
+  Check,
+  ChevronLeft,
+  ChevronRight,
+  Clock,
+  Copy,
+  Loader2,
+  PawPrint,
+  Receipt,
+  Sparkles,
+  UserPlus,
+} from "lucide-react"
 import { toast } from "sonner"
 
 import { createClient } from "@/lib/supabase/client"
@@ -287,18 +298,61 @@ export function WelcomeWizard({
 
   return (
     <div className="flex w-full flex-col gap-6">
-      {/* Progreso */}
-      <div className="flex items-center gap-1.5" aria-label={`Paso ${paso + 1} de ${PASOS.length}`}>
-        {PASOS.map((s, i) => (
-          <span
-            key={s}
-            className={`h-1.5 flex-1 rounded-full transition-colors ${
-              i <= paso ? "bg-primary" : "bg-muted"
-            }`}
-            title={s}
-          />
-        ))}
+{/* ── Progreso, y por fin con marcha atrás ──────────────────────────────────────────────
+          Pedido del cliente (24-ago): «flechas para devolverse (adelante/atrás) en el onboarding».
+          El wizard sólo avanzaba: quien se equivocaba en el horario del sábado o quería revisar un
+          precio ya escrito no tenía forma de volver — salvo abandonar el onboarding entero y
+          repetirlo desde Ayuda.
+
+          VOLVER NO PIERDE NADA. Lo tecleado vive en el estado de ESTE componente y los pasos se
+          pintan condicionalmente, así que salir de un paso no lo desmonta: los horarios, los
+          precios y el primer paciente siguen ahí al regresar.
+
+          LA FLECHA DE ADELANTE NO SE SALTA EL PRIMER PASO. Los otros cinco son opcionales —el
+          wizard ya los deja saltar de a uno con «Ahora no»— pero sin la clínica guardada no hay
+          contra qué colgar un horario ni un servicio. */}
+      <div className="flex items-center gap-2">
+        <button
+          type="button"
+          onClick={() => setPaso((p) => Math.max(0, p - 1))}
+          disabled={paso === P_CLINICA || busy}
+          aria-label="Volver al paso anterior"
+          className="rounded-md p-1 text-fg-faint transition hover:bg-muted hover:text-fg disabled:pointer-events-none disabled:opacity-30"
+        >
+          <ChevronLeft className="size-4" aria-hidden />
+        </button>
+
+        <div
+          className="flex flex-1 items-center gap-1.5"
+          aria-label={`Paso ${paso + 1} de ${PASOS.length}`}
+        >
+          {PASOS.map((s, i) => (
+            <span
+              key={s}
+              className={`h-1.5 flex-1 rounded-full transition-colors ${
+                i <= paso ? "bg-primary" : "bg-muted"
+              }`}
+              title={s}
+            />
+          ))}
+        </div>
+
+        <button
+          type="button"
+          onClick={() => setPaso((p) => Math.min(PASOS.length - 1, p + 1))}
+          disabled={paso === P_CLINICA || paso === PASOS.length - 1 || busy}
+          aria-label="Ir al paso siguiente"
+          className="rounded-md p-1 text-fg-faint transition hover:bg-muted hover:text-fg disabled:pointer-events-none disabled:opacity-30"
+        >
+          <ChevronRight className="size-4" aria-hidden />
+        </button>
       </div>
+
+      {/* El nombre del paso, que hasta ahora sólo vivía en el `title` de una rayita: al poder
+          moverse entre pasos hace falta saber en cuál se está sin pasar el mouse por encima. */}
+      <p className="-mt-4 text-xs text-fg-faint">
+        Paso {paso + 1} de {PASOS.length} · {PASOS[paso]}
+      </p>
 
       {paso === P_CLINICA && (
         <WorkspaceSetup
