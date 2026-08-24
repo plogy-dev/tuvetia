@@ -3,36 +3,47 @@
 import { useEffect, useMemo, useRef, useState, useTransition } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { AlertTriangle, Plus, Search, Trash2 } from 'lucide-react';
-import { toast } from 'sonner';
-import {
-  createInvoiceDraft,
-  issueInvoiceAction,
-  type CreateDraftInput,
-} from '@/lib/facturacion/actions';
+import { AlertTriangle, Plus, Save, Search, Trash2 } from 'lucide-react';
+import { createInvoiceDraft, type CreateDraftInput } from '@/lib/facturacion/actions';
 import {
   computeLineAmounts,
   computeInvoiceTotals,
   formatCOP,
   lineSubtotalCents,
   prorratearDescuentoGlobal,
+  roundHalfUp,
 } from '@/lib/facturacion/domain/money';
 import { checkPosThreshold } from '@/lib/facturacion/domain/dian-rules';
 import type { DocKind } from '@/lib/facturacion/domain/types';
-import type { CatalogItemRow } from '@/lib/supabase/types';
-import {
-  makeDefaultPlan,
-  PaymentSection,
-  planToActionFields,
-  validatePlan,
-  type PaymentPlan,
-} from './PaymentSection';
+import type { CatalogItemRow, PaymentTerms } from '@/lib/supabase/types';
 
 /**
- * Carrito de factura. Los totales se calculan EN VIVO con el mismo dominio puro
- * que usa el servidor (computeLineAmounts) — lo que ves es lo que se emite.
- * La validación fiscal completa (stock, datos del pagador) corre en el server
- * al guardar/emitir.
+ * «Nueva cuenta» — el formulario de venta, copiado de OkVet.
+ *
+ * ── POR QUÉ ES UNA COPIA Y NO UN DISEÑO PROPIO ────────────────────────────────────────────────
+ *
+ * David lo pidió explícito y dos veces: COPIA EXACTA del módulo de ventas de OkVet. El motivo no es
+ * estético sino de ADOPCIÓN — los veterinarios ya saben usar OkVet, y cada diferencia, aunque sea
+ * una mejora, es algo que tienen que reaprender. Mirado con la cuenta del cliente el 24-ago:
+ * pantalla «Nueva cuenta», con la cabecera de creación y total arriba, la fila de propietario /
+ * referencia / forma de pago, las líneas, el descuento global con su razón, observaciones, y
+ * `Cerrar` · `Guardar` abajo.
+ *
+ * ── LO QUE SE FUE, Y POR QUÉ ──────────────────────────────────────────────────────────────────
+ *
+ * SE FUE «EMITIR AHORA» DE ESTA PANTALLA, junto con el bloque de cobro. En OkVet, `Guardar` crea
+ * una CUENTA (`/VentaAbierta`) y no emite nada: cobrar y facturar pasan después, sobre el documento.
+ * Acá es lo mismo — se guarda el borrador y se navega a él, que es donde `InvoiceActionsPanel` ya
+ * sabe emitir declarando la realidad del pago y registrar abonos.
+ *
+ * Y hay una razón para que ESE orden sea el bueno más allá de la copia: emitir asigna un consecutivo
+ * DIAN y transmite el documento. Es irreversible —sólo se corrige con nota crédito— y no debería
+ * estar a un clic del mismo botón que guarda.
+ *
+ * ── LO QUE NO ES COPIA, DICHO ─────────────────────────────────────────────────────────────────
+ *
+ * El selector de TIPO DE DOCUMENTO (POS / factura de venta) no existe en el modal de OkVet, y acá
+ * sí: de él dependen el consecutivo y el aviso de las 5 UVT del art. 616-1. Es la única adición.
  */
 
 type CartLine = {
@@ -42,9 +53,20 @@ type CartLine = {
   qty: number;
   unitPriceCents: number;
   taxRate: number;
-  /** Descuento propio de la línea, en centavos. El global se suma aparte, prorrateado. */
-  discountCents: number;
+  /**
+   * Descuento de la línea en PORCENTAJE, que es como lo pide OkVet («Descuento» con sufijo %).
+   *
+   * Se guarda el porcentaje y se convierte a centavos al calcular, no al revés: guardando los
+   * centavos, cambiar la cantidad o el precio dejaría un descuento fijo que ya no corresponde al
+   * porcentaje que el vet escribió, y nadie volvería a mirarlo.
+   */
+  discountPct: number;
 };
+
+const FORMAS_DE_PAGO: { value: PaymentTerms; label: string }[] = [
+  { value: 'IMMEDIATE', label: 'Contado' },
+  { value: 'CREDIT', label: 'Crédito' },
+];
 
 export function InvoiceCart({
   items,
@@ -56,9 +78,7 @@ export function InvoiceCart({
   renglonesIniciales,
   defaultDocKind,
   uvtValueCents,
-  defaultTermsDays,
-  reminderChannel,
-  remindersEnabled,
+  abiertaEn,
 }: {
   items: CatalogItemRow[];
   ownerId?: string;
@@ -85,16 +105,18 @@ export function InvoiceCart({
   }[];
   defaultDocKind: DocKind;
   uvtValueCents: number;
-  defaultTermsDays: number;
-  reminderChannel: 'WHATSAPP' | 'EMAIL';
-  remindersEnabled: boolean;
+  /**
+   * Cuándo se abrió la cuenta, en ISO. Viene del SERVIDOR a propósito: `new Date()` dentro del
+   * componente es impuro y `react-hooks/purity` lo rechaza — con razón, porque haría que el mismo
+   * render diera resultados distintos.
+   */
+  abiertaEn: string;
 }) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
-  // Borrador ya creado en este intento de emisión (para reintentar sin duplicar) y su URL,
-  // que se ofrece como salida cuando la emisión falla.
-  const draftRef = useRef<{ key: string; id: string; url: string; warnings: string[] } | null>(null);
+  // Cuenta ya creada en este intento (para no duplicarla si se pulsa dos veces) y su URL.
+  const draftRef = useRef<{ key: string; url: string } | null>(null);
   const [draftUrl, setDraftUrl] = useState<string | null>(null);
   const [warnings, setWarnings] = useState<string[]>([]);
   const [lines, setLines] = useState<CartLine[]>(() =>
@@ -105,20 +127,31 @@ export function InvoiceCart({
       qty: 1,
       unitPriceCents: r.unitPriceCents,
       taxRate: r.taxRate,
-      discountCents: 0,
+      discountPct: 0,
     })),
   );
   const [docKind, setDocKind] = useState<DocKind>(defaultDocKind);
-  // Descuento de la FACTURA (no de una línea). Se guarda en centavos como todo el dinero del
-  // sistema; el input trabaja en pesos porque nadie teclea centavos en una recepción.
+  const [formaDePago, setFormaDePago] = useState<PaymentTerms>('IMMEDIATE');
+  const [referencia, setReferencia] = useState('');
+  // Descuento de la FACTURA, en centavos. OkVet lo pide en pesos, no en porcentaje como el de línea.
   const [descuentoGlobalCents, setDescuentoGlobalCents] = useState(0);
+  const [razonDelDescuento, setRazonDelDescuento] = useState('');
   const [notes, setNotes] = useState('');
-  const [plan, setPlan] = useState<PaymentPlan>(() => makeDefaultPlan(defaultTermsDays));
   // Arranca DESPUÉS de las líneas sembradas, o la primera que se agregue a mano pisaría la clave
   // de una de ellas y React reusaría la fila equivocada.
   const [nextKey, setNextKey] = useState((renglonesIniciales?.length ?? 0) + 1);
 
   const itemById = useMemo(() => new Map(items.map((i) => [i.id, i])), [items]);
+
+  const creacion = useMemo(
+    () =>
+      new Intl.DateTimeFormat('es-CO', {
+        dateStyle: 'full',
+        timeStyle: 'short',
+        timeZone: 'America/Bogota',
+      }).format(new Date(abiertaEn)),
+    [abiertaEn],
+  );
 
   function addCatalogLine(itemId: string) {
     const item = itemById.get(itemId);
@@ -137,7 +170,7 @@ export function InvoiceCart({
           qty: 1,
           unitPriceCents: item.price_cents,
           taxRate: item.tax_rate,
-          discountCents: 0,
+          discountPct: 0,
         },
       ];
     });
@@ -154,7 +187,7 @@ export function InvoiceCart({
         qty: 1,
         unitPriceCents: 0,
         taxRate: 19,
-        discountCents: 0,
+        discountPct: 0,
       },
     ]);
     setNextKey((k) => k + 1);
@@ -175,24 +208,35 @@ export function InvoiceCart({
   // aprueba en pantalla y el que queda en la factura no se separen en el último centavo.
   //
   // El error no se traga: un descuento mayor que el subtotal es lo que más probablemente se teclee
-  // mal, y con un `catch` mudo la pantalla solo mostraría rayas sin decir por qué.
+  // mal, y con un `catch` mudo la pantalla sólo mostraría rayas sin decir por qué.
   const calculo = useMemo(() => {
     try {
-      const bases = lines.map(
-        (l) => lineSubtotalCents(l.qty, l.unitPriceCents) - l.discountCents,
-      );
+      // El % de la línea se vuelve centavos ACÁ, y se topa en el subtotal: un 120 % tecleado de más
+      // haría que `taxableBaseCents` lance, y el vet vería un error en vez de un descuento tope.
+      const propios = lines.map((l) => {
+        const subtotal = lineSubtotalCents(l.qty, l.unitPriceCents);
+        const pct = Math.min(100, Math.max(0, l.discountPct));
+        return Math.min(subtotal, roundHalfUp((subtotal * pct) / 100));
+      });
+      const bases = lines.map((l, i) => lineSubtotalCents(l.qty, l.unitPriceCents) - propios[i]);
       const partes = prorratearDescuentoGlobal(bases, descuentoGlobalCents);
       const montos = lines.map((l, i) =>
         computeLineAmounts({
           qty: l.qty,
           unitPriceCents: l.unitPriceCents,
           taxRate: l.taxRate,
-          discountCents: l.discountCents + partes[i],
+          discountCents: propios[i] + partes[i],
         }),
       );
-      return { montos, totals: computeInvoiceTotals(montos), problema: null as string | null };
+      return {
+        propios,
+        montos,
+        totals: computeInvoiceTotals(montos),
+        problema: null as string | null,
+      };
     } catch (e) {
       return {
+        propios: null,
         montos: null,
         totals: null,
         problema: e instanceof Error ? e.message : 'Los importes no cuadran.',
@@ -212,22 +256,25 @@ export function InvoiceCart({
       patientId: patientId ?? null,
       consultationId: consultationId ?? null,
       docKind,
-      lines: lines.map((l) => ({
+      lines: lines.map((l, i) => ({
         catalogItemId: l.catalogItemId,
         description: l.catalogItemId ? null : l.description,
         qty: l.qty,
         unitPriceCents: l.catalogItemId ? null : l.unitPriceCents,
         taxRate: l.catalogItemId ? null : l.taxRate,
-        // Va el descuento PROPIO de la línea. El global viaja aparte y lo prorratea el servidor:
-        // mandarlo ya repartido dejaría al cliente decidiendo cuánto tributa cada línea.
-        discountCents: l.discountCents,
+        // Va el descuento PROPIO de la línea, ya en centavos. El global viaja aparte y lo prorratea
+        // el servidor: mandarlo repartido dejaría al cliente decidiendo cuánto tributa cada línea.
+        discountCents: calculo.propios?.[i] ?? 0,
       })),
       globalDiscountCents: descuentoGlobalCents,
+      globalDiscountReason: razonDelDescuento.trim() || null,
+      reference: referencia.trim() || null,
       notes: notes.trim() || null,
+      paymentTerms: formaDePago,
     };
   }
 
-  function submit(mode: 'draft' | 'issue') {
+  function guardar() {
     setError(null);
     setWarnings([]);
     if (lines.length === 0) {
@@ -238,89 +285,120 @@ export function InvoiceCart({
       setError(calculo.problema);
       return;
     }
-    const planError = mode === 'issue' ? validatePlan(plan, totals?.totalCents ?? 0) : null;
-    if (planError) {
-      setError(planError);
+    // La razón se exige acá, en el servidor y en la base (0081). Acá es donde el vet puede
+    // corregirla sin perder lo que ya escribió.
+    if (descuentoGlobalCents > 0 && !razonDelDescuento.trim()) {
+      setError('Escribe la razón del descuento global.');
       return;
     }
     startTransition(async () => {
-      // Idempotencia del reintento: si la emisión falló, el borrador YA existe. Volver a pulsar
-      // "Emitir" con el carrito sin cambios reintenta la emisión sobre ese borrador — antes cada
-      // reintento llamaba createInvoiceDraft de nuevo y dejaba N borradores huérfanos.
       const input = buildInput();
       const inputKey = JSON.stringify(input);
-      let draft = draftRef.current?.key === inputKey ? draftRef.current : null;
-      if (!draft) {
-        const created = await createInvoiceDraft(input);
-        if (!created.ok) {
-          setError(created.error);
-          return;
-        }
-        draft = {
-          key: inputKey,
-          id: created.invoice.id,
-          url: created.url,
-          warnings: created.preview.warnings.map((w) => w.message),
-        };
-        draftRef.current = draft;
-      }
-      if (mode === 'draft') {
-        // Con avisos del servidor (stock insuficiente, datos del pagador incompletos…) no se
-        // navega en silencio: antes se tiraban a la basura y solo se mostraban si la emisión
-        // fallaba. El borrador YA quedó guardado; el usuario los lee y sigue con el enlace.
-        if (draft.warnings.length > 0) {
-          setWarnings(draft.warnings);
-          setDraftUrl(draft.url);
-          return;
-        }
-        router.push(draft.url);
+      // Idempotencia: si ya se guardó esta misma cuenta, no se crea otra — se navega a la que hay.
+      if (draftRef.current?.key === inputKey) {
+        router.push(draftRef.current.url);
         return;
       }
-      const fields = planToActionFields(plan);
-      const issued = await issueInvoiceAction({
-        invoiceId: draft.id,
-        outcome: fields.outcome,
-        method: fields.method,
-        amountCents: fields.amountCents,
-        reference: fields.reference,
-        dueDate: fields.dueDate,
-        followupEnabled: fields.followupEnabled,
-      });
-      if (!issued.ok) {
-        setWarnings(draft.warnings);
-        setDraftUrl(draft.url);
-        setError(`El borrador quedó guardado, pero no se pudo emitir: ${issued.error}`);
+      const created = await createInvoiceDraft(input);
+      if (!created.ok) {
+        setError(created.error);
         return;
       }
-      // LOS AVISOS NO SE TIRAN EN EL CAMINO FELIZ.
-      //
-      // Estaban calculados —el servidor los devuelve en el borrador— y se mostraban SÓLO al guardar
-      // borrador o si la emisión fallaba. Al emitir bien, se descartaban.
-      //
-      // Medido el 23-ago contra producción: se emitió una factura de un producto con existencia 0 y
-      // `track_stock` encendido. Quedó en -1, y en pantalla no apareció nada. El defecto no es el
-      // saldo negativo —`block_on_insufficient_stock` está en `false` a propósito, para no frenar
-      // una venta por atraso de la contabilidad— sino que el aviso que acompaña esa decisión no
-      // llegaba: con la advertencia invisible, "avisar sin bloquear" y "no hacer nada" son lo mismo.
-      //
-      // Va como toast y no como corte: el documento YA se emitió y no se puede deshacer sin nota
-      // crédito, así que interrumpir acá no arregla nada — informar, sí. Sobrevive a la navegación
-      // porque el Toaster vive en el layout.
-      if (draft.warnings.length > 0) {
-        toast.warning(draft.warnings.join(' · '), { duration: 10_000 });
+      const avisos = created.preview.warnings.map((w) => w.message);
+      draftRef.current = { key: inputKey, url: created.url };
+      // Con avisos del servidor (existencia insuficiente, datos del pagador incompletos…) no se
+      // navega en silencio: la cuenta YA quedó guardada, el vet los lee y sigue con el enlace.
+      if (avisos.length > 0) {
+        setWarnings(avisos);
+        setDraftUrl(created.url);
+        return;
       }
-      router.push(issued.url);
+      router.push(created.url);
     });
   }
 
   return (
     <div className="space-y-5">
-      {/* Contexto del cliente */}
-      <div className="rounded-xl border border-line bg-surface px-4 py-3 text-sm">
-        <span className="text-fg-faint">Facturar a: </span>
-        <span className="font-medium text-fg">{ownerName ?? 'Consumidor final'}</span>
-        {patientName && <span className="text-fg-muted"> · paciente {patientName}</span>}
-        {consultationId && <span className="text-fg-muted"> · consulta asociada</span>}
+      {/* Cabecera: cuándo se abrió la cuenta y cuánto va, como en la referencia. */}
+      <div className="flex flex-wrap items-start justify-between gap-3 rounded-xl bg-surface-2 px-5 py-4">
+        <p className="text-sm">
+          <span className="text-fg-faint">Creación: </span>
+          <span className="text-fg-muted">{creacion}</span>
+        </p>
+        <div className="text-right">
+          <p className="text-sm text-fg-muted">
+            Total{' '}
+            <span className="align-middle text-2xl font-semibold text-brand">
+              {totals ? formatCOP(totals.totalCents) : '—'}
+            </span>
+          </p>
+          <p className="text-xs text-fg-faint">Impuestos incluidos</p>
+        </div>
+      </div>
+
+      {/* Propietario · referencia · forma de pago · tipo de documento */}
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <div>
+          <span className="block text-xs font-medium text-fg-muted">Propietario o Cliente</span>
+          <p className="mt-1 truncate py-2 text-sm">
+            {ownerName ? (
+              <span className="font-medium text-fg">{ownerName}</span>
+            ) : (
+              <span className="italic text-fg-faint">Venta a persona indeterminada</span>
+            )}
+          </p>
+          {(patientName || consultationId) && (
+            <p className="-mt-1 text-xs text-fg-faint">
+              {patientName ? `Paciente ${patientName}` : ''}
+              {patientName && consultationId ? ' · ' : ''}
+              {consultationId ? 'consulta asociada' : ''}
+            </p>
+          )}
+        </div>
+        <div>
+          <label htmlFor="referencia" className="block text-xs font-medium text-fg-muted">
+            Referencia/Nombre
+          </label>
+          <input
+            id="referencia"
+            value={referencia}
+            onChange={(e) => setReferencia(e.target.value)}
+            maxLength={200}
+            placeholder="Ref. mascota, historia, nombre personalizado"
+            className="mt-1 w-full rounded-lg border border-line bg-surface px-3 py-2 text-sm text-fg placeholder:text-fg-faint outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
+          />
+        </div>
+        <div>
+          <label htmlFor="forma-de-pago" className="block text-xs font-medium text-fg-muted">
+            Forma de pago
+          </label>
+          <select
+            id="forma-de-pago"
+            value={formaDePago}
+            onChange={(e) => setFormaDePago(e.target.value as PaymentTerms)}
+            className="mt-1 w-full rounded-lg border border-line bg-surface px-3 py-2 text-sm text-fg outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
+          >
+            {FORMAS_DE_PAGO.map((f) => (
+              <option key={f.value} value={f.value}>
+                {f.label}
+              </option>
+            ))}
+          </select>
+        </div>
+        <div>
+          <label htmlFor="tipo-de-documento" className="block text-xs font-medium text-fg-muted">
+            Tipo de documento
+          </label>
+          <select
+            id="tipo-de-documento"
+            value={docKind}
+            onChange={(e) => setDocKind(e.target.value as DocKind)}
+            className="mt-1 w-full rounded-lg border border-line bg-surface px-3 py-2 text-sm text-fg outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
+          >
+            <option value="POS">Tiquete POS electrónico</option>
+            <option value="FACTURA_VENTA">Factura electrónica de venta</option>
+          </select>
+        </div>
       </div>
 
       {/* Agregar líneas */}
@@ -332,35 +410,33 @@ export function InvoiceCart({
           className="inline-flex items-center gap-1.5 rounded-lg border border-line bg-surface px-3 py-2 text-sm text-fg-muted hover:bg-surface-2 hover:text-fg transition"
         >
           <Plus className="size-4" aria-hidden />
-          Línea libre
+          Agregar
         </button>
       </div>
 
-      {/* Líneas */}
       {lines.length === 0 ? (
         <p className="rounded-xl border border-dashed border-line px-4 py-8 text-center text-sm text-fg-faint">
-          El carrito está vacío. Agrega servicios o productos del catálogo, o una
-          línea libre.
+          Busca un producto/servicio o agrega una línea libre.
         </p>
       ) : (
         <div className="overflow-x-auto rounded-xl border border-line bg-surface">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b border-line text-left text-xs text-fg-faint">
-                <th className="px-4 py-2 font-medium">Descripción</th>
-                <th className="px-2 py-2 font-medium">Cant.</th>
-                <th className="px-2 py-2 font-medium">Precio unit.</th>
-                <th className="px-2 py-2 font-medium">Desc.</th>
+          <table className="w-full min-w-[760px] text-left text-sm">
+            <thead className="border-b border-line text-xs text-fg-faint">
+              <tr>
+                <th className="px-4 py-2 font-medium">Concepto</th>
+                <th className="px-2 py-2 font-medium">Valor unitario</th>
+                <th className="px-2 py-2 font-medium">Descuento</th>
+                <th className="px-2 py-2 font-medium">Cantidad</th>
                 <th className="px-2 py-2 font-medium">IVA</th>
-                <th className="px-2 py-2 text-right font-medium">Total</th>
+                <th className="px-2 py-2 text-right font-medium">Monto</th>
                 <th className="px-2 py-2" />
               </tr>
             </thead>
             <tbody>
               {lines.map((l, idx) => {
                 // Del cálculo de arriba, no de un recálculo acá: si esta fila volviera a computar
-                // por su cuenta ignoraría el descuento global prorrateado y mostraría un total de
-                // línea que no suma al total de la factura.
+                // por su cuenta ignoraría el descuento global prorrateado y mostraría un monto de
+                // línea que no suma al total de la cuenta.
                 const amounts = calculo.montos?.[idx] ?? null;
                 return (
                   <tr key={l.key} className="border-b border-line/60 last:border-0">
@@ -375,16 +451,6 @@ export function InvoiceCart({
                           className="w-full rounded-md border border-line bg-surface px-2 py-1 text-sm text-fg placeholder:text-fg-faint outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
                         />
                       )}
-                    </td>
-                    <td className="px-2 py-2">
-                      <input
-                        type="number"
-                        min={0.25}
-                        step={0.25}
-                        value={l.qty}
-                        onChange={(e) => updateLine(l.key, { qty: Number(e.target.value) })}
-                        className="w-20 rounded-md border border-line bg-surface px-2 py-1 text-sm text-fg outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
-                      />
                     </td>
                     <td className="px-2 py-2">
                       {l.catalogItemId ? (
@@ -405,20 +471,37 @@ export function InvoiceCart({
                       )}
                     </td>
                     <td className="px-2 py-2">
-                      {/* Editable SIEMPRE, también en líneas de catálogo: rebajar un ítem del
-                          catálogo es justamente el caso normal de un descuento. */}
+                      {/* En PORCENTAJE, como la referencia — y editable también en líneas de
+                          catálogo, que es justamente el caso normal de un descuento. */}
+                      <div className="flex items-center">
+                        <input
+                          type="number"
+                          min={0}
+                          max={100}
+                          step={1}
+                          value={l.discountPct}
+                          onChange={(e) =>
+                            updateLine(l.key, {
+                              discountPct: Math.min(100, Math.max(0, Number(e.target.value))),
+                            })
+                          }
+                          aria-label={`Descuento de ${l.description || 'la línea'}, en porcentaje`}
+                          className="w-16 rounded-l-md border border-line bg-surface px-2 py-1 text-sm text-fg outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
+                        />
+                        <span className="rounded-r-md border border-l-0 border-line bg-surface-2 px-2 py-1 text-xs text-fg-faint">
+                          %
+                        </span>
+                      </div>
+                    </td>
+                    <td className="px-2 py-2">
                       <input
                         type="number"
-                        min={0}
-                        step={100}
-                        value={l.discountCents / 100}
-                        onChange={(e) =>
-                          updateLine(l.key, {
-                            discountCents: Math.max(0, Math.round(Number(e.target.value) * 100)),
-                          })
-                        }
-                        aria-label={`Descuento de ${l.description || 'la línea'}`}
-                        className="w-24 rounded-md border border-line bg-surface px-2 py-1 text-sm text-fg outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
+                        min={0.25}
+                        step={0.25}
+                        value={l.qty}
+                        onChange={(e) => updateLine(l.key, { qty: Number(e.target.value) })}
+                        aria-label={`Cantidad de ${l.description || 'la línea'}`}
+                        className="w-20 rounded-md border border-line bg-surface px-2 py-1 text-sm text-fg outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
                       />
                     </td>
                     <td className="px-2 py-2">
@@ -428,6 +511,7 @@ export function InvoiceCart({
                         <select
                           value={l.taxRate}
                           onChange={(e) => updateLine(l.key, { taxRate: Number(e.target.value) })}
+                          aria-label={`IVA de ${l.description || 'la línea'}`}
                           className="rounded-md border border-line bg-surface px-2 py-1 text-sm text-fg outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
                         >
                           <option value={0}>0%</option>
@@ -457,98 +541,91 @@ export function InvoiceCart({
         </div>
       )}
 
-      {/* Documento + pago + totales */}
-      <div className="grid gap-4 lg:grid-cols-[1fr_280px]">
-        <div className="space-y-3 rounded-xl border border-line bg-surface p-4">
-          <div>
-            <label className="block text-xs font-medium text-fg-muted">Tipo de documento</label>
-            <select
-              value={docKind}
-              onChange={(e) => setDocKind(e.target.value as DocKind)}
-              className="mt-1 w-full max-w-xs rounded-lg border border-line bg-surface px-3 py-2 text-sm text-fg outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
-            >
-              <option value="POS">Tiquete POS electrónico</option>
-              <option value="FACTURA_VENTA">Factura electrónica de venta</option>
-            </select>
-          </div>
-          <div>
-            <label htmlFor="observaciones" className="block text-xs font-medium text-fg-muted">
-              Observaciones
-            </label>
-            <p className="text-xs text-fg-faint">Se imprimen en la factura que ve el titular.</p>
-            <textarea
-              id="observaciones"
-              value={notes}
-              onChange={(e) => setNotes(e.target.value)}
-              rows={2}
-              maxLength={1000}
-              placeholder="Ej.: garantía del procedimiento, próximo control, acuerdo de pago"
-              className="mt-1 w-full rounded-lg border border-line bg-surface px-3 py-2 text-sm text-fg placeholder:text-fg-faint outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
-            />
-          </div>
-          <PaymentSection
-            plan={plan}
-            onChange={setPlan}
-            totalCents={totals?.totalCents ?? 0}
-            defaultTermsDays={defaultTermsDays}
-            reminderChannel={reminderChannel}
-            remindersEnabled={remindersEnabled}
+      {/* Descuento global y su razón, uno al lado del otro como en la referencia. */}
+      <div className="grid gap-4 sm:grid-cols-[220px_1fr]">
+        <div>
+          <label htmlFor="descuento-global" className="block text-xs font-medium text-fg-muted">
+            Descuento global
+          </label>
+          <input
+            id="descuento-global"
+            type="number"
+            min={0}
+            step={1000}
+            value={descuentoGlobalCents / 100}
+            onChange={(e) =>
+              setDescuentoGlobalCents(Math.max(0, Math.round(Number(e.target.value) * 100)))
+            }
+            className="mt-1 w-full rounded-lg border border-line bg-surface px-3 py-2 text-right text-sm text-fg outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
           />
-
-          {posWarning?.exceeds && (
-            <p className="flex items-start gap-2 rounded-lg border border-warn bg-surface-2 px-3 py-2 text-xs text-warn">
-              <AlertTriangle className="mt-0.5 size-3.5 shrink-0" aria-hidden />
-              {posWarning.message}
-            </p>
-          )}
         </div>
-
-        <div className="rounded-xl border border-line bg-surface p-4 text-sm">
-          <dl className="space-y-1.5">
-            <div className="flex justify-between text-fg-muted">
-              <dt>Subtotal</dt>
-              <dd>{totals ? formatCOP(totals.subtotalCents) : '—'}</dd>
-            </div>
-            <div className="flex items-center justify-between gap-2 text-fg-muted">
-              <dt>
-                <label htmlFor="descuento-global">Descuento factura</label>
-              </dt>
-              <dd>
-                <input
-                  id="descuento-global"
-                  type="number"
-                  min={0}
-                  step={1000}
-                  value={descuentoGlobalCents / 100}
-                  onChange={(e) =>
-                    setDescuentoGlobalCents(Math.max(0, Math.round(Number(e.target.value) * 100)))
-                  }
-                  className="w-28 rounded-md border border-line bg-surface px-2 py-1 text-right text-sm text-fg outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
-                />
-              </dd>
-            </div>
-            {totals && totals.discountCents > 0 && (
-              <div className="flex justify-between text-fg-muted">
-                <dt>Descuento total</dt>
-                <dd>− {formatCOP(totals.discountCents)}</dd>
-              </div>
-            )}
-            {calculo.problema && (
-              <p className="rounded-md border border-warn bg-surface-2 px-2 py-1.5 text-xs text-warn">
-                {calculo.problema}
-              </p>
-            )}
-            <div className="flex justify-between text-fg-muted">
-              <dt>IVA</dt>
-              <dd>{totals ? formatCOP(totals.taxCents) : '—'}</dd>
-            </div>
-            <div className="flex justify-between border-t border-line pt-1.5 text-base font-semibold text-fg">
-              <dt>Total</dt>
-              <dd>{totals ? formatCOP(totals.totalCents) : '—'}</dd>
-            </div>
-          </dl>
+        <div>
+          <label htmlFor="razon-descuento" className="block text-xs font-medium text-fg-muted">
+            Razón del descuento global
+          </label>
+          <input
+            id="razon-descuento"
+            value={razonDelDescuento}
+            onChange={(e) => setRazonDelDescuento(e.target.value)}
+            maxLength={300}
+            required={descuentoGlobalCents > 0}
+            placeholder="Requerido al aplicar descuento global"
+            className="mt-1 w-full rounded-lg border border-line bg-surface px-3 py-2 text-sm text-fg placeholder:text-fg-faint outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
+          />
         </div>
       </div>
+
+      <div>
+        <label htmlFor="observaciones" className="sr-only">
+          Observaciones
+        </label>
+        <textarea
+          id="observaciones"
+          value={notes}
+          onChange={(e) => setNotes(e.target.value)}
+          rows={3}
+          maxLength={1000}
+          placeholder="Observaciones"
+          className="w-full rounded-lg border border-line bg-surface px-3 py-2 text-sm text-fg placeholder:text-fg-faint outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
+        />
+        <p className="mt-1 text-xs text-fg-faint">Se imprimen en la factura que ve el titular.</p>
+      </div>
+
+      {/* Desglose: el descuento sólo aparece si lo hubo, para no llenar la pantalla de ceros. */}
+      <dl className="ml-auto w-full max-w-xs space-y-1.5 text-sm">
+        <div className="flex justify-between text-fg-muted">
+          <dt>Subtotal</dt>
+          <dd>{totals ? formatCOP(totals.subtotalCents) : '—'}</dd>
+        </div>
+        {totals && totals.discountCents > 0 && (
+          <div className="flex justify-between text-fg-muted">
+            <dt>Descuento</dt>
+            <dd>− {formatCOP(totals.discountCents)}</dd>
+          </div>
+        )}
+        <div className="flex justify-between text-fg-muted">
+          <dt>IVA</dt>
+          <dd>{totals ? formatCOP(totals.taxCents) : '—'}</dd>
+        </div>
+        <div className="flex justify-between border-t border-line pt-1.5 text-base font-semibold text-fg">
+          <dt>Total</dt>
+          <dd>{totals ? formatCOP(totals.totalCents) : '—'}</dd>
+        </div>
+      </dl>
+
+      {calculo.problema && (
+        <p className="flex items-start gap-2 rounded-xl border border-warn bg-surface-2 px-4 py-3 text-sm text-warn">
+          <AlertTriangle className="mt-0.5 size-4 shrink-0" aria-hidden />
+          {calculo.problema}
+        </p>
+      )}
+
+      {posWarning?.exceeds && (
+        <p className="flex items-start gap-2 rounded-xl border border-warn bg-surface-2 px-4 py-3 text-xs text-warn">
+          <AlertTriangle className="mt-0.5 size-3.5 shrink-0" aria-hidden />
+          {posWarning.message}
+        </p>
+      )}
 
       {error && (
         <p className="flex items-start gap-2 rounded-xl border border-warn bg-surface-2 px-4 py-3 text-sm text-warn">
@@ -559,13 +636,14 @@ export function InvoiceCart({
               <>
                 {' '}
                 <Link href={draftUrl} className="font-medium underline underline-offset-2">
-                  Abrir el borrador guardado
+                  Abrir la cuenta guardada
                 </Link>
               </>
             )}
           </span>
         </p>
       )}
+
       {warnings.length > 0 && (
         <ul className="space-y-1 rounded-xl border border-line bg-surface-2 px-4 py-3 text-xs text-fg-muted">
           {warnings.map((w, i) => (
@@ -573,36 +651,32 @@ export function InvoiceCart({
           ))}
           {!error && draftUrl && (
             <li className="pt-1">
-              El borrador quedó guardado.{' '}
+              La cuenta quedó guardada.{' '}
               <Link href={draftUrl} className="font-medium text-brand underline underline-offset-2">
-                Continuar al borrador
+                Continuar a la cuenta
               </Link>
             </li>
           )}
         </ul>
       )}
 
-      <div className="flex items-center gap-3">
+      {/* Pie: cerrar a la izquierda, guardar a la derecha — como la referencia. */}
+      <div className="flex items-center justify-between border-t border-line pt-4">
+        <Link
+          href="/dashboard/facturacion"
+          className="rounded-lg border border-line bg-surface px-4 py-2 text-sm text-fg-muted hover:bg-surface-2 hover:text-fg transition"
+        >
+          Cerrar
+        </Link>
         <button
           type="button"
           disabled={isPending}
-          onClick={() => submit('issue')}
+          onClick={guardar}
           className="inline-flex items-center gap-2 rounded-lg bg-brand px-4 py-2 text-sm font-medium text-on-brand hover:bg-brand-deep transition disabled:opacity-60"
         >
-          {isPending ? 'Procesando…' : 'Emitir ahora'}
+          <Save className="size-4" aria-hidden />
+          {isPending ? 'Guardando…' : 'Guardar'}
         </button>
-        <button
-          type="button"
-          disabled={isPending}
-          onClick={() => submit('draft')}
-          className="inline-flex items-center gap-2 rounded-lg border border-line bg-surface px-4 py-2 text-sm text-fg-muted hover:bg-surface-2 hover:text-fg transition disabled:opacity-60"
-        >
-          Guardar borrador
-        </button>
-        <span className="text-xs text-fg-faint">
-          Emitir asigna consecutivo y transmite el documento — solo se corrige con
-          nota crédito.
-        </span>
       </div>
     </div>
   );

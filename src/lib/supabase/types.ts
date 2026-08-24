@@ -280,7 +280,14 @@ export type InvoiceRow = {
   payment_terms: PaymentTerms;
   due_date: string | null;
   subtotal_cents: number;
+  /** Suma de los descuentos de TODAS las líneas, ya con el global prorrateado adentro. */
   discount_cents: number;
+  /** El descuento de FACTURA tal como se tecleó, antes de prorratear. */
+  global_discount_cents: number;
+  /** Por qué se dio el descuento de factura. Obligatorio si el anterior no es cero (0081). */
+  global_discount_reason: string | null;
+  /** «Referencia/Nombre»: ref. de mascota, historia o nombre libre. No es fiscal. */
+  reference: string | null;
   tax_cents: number;
   total_cents: number;
   paid_cents: number;

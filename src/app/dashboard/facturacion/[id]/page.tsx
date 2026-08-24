@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
-import { ArrowLeft, FlaskConical, PawPrint, Stethoscope } from 'lucide-react';
+import { AlertTriangle, ArrowLeft, FlaskConical, PawPrint, Stethoscope } from 'lucide-react';
 import { getAppBaseUrl } from '@/lib/base-url';
 import { requireClinicPage } from '@/lib/facturacion/page-auth';
 import { getInvoiceDetail } from '@/lib/facturacion/queries';
@@ -14,6 +14,7 @@ import {
 } from '@/components/facturacion/badges';
 import { getBillingSettings } from '@/lib/facturacion/queries';
 import { InvoiceActionsPanel } from '@/components/facturacion/InvoiceActionsPanel';
+import { avisosDelBorrador } from '@/lib/facturacion/invoices';
 import { FollowupActions } from '@/components/cartera/FollowupActions';
 import { getInvoiceCommMessages } from '@/lib/cartera/queries';
 import type { InvoiceEventType } from '@/lib/facturacion/domain/types';
@@ -65,6 +66,11 @@ export default async function FacturaDetallePage({
   ]);
   if (!detail) notFound();
   const { invoice, lines, events, payer, fiscalDocuments } = detail;
+
+  // Los avisos del borrador se recalculan ACÁ, que es donde ahora se emite. Antes vivían en el
+  // carrito junto al botón «Emitir ahora»; al mover la emisión a esta pantalla se habrían perdido,
+  // y con ellos la única señal de que se está vendiendo algo que no hay en existencia.
+  const avisos = await avisosDelBorrador(supabase, clinicId, invoice, lines);
 
   // Contexto CRM: paciente facturado y consulta de origen. La consulta se enlaza por su id
   // (la ruta /dashboard/consultas/[id] espera consultations.id) — la query de chat_id que había
@@ -307,6 +313,22 @@ export default async function FacturaDetallePage({
 
           {/* Columna lateral */}
           <div className="space-y-4">
+            {avisos.length > 0 && (
+              <section className="rounded-xl border border-warn bg-surface-2 p-4 text-sm text-warn">
+                <h2 className="mb-2 flex items-center gap-2 text-xs font-medium uppercase tracking-wide">
+                  <AlertTriangle className="size-3.5 shrink-0" aria-hidden />
+                  Antes de emitir
+                </h2>
+                {/* Avisan, no bloquean: la clínica decidió que una venta no se frena por un atraso
+                    de la contabilidad. Por eso el aviso ES la decisión de producto — sin él, avisar
+                    sin bloquear y no hacer nada son lo mismo. */}
+                <ul className="space-y-1 text-xs">
+                  {avisos.map((a, i) => (
+                    <li key={i}>· {a.message}</li>
+                  ))}
+                </ul>
+              </section>
+            )}
             <InvoiceActionsPanel
               invoiceId={invoice.id}
               status={invoice.status}
