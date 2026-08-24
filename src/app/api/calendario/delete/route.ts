@@ -5,8 +5,10 @@ import { borrarEventoRemoto } from "@/lib/composio/calendario"
 
 export const runtime = "nodejs"
 
-// Borra el evento remoto al eliminar una cita. El evento vive en el calendario del administrador de
-// la clínica, así que se borra con LA CONEXIÓN DE ESA PERSONA — no con la de quien aprieta el botón.
+// Borra el evento remoto al eliminar una cita. El evento vive en el calendario de quien lo hospeda
+// —el veterinario asignado, o el administrador de respaldo (v5)— así que se borra con LA CONEXIÓN DE
+// ESA PERSONA, no con la de quien aprieta el botón. De quién es sale de `calendar_owner_id`, que la
+// fila guarda justamente para esto.
 //
 // Por eso esta ruta recibe el `appointment_id` y NO el id del evento. Antes recibía el id del evento
 // y el dueño desde el navegador, y sólo verificaba que el dueño fuera de la misma clínica; nada

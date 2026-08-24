@@ -2,6 +2,7 @@ import { NextResponse } from "next/server"
 
 import { createClient } from "@/lib/supabase/server"
 import { getAppBaseUrl } from "@/lib/base-url"
+import { rutaDeVuelta } from "@/lib/ruta-de-vuelta"
 import {
   calendariosDisponibles,
   iniciarConexionCalendario,
@@ -18,7 +19,13 @@ export const runtime = "nodejs"
 // con el que se INICIÓ SESIÓN, no el del botón que se apretó — alguien entró con Microsoft y el
 // token de Microsoft terminó guardado en la fila de Google. Acá no puede pasar: la autorización es
 // del calendario, no de la sesión.
-function callbackUrl(req: Request): string {
+
+// A dónde vuelve el navegador después del consentimiento. `volverA` existe porque la conexión ya no
+// se pide sólo desde Integraciones: desde v5 la agenda le abre una ventana a quien no tiene
+// calendario conectado y lo manda a conectarlo de una vez, y tiene que volver ahí. El saneado vive
+// en `lib/ruta-de-vuelta.ts` —es una guarda contra redirección abierta y merece sus propios tests—
+// y todo lo que no sea una ruta del dashboard cae al default.
+function callbackUrl(req: Request, volverA: unknown): string {
   const origen =
     req.headers.get("origin") ??
     (() => {
@@ -28,7 +35,7 @@ function callbackUrl(req: Request): string {
       return `${proto}://${host}`
     })() ??
     getAppBaseUrl()
-  return `${origen.replace(/\/$/, "")}/dashboard/conexiones?calendario=conectado`
+  return `${origen.replace(/\/$/, "")}${rutaDeVuelta(volverA)}?calendario=conectado`
 }
 
 /** Qué calendarios puede ofrecer este despliegue. */
@@ -43,7 +50,7 @@ export async function POST(req: Request) {
   } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: "No autenticado" }, { status: 401 })
 
-  const body = (await req.json().catch(() => ({}))) as { proveedor?: string }
+  const body = (await req.json().catch(() => ({}))) as { proveedor?: string; volverA?: string }
   const disponibles = calendariosDisponibles()
   const proveedor = disponibles.find((p) => p === body.proveedor) as ProveedorCalendario | undefined
   if (!proveedor) {
@@ -54,7 +61,9 @@ export async function POST(req: Request) {
   }
 
   try {
-    return NextResponse.json({ url: await iniciarConexionCalendario(user.id, proveedor, callbackUrl(req)) })
+    return NextResponse.json({
+      url: await iniciarConexionCalendario(user.id, proveedor, callbackUrl(req, body.volverA)),
+    })
   } catch (e) {
     return NextResponse.json({ error: (e as Error).message }, { status: 502 })
   }

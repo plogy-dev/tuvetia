@@ -59,6 +59,28 @@ describe("crear un evento", () => {
   })
 })
 
+describe("la dirección de la clínica", () => {
+  const CON_DIRECCION = { ...CITA, ubicacion: "Cra 7 #45-12, Bogotá" }
+
+  it("va al campo de ubicación en los dos proveedores", () => {
+    // Es lo que el teléfono del titular convierte en un enlace a mapas.
+    expect(google.crear(CON_DIRECCION).args.location).toBe("Cra 7 #45-12, Bogotá")
+    expect(outlook.crear(CON_DIRECCION).args.location).toBe("Cra 7 #45-12, Bogotá")
+  })
+
+  it("también al actualizar, para que una cita movida no pierda la dirección", () => {
+    expect(google.actualizar("ev-1", CON_DIRECCION).args.location).toBe("Cra 7 #45-12, Bogotá")
+    expect(outlook.actualizar("ev-1", CON_DIRECCION).args.location).toBe("Cra 7 #45-12, Bogotá")
+  })
+
+  it("sin dirección cargada no manda el campo vacío", () => {
+    // Un evento con ubicación en blanco se ve peor que uno sin ubicación.
+    expect(google.crear(CITA).args).not.toHaveProperty("location")
+    expect(outlook.crear(CITA).args).not.toHaveProperty("location")
+    expect(outlook.actualizar("ev-1", CITA).args).not.toHaveProperty("location")
+  })
+})
+
 describe("actualizar y borrar", () => {
   it("actualizar manda el mismo evento más su id", () => {
     const { slug, args } = google.actualizar("ev-123", CITA)

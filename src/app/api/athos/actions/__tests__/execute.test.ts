@@ -272,7 +272,9 @@ describe("ejecución exitosa", () => {
     expect(res.status).toBe(200)
     expect(body.result.appointment_id).toBe("ap-1")
     expect(body.result.google_event_id).toBeNull()
-    expect(String(body.result.aviso)).toMatch(/no se copió al calendario/i)
+    // El texto exacto cambió con v5 (el evento ya no vive sólo en el calendario del admin), así que
+    // lo que se exige es lo que el vet necesita leer: que la cita está y que al calendario no llegó.
+    expect(String(body.result.aviso)).toMatch(/no se copió a ningún calendario/i)
   })
 
   it("si el calendario explota, la cita tampoco se pierde", async () => {

@@ -1,4 +1,9 @@
-// De quién es el calendario de la clínica. UNA regla, y por eso vive acá.
+// De quién es el calendario de RESPALDO de la clínica. UNA regla, y por eso vive acá.
+//
+// DESDE v5 CADA CITA SE CREA EN EL CALENDARIO DEL VETERINARIO ASIGNADO. Esto sigue haciendo falta
+// para el caso en que ese veterinario no conectó ninguno: entonces el evento cae en el del
+// administrador, y hay que saber quién es —para empujar la cita allá, y para poder nombrarlo en
+// pantalla.
 //
 // EL DEFECTO QUE ARREGLA. La respuesta estaba escrita dos veces, distinto:
 //
@@ -39,12 +44,20 @@ export function quienTieneElCalendario(
 }
 
 /**
- * ¿Quien está mirando es el que puede conectarlo?
+ * ¿Quien está mirando es el administrador del calendario de la clínica?
+ *
+ * SE LLAMABA `puedeConectarElCalendario` HASTA v5, y el nombre dejó de ser cierto: ahora el
+ * conector se le muestra a todo el mundo, porque cada cita se crea en el calendario del veterinario
+ * asignado y conectar el propio le sirve a cualquiera. Esto ya no gobierna un botón.
+ *
+ * LO QUE SIGUE RESPONDIENDO, y por eso no se borró: si a esta persona le toca ser el calendario de
+ * RESPALDO de la clínica — donde caen las citas de quien todavía no conectó el suyo. Es lo que
+ * decide qué se le explica en pantalla, no qué se le permite.
  *
  * Se compara contra el resultado de `quienTieneElCalendario` y no contra `owner_id` a secas — que
- * es exactamente la diferencia que dejaba al primer `admin` sin botón.
+ * es exactamente la diferencia que dejaba al primer `admin` sin botón cuando el botón importaba.
  */
-export function puedeConectarElCalendario(
+export function esElAdministradorDelCalendario(
   userId: string | null | undefined,
   administrador: string | null,
 ): boolean {

@@ -8,14 +8,16 @@
  * Nadie recibe invitación y no hay nada en pantalla que lo explique.
  *
  * Reportado el 21-ago como "el calendario no funciona". No lo era: quien lo reportó era veterinario
- * —no administrador— en una clínica ajena, y el conector se le ocultaba correctamente. Que un botón
- * ausente se lea como una falla es el motivo de la otra mitad del arreglo: nombrar al administrador.
+ * —no administrador— en una clínica ajena, y el conector se le ocultaba. Que un botón ausente se lea
+ * como una falla trajo las otras dos mitades del arreglo: nombrar al administrador, y —en v5— dejar
+ * de ocultarle el conector a nadie. Hoy esta regla ya no gobierna un botón: dice de quién es el
+ * calendario de RESPALDO, donde caen las citas de quien todavía no conectó el suyo.
  */
 
 import { describe, expect, it } from "vitest"
 
 import {
-  puedeConectarElCalendario,
+  esElAdministradorDelCalendario,
   quienTieneElCalendario,
 } from "@/lib/calendario/quien-lo-tiene"
 
@@ -45,29 +47,29 @@ describe("quién tiene el calendario", () => {
   })
 })
 
-describe("quién puede conectarlo", () => {
+describe("quién es el administrador del calendario", () => {
   it("el administrador resuelto, sí", () => {
-    expect(puedeConectarElCalendario(OWNER, quienTieneElCalendario(OWNER, null))).toBe(true)
+    expect(esElAdministradorDelCalendario(OWNER, quienTieneElCalendario(OWNER, null))).toBe(true)
   })
 
   // LA MITAD QUE FALTABA EN CONEXIONES: comparar contra `owner_id` a secas dejaba al primer admin
-  // recibiendo las citas sin botón para conectar el calendario donde caen.
+  // recibiendo las citas sin que nada lo reconociera como el administrador del calendario.
   it("el primer admin TAMBIÉN, cuando no hay `owner_id`", () => {
-    expect(puedeConectarElCalendario(ADMIN.id, quienTieneElCalendario(null, ADMIN))).toBe(true)
+    expect(esElAdministradorDelCalendario(ADMIN.id, quienTieneElCalendario(null, ADMIN))).toBe(true)
   })
 
-  it("un veterinario de la clínica, no", () => {
-    expect(puedeConectarElCalendario("u-vet", quienTieneElCalendario(OWNER, ADMIN))).toBe(false)
+  it("un veterinario de la clínica, no — pero igual puede conectar el suyo (v5)", () => {
+    expect(esElAdministradorDelCalendario("u-vet", quienTieneElCalendario(OWNER, ADMIN))).toBe(false)
   })
 
   it("sin sesión, no", () => {
-    expect(puedeConectarElCalendario(null, OWNER)).toBe(false)
-    expect(puedeConectarElCalendario(undefined, OWNER)).toBe(false)
+    expect(esElAdministradorDelCalendario(null, OWNER)).toBe(false)
+    expect(esElAdministradorDelCalendario(undefined, OWNER)).toBe(false)
   })
 
-  // Sin administrador resuelto nadie puede conectarlo — y sobre todo, un `null` de los dos lados no
-  // puede leerse como "coinciden".
+  // Sin administrador resuelto la clínica no tiene calendario de respaldo — y sobre todo, un
+  // `null` de los dos lados no puede leerse como "coinciden".
   it("dos nulos no son una coincidencia", () => {
-    expect(puedeConectarElCalendario(null, null)).toBe(false)
+    expect(esElAdministradorDelCalendario(null, null)).toBe(false)
   })
 })
