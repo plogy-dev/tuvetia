@@ -14,6 +14,8 @@ import { runCarteraSweepForClinic } from './scheduler';
 import { resolveHumanTask } from './tasks';
 import { grantAuthorization, revokeAuthorization } from './authorizations';
 import { requireClinicAdmin } from '@/lib/clinic-role';
+import { REMINDER_STEP_KINDS, type ReminderStepKind } from '@/lib/supabase/facturacion-enums';
+import { NOMBRE_DEL_PASO, revisarPlantilla } from './plantillas';
 
 type Err = { ok: false; error: string };
 export type Result<P = unknown> = ({ ok: true } & P) | Err;
@@ -203,6 +205,72 @@ export async function runSweepNowAction(): Promise<
     revalidatePath('/dashboard/facturacion/cartera');
     revalidatePath('/dashboard/facturacion');
     return { ok: true, planned: r.plan.remindersCreated, sent, rescheduled, skipped };
+  } catch (e) {
+    return toError(e);
+  }
+}
+
+// ─── Plantillas de los recordatorios ─────────────────────────────────────────
+
+const PlantillasSchema = z.object({
+  /** Un texto por paso. Los pasos que no vengan quedan con el texto por defecto. */
+  plantillas: z.record(z.enum(REMINDER_STEP_KINDS), z.string()),
+});
+
+/**
+ * Guarda el texto de los recordatorios de la clínica.
+ *
+ * ── SOLO EL ADMIN DE LA CLÍNICA ───────────────────────────────────────────────────────────────
+ *
+ * Esto no es una preferencia de pantalla: es lo que se le dice, en nombre de la clínica, a un
+ * cliente al que se le está cobrando. Va detrás de `requireClinicAdmin` como el resto de lo que
+ * habla hacia afuera.
+ *
+ * ── SE REVISA CADA TEXTO, Y SE DICE CUÁL FALLÓ ────────────────────────────────────────────────
+ *
+ * Un mensaje sin `{number}` o sin `{link}` se envía igual y no sirve (ver `plantillas.ts`). Se
+ * revisan todos antes de escribir NINGUNO: guardar tres y rechazar dos dejaría a la clínica con
+ * media configuración y sin saber cuál quedó.
+ *
+ * ── VACÍO SIGNIFICA «VOLVER A LOS DE POR DEFECTO» ─────────────────────────────────────────────
+ *
+ * Un paso que llega en blanco se BORRA del objeto en vez de guardarse vacío, y así vuelve a caer al
+ * texto por defecto — que es lo que la clínica espera al limpiar el campo. Si todos quedan en
+ * blanco, la columna vuelve a `null`, que es «no elegí nada»: distinto de «elegí exactamente esto»,
+ * y lo que permite mejorar la redacción base más adelante sin dejarla congelada.
+ */
+export async function guardarPlantillasDeRecordatorio(
+  input: z.input<typeof PlantillasSchema>,
+): Promise<Result> {
+  try {
+    const { supabase, clinicId } = await requireClinic();
+    await requireClinicAdmin();
+    const parsed = PlantillasSchema.safeParse(input);
+    if (!parsed.success) {
+      return { ok: false, error: parsed.error.issues[0]?.message ?? 'Datos inválidos' };
+    }
+
+    const limpias: Record<string, string> = {};
+    for (const [paso, texto] of Object.entries(parsed.data.plantillas)) {
+      const t = (texto ?? '').trim();
+      if (!t) continue; // en blanco = volver al de por defecto
+      const problema = revisarPlantilla(t);
+      if (problema) {
+        return { ok: false, error: `${NOMBRE_DEL_PASO[paso as ReminderStepKind]}: ${problema}` };
+      }
+      limpias[paso] = t;
+    }
+
+    const { error } = await supabase
+      .from('billing_settings')
+      .update({
+        reminder_templates: Object.keys(limpias).length > 0 ? limpias : null,
+      })
+      .eq('clinic_id', clinicId);
+    if (error) throw new Error(`No se pudieron guardar las plantillas: ${error.message}`);
+
+    revalidatePath('/dashboard/facturacion/configuracion');
+    return { ok: true };
   } catch (e) {
     return toError(e);
   }

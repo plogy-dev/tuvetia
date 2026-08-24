@@ -89,6 +89,12 @@ export type BillingSettingsRow = {
   reminder_channel: 'WHATSAPP' | 'EMAIL';
   /** Pasos de la política de recordatorios (null = política por defecto). */
   reminder_policy: Record<string, unknown> | null;
+  /**
+   * Texto de los recordatorios de esta clínica, por paso. `null` o paso ausente = el texto por
+   * defecto de `lib/cartera/plantillas.ts`. Se lee con `leerPlantillas`, que es defensivo: es
+   * `jsonb` y puede traer cualquier forma.
+   */
+  reminder_templates: Record<string, unknown> | null;
   created_at: string;
   updated_at: string;
 };

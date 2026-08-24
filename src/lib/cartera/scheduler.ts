@@ -45,18 +45,13 @@ import { getAuthorizedChannels } from './authorizations';
 import { getMessagingPort } from './channels';
 import type { MessagingPort } from './messaging';
 import { resolvePolicySteps } from './policy';
+import { leerPlantillas, llenarPlantilla, plantillaDe } from './plantillas';
 import { enqueueOutbound, markOutboxSent, reminderIdempotencyKey } from './outbox';
 import { openHumanTask } from './tasks';
 
-// Copy base de los recordatorios (deriva de las plantillas del cliente; acá el
-// texto va directo en el cuerpo del WhatsApp — sin plantillas aprobadas).
-const STEP_TEMPLATES: Record<ReminderStepKind, string> = {
-  ENVIO_FACTURA: 'Le compartimos su factura {number}. Puede pagarla aquí: {link}',
-  RECORDATORIO_1: 'Le recordamos que su factura {number} venció. Saldo: {balance}. Pague aquí: {link}',
-  RECORDATORIO_2: 'Segundo recordatorio de su factura {number}. Saldo pendiente: {balance}. {link}',
-  AVISO_SALDO: 'Aviso de saldo pendiente: factura {number} por {balance}. {link}',
-  ESCALAMIENTO: 'Su caso será atendido personalmente por nuestro equipo (factura {number}). {link}',
-};
+// EL TEXTO YA NO VIVE ACÁ. Estaba escrito a mano en este archivo, así que todas las clínicas del
+// país mandaban el mismo mensaje. Ahora sale de `lib/cartera/plantillas.ts`: el de la clínica si lo
+// escribió, y si no el de por defecto — que es palabra por palabra el que estaba acá.
 
 /** Asunto por paso (reservado para cuando exista canal de email). */
 const STEP_SUBJECTS: Record<ReminderStepKind, string> = {
@@ -192,6 +187,8 @@ export async function dispatchDueReminders(
   const port = injectedPort ?? getMessagingPort(clinicId);
   const connected = await port.connectedChannels();
   const preferred = (settings.reminder_channel ?? 'WHATSAPP') as Channel;
+  // Se leen UNA vez por barrido, no por recordatorio: son las mismas para toda la clínica.
+  const plantillas = leerPlantillas(settings.reminder_templates);
   if (preferred === 'EMAIL' && !connected.includes('EMAIL')) {
     console.log(
       `[cartera/scheduler] clinic=${clinicId} canal preferido EMAIL no configurado: se usa WhatsApp si está autorizado`,
@@ -355,11 +352,11 @@ export async function dispatchDueReminders(
     const number = invoice.full_number ?? '';
     const balance = fmtCOP(invoice.balance_cents);
     const link = `${getAppBaseUrl()}/f/${invoice.share_token}`;
-    const body = STEP_TEMPLATES[stepKind]
-      .replace('{number}', number)
-      .replace('{balance}', balance)
-      .replace('{link}', link);
-    const subject = STEP_SUBJECTS[stepKind].replace('{number}', number);
+    // `llenarPlantilla` reemplaza TODAS las apariciones y trata el valor como texto plano. Lo de
+    // acá era `.replace('{x}', valor)`, que cambia sólo la primera y además interpreta `$&` y `$1`
+    // del valor como referencias de reemplazo — y el saldo colombiano SIEMPRE trae un `$`.
+    const body = llenarPlantilla(plantillaDe(plantillas, stepKind), { number, balance, link });
+    const subject = llenarPlantilla(STEP_SUBJECTS[stepKind], { number, balance, link });
 
     const key = reminderIdempotencyKey(invoice.id, rem.step_kind, now);
     const enq = await enqueueOutbound(supabase, clinicId, key, {
