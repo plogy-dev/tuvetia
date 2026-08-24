@@ -7,13 +7,15 @@
 // Al abrir una conversación se marcan leídos los entrantes (policy UPDATE, migración 0018).
 
 import Link from "next/link"
+import { useRouter } from "next/navigation"
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
-import { Check, CheckCheck, CircleAlert, Loader2, MessageCircle, Paperclip, Plus, Send, Sparkles } from "lucide-react"
+import { Check, CheckCheck, CircleAlert, Loader2, MessageCircle, Paperclip, Plus, Send, Sparkles, UserPlus } from "lucide-react"
 import { toast } from "sonner"
 
 import { createClient } from "@/lib/supabase/client"
 import { normalizarFilaRealtime } from "@/lib/realtime-timestamp"
 import { ActionApprovalCard, type ProposedAction } from "@/components/athos/action-approval-card"
+import { CreateOwnerDrawer } from "@/components/create-owner-drawer"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import {
@@ -180,6 +182,7 @@ export function WhatsappInbox({
 }) {
   const [supabase] = useState(() => createClient())
   const [messages, setMessages] = useState<InboxMessage[]>(initialMessages)
+  const router = useRouter()
   const [selected, setSelected] = useState<string | null>(null) // teléfono (dígitos) del contacto
   const [draft, setDraft] = useState("")
   const [sending, setSending] = useState(false)
@@ -531,7 +534,28 @@ export function WhatsappInbox({
           </div>
         ) : (
           <>
-            <div className="border-b px-4 py-2.5 text-sm font-semibold">{nameOf(selected)}</div>
+            {/* LA CABECERA DEL HILO, y el botón que convierte un número en un titular.
+                Quien escribe desde un número que no está en la clínica aparece como «+573001234567»
+                y hasta ahora la única salida era copiar el número a mano a la pantalla de Titulares.
+                Peor: mientras no sea titular, Athos TAMPOCO le puede escribir —`athosPuedeEscribirA`
+                sólo deja hablarle a titulares registrados— así que un número sin nombre es también
+                un número sin respuesta. Guardarlo desbloquea las dos cosas de una. */}
+            <div className="flex items-center justify-between gap-2 border-b px-4 py-2.5">
+              <span className="truncate text-sm font-semibold">{nameOf(selected)}</span>
+              {!ownerByPhone.get(selected.slice(-10)) && (
+                <CreateOwnerDrawer
+                  label="Guardar como titular"
+                  telefonoInicial={selected}
+                  trigger={
+                    <Button variant="outline" size="sm">
+                      <UserPlus className="size-3.5" aria-hidden />
+                      Guardar como titular
+                    </Button>
+                  }
+                  alCrear={() => router.refresh()}
+                />
+              )}
+            </div>
             <div className="flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto p-4">
               {thread.map((m) => (
                 <div key={m.id} className={m.direction === "outbound" ? "flex justify-end" : "flex justify-start"}>

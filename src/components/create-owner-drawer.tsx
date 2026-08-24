@@ -23,11 +23,25 @@ import { PlusIcon, Loader2Icon } from "lucide-react"
 export function CreateOwnerDrawer({
   trigger,
   label = "Nuevo titular",
+  telefonoInicial,
+  alCrear,
 }: {
   // Trigger alternativo (p.ej. desde el estado vacío de la tabla); por defecto, el botón de la
   // cabecera. Mismo patrón que `CreatePatientDrawer` y `NewConsultationDrawer`.
   trigger?: React.ReactElement
   label?: string
+  /**
+   * Teléfono ya conocido, para abrir el formulario con ese campo lleno.
+   *
+   * Lo usa la bandeja de WhatsApp: quien escribe desde un número que no es titular aparece como un
+   * número pelado, y copiarlo a mano a otra pantalla era el único camino para darle nombre. Peor:
+   * mientras no sea titular, Athos tampoco le puede escribir —`athosPuedeEscribirA` sólo deja
+   * hablarle a titulares registrados— así que el número sin nombre es también un número sin
+   * respuesta automática.
+   */
+  telefonoInicial?: string
+  /** Se llama al crear, con el id nuevo. La bandeja lo usa para refrescar sin recargar. */
+  alCrear?: (ownerId: string) => void
 } = {}) {
   const isMobile = useIsMobile()
   const router = useRouter()
@@ -37,14 +51,16 @@ export function CreateOwnerDrawer({
   const [error, setError] = useState<string | null>(null)
 
   const [fullName, setFullName] = useState("")
-  const [phone, setPhone] = useState("")
+  const [phone, setPhone] = useState(telefonoInicial ?? "")
   const [email, setEmail] = useState("")
   const [documentId, setDocumentId] = useState("")
   const [address, setAddress] = useState("")
 
   function resetForm() {
     setFullName("")
-    setPhone("")
+    // Vuelve al teléfono con el que se abrió, no a vacío: si el drawer se cierra sin querer, al
+    // reabrirlo el número sigue ahí.
+    setPhone(telefonoInicial ?? "")
     setEmail("")
     setDocumentId("")
     setAddress("")
@@ -62,7 +78,7 @@ export function CreateOwnerDrawer({
     setLoading(true)
 
     const supabase = createClient()
-    const { error: rpcError } = await supabase.rpc("create_owner", {
+    const { data: nuevoId, error: rpcError } = await supabase.rpc("create_owner", {
       p_full_name: fullName.trim(),
       p_phone: phone.trim() || null,
       p_email: email.trim() || null,
@@ -80,6 +96,7 @@ export function CreateOwnerDrawer({
     toast.success(`${fullName} se registró correctamente`)
     setOpen(false)
     resetForm()
+    alCrear?.(String(nuevoId))
     router.refresh()
   }
 
