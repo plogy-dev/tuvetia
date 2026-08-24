@@ -340,13 +340,24 @@ export function InvoiceCart({
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <div>
           <span className="block text-xs font-medium text-fg-muted">Propietario o Cliente</span>
-          <p className="mt-1 truncate py-2 text-sm">
-            {ownerName ? (
-              <span className="font-medium text-fg">{ownerName}</span>
-            ) : (
-              <span className="italic text-fg-faint">Venta a persona indeterminada</span>
-            )}
-          </p>
+          <div className="mt-1 flex items-center gap-2">
+            <p className="min-w-0 flex-1 truncate py-2 text-sm">
+              {ownerName ? (
+                <span className="font-medium text-fg">{ownerName}</span>
+              ) : (
+                <span className="italic text-fg-faint">Venta a persona indeterminada</span>
+              )}
+            </p>
+            {/* «Editar», al lado del nombre y no escondido — es el control de OkVet, y acá además
+                es lo que evita que una cuenta se emita a consumidor final sin querer: sin cliente
+                la factura queda fuera de cartera y sin correo a dónde mandarla. */}
+            <Link
+              href="/dashboard/facturacion/nueva"
+              className="shrink-0 rounded-md border border-line px-2 py-1 text-xs text-fg-muted transition hover:bg-surface-2 hover:text-fg"
+            >
+              Editar
+            </Link>
+          </div>
           {(patientName || consultationId) && (
             <p className="-mt-1 text-xs text-fg-faint">
               {patientName ? `Paciente ${patientName}` : ''}

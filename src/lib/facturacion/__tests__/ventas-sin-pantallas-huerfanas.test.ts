@@ -36,12 +36,29 @@ const MENU = readFileSync(join("src", "components", "facturacion", "MenuDeVentas
 /** Los últimos segmentos que son ACCIONES de su pantalla padre, no destinos del menú. */
 const ACCIONES = new Set(["nueva", "editar", "imprimir"])
 
+/**
+ * Carpetas que NO son un tramo de URL ni una pantalla propia:
+ *
+ *   · `@modal` — una ranura paralela. Lo que pinta es OTRA ruta proyectada acá; exigirle entrada de
+ *     menú sería pedirle puerta a un reflejo.
+ *   · `(.)nueva`, `(..)algo` — rutas interceptoras: la misma URL de siempre, pintada distinto según
+ *     cómo se llegue. Su destino real ya está en la lista por su carpeta original.
+ *
+ * Este caso lo destapó el propio cerrojo: al agregar el modal de «Registrar venta» se puso en rojo
+ * señalando `@modal/(.)nueva`, que no es una pantalla huérfana sino una proyección de `nueva`.
+ */
+function esCarpetaDeRuteo(nombre: string): boolean {
+  return nombre.startsWith("@") || /^\((\.{1,3})\)/.test(nombre) || /^\([^.]/.test(nombre)
+}
+
 /** Todas las rutas con `page.tsx` bajo `/dashboard/facturacion`. */
 function rutas(dir = RAIZ, prefijo = "/dashboard/facturacion"): string[] {
   const out: string[] = []
   for (const entrada of readdirSync(dir)) {
     const completa = join(dir, entrada)
     if (!statSync(completa).isDirectory()) continue
+    // Las ranuras y los interceptores no aportan destinos: lo que pintan ya vive en su ruta real.
+    if (esCarpetaDeRuteo(entrada)) continue
     const ruta = `${prefijo}/${entrada}`
     try {
       statSync(join(completa, "page.tsx"))
@@ -63,6 +80,13 @@ function esDestino(ruta: string): boolean {
 
 describe("el menú de ventas llega a todas partes", () => {
   const todas = rutas()
+
+  it("no confunde una ranura paralela con una pantalla huérfana", () => {
+    // El modal de «Registrar venta» vive en `@modal/(.)nueva` y proyecta la ruta `nueva`. Si el
+    // recorrido lo contara como destino, este cerrojo exigiría meterlo en el menú — que es pedirle
+    // puerta a un reflejo.
+    expect(todas.some((r) => r.includes("@modal") || r.includes("(.)"))).toBe(false)
+  })
 
   it("encuentra las pantallas de ventas", () => {
     // Si esto se rompe, el recorrido dejó de funcionar y los demás casos pasarían en verde vacío —

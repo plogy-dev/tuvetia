@@ -40,7 +40,40 @@ type PatientHit = {
 // lo llamaba el repo del cliente (está anotado en `lib/supabase/types.ts`), y se coló acá.
 type OwnerHit = { id: string; full_name: string; document_id: string | null; phone: string | null };
 
-export default async function NuevaFacturaPage({ searchParams }: { searchParams: SearchParams }) {
+/**
+ * El envoltorio de PÁGINA.
+ *
+ * Dentro del modal sobra: el modal ya trae su propio marco, su título y su ×, y meter otro ancho
+ * máximo con `px-8 py-10` adentro dejaría el formulario flotando en una caja dentro de otra caja.
+ */
+function Marco({
+  enModal,
+  ancho,
+  children,
+}: {
+  enModal: boolean
+  ancho: string
+  children: React.ReactNode
+}) {
+  if (enModal) return <>{children}</>
+  return (
+    <section className="flex-1 min-w-0">
+      <div className={`mx-auto w-full ${ancho} px-8 py-10`}>{children}</div>
+    </section>
+  )
+}
+
+/**
+ * `enModal` NO viene del router: lo pasa la ruta interceptora (`@modal/(.)nueva`) al llamar a este
+ * mismo componente. Como página normal llega `undefined` y todo se pinta como siempre.
+ */
+export default async function NuevaFacturaPage({
+  searchParams,
+  enModal = false,
+}: {
+  searchParams: SearchParams
+  enModal?: boolean
+}) {
   const sp = await searchParams;
   const ctx = await requireClinicPage();
   if (!ctx) return null;
@@ -81,24 +114,20 @@ export default async function NuevaFacturaPage({ searchParams }: { searchParams:
   // ── Paso carrito ──────────────────────────────────────────────────────────
   if (active && showCart) {
     return (
-      <section className="flex-1 min-w-0">
-        <div className="mx-auto w-full max-w-4xl px-8 py-10">
-          <header className="mb-6">
-            <Link
-              href="/dashboard/facturacion/nueva"
-              className="mb-3 inline-flex items-center gap-1 text-xs text-fg-faint hover:text-fg"
-            >
-              <ArrowLeft className="size-3.5" aria-hidden />
-              Cambiar cliente
-            </Link>
-            <h1 className="text-2xl font-semibold tracking-tight text-fg">Nueva factura</h1>
-            {/* El paso 2 tenía EXACTAMENTE el mismo encabezado que el 1. Con el título repetido, la
-                única señal de haber avanzado era que el contenido cambió. */}
-            <p className="mt-1 text-sm text-fg-muted">
-              <span className="font-medium text-fg">Paso 2 de 2 · Qué le cobrás</span> Agregá
-              servicios o productos del catálogo, o escribí líneas libres.
-            </p>
-          </header>
+      <Marco enModal={enModal} ancho="max-w-4xl">
+          {/* Dentro del modal el título y el × los pone el marco del modal; acá quedaría repetido. */}
+          {!enModal && (
+            <header className="mb-6">
+              <Link
+                href="/dashboard/facturacion/nueva"
+                className="mb-3 inline-flex items-center gap-1 text-xs text-fg-faint hover:text-fg"
+              >
+                <ArrowLeft className="size-3.5" aria-hidden />
+                Cambiar cliente
+              </Link>
+              <h1 className="text-2xl font-semibold tracking-tight text-fg">Nueva cuenta</h1>
+            </header>
+          )}
           {items.length === 0 && (
             <p className="mb-5 rounded-xl border border-line bg-surface-2 px-4 py-3 text-sm text-fg-muted">
               Tu catálogo está vacío — puedes facturar con líneas libres, o{' '}
@@ -122,8 +151,7 @@ export default async function NuevaFacturaPage({ searchParams }: { searchParams:
             // es impuro y `react-hooks/purity` lo rechaza. La página ya es `force-dynamic`.
             abiertaEn={new Date().toISOString()}
           />
-        </div>
-      </section>
+      </Marco>
     );
   }
 
@@ -167,17 +195,20 @@ export default async function NuevaFacturaPage({ searchParams }: { searchParams:
   }
 
   return (
-    <section className="flex-1 min-w-0">
-      <div className="mx-auto w-full max-w-3xl px-8 py-10">
+    <Marco enModal={enModal} ancho="max-w-3xl">
         <header className="mb-6">
-          <Link
-            href="/dashboard/facturacion"
-            className="mb-3 inline-flex items-center gap-1 text-xs text-fg-faint hover:text-fg"
-          >
-            <ArrowLeft className="size-3.5" aria-hidden />
-            Facturación
-          </Link>
-          <h1 className="text-2xl font-semibold tracking-tight text-fg">Nueva factura</h1>
+          {!enModal && (
+            <>
+              <Link
+                href="/dashboard/facturacion"
+                className="mb-3 inline-flex items-center gap-1 text-xs text-fg-faint hover:text-fg"
+              >
+                <ArrowLeft className="size-3.5" aria-hidden />
+                Facturación
+              </Link>
+              <h1 className="text-2xl font-semibold tracking-tight text-fg">Nueva cuenta</h1>
+            </>
+          )}
           {/* SE DICE QUE SON DOS PASOS, y en cuál se está. Esta pantalla es un BUSCADOR: quien
               aprieta «Nueva factura» espera una factura y encuentra una caja de búsqueda, sin nada
               que le diga que todavía falta un paso. Nombrarlo cuesta una línea y quita la sensación
@@ -353,7 +384,6 @@ export default async function NuevaFacturaPage({ searchParams }: { searchParams:
             )}
           </>
         )}
-      </div>
-    </section>
+    </Marco>
   );
 }
