@@ -18,7 +18,6 @@ import { describe, expect, it } from "vitest"
 import {
   PLANTILLAS,
   huecos,
-  listoParaEnviar,
   plantillaPorId,
   rellenar,
 } from "@/lib/email/plantillas"
@@ -51,7 +50,7 @@ describe("rellenar", () => {
     // Si el blanco reemplazara, saldría "Hola ," — que pasa toda validación de "no está vacío" y
     // llega igual de mal. Dejando la marca, `huecos()` lo sigue viendo y el envío sigue bloqueado.
     expect(rellenar("Hola {{nombre}},", { nombre: "   " })).toBe("Hola {{nombre}},")
-    expect(listoParaEnviar("x", rellenar("Hola {{nombre}},", { nombre: "" }))).toBe(false)
+    expect(huecos("x", rellenar("Hola {{nombre}},", { nombre: "" }))).toEqual(["nombre"])
   })
 
   it("el hueco que nadie llenó queda VISIBLE, no desaparece", () => {
@@ -104,21 +103,8 @@ describe("la vista previa y el envío no pueden divergir", () => {
       const valores = Object.fromEntries(huecos(p.asunto, p.cuerpo).map((h) => [h, `<${h}>`]))
       const asunto = rellenar(p.asunto, valores)
       const cuerpo = rellenar(p.cuerpo, valores)
-      expect(listoParaEnviar(asunto, cuerpo), `${p.id} queda con huecos tras rellenar todo`).toBe(true)
+      expect(huecos(asunto, cuerpo), `${p.id} queda con huecos tras rellenar todo`).toEqual([])
       expect(cuerpo).not.toMatch(/\{\{|\}\}/)
-    }
-  })
-
-  it("`listoParaEnviar` es lo mismo que mirar los huecos", () => {
-    // La UI deshabilita con esto y el servidor rechaza con esto. Si fueran dos criterios, habría un
-    // texto que la interfaz deja mandar y el servidor rebota, o peor: al revés.
-    const casos: [string, string][] = [
-      ["Hola", "sin marcas"],
-      ["Hola {{a}}", "sin marcas"],
-      ["Hola", "con {{b}}"],
-    ]
-    for (const [asunto, cuerpo] of casos) {
-      expect(listoParaEnviar(asunto, cuerpo)).toBe(huecos(asunto, cuerpo).length === 0)
     }
   })
 })

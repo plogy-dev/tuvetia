@@ -639,6 +639,22 @@ no puede ser el último paso.**
   **Queda para confirmar con Santiago** si hace falta la vuelta. Si la respuesta es sí, es una
   funcionalidad NUEVA con su riesgo conocido, no un arreglo.
 
+- 🟡 **El producto habla en VOSEO y el prompt del agente exige TUTEO.** Encontrado el 24-ago
+  revisando las plantillas de correo. No es que las plantillas se hayan desviado: la interfaz entera
+  va en voseo —`podés`, `tenés`, `seguís`, `cargá`, `registrá`— y las plantillas también
+  (`escribinos`, `respondé`, `notás`, `preferís`). Quien dice lo contrario es
+  `athos-agent/system-prompt.ts`, citando los docs de marca del cliente:
+
+  > «Español de Colombia, en **tuteo**. Colega clínico senior: cercano, directo, profesional.»
+
+  O sea que hoy conviven dos registros: **Athos tutea y el resto del producto vosea**, y el mismo
+  veterinario recibe los dos. El correo es donde más se nota, porque es lo que se reenvía.
+
+  **NO se tocó: es una decisión de marca, no un defecto.** Y no es obvia — el voseo es propio de
+  Antioquia y del Valle, así que "voseo colombiano" no es una contradicción. Lo que no puede quedar
+  es cada superficie eligiendo por su cuenta. Quien decida, decide para los dos lados; cambiar el
+  prompt del agente pide correr su banco (`docs/AGENT-SMOKE-TESTING.md`).
+
 - 🟡 **El mock del calendario y de pacientes.** Pedido el 23-ago: "depurar esas vistas para
   parecerse al mock". No se pudo empezar porque no hay contra qué comparar: `feat/pacientes-crm-mockup`
   y `feat/mockup-los-cuatro-baratos` **ya están en master**, y **no existe ninguna rama de mockup del

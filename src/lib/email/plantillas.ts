@@ -50,7 +50,10 @@ export const PLANTILLAS: Plantilla[] = [
     asunto: "Ya está resuelto: {{resumen}}",
     cuerpo:
       "Hola,\n\n" +
-      "Entre las {{desde}} y las {{hasta}} de hoy, {{resumen}}. Ya está resuelto.\n\n" +
+      // LA FECHA ES UN HUECO, no "hoy". Un post-mortem se manda con frecuencia al día siguiente
+      // —cuando ya se sabe la causa— y con "hoy" escrito a mano el correo salía mintiendo, sin
+      // forma de corregirlo salvo editando el cuerpo.
+      "El {{fecha}}, entre las {{desde}} y las {{hasta}}, {{resumen}}. Ya está resuelto.\n\n" +
       "Qué pasó: {{causa}}\n\n" +
       "Qué hicimos para que no se repita: {{remedio}}\n\n" +
       "Si algo te quedó a medias durante ese rato, escribinos y lo revisamos con vos.\n\n" +
@@ -107,7 +110,11 @@ export function rellenar(texto: string, valores: Record<string, string>): string
   })
 }
 
-/** ¿Este texto está listo para salir? */
-export function listoParaEnviar(asunto: string, cuerpo: string): boolean {
-  return huecos(asunto, cuerpo).length === 0
-}
+// NO HAY UN `listoParaEnviar()`, y se quitó a propósito. Existía, y nadie lo usaba: los dos
+// consumidores reales —el panel y la validación del servidor— no preguntan SI está listo, preguntan
+// QUÉ falta, porque los dos nombran los huecos que quedan (la pantalla los lista, el servidor los
+// pone en el mensaje de error). Un booleano encima de `huecos()` obligaba a llamar dos funciones
+// para una sola pregunta, o a calcular lo mismo dos veces.
+//
+// Su propio test decía que era "lo mismo que mirar los huecos". Cuando un test tiene que afirmar
+// que una función es redundante, la función es redundante.
