@@ -1,3 +1,4 @@
+import { requerirAdminDePlataforma } from "@/lib/platform-admin"
 import { loadPlatformMetrics, daysAgo, since, countBy } from "@/lib/admin/metrics"
 import { PRICING, costoTokens, fmtUsd } from "@/lib/admin/pricing"
 import {
@@ -12,6 +13,10 @@ import {
 export const metadata = { title: "Admin · Costos" }
 
 export default async function AdminCostosPage() {
+  // ANTES DE CONSULTAR NADA: el layout no alcanza, la página se renderiza en paralelo y sus
+  // datos se serializan en la respuesta aunque el layout devuelva 404. Ver `lib/platform-admin`.
+  await requerirAdminDePlataforma()
+
   const m = await loadPlatformMetrics()
   const d30 = daysAgo(30)
 

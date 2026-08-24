@@ -1,3 +1,4 @@
+import { requerirAdminDePlataforma } from "@/lib/platform-admin"
 import { loadPlatformMetrics, daysAgo, since, countBy } from "@/lib/admin/metrics"
 
 export const metadata = { title: "Admin · Uso IA" }
@@ -42,6 +43,10 @@ function BreakdownCard({ title, entries }: { title: string; entries: [string, nu
 }
 
 export default async function AdminUsoPage() {
+  // ANTES DE CONSULTAR NADA: el layout no alcanza, la página se renderiza en paralelo y sus
+  // datos se serializan en la respuesta aunque el layout devuelva 404. Ver `lib/platform-admin`.
+  await requerirAdminDePlataforma()
+
   const m = await loadPlatformMetrics()
   const d30 = daysAgo(30)
 

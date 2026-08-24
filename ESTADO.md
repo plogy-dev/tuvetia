@@ -426,6 +426,85 @@ notas crédito por factura rompió suposiciones que nadie volvió a mirar (el CU
 guarda de un solo uso, el panel que no volvía a su estado). **Cuando un cambio toca plata, el review
 no puede ser el último paso.**
 
+## Sesión 2026-08-24 — el panel de administración filtraba datos con un 404 de por medio
+
+### 🔴 La fuga
+
+**Cualquiera en internet, sin sesión, podía leer los correos de todos los usuarios y los nombres de
+las clínicas.** Encontrado revisando cómo funcionaba el acceso al panel; nadie lo reportó.
+
+Una petición anónima, sin cookies, contra el despliegue de producción:
+
+```
+GET /admin/usuarios   → HTTP 404, 66 KB de cuerpo, 23 correos REALES adentro
+GET /admin/clinicas   → HTTP 404, 29 KB, nombres de las clínicas
+GET /admin/costos     → HTTP 404, 26 KB, nombres de las clínicas y cifras
+```
+
+Los correos se verificaron contra `auth.users`: existían. **El 404 es lo que lo hacía invisible** —
+la pantalla decía "no existe" mientras el cuerpo traía los datos.
+
+### Por qué pasaba
+
+El gate vivía **sólo** en `admin/layout.tsx`, y su comentario decía «todas las páginas hijas asumen
+este gate». Eso no se puede asumir: en el App Router **el layout y la página se renderizan en
+paralelo**. El `notFound()` del layout corta la interfaz, pero la página ya corrió sus consultas
+—con `service_role`, que se salta la RLS— y sus datos quedan serializados en la respuesta.
+
+**El 404 era de la pantalla, no de los datos.**
+
+Los docs de Next lo advierten, y están en `node_modules`:
+
+> «This pattern is not recommended since Next.js applications have multiple entry points, which will
+> not prevent nested route segments and Server Actions from being accessed.»
+
+### Qué NO estaba comprometido
+
+Las tres server actions del panel —`cambiarActivacion`, `enviarCorreoPlataforma`,
+`enviarCorreoMasivo`— **comprueban cada una por su cuenta** con `adminActual()`. Nadie pudo
+desactivar a nadie ni disparar un envío masivo. La fuga era de **lectura**, y esa distinción es lo
+que la baja de catástrofe a incidente.
+
+### El arreglo (#208), y cómo quedó verificado
+
+`requerirAdminDePlataforma()` en la PRIMERA línea de cada una de las cinco páginas, antes de
+cualquier consulta — después de un `await` de datos no sirve, porque lo que se filtra es justamente
+el resultado de ese await. El layout conserva el suyo: es lo que hace que la navegación muestre un
+404 limpio en vez de un panel a medio pintar. **Van los dos, no uno u otro.**
+
+Medido contra producción después de desplegar, con la misma petición anónima:
+
+| Ruta | Antes | Después |
+|---|---|---|
+| `/admin/usuarios` | 66 KB · 23 correos | **14 KB · 0** |
+| `/admin/clinicas` | 29 KB · 3 clínicas | **14 KB · 0** |
+| `/admin/costos` | 26 KB · 3 clínicas | **14 KB · 0** |
+
+Las cinco quedaron en 14 KB idénticos: el 404 pelado de Next. Con sesión, el panel sigue abriendo
+con sus 18 filas — el arreglo no tocó el uso legítimo.
+
+El cerrojo es `panel-admin-cerrado.test.ts` (12 casos): recorre `src/app/admin/**/page.tsx` y exige
+la llamada **y** que sea el primer `await` del componente. Verificado que muerde en las dos
+direcciones — sin la guarda, 2 rojos; con la guarda movida DESPUÉS de la consulta, 1 rojo, que es el
+caso que parece arreglado y no lo está.
+
+> **Lo que hay que llevarse:** un gate en un layout no protege los datos de sus páginas. Si una
+> pantalla consulta con `service_role`, la comprobación va EN ESA pantalla y antes del primer
+> `await`. Y el 404 no es prueba de nada: hay que mirar el CUERPO de la respuesta.
+
+### Lo demás del día
+
+- **Plantillas de correo revisadas** (#209). La de incidencia decía "de hoy" sin hueco para la fecha
+  —un post-mortem se manda al día siguiente— y `listoParaEnviar()` no la usaba nadie: los dos
+  consumidores necesitan los NOMBRES de los huecos, no un booleano. Lo que se revisó y está bien
+  quedó anotado en el PR para no volver a auditarlo.
+- **Se verificó qué puede hacer un admin de CLÍNICA**, que no es lo mismo que un admin de
+  plataforma: ascender y descender miembros (`cambiar_rol_de_miembro`) y sacarlos de la clínica
+  (`remove_clinic_member`). Las dos son `SECURITY DEFINER`, comparan `auth.uid()` y `clinic_id` y
+  lanzan excepción — **la autorización vive en la base, no en el botón**. Y tienen tres guardas: no
+  cambiarse el rol a uno mismo, no tocar a alguien de otra clínica, y no dejar la clínica sin
+  administrador. El **envío masivo NO es de ellos**: está detrás de `isPlatformAdmin`.
+
 ## Pendientes conocidos
 
 > **Revisado contra el repo el 2026-08-22.** De las diez entradas verificables, **cuatro estaban
@@ -615,6 +694,21 @@ no puede ser el último paso.**
   cross-tenant del backend. **Una sola corrida con la key llena la tabla de resultados del
   documento.** Hasta entonces, sobre si el modelo obedece órdenes ajenas no hay cifra.
 
+- 🟠 **`PLATFORM_ADMIN_EMAILS` pendiente de ampliar** (Vercel, no código). El panel de plataforma se
+  abre por allowlist de correos en esa env var — sin ella no entra nadie, y **el rol de la clínica no
+  da acceso**: un admin de clínica recibe 404. Acordado el 24-ago que entren Luciano, los dos David
+  y las tres cuentas de Santiago Tellez:
+
+  ```
+  lgdecaillet@gmail.com,davidjimenez@glm.edu.co,davidjimenezdroppi@gmail.com,
+  setr7706@gmail.com,santiagotllrz.lab@gmail.com,santiago.tellez@colombiatechweek.co
+  ```
+
+  ⚠️ **Se AÑADEN al valor actual, no lo reemplazan**: pisarlo deja fuera a quien esté hoy, y el gate
+  no tiene otra puerta. Requiere redeploy — es env de servidor. Quedan fuera a propósito
+  `et375173@gmail.com` (es **Edwin** Tellez, otra persona) y `santiagotllrz@gmail.com` ("Santiago 2",
+  rol vet, parece cuenta de prueba).
+
 - 🟠 **Velocidad: lo que queda, en orden de retorno.** Medido el 23-ago (ver §Sesión 2026-08-23).
   1. **Comprobar en qué región están la función de Vercel y el proyecto de Supabase.** Un `getUser()`
      cuesta **265 ms** con Postgres respondiendo en microsegundos: eso es latencia entre regiones.
@@ -638,6 +732,22 @@ no puede ser el último paso.**
 
   **Queda para confirmar con Santiago** si hace falta la vuelta. Si la respuesta es sí, es una
   funcionalidad NUEVA con su riesgo conocido, no un arreglo.
+
+- 🟡 **El producto habla en VOSEO y el prompt del agente exige TUTEO.** Encontrado el 24-ago
+  revisando las plantillas de correo. No es que las plantillas se hayan desviado: la interfaz entera
+  va en voseo —`podés`, `tenés`, `seguís`, `cargá`, `registrá`— y las plantillas también
+  (`escribinos`, `respondé`, `notás`, `preferís`). Quien dice lo contrario es
+  `athos-agent/system-prompt.ts`, citando los docs de marca del cliente:
+
+  > «Español de Colombia, en **tuteo**. Colega clínico senior: cercano, directo, profesional.»
+
+  O sea que hoy conviven dos registros: **Athos tutea y el resto del producto vosea**, y el mismo
+  veterinario recibe los dos. El correo es donde más se nota, porque es lo que se reenvía.
+
+  **NO se tocó: es una decisión de marca, no un defecto.** Y no es obvia — el voseo es propio de
+  Antioquia y del Valle, así que "voseo colombiano" no es una contradicción. Lo que no puede quedar
+  es cada superficie eligiendo por su cuenta. Quien decida, decide para los dos lados; cambiar el
+  prompt del agente pide correr su banco (`docs/AGENT-SMOKE-TESTING.md`).
 
 - 🟡 **El mock del calendario y de pacientes.** Pedido el 23-ago: "depurar esas vistas para
   parecerse al mock". No se pudo empezar porque no hay contra qué comparar: `feat/pacientes-crm-mockup`
