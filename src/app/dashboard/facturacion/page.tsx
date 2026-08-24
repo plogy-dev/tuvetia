@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { TOPE_SIN_FACTURAR, hayMasQueElTope } from '@/lib/facturacion/sin-facturar';
 import {
+  CalendarDays,
   MailWarning,
   Receipt,
   Plus,
@@ -15,7 +16,8 @@ import {
   getUnbilledConsultations,
   getUnsentIssuedCount,
 } from '@/lib/facturacion/queries';
-import { formatCOP, fmtDate } from '@/lib/facturacion/format';
+import { formatCOP, fmtDate, fmtDateTime } from '@/lib/facturacion/format';
+import { terminoBuscable } from '@/lib/facturacion/busqueda-de-ventas';
 import {
   CollectionBadge,
   DeliveryBadge,
@@ -33,7 +35,10 @@ export const metadata = { title: "Ventas · Tuvetia" }
 
 export const dynamic = 'force-dynamic';
 
-type InvoiceWithPayer = InvoiceRow & { payer: { name: string } | null };
+type InvoiceWithPayer = InvoiceRow & {
+  payer: { name: string; doc_type: string | null; doc_number: string | null } | null;
+  usuario: { full_name: string | null } | null;
+};
 
 // ─── Piezas de presentación (estilo mockup app-rediseno-shadcn) ──────────────
 
@@ -47,13 +52,34 @@ function esFecha(v: string | undefined): v is string {
   return typeof v === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(v);
 }
 
+/** Cuántas filas por página ofrece la referencia. Lista cerrada: llega por la URL. */
+const POR_PAGINA = [10, 25, 50, 100];
+
+/** Hoy en Bogotá, `YYYY-MM-DD`. La clínica factura en su hora, no en UTC. */
+function hoyEnBogota(): string {
+  return new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Bogota' }).format(new Date());
+}
+
 const TH_BASE =
   'border-b border-line-soft px-3.5 py-[9px] text-left text-[11px] font-semibold uppercase tracking-[0.06em] text-muted-foreground';
 
 // Los filtros viajan por la URL y no por estado de cliente: así una búsqueda se puede compartir,
 // se puede volver con el botón de atrás, y la pantalla sigue siendo un componente de servidor sin
 // una sola línea de JavaScript enviada al navegador.
-type FiltrosDeVentas = Promise<{ desde?: string; hasta?: string; tipo?: string; estado?: string }>;
+type FiltrosDeVentas = Promise<{
+  desde?: string;
+  hasta?: string;
+  tipo?: string;
+  estado?: string;
+  /** Texto libre: número de documento o nombre del cliente. */
+  q?: string;
+  /** Cuántas filas por página. */
+  n?: string;
+  /** Página, 1-based. */
+  p?: string;
+  /** `todo=1` apaga el «Hoy» por defecto y muestra el histórico. */
+  todo?: string;
+}>;
 
 export default async function FacturacionPage({ searchParams }: { searchParams: FiltrosDeVentas }) {
   const f = await searchParams;
@@ -68,24 +94,68 @@ export default async function FacturacionPage({ searchParams }: { searchParams: 
   // `getDashboardKpis` se fue con las tarjetas: era un agregado sobre TODO el historial que ahora
   // no se pinta en ningún lado de esta pantalla. Las cifras viven en Finanzas, que las calcula por
   // su cuenta. Un viaje de red menos en la ruta más visitada de la zona.
-  const [settings, { data }, unbilled, unsentCount] = await Promise.all([
+  // ── EL RANGO ARRANCA EN «HOY», como la referencia ───────────────────────────────────────────
+  //
+  // OkVet abre su libro de ventas con el chip «Hoy: <fecha>» puesto, no con el histórico. Tiene
+  // sentido para un mostrador: lo que se mira veinte veces al día es lo de HOY. El histórico está a
+  // un clic («Ver todo») y el chip dice en letra grande qué se está mirando, para que nadie crea
+  // que se le perdieron las facturas.
+  const verTodo = f.todo === '1';
+  const hoy = hoyEnBogota();
+  const desde = esFecha(f.desde) ? f.desde : verTodo ? undefined : hoy;
+  const hasta = esFecha(f.hasta) ? f.hasta : verTodo ? undefined : hoy;
+
+  const busqueda = terminoBuscable(f.q);
+  const porPagina = POR_PAGINA.includes(Number(f.n)) ? Number(f.n) : 10;
+  const pagina = Math.max(1, Math.floor(Number(f.p)) || 1);
+
+  // Buscar por NOMBRE DEL CLIENTE necesita resolver antes qué pagadores coinciden: el nombre vive
+  // en otra tabla, y filtrar sobre el recurso embebido exigiría un `!inner` que dejaría fuera las
+  // ventas de mostrador (las que no tienen pagador). Un viaje extra, y sólo cuando se busca.
+  let pagadoresQueCoinciden: string[] = [];
+  if (busqueda) {
+    const { data: ps } = await supabase
+      .from('billing_payers')
+      .select('id')
+      .eq('clinic_id', clinicId)
+      .ilike('name', `%${busqueda}%`)
+      .limit(200);
+    pagadoresQueCoinciden = (ps ?? []).map((x) => (x as { id: string }).id);
+  }
+
+  const [settings, { data, count }, unbilled, unsentCount] = await Promise.all([
     getBillingSettings(supabase, clinicId),
     (() => {
-      // SE FILTRA EN LA BASE, no en memoria: el tope de 100 se aplica DESPUÉS del filtro, así que
-      // buscar una factura de marzo entre miles la encuentra. Filtrando en JS sobre las últimas
-      // 100, marzo simplemente no estaría.
+      // SE FILTRA Y SE PAGINA EN LA BASE, no en memoria: la página que se pide es la que se trae.
+      // Filtrando en JS sobre las últimas 100, una factura de marzo simplemente no estaría.
       let q = supabase
         .from('invoices')
-        .select('*, payer:billing_payers(name)')
+        .select(
+          '*, payer:billing_payers!invoices_payer_id_fkey(name, doc_type, doc_number), usuario:profiles!invoices_created_by_fkey(full_name)',
+          { count: 'exact' },
+        )
         .eq('clinic_id', clinicId);
       // Los valores vienen de la URL, o sea de fuera: se comparan contra las listas cerradas de
-      // abajo antes de tocar la consulta. Un `estado=<script>` no llega a Postgres.
+      // arriba antes de tocar la consulta. Un `estado=<script>` no llega a Postgres.
       if (f.tipo && DOC_KINDS.includes(f.tipo)) q = q.eq('doc_kind', f.tipo);
       if (f.estado && ESTADOS.includes(f.estado)) q = q.eq('status', f.estado);
-      if (esFecha(f.desde)) q = q.gte('created_at', `${f.desde}T00:00:00-05:00`);
+      if (desde) q = q.gte('created_at', `${desde}T00:00:00-05:00`);
       // `hasta` es INCLUSIVO: quien escribe 31 de agosto espera que entren las de ese día.
-      if (esFecha(f.hasta)) q = q.lte('created_at', `${f.hasta}T23:59:59-05:00`);
-      return q.order('created_at', { ascending: false }).limit(100);
+      if (hasta) q = q.lte('created_at', `${hasta}T23:59:59-05:00`);
+      if (busqueda) {
+        // El término ya pasó por `terminoBuscable`, así que no puede traer la coma ni el paréntesis
+        // que romperían la gramática del `or`. Los uuid son nuestros, salen de la consulta de
+        // arriba.
+        const porNumero = `full_number.ilike.*${busqueda}*`;
+        q = q.or(
+          pagadoresQueCoinciden.length > 0
+            ? `${porNumero},payer_id.in.(${pagadoresQueCoinciden.join(',')})`
+            : porNumero,
+        );
+      }
+      return q
+        .order('created_at', { ascending: false })
+        .range((pagina - 1) * porPagina, pagina * porPagina - 1);
     })(),
     getUnbilledConsultations(supabase, clinicId, { limit: 25 }),
     getUnsentIssuedCount(supabase, clinicId),
@@ -135,7 +205,28 @@ export default async function FacturacionPage({ searchParams }: { searchParams: 
 
   // ── Módulo activo: lista + avisos + puente CRM ────────────────────────────
   const invoices = (data as InvoiceWithPayer[] | null) ?? [];
-  const hayFiltro = Boolean(f.desde || f.hasta || f.tipo || f.estado);
+  const total = count ?? 0;
+  const hayFiltro = Boolean(f.desde || f.hasta || f.tipo || f.estado || busqueda);
+  const ultimaPagina = Math.max(1, Math.ceil(total / porPagina));
+
+  /** Conserva los filtros al cambiar de página o de tamaño. */
+  function conFiltros(cambios: Record<string, string | undefined>): string {
+    const p = new URLSearchParams();
+    const base: Record<string, string | undefined> = {
+      desde: f.desde,
+      hasta: f.hasta,
+      tipo: f.tipo,
+      estado: f.estado,
+      q: busqueda || undefined,
+      n: String(porPagina),
+      p: String(pagina),
+      todo: verTodo ? '1' : undefined,
+      ...cambios,
+    };
+    for (const [k, v] of Object.entries(base)) if (v) p.set(k, v);
+    const qs = p.toString();
+    return qs ? `/dashboard/facturacion?${qs}` : '/dashboard/facturacion';
+  }
   // Una sola fuente de verdad para una afirmación FISCAL: el rango de numeración activo (igual que
   // configuración). La heurística anterior (startsWith('S') sobre las últimas 100 facturas) daba
   // falso "sin validez fiscal" con prefijos legítimos tipo SETP y con cero facturas emitidas.
@@ -153,18 +244,21 @@ export default async function FacturacionPage({ searchParams }: { searchParams: 
   return (
     <PageShell>
         <PageHeader
-          title="Ventas"
-          description={`Factura electrónica DIAN · ${monthLabel}`}
+          title="Ventas, recibos y facturas"
+          description={`Documentos · ${monthLabel}`}
           actions={
             <>
-              {/* UNA sola acción destacada, como en la referencia. Los cinco destinos —Finanzas,
-                  Cartera, Inventario, Catálogo, Configuración— se fueron al menú: no son acciones,
-                  y con el mismo peso que «Nueva factura» convertían la cabecera en una pared de
-                  seis opciones donde la que sirve para cobrar era la última. */}
+              {/* EL MENÚ SE QUEDA, y no es un descuido de la copia.
+                  En OkVet este `···` sólo trae «Unificador de cuentas» porque sus destinos
+                  —administración, informes— viven en la barra de navegación global. Acá la barra
+                  lateral tiene UNA entrada de Ventas y nada más, así que Finanzas, Cartera,
+                  Inventario, Catálogo y Configuración sólo se alcanzan desde esta cabecera:
+                  quitarlas dejaría cinco pantallas sin puerta. Subirlas a la barra lateral toca el
+                  orden que definió Luciano el 19-ago, y esa no es una decisión de este cambio. */}
               <MenuDeVentas />
               <Button render={<Link href="/dashboard/facturacion/nueva" />}>
                 <Plus aria-hidden />
-                Nueva factura
+                Registrar venta
               </Button>
             </>
           }
@@ -233,6 +327,35 @@ export default async function FacturacionPage({ searchParams }: { searchParams: 
 
             Es un `form` GET, sin JavaScript: el navegador arma la query, la página sigue siendo de
             servidor, y el resultado se puede compartir o volver con el botón de atrás. */}
+        {/* QUÉ SE ESTÁ MIRANDO, en letra grande y antes que los filtros. Sin esto, abrir en
+            «hoy» se lee como que se perdieron las facturas viejas. */}
+        <div className="mb-3 flex flex-wrap items-center gap-2 text-sm">
+          <span className="inline-flex items-center gap-1.5 rounded-lg bg-secondary px-3 py-1.5 font-medium text-fg">
+            <CalendarDays className="size-3.5" aria-hidden />
+            {verTodo
+              ? 'Todo el histórico'
+              : desde === hasta
+                ? `Hoy: ${fmtDate(`${desde}T12:00:00-05:00`)}`
+                : `${fmtDate(`${desde}T12:00:00-05:00`)} — ${fmtDate(`${hasta}T12:00:00-05:00`)}`}
+          </span>
+          {!verTodo && !f.desde && !f.hasta && (
+            <Link
+              href={conFiltros({ todo: '1', p: '1' })}
+              className="text-fg-muted underline underline-offset-2 hover:text-fg"
+            >
+              Ver todo
+            </Link>
+          )}
+          {verTodo && (
+            <Link
+              href={conFiltros({ todo: undefined, desde: undefined, hasta: undefined, p: '1' })}
+              className="text-fg-muted underline underline-offset-2 hover:text-fg"
+            >
+              Volver a hoy
+            </Link>
+          )}
+        </div>
+
         <FormularioDeFiltros
           action="/dashboard/facturacion"
           className="mb-3 flex flex-wrap items-end gap-2"
@@ -280,6 +403,10 @@ export default async function FacturacionPage({ searchParams }: { searchParams: 
               <option value="ANULADA">Anulada</option>
             </select>
           </label>
+          {/* Se arrastran para que filtrar no borre la búsqueda ni devuelva la página a 10. */}
+          {busqueda && <input type="hidden" name="q" value={busqueda} />}
+          {porPagina !== 10 && <input type="hidden" name="n" value={porPagina} />}
+          {verTodo && <input type="hidden" name="todo" value="1" />}
           <Button type="submit" variant="outline" className="h-9">
             Filtrar
           </Button>
@@ -295,6 +422,53 @@ export default async function FacturacionPage({ searchParams }: { searchParams: 
 
         {/* ── Tabla de facturas ── */}
         <div className="mb-[14px] overflow-hidden rounded-lg border border-line-soft bg-card">
+          {/* Barra de la tabla: cuántas filas a la izquierda, buscar a la derecha.
+              «Mostrar» va como ENLACES y no como `select`: sin JavaScript un select no aplica solo,
+              y en la referencia el cambio es inmediato. Un enlace navega y ya. */}
+          <div className="flex flex-wrap items-center justify-between gap-3 border-b border-line-soft px-3.5 py-2.5 text-[12.5px]">
+            <div className="flex items-center gap-1.5 text-fg-muted">
+              <span>Mostrar</span>
+              {POR_PAGINA.map((n) => (
+                <Link
+                  key={n}
+                  href={conFiltros({ n: String(n), p: '1' })}
+                  aria-current={n === porPagina ? 'page' : undefined}
+                  className={
+                    n === porPagina
+                      ? 'rounded-md bg-secondary px-2 py-0.5 font-medium text-fg'
+                      : 'rounded-md px-2 py-0.5 hover:bg-accent'
+                  }
+                >
+                  {n}
+                </Link>
+              ))}
+              <span>registros</span>
+            </div>
+            <FormularioDeFiltros
+              action="/dashboard/facturacion"
+              className="flex items-center gap-2"
+            >
+              {/* Los filtros del rango viajan escondidos: buscar no debería descartar el rango que
+                  la persona ya eligió. */}
+              {f.desde && <input type="hidden" name="desde" value={f.desde} />}
+              {f.hasta && <input type="hidden" name="hasta" value={f.hasta} />}
+              {f.tipo && <input type="hidden" name="tipo" value={f.tipo} />}
+              {f.estado && <input type="hidden" name="estado" value={f.estado} />}
+              {verTodo && <input type="hidden" name="todo" value="1" />}
+              {porPagina !== 10 && <input type="hidden" name="n" value={porPagina} />}
+              <label htmlFor="buscar" className="text-fg-muted">
+                Buscar:
+              </label>
+              <input
+                id="buscar"
+                name="q"
+                type="search"
+                defaultValue={busqueda}
+                placeholder="Número o cliente"
+                className="h-8 rounded-lg border border-line bg-surface px-2.5 text-sm text-fg placeholder:text-fg-faint"
+              />
+            </FormularioDeFiltros>
+          </div>
           {invoices.length === 0 ? (
             hayFiltro ? (
             <div className="flex flex-col items-center gap-2 px-4 py-12 text-center">
@@ -302,8 +476,15 @@ export default async function FacturacionPage({ searchParams }: { searchParams: 
                   nada se lee como que se perdieron los datos. */}
               <p className="text-base font-medium text-fg">Ninguna factura con esos filtros</p>
               <p className="max-w-sm text-sm text-fg-muted">
-                Probá ampliar el rango de fechas, o quitá el tipo de documento y el estado.
+                {verTodo
+                  ? 'Probá con otro rango de fechas, o quitá el tipo de documento y el estado.'
+                  : 'La lista arranca en HOY. Mirá todo el histórico o cambiá el rango.'}
               </p>
+              {!verTodo && (
+                <Button render={<Link href={conFiltros({ todo: '1', p: '1' })} />} className="mt-2">
+                  Ver todo el histórico
+                </Button>
+              )}
               <Button
                 render={<Link href="/dashboard/facturacion" />}
                 variant="outline"
@@ -331,15 +512,20 @@ export default async function FacturacionPage({ searchParams }: { searchParams: 
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full border-collapse text-[13px]">
+{/* LAS COLUMNAS SON LAS DE LA REFERENCIA, en su orden:
+                    Opciones · Identificación/Cliente · Valor · Pagos · Estado · Usuario · Actualizado.
+                    «Opciones» va primero y lleva el número del documento como etiqueta del enlace:
+                    es a la vez el asa de la fila y el identificador fiscal, que en un libro de
+                    ventas no se puede perder. */}
                 <thead>
                   <tr>
-                    <th className={TH_BASE}>Factura</th>
-                    <th className={TH_BASE}>Cliente</th>
-                    <th className={TH_BASE}>Fecha</th>
-                    <th className={TH_BASE}>Estado</th>
-                    <th className={TH_BASE}>Fiscal · Recaudo · Envío</th>
+                    <th className={TH_BASE}>Opciones</th>
+                    <th className={TH_BASE}>Identificación/Cliente</th>
                     <th className={`${TH_BASE} text-right`}>Valor</th>
-                    <th className={`${TH_BASE} text-right`}>Saldo</th>
+                    <th className={`${TH_BASE} text-right`}>Pagos</th>
+                    <th className={TH_BASE}>Estado</th>
+                    <th className={TH_BASE}>Usuario</th>
+                    <th className={TH_BASE}>Actualizado</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -357,17 +543,27 @@ export default async function FacturacionPage({ searchParams }: { searchParams: 
                           {i.full_number ?? `Borrador · ${i.doc_kind === 'POS' ? 'POS' : 'FV'}`}
                         </Link>
                       </td>
-                      <td className="px-3.5 py-[11px] align-middle font-semibold text-fg">
-                        {i.payer?.name ?? '—'}
-                      </td>
-                      <td className="px-3.5 py-[11px] align-middle font-mono text-xs tabular-nums text-fg-muted">
-                        {fmtDate(i.issued_at ?? i.created_at)}
-                      </td>
                       <td className="px-3.5 py-[11px] align-middle">
-                        <LifecycleBadge status={i.status} />
+                        <span className="block font-semibold text-fg">
+                          {i.payer?.name ?? 'Venta a persona indeterminada'}
+                        </span>
+                        {i.payer?.doc_number && (
+                          <span className="block font-mono text-[11px] tabular-nums text-fg-faint">
+                            {i.payer.doc_type ?? 'CC'} {i.payer.doc_number}
+                          </span>
+                        )}
+                      </td>
+                      <td className="px-3.5 py-[11px] text-right align-middle font-mono text-xs tabular-nums text-fg">
+                        {formatCOP(i.total_cents)}
+                      </td>
+                      <td className="px-3.5 py-[11px] text-right align-middle font-mono text-xs tabular-nums text-fg-muted">
+                        {/* Lo PAGADO, no el saldo: es la columna «Pagos» de la referencia. El saldo
+                            se lee restando, y en un borrador todavía no hay nada que pagar. */}
+                        {i.status === 'EMITIDA' ? formatCOP(i.paid_cents) : '—'}
                       </td>
                       <td className="px-3.5 py-[11px] align-middle">
                         <span className="inline-flex flex-wrap gap-1">
+                          <LifecycleBadge status={i.status} />
                           <FiscalBadge status={i.fiscal_status} />
                           {i.status === 'EMITIDA' && (
                             <>
@@ -377,16 +573,52 @@ export default async function FacturacionPage({ searchParams }: { searchParams: 
                           )}
                         </span>
                       </td>
-                      <td className="px-3.5 py-[11px] text-right align-middle font-mono text-xs tabular-nums text-fg">
-                        {formatCOP(i.total_cents)}
+                      <td className="px-3.5 py-[11px] align-middle text-fg-muted">
+                        {i.usuario?.full_name ?? '—'}
                       </td>
-                      <td className="px-3.5 py-[11px] text-right align-middle font-mono text-xs tabular-nums text-fg-muted">
-                        {i.status === 'EMITIDA' ? formatCOP(i.balance_cents) : '—'}
+                      <td className="px-3.5 py-[11px] align-middle font-mono text-xs tabular-nums text-fg-muted">
+                        {fmtDateTime(i.updated_at)}
                       </td>
                     </TrLink>
                   ))}
                 </tbody>
               </table>
+            </div>
+          )}
+
+          {/* Paginación: `Anterior` · `Siguiente`, como la referencia. Van como enlaces para que la
+              pantalla siga siendo de servidor y para que una página se pueda compartir. */}
+          {total > 0 && (
+            <div className="flex flex-wrap items-center justify-between gap-3 border-t border-line-soft px-3.5 py-2.5 text-[12.5px] text-fg-muted">
+              <span>
+                {`Mostrando ${(pagina - 1) * porPagina + 1} a ${Math.min(pagina * porPagina, total)} de ${total} ${total === 1 ? 'registro' : 'registros'}`}
+              </span>
+              <div className="flex items-center gap-1.5">
+                {pagina > 1 ? (
+                  <Link
+                    href={conFiltros({ p: String(pagina - 1) })}
+                    className="rounded-md border border-line-soft px-2.5 py-1 hover:bg-accent"
+                  >
+                    Anterior
+                  </Link>
+                ) : (
+                  <span className="rounded-md border border-line-soft px-2.5 py-1 opacity-50">
+                    Anterior
+                  </span>
+                )}
+                {pagina < ultimaPagina ? (
+                  <Link
+                    href={conFiltros({ p: String(pagina + 1) })}
+                    className="rounded-md border border-line-soft px-2.5 py-1 hover:bg-accent"
+                  >
+                    Siguiente
+                  </Link>
+                ) : (
+                  <span className="rounded-md border border-line-soft px-2.5 py-1 opacity-50">
+                    Siguiente
+                  </span>
+                )}
+              </div>
             </div>
           )}
         </div>
