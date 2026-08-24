@@ -13,16 +13,27 @@ import "server-only"
 //      calendario personal de un vet —19.649 filas "Comer"/"Trabajo"/"Dormir" contra 21 citas
 //      reales— a la agenda de la clínica. Sin lectura ese problema no puede repetirse: no es un
 //      filtro mejor, es que el canal no existe. Por eso acá sólo hay crear, actualizar y borrar.
-//   2. EL EVENTO VIVE EN EL CALENDARIO DEL ADMINISTRADOR DE LA CLÍNICA, y el veterinario asignado va
-//      INVITADO, igual que el titular — como cuando llega una invitación a una reunión. Antes el
-//      evento iba al calendario del vet asignado y el administrador —que es quien agenda y quien
-//      mira la agenda— no lo veía en ningún lado; se reportó como "no crea nada" cuando sí creaba.
+//   2. EL EVENTO VIVE EN EL CALENDARIO DEL VETERINARIO ASIGNADO (v5), con el administrador de la
+//      clínica como respaldo si esa persona no conectó el suyo. Y van INVITADOS el titular, TODOS
+//      los administradores y quien creó la cita.
+//
+//      v3 ya había puesto el evento en el calendario del vet y se revirtió porque el administrador
+//      no lo veía en ningún lado — se reportó como "no crea nada" cuando sí creaba. Lo que arregla
+//      eso no es devolverle el evento al admin (v4): es invitarlos a todos. Así el admin sigue
+//      teniendo la clínica entera en su calendario y el vet además tiene la suya. Quién hospeda y
+//      quién va invitado se decide en `lib/agenda/destinatarios.ts`, que es puro y está probado.
 //
 // OJO CON MICROSOFT: el calendario de Outlook vive en el MISMO toolkit que el correo de Outlook, así
 // que una sola cuenta conectada sirve para los dos. Conectar o desconectar Microsoft afecta a ambos,
 // y eso tiene que quedar dicho en la pantalla — no es un detalle de implementación.
 
 import { createAdminClient } from "@/lib/supabase/admin"
+import {
+  candidatosAAnfitrion,
+  correosDeInvitados,
+  direccionDeLaClinica,
+  perfilesAInvitar,
+} from "@/lib/agenda/destinatarios"
 
 import { cuentasDe, desconectarDe, ejecutarTool, enlazar } from "./cliente"
 
@@ -41,6 +52,17 @@ export interface EventoACrear {
   inicio: string
   fin: string
   invitados: string[]
+  /**
+   * La dirección de la clínica. Va al campo de ubicación del evento, que es lo que el teléfono del
+   * titular convierte en un enlace a mapas.
+   *
+   * SE MANDA ADEMÁS EN EL CUERPO (ver `eventoDe`), y es a propósito: `location` es el único
+   * parámetro de esta capa que NO pudimos verificar contra la API —las dos tools lo declaran, pero
+   * el resto de este archivo salió de probar cada nombre contra el proveedor y esto no— así que si
+   * alguno lo ignora, la dirección igual le llega al titular. Una invitación sin dirección es
+   * exactamente el problema que este campo vino a resolver; que aparezca dos veces, no.
+   */
+  ubicacion?: string
 }
 
 interface AdaptadorCalendario {
@@ -95,6 +117,7 @@ function argsDeGoogle(e: EventoACrear): Record<string, unknown> {
     calendar_id: "primary",
     summary: e.titulo,
     ...(e.descripcion ? { description: e.descripcion } : {}),
+    ...(e.ubicacion ? { location: e.ubicacion } : {}),
     start_datetime: fechaSinZona(e.inicio),
     end_datetime: fechaSinZona(e.fin),
     timezone: "UTC",
@@ -147,6 +170,7 @@ const OUTLOOK: AdaptadorCalendario = {
       // rechace la cita por un campo vacío.
       body: e.descripcion || e.titulo,
       is_html: false,
+      ...(e.ubicacion ? { location: e.ubicacion } : {}),
       start_datetime: fechaSinZona(e.inicio),
       end_datetime: fechaSinZona(e.fin),
       time_zone: "UTC",
@@ -161,6 +185,7 @@ const OUTLOOK: AdaptadorCalendario = {
       event_id: eventId,
       subject: e.titulo,
       body: { contentType: "Text", content: e.descripcion || e.titulo },
+      ...(e.ubicacion ? { location: e.ubicacion } : {}),
       start_datetime: fechaSinZona(e.inicio),
       end_datetime: fechaSinZona(e.fin),
       time_zone: "UTC",
@@ -204,6 +229,17 @@ export interface EstadoCalendario {
   proveedor: ProveedorCalendario | null
   /** Si desconectarlo también le saca el correo a Athos (Microsoft: misma cuenta). */
   compartidoConElCorreo: boolean
+  /**
+   * No se pudo AVERIGUAR si hay conexión (Composio no respondió), que no es lo mismo que "no hay".
+   *
+   * La distinción no importaba mientras esto sólo pintaba una pantalla: en la duda, se muestra el
+   * botón de conectar y listo. Con v5 sí importa, porque hay un calendario de RESPALDO: leer un
+   * error de red como "el vet no conectó nada" haría que un corte pasajero de Composio **mude el
+   * evento** al calendario del administrador —borrándolo del de la persona y volviendo a notificar
+   * a todos los invitados— para devolverlo cuando el servicio vuelva. `empujarCita` lo trata como
+   * fallo y no toca nada.
+   */
+  indeterminado?: boolean
 }
 
 /**
@@ -235,7 +271,9 @@ export async function estadoCalendario(userId: string): Promise<EstadoCalendario
     }
   } catch (e) {
     console.error(`[composio/calendario] no se pudo consultar la conexión de ${userId}:`, e)
-    return sinConexion
+    // Para la UI sigue siendo "sin conexión" —mostrar el botón de conectar es el default seguro—
+    // pero queda marcado como indeterminado para que `empujarCita` no lo confunda con un "no".
+    return { ...sinConexion, indeterminado: true }
   }
 }
 
@@ -280,68 +318,84 @@ type CitaParaSincronizar = {
   ends_at: string
   owner_id: string | null
   vet_id: string | null
+  /** Quién la agendó. Va invitado aunque no sea el vet asignado ni administrador. */
+  created_by: string | null
   google_event_id: string | null
   microsoft_event_id: string | null
   calendar_owner_id: string | null
 }
 
-/**
- * De quién es el calendario de una clínica: su administrador.
- *
- * `clinics.owner_id` (migración 0048) es quien creó la clínica. Se cae a cualquier perfil con rol
- * `admin` porque las clínicas creadas antes de esa migración no tienen `owner_id`, y sin este
- * respaldo sus citas no llegarían a ningún calendario sin ningún motivo visible.
- */
-async function calendarioDeLaClinica(admin: AdminClient, clinicId: string): Promise<string | null> {
-  const { data: clinica } = await admin
-    .from("clinics")
-    .select("owner_id")
-    .eq("id", clinicId)
-    .maybeSingle()
-  const owner = (clinica as { owner_id: string | null } | null)?.owner_id
-  if (owner) return owner
-
-  const { data: perfil } = await admin
-    .from("profiles")
-    .select("id")
-    .eq("clinic_id", clinicId)
-    .eq("role", "admin")
-    .limit(1)
-    .maybeSingle()
-  return (perfil as { id: string } | null)?.id ?? null
+/** Los datos de la clínica que necesita el evento: quién la administra y dónde queda. */
+type DatosDeLaClinica = {
+  /** El administrador de respaldo: hospeda el evento si el vet asignado no conectó calendario. */
+  administrador: string | null
+  /** Todos los administradores. Van invitados SIEMPRE, sea quien sea el anfitrión. */
+  adminIds: string[]
+  direccion: string | null
 }
 
 /**
- * Correos del titular y del veterinario asignado, para invitarlos.
+ * Quién administra la clínica y dónde queda.
  *
- * Cualquiera de los dos puede faltar (un titular sin correo cargado): se omite en vez de hacer
- * fallar el push, porque la cita en el calendario vale aunque falte una invitación.
+ * `clinics.owner_id` (migración 0048) es quien la creó, y es el anfitrión de respaldo. Se cae a
+ * cualquier perfil con rol `admin` porque las clínicas creadas antes de esa migración no tienen
+ * `owner_id`, y sin este respaldo sus citas no llegarían a ningún calendario sin motivo visible.
+ *
+ * `adminIds` es OTRA COSA y por eso se trae aparte: son todos los administradores, que van
+ * invitados sin importar en el calendario de quién termine el evento. Es lo que sostiene que "el
+ * admin ve el calendario completo" ahora que el evento puede vivir en la agenda de un vet.
  */
-async function invitados(
-  admin: AdminClient,
-  ownerId: string | null,
-  vetId: string | null,
-): Promise<string[]> {
-  const emails: string[] = []
-  if (ownerId) {
-    const { data } = await admin.from("owners").select("email").eq("id", ownerId).maybeSingle()
-    const email = (data as { email: string | null } | null)?.email
-    if (email) emails.push(email)
+async function datosDeLaClinica(admin: AdminClient, clinicId: string): Promise<DatosDeLaClinica> {
+  const [{ data: clinica }, { data: perfiles }] = await Promise.all([
+    admin.from("clinics").select("owner_id, address, city").eq("id", clinicId).maybeSingle(),
+    admin.from("profiles").select("id").eq("clinic_id", clinicId).eq("role", "admin"),
+  ])
+  const c = clinica as { owner_id: string | null; address: string | null; city: string | null } | null
+  const adminIds = ((perfiles as { id: string }[] | null) ?? []).map((p) => p.id)
+  return {
+    administrador: c?.owner_id ?? adminIds[0] ?? null,
+    // El dueño puede no tener rol `admin` en clínicas viejas; se suma igual porque es quien la
+    // administra de hecho, y `perfilesAInvitar` deduplica.
+    adminIds: c?.owner_id ? [...new Set([c.owner_id, ...adminIds])] : adminIds,
+    direccion: direccionDeLaClinica(c),
   }
-  if (vetId) {
-    const { data } = await admin.auth.admin.getUserById(vetId)
-    if (data.user?.email) emails.push(data.user.email)
-  }
-  return emails
 }
 
-function eventoDe(a: CitaParaSincronizar, emails: string[]): EventoACrear {
+/** El correo del titular. Puede no estar cargado: entonces no se lo invita y la cita se crea igual. */
+async function correoDelTitular(admin: AdminClient, ownerId: string | null): Promise<string | null> {
+  if (!ownerId) return null
+  const { data } = await admin.from("owners").select("email").eq("id", ownerId).maybeSingle()
+  return (data as { email: string | null } | null)?.email ?? null
+}
+
+/**
+ * Los correos de un puñado de perfiles.
+ *
+ * Va de a uno con `getUserById` porque el correo vive en `auth.users`, que PostgREST no expone: no
+ * hay forma de pedirlos en una sola consulta sin una vista o una RPC. Son pocos —los admins de una
+ * clínica, el vet asignado y quien creó la cita, ya deduplicados— y se piden en paralelo.
+ */
+async function correosDePerfiles(admin: AdminClient, ids: string[]): Promise<(string | null)[]> {
+  return Promise.all(
+    ids.map(async (id) => {
+      const { data } = await admin.auth.admin.getUserById(id)
+      return data.user?.email ?? null
+    }),
+  )
+}
+
+function eventoDe(a: CitaParaSincronizar, emails: string[], direccion: string | null): EventoACrear {
+  // La dirección va también en el cuerpo, además del campo de ubicación. Ver `EventoACrear.ubicacion`:
+  // `location` es el único parámetro de esta capa sin verificar contra la API, y una invitación sin
+  // dirección es justamente lo que hay que evitar.
+  const cuerpo = [a.reason, a.notes, direccion ? `Dirección: ${direccion}` : null].filter(Boolean)
   return {
     titulo: a.title,
-    descripcion: [a.reason, a.notes].filter(Boolean).join("\n\n") || undefined,
+    descripcion: cuerpo.join("\n\n") || undefined,
     inicio: a.starts_at,
     fin: a.ends_at,
     invitados: emails,
+    ...(direccion ? { ubicacion: direccion } : {}),
   }
 }
 
@@ -370,23 +424,24 @@ export type MotivoSinEvento = "sin-administrador" | "sin-calendario"
 export type ResultadoEmpuje = { eventId: string | null; motivo: MotivoSinEvento | null }
 
 /**
- * Crea o actualiza el evento en el calendario del ADMINISTRADOR de la clínica, invitando al titular
- * y al veterinario asignado.
+ * Crea o actualiza el evento en el calendario del VETERINARIO ASIGNADO —con el del administrador de
+ * respaldo— invitando al titular, a todos los administradores y a quien la agendó.
  */
 export async function empujarCita(appointmentId: string): Promise<ResultadoEmpuje> {
   const admin = createAdminClient()
   const { data } = await admin
     .from("appointments")
     .select(
-      "id, clinic_id, title, reason, notes, starts_at, ends_at, owner_id, vet_id, google_event_id, microsoft_event_id, calendar_owner_id",
+      "id, clinic_id, title, reason, notes, starts_at, ends_at, owner_id, vet_id, created_by, google_event_id, microsoft_event_id, calendar_owner_id",
     )
     .eq("id", appointmentId)
     .maybeSingle()
   if (!data) return { eventId: null, motivo: null }
   const a = data as CitaParaSincronizar
 
-  const admiDeLaClinica = await calendarioDeLaClinica(admin, a.clinic_id)
-  if (!admiDeLaClinica) return { eventId: null, motivo: "sin-administrador" }
+  const clinica = await datosDeLaClinica(admin, a.clinic_id)
+  const candidatos = candidatosAAnfitrion(a.vet_id, clinica.administrador)
+  if (!candidatos.length) return { eventId: null, motivo: "sin-administrador" }
 
   // Dónde vive hoy el evento, si vive en algún lado. El proveedor sale de QUÉ COLUMNA tiene el id,
   // no de la conexión actual: la conexión pudo cambiar desde que se creó.
@@ -396,22 +451,45 @@ export async function empujarCita(appointmentId: string): Promise<ResultadoEmpuj
       ? { id: a.microsoft_event_id, proveedor: "outlook" }
       : null
 
-  const { proveedor } = await estadoCalendario(admiDeLaClinica)
+  // EL PRIMER CANDIDATO QUE TENGA CALENDARIO CONECTADO se queda con el evento. Se pregunta de a uno
+  // y se corta al primero: son dos consultas a Composio en el peor caso, y la segunda sólo ocurre
+  // cuando el vet asignado no conectó nada.
+  let anfitrion: string | null = null
+  let proveedor: ProveedorCalendario | null = null
+  for (const candidato of candidatos) {
+    const estado = await estadoCalendario(candidato)
+    // NO SABER si hay conexión no es lo mismo que no tenerla, y acá la diferencia se paga cara: si
+    // Composio no contesta y esto lo leyera como "el vet no conectó nada", el evento se MUDARÍA al
+    // calendario del administrador —borrándose del de la persona y volviendo a notificar a todos—
+    // para regresar cuando el servicio vuelva. Se corta antes de tocar nada; la cita ya está
+    // guardada en Tuvetia y quien llama muestra el error.
+    if (estado.indeterminado) {
+      throw new Error(
+        "No se pudo consultar el calendario ahora mismo. La cita quedó guardada; volvé a guardarla en un momento para copiarla al calendario.",
+      )
+    }
+    if (estado.proveedor) {
+      anfitrion = candidato
+      proveedor = estado.proveedor
+      break
+    }
+  }
 
-  // Hay que sacar el evento de donde está si cambió el administrador, o si cambió el proveedor del
-  // calendario. Si no, queda un fantasma en una agenda que ya no tiene nada que ver con esta cita.
+  // Hay que sacar el evento de donde está si cambió el anfitrión —porque se reasignó la cita a otro
+  // veterinario, o porque el vet conectó su calendario y la cita deja de vivir en el del admin— o si
+  // cambió el proveedor. Si no, queda un fantasma en una agenda que ya no tiene que ver con la cita.
   const mudanza = Boolean(
     previo &&
       a.calendar_owner_id &&
-      (a.calendar_owner_id !== admiDeLaClinica || previo.proveedor !== proveedor),
+      (a.calendar_owner_id !== anfitrion || previo.proveedor !== proveedor),
   )
   if (mudanza && previo) {
     await limpiarEvento(a.calendar_owner_id as string, previo.id, previo.proveedor)
   }
 
-  if (!proveedor) {
-    // El administrador no conectó calendario. Si veníamos de otro, allá ya se limpió: se olvidan los
-    // ids para no dejar la fila apuntando a un evento que ya no existe.
+  if (!anfitrion || !proveedor) {
+    // Ni el vet asignado ni el administrador conectaron calendario. Si veníamos de otro, allá ya se
+    // limpió: se olvidan los ids para no dejar la fila apuntando a un evento que ya no existe.
     if (mudanza) {
       await admin
         .from("appointments")
@@ -422,14 +500,27 @@ export async function empujarCita(appointmentId: string): Promise<ResultadoEmpuj
   }
 
   const adaptador = ADAPTADORES[proveedor]
-  const evento = eventoDe(a, await invitados(admin, a.owner_id, a.vet_id))
+  const aInvitar = perfilesAInvitar({
+    anfitrionId: anfitrion,
+    adminIds: clinica.adminIds,
+    vetId: a.vet_id,
+    creadorId: a.created_by,
+  })
+  const evento = eventoDe(
+    a,
+    correosDeInvitados(
+      await correosDePerfiles(admin, aInvitar),
+      await correoDelTitular(admin, a.owner_id),
+    ),
+    clinica.direccion,
+  )
   // Tras una mudanza el evento se CREA: el id viejo era de la otra agenda o del otro proveedor.
   const idVigente = mudanza || previo?.proveedor !== proveedor ? null : previo.id
   const { slug, args } = idVigente
     ? adaptador.actualizar(idVigente, evento)
     : adaptador.crear(evento)
 
-  const r = await ejecutarTool(admiDeLaClinica, slug, args)
+  const r = await ejecutarTool(anfitrion, slug, args)
   if (!r.ok) throw new Error(r.error)
 
   // Al crear, un id ilegible es un FALLO, no un detalle: sin él la fila queda sin referencia al
@@ -449,7 +540,7 @@ export async function empujarCita(appointmentId: string): Promise<ResultadoEmpuj
     .update({
       google_event_id: proveedor === "google" ? nuevoId : null,
       microsoft_event_id: proveedor === "outlook" ? nuevoId : null,
-      calendar_owner_id: admiDeLaClinica,
+      calendar_owner_id: anfitrion,
     })
     .eq("id", a.id)
 

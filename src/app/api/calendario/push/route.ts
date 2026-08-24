@@ -5,12 +5,13 @@ import { empujarCita } from "@/lib/composio/calendario"
 
 export const runtime = "nodejs"
 
-// Empuja una cita al calendario del ADMINISTRADOR de la clínica (crea o actualiza el evento, con el
-// titular y el veterinario asignado invitados).
+// Empuja una cita al calendario del VETERINARIO ASIGNADO —con el del administrador de respaldo—
+// creando o actualizando el evento, con el titular, todos los administradores y quien la agendó
+// invitados (v5).
 //
-// Una sola ruta para los dos proveedores: quién recibe el evento lo decide el servidor mirando qué
-// conectó el administrador. Antes había una ruta por proveedor y el navegador llamaba a las dos sin
-// saber cuál servía, lo que además obligaba a adivinar de cuál venía cada respuesta.
+// Una sola ruta para los dos proveedores: en el calendario de quién vive el evento y qué proveedor
+// lo recibe lo decide el servidor. Antes había una ruta por proveedor y el navegador llamaba a las
+// dos sin saber cuál servía, lo que además obligaba a adivinar de cuál venía cada respuesta.
 export async function POST(req: Request) {
   const supabase = await createClient()
   const {
@@ -24,7 +25,7 @@ export async function POST(req: Request) {
   }
 
   // `empujarCita` corre con service_role, que se salta la RLS: sin este chequeo cualquiera podría
-  // empujar una cita de OTRA clínica y meterle un evento en el calendario a su administrador. La
+  // empujar una cita de OTRA clínica y meterle un evento en el calendario a alguien de ese equipo. La
   // lectura va con la sesión, así que la RLS decide si esa cita existe para quien pregunta.
   const { data: cita } = await supabase
     .from("appointments")

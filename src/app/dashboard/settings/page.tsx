@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button"
 
 import { createClient } from "@/lib/supabase/server"
 import { ProfileSettings } from "@/components/settings/profile-settings"
+import { DireccionDeLaClinica } from "@/components/settings/direccion-de-la-clinica"
 import { ClinicHoursSettings, type ClinicHourRow } from "@/components/settings/clinic-hours-settings"
 import {
   TeamSettings,
@@ -37,10 +38,13 @@ export default async function SettingsPage() {
     : null
   const p = profile as { full_name: string | null; role: string | null; clinic_id: string | null } | null
 
+  // `address` y `city` viajan en la MISMA consulta que ya se hacía: la dirección se adjunta a cada
+  // cita que se empuja al calendario, así que la clínica necesita poder cargarla desde acá.
   const clinic = p?.clinic_id
-    ? (await supabase.from("clinics").select("name").eq("id", p.clinic_id).single()).data
+    ? (await supabase.from("clinics").select("name, address, city").eq("id", p.clinic_id).single()).data
     : null
-  const clinicName = (clinic as { name: string } | null)?.name ?? "—"
+  const c = clinic as { name: string; address: string | null; city: string | null } | null
+  const clinicName = c?.name ?? "—"
 
   // Sólo el estado, para el resumen: los formularios de conexión viven en /dashboard/conexiones.
   // (RLS: cada SELECT trae únicamente la fila de la clínica, y las credenciales están revocadas
@@ -91,17 +95,31 @@ export default async function SettingsPage() {
         description="Los datos de tu clínica, tu equipo y tus horarios de atención."
       />
 
-      {/* Clínica (solo lectura) */}
+      {/* Clínica. El nombre y el rol son de sólo lectura; la dirección se edita, porque es lo que
+          sale en cada invitación de calendario y hasta ahora no había dónde cargarla. */}
       <div className="rounded-xl border bg-card p-4">
         <div className="mb-2 flex items-center gap-2 text-sm font-semibold">
           <Building2 className="size-4 text-muted-foreground" /> Clínica
+          <HelpTip>
+            La <b>dirección</b> se adjunta a cada cita que se crea en el calendario: al titular le
+            llega en la invitación y puede abrirla en el mapa. Sin ella, la invitación dice a qué
+            hora pero no dónde.
+          </HelpTip>
         </div>
-        <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1 text-sm">
+        <dl className="mb-4 grid grid-cols-[auto_1fr] gap-x-4 gap-y-1 text-sm">
           <dt className="text-muted-foreground">Nombre</dt>
           <dd className="font-medium">{clinicName}</dd>
           <dt className="text-muted-foreground">Tu rol</dt>
           <dd>{p?.role ? (ROLES_LEGIBLES[p.role] ?? p.role) : "—"}</dd>
         </dl>
+        {p?.clinic_id && (
+          <DireccionDeLaClinica
+            clinicId={p.clinic_id}
+            initialAddress={c?.address ?? ""}
+            initialCity={c?.city ?? ""}
+            isAdmin={isAdmin}
+          />
+        )}
       </div>
 
       {/* Equipo de la clínica */}

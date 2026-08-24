@@ -21,9 +21,15 @@ export const metadata = { title: "Integraciones · Tuvetia" }
 // Tuvetia con el mundo de afuera. No duplica nada; son los mismos componentes que estaban en
 // Configuración, que ahora apunta acá en vez de repetirlos.
 //
-// El calendario se conecta ACÁ y solo acá (calendario v3, migración 0049): es una decisión de cada
-// usuario, explícita, eligiendo Google u Outlook. Antes se vinculaba solo al iniciar sesión y se
-// gestionaba desde la página de Calendario.
+// El calendario se conecta ACÁ (migración 0049): es una decisión de cada usuario, explícita,
+// eligiendo Google u Outlook. Antes se vinculaba solo al iniciar sesión.
+//
+// LO CONECTAN LOS DOS ROLES (v5). Hasta v4 el formulario sólo se le mostraba al administrador,
+// porque el evento vivía en su calendario y conectar el propio no le cambiaba nada a nadie más.
+// Ahora el evento se crea en el del VETERINARIO ASIGNADO, así que conectar el suyo es lo que hace
+// que su agenda de Tuvetia aparezca en su teléfono. La agenda además se lo pide con una ventana a
+// quien entra sin conectar (`AvisoConectarCalendario`): acá se hace a propósito, allá se resuelve
+// donde se nota que falta.
 
 export const dynamic = "force-dynamic"
 
@@ -35,33 +41,44 @@ export default async function ConexionesPage() {
 
   const composioListo = composioConfigurado()
 
-  const [{ data: wa }, correoAthos, { data: clinica }] = await Promise.all([
+  const SIN_CALENDARIO: EstadoCalendario = {
+    conectado: false,
+    proveedor: null,
+    compartidoConElCorreo: false,
+  }
+
+  const [{ data: wa }, correoAthos, { data: clinica }, miCalendario] = await Promise.all([
     supabase.from("whatsapp_integrations").select("status, phone_number, agent_mode").maybeSingle(),
     // La cuenta de correo que este miembro conectó por Composio: la que usa Athos por él.
     user && composioListo
       ? estadoConexion(user.id)
       : Promise.resolve({ conectado: false, proveedor: null, email: null }),
-    // De quién es el calendario de la clínica: su administrador. Con eso se resuelve tanto si quien
-    // mira puede conectarlo como el estado que se le muestra.
+    // Quién administra la clínica: es el anfitrión de respaldo cuando el vet asignado no conectó el
+    // suyo, y lo que hace falta para decirle a un vet a dónde están yendo sus citas mientras tanto.
     user ? supabase.from("clinics").select("owner_id").maybeSingle() : Promise.resolve({ data: null }),
+    // EL ESTADO QUE IMPORTA ES EL DE QUIEN MIRA (v5). Hasta v4 acá se consultaba el del
+    // administrador, porque el evento vivía en su calendario y la conexión de quien miraba no
+    // cambiaba nada. Ahora es al revés: el evento se crea en el del vet asignado.
+    user && composioListo ? estadoCalendario(user.id) : Promise.resolve(SIN_CALENDARIO),
   ])
 
   const administrador = (clinica as { owner_id: string | null } | null)?.owner_id ?? null
   const esAdministrador = Boolean(user && administrador && administrador === user.id)
 
-  // El estado que importa es el del calendario DE LA CLÍNICA —el del administrador—, no el de quien
-  // está mirando. Un veterinario que abre esta página necesita saber si las citas están llegando a
-  // algún lado; su propia conexión no cambia nada desde que el evento vive en el del administrador.
-  const calendarioClinica: EstadoCalendario = administrador
-    ? await estadoCalendario(administrador)
-    : { conectado: false, proveedor: null, compartidoConElCorreo: false }
+  // El del administrador se consulta SÓLO si hace falta para decir algo que no se sabe ya: si quien
+  // mira es el administrador, su estado es el mismo que se acaba de traer; y si ya conectó el suyo,
+  // el respaldo no entra en juego. Cada una de estas es un viaje por red a Composio.
+  const calendarioDeRespaldo: EstadoCalendario =
+    administrador && !esAdministrador && !miCalendario.conectado && composioListo
+      ? await estadoCalendario(administrador)
+      : SIN_CALENDARIO
 
   const waRow = wa as {
     status: "pending" | "connected" | "disconnected"
     phone_number: string | null
     agent_mode: "auto" | "review" | "paused" | "intervene"
   } | null
-  const calendarConnected: CalendarProvider | null = calendarioClinica.proveedor
+  const calendarConnected: CalendarProvider | null = miCalendario.proveedor
 
   return (
     <PageShell width="narrow">
@@ -129,26 +146,27 @@ export default async function ConexionesPage() {
           <div className="mb-3 flex items-center gap-2 text-sm font-semibold text-fg">
             <CalendarDays className="size-4 text-fg-faint" aria-hidden /> Calendario
             <HelpTip>
-              Las citas de la clínica se crean en el calendario del <b>administrador</b>, y el
-              titular y el veterinario asignado quedan <b>invitados</b> — como cuando te llega una
-              invitación a una reunión. Tuvetia solo <b>escribe</b>; nunca lee tus eventos.
+              Cada cita se crea en el calendario del <b>veterinario asignado</b>, e invita al{" "}
+              <b>titular</b>, a <b>todos los administradores</b> y a quien la agendó — como cuando te
+              llega una invitación a una reunión. Por eso un administrador tiene siempre la clínica
+              entera en su calendario. Tuvetia solo <b>escribe</b>; nunca lee tus eventos.
             </HelpTip>
           </div>
           <p className="mb-3 text-sm text-fg-muted">
-            {esAdministrador
-              ? calendarConnected
-                ? "Las citas de la clínica se crean en tu calendario, con el titular y el veterinario invitados."
-                : "Sos el administrador: conectá tu calendario para que las citas de la clínica se creen ahí, invitando al titular y al veterinario asignado."
-              : calendarConnected
-                ? "Las citas de la clínica se crean en el calendario del administrador. Cuando te asignen una, te llega la invitación por correo — no hace falta que conectes el tuyo."
-                : "El administrador todavía no conectó el calendario de la clínica, así que las citas quedan sólo en Tuvetia y nadie recibe invitación. Pedile que lo conecte desde esta misma pantalla."}
+            {calendarConnected
+              ? esAdministrador
+                ? "Las citas que te asignen se crean en tu calendario, y como administrador te llegan además todas las de la clínica por invitación."
+                : "Las citas que te asignen se crean en tu calendario, con el titular y los administradores invitados."
+              : esAdministrador
+                ? "Conectá tu calendario: las citas que te asignen se van a crear ahí, y las del resto del equipo te van a llegar por invitación. Además es el calendario de respaldo de la clínica, donde caen las citas de quien todavía no conectó el suyo."
+                : calendarioDeRespaldo.conectado
+                  ? "Todavía no conectaste el tuyo, así que tus citas se están creando en el calendario del administrador y a vos te llega la invitación por correo. Conectá el tuyo para tenerlas en tu propia agenda."
+                  : "Todavía no conectaste el tuyo, y el administrador tampoco: las citas quedan sólo en Tuvetia y nadie recibe invitación."}
           </p>
-          {esAdministrador && (
-            <CalendarSettings
-              connected={calendarConnected}
-              compartidoConElCorreo={calendarioClinica.compartidoConElCorreo}
-            />
-          )}
+          <CalendarSettings
+            connected={calendarConnected}
+            compartidoConElCorreo={miCalendario.compartidoConElCorreo}
+          />
         </section>
       </div>
     </PageShell>

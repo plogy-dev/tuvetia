@@ -175,16 +175,17 @@ export function AppointmentCalendar({
     setDrawerOpen(true)
   }, [])
 
-  // Push al calendario del ADMINISTRADOR de la clínica, con el titular y el veterinario asignado
-  // invitados. Una sola llamada: qué proveedor recibe el evento lo resuelve el servidor.
+  // Push al calendario del VETERINARIO ASIGNADO —con el del administrador de respaldo— invitando al
+  // titular, a todos los administradores y a quien la agendó (v5). Una sola llamada: en el
+  // calendario de quién vive el evento y qué proveedor lo recibe lo resuelve el servidor.
   //
   // Sigue siendo best-effort para la CITA: `appointments` es la fuente de verdad y si el proveedor
   // falla, la cita local queda igual. Lo que ya no es best-effort es el SILENCIO.
   //
   // Antes esto descartaba todos los resultados, con el argumento de que el vet no podía hacer nada
-  // con esos errores. Era falso: el motivo más común —que el administrador no conectó el calendario
-  // de la clínica— se arregla con un clic, y mientras tanto la cita simplemente no aparecía en
-  // ningún lado y no había forma de saber por qué.
+  // con esos errores. Era falso: el motivo más común —que nadie conectó un calendario— se arregla
+  // con un clic, y mientras tanto la cita simplemente no aparecía en ningún lado y no había forma
+  // de saber por qué.
   const pushAlCalendario = useCallback(async (appointmentId: string) => {
     try {
       const res = await fetch("/api/calendario/push", {
@@ -203,10 +204,10 @@ export function AppointmentCalendar({
       }
       if (j.event_id) return // llegó al calendario: sin ruido
       if (j.motivo === "sin-administrador") {
-        toast.info("La cita se guardó. No se copió a ningún calendario porque la clínica no tiene administrador asignado.")
+        toast.info("La cita se guardó. No se copió a ningún calendario porque no tiene veterinario asignado y la clínica no tiene administrador.")
       } else if (j.motivo === "sin-calendario") {
         toast.info(
-          "La cita se guardó, pero no se copió al calendario: el administrador de la clínica no conectó el suyo en Integraciones.",
+          "La cita se guardó, pero no se copió a ningún calendario: ni el veterinario asignado ni el administrador conectaron el suyo en Integraciones.",
         )
       }
     } catch (e) {
@@ -320,10 +321,10 @@ export function AppointmentCalendar({
         <h1 className="flex items-center gap-1.5 text-lg font-semibold">
           Calendario
           <HelpTip>
-            Agendá y arrastrá citas. Cada cita aparece en el calendario del <b>veterinario
-            asignado</b> e invita al titular — conectá el tuyo desde <b>Integraciones</b>. El{" "}
-            <b>Enlace ICS</b> muestra la agenda en cualquier calendario sin conectar la cuenta (solo
-            lectura).
+            Agendá y arrastrá citas. Cada cita se crea en el calendario del <b>veterinario
+            asignado</b> e invita al titular, a los <b>administradores</b> y a quien la agendó —
+            conectá el tuyo desde <b>Integraciones</b>. El <b>Enlace ICS</b> muestra la agenda en
+            cualquier calendario sin conectar la cuenta (solo lectura).
           </HelpTip>
         </h1>
         <div className="flex flex-wrap items-center gap-2">

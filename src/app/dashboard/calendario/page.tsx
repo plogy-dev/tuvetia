@@ -2,6 +2,8 @@ import { endOfWeek, startOfWeek } from "date-fns"
 
 import { createClient } from "@/lib/supabase/server"
 import { AppointmentCalendarLazy as AppointmentCalendar } from "@/components/calendar/appointment-calendar-lazy"
+import { AvisoConectarCalendario } from "@/components/calendar/aviso-conectar-calendario"
+import { calendarioConfigurado, estadoCalendario } from "@/lib/composio/calendario"
 import { DataError } from "@/components/data-error"
 import { DiaDeHoy, type CitaDeHoy } from "@/components/calendar/dia-de-hoy"
 import { huecosDelDia } from "@/lib/agenda/huecos"
@@ -53,8 +55,13 @@ export default async function CalendarioPage() {
   const veTodo = puedeVerLaAgendaCompleta(perfil)
   const acotarA = filtroDeConsulta(perfil, user?.id ?? null)
 
-  const [{ data: appts, error: apptsError }, { data: pts }, { data: owns }, { data: profs }] =
-    await Promise.all([
+  const [
+    { data: appts, error: apptsError },
+    { data: pts },
+    { data: owns },
+    { data: profs },
+    miCalendario,
+  ] = await Promise.all([
       // EL PERMISO SE APLICA ACÁ, en la consulta, y no en el navegador. Antes la pantalla se
       // traía las citas de la clínica entera y el interruptor las tapaba del lado del cliente: o
       // sea que las citas de los demás viajaban igual en la página, y "mi agenda" era una vista,
@@ -73,6 +80,13 @@ export default async function CalendarioPage() {
       clinicId
         ? supabase.from("profiles").select("id, full_name").eq("clinic_id", clinicId)
         : Promise.resolve({ data: null }),
+      // ¿ESTA PERSONA tiene calendario conectado? (v5) Desde que el evento se crea en el calendario
+      // del veterinario asignado, la pregunta dejó de ser sobre el administrador y pasó a ser sobre
+      // quien mira. Va DENTRO del `Promise.all` a propósito: es una consulta a Composio por red, y
+      // encadenarla después de las citas le sumaría su latencia entera a la carga de la agenda.
+      user && calendarioConfigurado()
+        ? estadoCalendario(user.id)
+        : Promise.resolve({ conectado: false, proveedor: null, compartidoConElCorreo: false }),
     ])
 
   const patients: PatientOption[] = (
@@ -140,6 +154,10 @@ export default async function CalendarioPage() {
           No se pudieron cargar las citas; el calendario puede verse vacío. Recargá la página.
         </DataError>
       )}
+      {/* Se le pide el calendario a quien no lo tiene, ACÁ, que es donde se nota que falta. Hasta v4
+          la única señal era un toast después de guardar una cita: tarde, y con la solución en otra
+          pantalla. Se cierra, y "Ahora no" la calla por el resto del día. */}
+      <AvisoConectarCalendario conectado={miCalendario.conectado} esAdmin={perfil?.role === "admin"} />
       <DiaDeHoy citas={citasDeHoy} huecos={huecos} />
       <AppointmentCalendar
         initialAppointments={(appts as unknown as AppointmentRow[] | null) ?? []}

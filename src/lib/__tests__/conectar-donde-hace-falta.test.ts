@@ -63,3 +63,61 @@ describe("conectar WhatsApp desde Comunicaciones", () => {
     expect(COMUNICACIONES).toContain("agent_mode")
   })
 })
+
+// ── El calendario, que es el mismo problema un mes después ──────────────────────────────────────
+//
+// El síntoma del calendario es peor que el de WhatsApp, porque no se ve: alguien agenda una cita,
+// no le llega a ningún calendario, y la única señal era un toast DESPUÉS de guardar — cuando ya
+// era tarde y con la solución en otra pantalla. Nadie va a Integraciones a resolver un problema que
+// no sabe que tiene.
+//
+// Desde v5 la agenda se lo pide al entrar, y el botón lleva al consentimiento del proveedor
+// directamente. Estos tests son sobre lo mismo que los de arriba: que el arreglo no se deshaga en
+// una mudanza, porque un enlace que apunta a la pantalla vieja sigue compilando y sigue pintando un
+// botón.
+const AGENDA = leer("app/dashboard/calendario/page.tsx")
+const AVISO = leer("components/calendar/aviso-conectar-calendario.tsx")
+
+describe("conectar el calendario desde la agenda", () => {
+  it("la agenda le pide el calendario a quien no lo tiene", () => {
+    expect(AGENDA).toContain("AvisoConectarCalendario")
+  })
+
+  it("pregunta por el calendario de QUIEN MIRA, no por el del administrador", () => {
+    // Es la diferencia entre v4 y v5, y equivocarse acá no rompe nada visible: un vet sin calendario
+    // vería la ventana o no según lo que hubiera conectado su jefe.
+    expect(AGENDA).toMatch(/estadoCalendario\(user\.id\)/)
+  })
+
+  it("el botón conecta de una vez, sin mandar a otra pantalla", () => {
+    // Es lo que se pidió: "que lo dirija a conectarlo de una vez". Un enlace a Integraciones sería
+    // exactamente el viaje que esta ventana viene a eliminar.
+    expect(AVISO).toContain("useConexionDeCalendario")
+    expect(AVISO).not.toMatch(/href=["']\/dashboard\/(settings|conexiones)/)
+  })
+
+  it("vuelve a la agenda después del consentimiento, no a Integraciones", () => {
+    expect(AVISO).toMatch(/useConexionDeCalendario\("\/dashboard\/calendario"\)/)
+  })
+
+  it("es el MISMO camino de conexión que usa Integraciones, no una copia", () => {
+    // Dos implementaciones del mismo consentimiento serían dos que arreglar cada vez que cambie el
+    // contrato de Composio, y la segunda se enteraría tarde.
+    // Se acepta el alias o el relativo: `calendar-settings.tsx` es vecino del módulo y lo importa
+    // como `./conectar-calendario`, que es el estilo del resto de esa carpeta.
+    const importa = /from "(@\/components\/settings|\.)\/conectar-calendario"/
+    expect(AVISO).toMatch(importa)
+    expect(leer("components/settings/calendar-settings.tsx")).toMatch(importa)
+  })
+})
+
+describe("conectar el calendario desde Integraciones", () => {
+  it("lo pueden conectar los dos roles, no sólo el administrador", () => {
+    // Hasta v4 el formulario vivía dentro de un `{esAdministrador && ...}`: un vet abría la pantalla
+    // y no tenía botón. Desde v5 el evento se crea en el calendario del vet asignado, así que
+    // esconderlo dejaría a la mitad del equipo sin poder hacer lo único que hace falta hacer acá.
+    const conexiones = leer("app/dashboard/conexiones/page.tsx")
+    expect(conexiones).toContain("<CalendarSettings")
+    expect(conexiones).not.toMatch(/\{esAdministrador && \(\s*<CalendarSettings/)
+  })
+})

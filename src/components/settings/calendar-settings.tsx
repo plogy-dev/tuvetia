@@ -1,15 +1,17 @@
 "use client"
 
-// Conectar el calendario de la clínica — Google Calendar u Outlook Calendar, los dos vía Composio.
+// Conectar TU calendario — Google Calendar u Outlook Calendar, los dos vía Composio.
 //
 // Tres cosas que son el porqué del diseño actual:
 //
 //   1. NADA SE CONECTA SOLO. Antes el login guardaba el token sin que nadie lo pidiera; el vet se
 //      enteraba de que su calendario estaba sincronizado cuando veía sus eventos personales en la
 //      agenda de la clínica.
-//   2. EL CALENDARIO ES DEL ADMINISTRADOR. Las citas de la clínica se crean ahí, y el titular y el
-//      veterinario asignado quedan invitados. Por eso este componente sólo se le muestra a él: la
-//      conexión de cualquier otro miembro no cambiaría nada.
+//   2. EL CALENDARIO ES DE CADA PERSONA (v5). Hasta v4 esto sólo se le mostraba al administrador,
+//      porque el evento vivía en su calendario y la conexión de cualquier otro no cambiaba nada.
+//      Ahora el evento se crea en el del VETERINARIO ASIGNADO —con el del admin de respaldo— así
+//      que conectar el propio sí hace algo para cualquiera: su agenda de Tuvetia queda espejada en
+//      su calendario. Los administradores además reciben todas las citas por invitación.
 //   3. UNA SOLA VÍA. Tuvetia empuja sus citas; no lee nada del calendario. Por eso no hay botón
 //      "Sincronizar": no hay nada que traer.
 //
@@ -18,19 +20,20 @@
 // INICIÓ SESIÓN, no el del botón que se apretó, y había que verificarlo en el cliente y en la ruta
 // para que un login con Microsoft no dejara su token guardado como si fuera de Google.
 
-import { useEffect, useState } from "react"
+import { useState } from "react"
 import { useRouter } from "next/navigation"
 import { CalendarCheck, CalendarPlus, Loader2, TriangleAlert } from "lucide-react"
 import { toast } from "sonner"
 
 import { Button } from "@/components/ui/button"
+import {
+  NOMBRE_DEL_CALENDARIO as NOMBRE,
+  useConexionDeCalendario,
+  useVueltaDeLaConexion,
+  type CalendarProvider,
+} from "./conectar-calendario"
 
-export type CalendarProvider = "google" | "outlook"
-
-const NOMBRE: Record<CalendarProvider, string> = {
-  google: "Google Calendar",
-  outlook: "Outlook Calendar",
-}
+export type { CalendarProvider }
 
 export function CalendarSettings({
   connected,
@@ -41,57 +44,15 @@ export function CalendarSettings({
   compartidoConElCorreo?: boolean
 }) {
   const router = useRouter()
-  const [busy, setBusy] = useState<CalendarProvider | "disconnect" | null>(null)
-  const [disponibles, setDisponibles] = useState<CalendarProvider[] | null>(null)
+  const [desconectando, setDesconectando] = useState(false)
+  const { disponibles, conectando, conectar } = useConexionDeCalendario()
+  useVueltaDeLaConexion()
 
-  // Cuáles ofrecer lo decide el servidor: depende de qué auth configs estén puestos. Se pregunta en
-  // vez de cablear los dos, para no mostrar un botón que va a fallar al tocarlo.
-  useEffect(() => {
-    let vivo = true
-    fetch("/api/composio/calendario/connect")
-      .then((r) => r.json())
-      .then((j: { proveedores?: CalendarProvider[] }) => {
-        if (vivo) setDisponibles(j.proveedores ?? [])
-      })
-      .catch(() => {
-        if (vivo) setDisponibles([])
-      })
-    return () => {
-      vivo = false
-    }
-  }, [])
-
-  // Al volver del consentimiento (?calendario=conectado) la conexión ya está hecha del lado de
-  // Composio: sólo hay que refrescar para que el server component la lea.
-  useEffect(() => {
-    const url = new URL(window.location.href)
-    if (url.searchParams.get("calendario") !== "conectado") return
-    url.searchParams.delete("calendario")
-    window.history.replaceState({}, "", url.toString())
-    toast.success("Calendario conectado")
-    router.refresh()
-  }, [router])
-
-  async function connect(provider: CalendarProvider) {
-    setBusy(provider)
-    try {
-      const res = await fetch("/api/composio/calendario/connect", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ proveedor: provider }),
-      })
-      const json = (await res.json().catch(() => ({}))) as { url?: string; error?: string }
-      if (!res.ok || !json.url) throw new Error(json.error ?? `HTTP ${res.status}`)
-      window.location.assign(json.url)
-    } catch (e) {
-      toast.error(`No se pudo iniciar la conexión: ${(e as Error).message}`)
-      setBusy(null)
-    }
-  }
+  const busy = desconectando || conectando !== null
 
   async function disconnect() {
     if (!connected) return
-    setBusy("disconnect")
+    setDesconectando(true)
     try {
       const res = await fetch("/api/composio/calendario/disconnect", { method: "POST" })
       const j = (await res.json().catch(() => ({}))) as { error?: string }
@@ -101,7 +62,7 @@ export function CalendarSettings({
     } catch (e) {
       toast.error(`No se pudo desconectar: ${(e as Error).message}`)
     } finally {
-      setBusy(null)
+      setDesconectando(false)
     }
   }
 
@@ -122,8 +83,8 @@ export function CalendarSettings({
             <CalendarCheck className="size-4 text-ok" aria-hidden />
             {NOMBRE[connected]} conectado
           </span>
-          <Button variant="outline" size="sm" onClick={disconnect} disabled={busy !== null}>
-            {busy === "disconnect" && <Loader2 className="size-4 animate-spin" />}
+          <Button variant="outline" size="sm" onClick={disconnect} disabled={busy}>
+            {desconectando && <Loader2 className="size-4 animate-spin" />}
             Desconectar
           </Button>
         </div>
@@ -143,8 +104,8 @@ export function CalendarSettings({
   return (
     <div className="flex flex-wrap items-center gap-2">
       {(disponibles ?? []).map((p) => (
-        <Button key={p} variant="outline" onClick={() => connect(p)} disabled={busy !== null}>
-          {busy === p ? (
+        <Button key={p} variant="outline" onClick={() => conectar(p)} disabled={busy}>
+          {conectando === p ? (
             <Loader2 className="size-4 animate-spin" />
           ) : (
             <CalendarPlus className="size-4" aria-hidden />

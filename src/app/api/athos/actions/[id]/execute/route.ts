@@ -66,16 +66,19 @@ async function pushToGoogle(
   try {
     const { eventId, motivo } = await empujarCita(appointmentId)
     if (eventId) return { googleEventId: eventId, aviso: null }
-    // `empujarCita` devuelve null cuando el VETERINARIO ASIGNADO no conectó su calendario (el
-    // calendario es de cada vet desde la migración 0049, no de la clínica). No es un fallo, pero
-    // el vet TIENE que enterarse: si no, la cita no aparece en su calendario y no hay forma de
-    // saber por qué. Pasó en producción el 30-jul y fue exactamente esa la pregunta.
+    // `empujarCita` devuelve null cuando NADIE tiene calendario conectado: ni el veterinario
+    // asignado —que es donde vive el evento desde v5— ni el administrador, que es el respaldo. No
+    // es un fallo, pero el vet TIENE que enterarse: si no, la cita no aparece en su calendario y no
+    // hay forma de saber por qué. Pasó en producción el 30-jul y fue exactamente esa la pregunta.
+    //
+    // Los textos se repiten casi igual en `appointment-calendar.tsx`, que es el otro camino por el
+    // que se crea una cita. Si cambia el modelo de quién hospeda, cambian los dos.
     return {
       googleEventId: null,
       aviso:
         motivo === "sin-administrador"
-          ? "La cita quedó en la agenda de la plataforma. No se copió a ningún calendario porque la clínica no tiene administrador asignado."
-          : "La cita quedó en la agenda de la plataforma. No se copió al calendario porque el administrador de la clínica no conectó el suyo en Conexiones.",
+          ? "La cita quedó en la agenda de la plataforma. No se copió a ningún calendario porque no tiene veterinario asignado y la clínica no tiene administrador."
+          : "La cita quedó en la agenda de la plataforma. No se copió a ningún calendario: ni el veterinario asignado ni el administrador conectaron el suyo en Integraciones.",
     }
   } catch (e) {
     console.error("[athos/execute] no se pudo empujar la cita a Google Calendar:", e)
