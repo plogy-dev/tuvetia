@@ -17,6 +17,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { EmptyState } from "@/components/ui/empty-state"
 import type { CorreoNormalizado } from "@/lib/composio/correo"
 import { cuerpoLegible } from "@/lib/email/cuerpo-legible"
+import { CuerpoDelCorreo } from "@/components/email/cuerpo-del-correo"
 
 function fmtFecha(iso: string): string {
   const d = new Date(iso)
@@ -171,13 +172,23 @@ export function EmailInbox({
                   caracteres que usa la lista de la izquierda, así que abrir un correo no mostraba
                   nada que no se viera ya sin abrirlo. El cuerpo completo viajaba en el mismo objeto
                   desde que cartera lo necesitó. Ver `lib/email/cuerpo-legible.ts`. */}
-              <p className="text-sm whitespace-pre-wrap">{lectura.texto}</p>
-              {!lectura.completo && (
-                <p className="mt-3 text-xs text-muted-foreground">
-                  Tu proveedor entregó sólo el comienzo de este correo. Para leerlo completo, abrilo
-                  en tu correo.
-                </p>
-              )}
+              {/* SE VE COMO CORREO. Hasta ahora se pintaba el cuerpo como texto plano, así que un
+                  correo con maquetado —o sea casi todos— se leía como su propio código fuente:
+                  `<html><head><style>…` en pantalla. `CuerpoDelCorreo` lo muestra en un iframe
+                  aislado, con imágenes y formato, sin dejar que el correo ejecute nada ni que su
+                  CSS toque la aplicación. */}
+              <CuerpoDelCorreo
+                html={sel.cuerpoHtml}
+                texto={lectura.texto}
+                advertencia={
+                  !lectura.completo ? (
+                    <p className="mt-3 text-xs text-muted-foreground">
+                      Tu proveedor entregó sólo el comienzo de este correo. Para leerlo completo,
+                      abrilo en tu correo.
+                    </p>
+                  ) : null
+                }
+              />
             </div>
 
             {!sel.esPropio && (

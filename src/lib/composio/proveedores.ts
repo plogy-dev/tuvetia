@@ -15,7 +15,7 @@ import "server-only"
 export { NOMBRE_PROVEEDOR, type Proveedor } from "./proveedores-nombres"
 
 import { LARGO_DEL_PREVIEW } from "@/lib/email/cuerpo-legible"
-import { cuerpoEnTexto } from "@/lib/email/html-a-texto"
+import { cuerpoEnTexto, pareceHtml } from "@/lib/email/html-a-texto"
 import type { Proveedor } from "./proveedores-nombres"
 
 /** Un correo, ya normalizado — misma forma venga de donde venga. */
@@ -50,6 +50,18 @@ export interface CorreoNormalizado {
    * 200, los dos difieren, y la pantalla daba por completo un correo de dos páginas.
    */
   cuerpoCompleto: boolean
+  /**
+   * El cuerpo TAL CUAL lo mandó el proveedor, cuando viene en HTML. `null` si es texto plano.
+   *
+   * Va aparte de `cuerpo` porque los dos consumidores quieren cosas distintas: la bandeja quiere
+   * verlo como correo —con sus imágenes, negritas y tablas— y cartera quiere TEXTO para clasificar
+   * la intención de una respuesta, donde las etiquetas son ruido.
+   *
+   * Es contenido NO CONFIABLE: lo escribe cualquiera que mande un correo. Sólo se pinta dentro de
+   * un iframe con `sandbox`, que no ejecuta scripts y no deja que el CSS del correo toque la app.
+   * Ver `components/email/cuerpo-del-correo.tsx`.
+   */
+  cuerpoHtml: string | null
   fecha: string
   esPropio: boolean
   leido: boolean
@@ -153,8 +165,12 @@ const GMAIL: Adaptador = {
         preview: (m.preview?.body ?? m.messageText ?? "").slice(0, LARGO_DEL_PREVIEW),
         // `messageText` primero acá: para el cuerpo entero es la fuente buena, mientras que para el
         // vistazo de la bandeja `preview.body` viene mejor recortado por Gmail.
-        cuerpo: m.messageText ?? m.preview?.body ?? "",
+        cuerpo: cuerpoEnTexto(m.messageText ?? m.preview?.body ?? ""),
         cuerpoCompleto: Boolean(m.messageText),
+        // Gmail no declara el tipo: se mira el contenido. `pareceHtml` pide una etiqueta de verdad
+        // —`<p>`, `<div>`, `<table>`— y no un `<` suelto, para no confundir un correo en texto
+        // plano que diga "3 < 5" o traiga un `<correo@ejemplo.com>` entre ángulos.
+        cuerpoHtml: pareceHtml(m.messageText ?? "") ? (m.messageText ?? null) : null,
         fecha: m.messageTimestamp ?? new Date().toISOString(),
         // La etiqueta SENT es más fiable que comparar direcciones: el vet puede tener alias, y
         // `sender` viene como "Nombre <correo>".
@@ -301,6 +317,10 @@ const OUTLOOK: Adaptador = {
           ? cuerpoEnTexto(m.body.content, m.body.contentType)
           : (m.bodyPreview ?? ""),
         cuerpoCompleto: Boolean(m.body?.content),
+        cuerpoHtml:
+          m.body?.content && (m.body.contentType?.toLowerCase() === "html" || pareceHtml(m.body.content))
+            ? m.body.content
+            : null,
         fecha: m.receivedDateTime ?? m.sentDateTime ?? new Date().toISOString(),
         // Graph no trae una etiqueta como SENT: se compara el remitente con la cuenta conectada.
         esPropio: Boolean(propio) && de.toLowerCase().includes(propio),
