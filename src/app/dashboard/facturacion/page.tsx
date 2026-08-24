@@ -256,7 +256,17 @@ export default async function FacturacionPage({ searchParams }: { searchParams: 
                   quitarlas dejaría cinco pantallas sin puerta. Subirlas a la barra lateral toca el
                   orden que definió Luciano el 19-ago, y esa no es una decisión de este cambio. */}
               <MenuDeVentas />
-              <Button render={<Link href="/dashboard/facturacion/nueva" />}>
+              {/* ABRE EL FORMULARIO, no un buscador. En OkVet «Registrar venta» abre la cuenta
+                  con «Venta a persona indeterminada» puesta y un «Editar» para atarla a un cliente;
+                  acá `mostrador=1` es exactamente ese estado. Antes el primer paso era una caja de
+                  búsqueda, que es de lo que se quejó David: apretás «nueva factura» y no aparece
+                  una factura.
+
+                  EL RIESGO, DICHO: una cuenta sin cliente queda a nombre de consumidor final —
+                  fuera de cartera y sin correo—. Por eso el «Editar» del formulario va al lado del
+                  nombre y no escondido, y por eso el titular se puede atar en cualquier momento
+                  antes de emitir. */}
+              <Button render={<Link href="/dashboard/facturacion/nueva?mostrador=1" />}>
                 <Plus aria-hidden />
                 Registrar venta
               </Button>
