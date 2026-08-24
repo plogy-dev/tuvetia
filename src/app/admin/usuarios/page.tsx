@@ -1,3 +1,4 @@
+import { requerirAdminDePlataforma } from "@/lib/platform-admin"
 import { loadPlatformUsers } from "@/lib/admin/users"
 import { platformEmailConfigurado } from "@/lib/email/platform-sender"
 import { createClient } from "@/lib/supabase/server"
@@ -29,6 +30,10 @@ export const maxDuration = 120
 const fecha = (iso: string | null) => (iso ? iso.slice(0, 10) : "—")
 
 export default async function AdminUsuariosPage() {
+  // ANTES DE CONSULTAR NADA: el layout no alcanza, la página se renderiza en paralelo y sus
+  // datos se serializan en la respuesta aunque el layout devuelva 404. Ver `lib/platform-admin`.
+  await requerirAdminDePlataforma()
+
   const { users: sinOrdenar, pending } = await loadPlatformUsers()
   const configurado = platformEmailConfigurado()
 

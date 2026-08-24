@@ -1,3 +1,4 @@
+import { requerirAdminDePlataforma } from "@/lib/platform-admin"
 import { Activity, AudioLines, Building2, MessageCircle, PawPrint, Stethoscope, Users } from "lucide-react"
 import { addWeeks, format, startOfWeek } from "date-fns"
 import { es } from "date-fns/locale/es"
@@ -25,6 +26,10 @@ function weeklySeries(dates: string[]): { label: string; count: number }[] {
 }
 
 export default async function AdminResumenPage() {
+  // ANTES DE CONSULTAR NADA: el layout no alcanza, la página se renderiza en paralelo y sus
+  // datos se serializan en la respuesta aunque el layout devuelva 404. Ver `lib/platform-admin`.
+  await requerirAdminDePlataforma()
+
   const m = await loadPlatformMetrics()
   const d30 = daysAgo(30)
 
