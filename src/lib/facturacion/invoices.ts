@@ -21,7 +21,11 @@ import {
   type ValidationIssue,
 } from '@/lib/facturacion/domain/invoice';
 import { finDelDiaBogota } from '@/lib/date-utils';
-import { computeInvoiceTotals } from '@/lib/facturacion/domain/money';
+import {
+  computeInvoiceTotals,
+  lineSubtotalCents,
+  prorratearDescuentoGlobal,
+} from '@/lib/facturacion/domain/money';
 import {
   deriveFollowupStatus,
   deriveStatus,
@@ -121,6 +125,23 @@ async function enrichLines(
   });
 }
 
+/**
+ * Suma el descuento de la factura al de cada línea, repartido en proporción a lo que pesa.
+ *
+ * Se aplica ACÁ y no en el cliente porque el servidor recalcula todo desde las líneas: si el
+ * prorrateo viviera solo en el navegador, el total que el vet aprueba y el que se persiste podrían
+ * separarse en el redondeo del último centavo. El carrito llama a la MISMA función pura para
+ * mostrar el total en vivo, así que lo que se ve es lo que se emite.
+ */
+function conDescuentoGlobal<T extends LineInput>(lines: T[], globalCents?: number): T[] {
+  if (!globalCents) return lines;
+  const bases = lines.map(
+    (l) => lineSubtotalCents(l.qty, l.unitPriceCents) - (l.discountCents ?? 0),
+  );
+  const partes = prorratearDescuentoGlobal(bases, globalCents);
+  return lines.map((l, i) => ({ ...l, discountCents: (l.discountCents ?? 0) + partes[i] }));
+}
+
 // ─── Borrador ────────────────────────────────────────────────────────────────
 
 export interface DraftRequest {
@@ -129,6 +150,14 @@ export interface DraftRequest {
   consultationId?: string | null;
   docKind?: DocKind;
   lines: DraftLineRequest[];
+  /**
+   * Descuento de la FACTURA, en centavos. Se prorratea entre las líneas antes de liquidar el IVA
+   * (ver `prorratearDescuentoGlobal`): restarlo del total dejaría el impuesto calculado sobre una
+   * base que ya no existe.
+   */
+  globalDiscountCents?: number;
+  /** Observaciones libres que van impresas en la factura. */
+  notes?: string | null;
   wantsElectronicDelivery?: boolean;
   /** Autoría (profiles.id) del usuario que crea el borrador; null = sistema. */
   createdBy?: string | null;
@@ -151,7 +180,10 @@ export async function previewDraft(
 ): Promise<DraftPreview> {
   const payer = await getPayer(supabase, clinicId, req.payerId);
   if (!payer) throw new Error('Pagador no encontrado');
-  const lines = await enrichLines(supabase, clinicId, req.lines, now);
+  const lines = conDescuentoGlobal(
+    await enrichLines(supabase, clinicId, req.lines, now),
+    req.globalDiscountCents,
+  );
   const settings = await getBillingSettings(supabase, clinicId);
 
   const validation = validateDraftInvoice({
@@ -201,7 +233,10 @@ export async function createDraftInvoice(
       `No se puede crear el borrador: ${preview.blockers.map((b) => b.message).join(' | ')}`,
     );
   }
-  const lines = await enrichLines(supabase, clinicId, req.lines, now);
+  const lines = conDescuentoGlobal(
+    await enrichLines(supabase, clinicId, req.lines, now),
+    req.globalDiscountCents,
+  );
   const snapshots = lines.map((l) => ({ snap: buildLineSnapshot(l), taxStatus: l.taxStatus }));
   const totals = computeInvoiceTotals(snapshots.map((s) => s.snap));
   const settings = await getBillingSettings(supabase, clinicId);
@@ -222,6 +257,7 @@ export async function createDraftInvoice(
       tax_cents: totals.taxCents,
       total_cents: totals.totalCents,
       balance_cents: totals.totalCents,
+      notes: req.notes?.trim() || null,
     })
     .select('*')
     .single();

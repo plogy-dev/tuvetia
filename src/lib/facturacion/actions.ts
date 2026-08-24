@@ -592,6 +592,10 @@ const CreateDraftSchema = z.object({
   consultationId: z.string().uuid().nullish(),
   docKind: z.enum(DOC_KINDS).nullish(),
   lines: z.array(DraftLineSchema).min(1, 'La factura necesita al menos una línea'),
+  /** Descuento de la factura. Se prorratea entre las líneas antes de liquidar el IVA. */
+  globalDiscountCents: z.number().int().min(0).nullish(),
+  /** Observaciones libres impresas en la factura. El tope es el de un párrafo, no un expediente. */
+  notes: z.string().trim().max(1000).nullish(),
 });
 
 export type CreateDraftInput = z.input<typeof CreateDraftSchema>;
@@ -628,6 +632,8 @@ export async function createInvoiceDraft(
         taxRate: l.taxRate ?? undefined,
         discountCents: l.discountCents ?? undefined,
       })),
+      globalDiscountCents: d.globalDiscountCents ?? undefined,
+      notes: d.notes ?? null,
       createdBy: userId,
     });
     revalidatePath('/dashboard/facturacion');
