@@ -1,0 +1,177 @@
+/* Tipografía de la documentación.
+ *
+ * POR QUÉ UN CSS PROPIO Y NO CLASES DE TAILWIND. Lo que se pinta acá sale de `react-markdown`: los
+ * `<h2>`, `<table>`, `<code>` los genera él a partir del Markdown y no hay dónde colgarles una
+ * clase sin escribir un componente por cada etiqueta. Un descendiente por etiqueta bajo un contenedor
+ * es la forma corta y es lo que hace cualquier plugin de prosa.
+ *
+ * NO se usa `@tailwindcss/typography`: es una dependencia más para lo que acá son cuarenta líneas, y
+ * su escala tipográfica no es la de esta app —Newsreader para display, un serif que en negrita y
+ * apretado se empasta— así que habría que sobreescribir la mitad igual.
+ *
+ * Todo va con los tokens de `globals.css` (`--color-fg`, `--color-line`…), NUNCA con colores
+ * literales: la app tiene tema claro y oscuro, y un `#111` acá sería texto negro sobre fondo negro
+ * la primera noche que alguien lea la documentación.
+ */
+
+.docs-prose {
+  color: var(--color-fg);
+  font-size: 15px;
+  line-height: 1.7;
+}
+
+.docs-prose > *:first-child {
+  margin-top: 0;
+}
+
+/* Encabezados. El h1 del documento lo pinta la página (con su ruta y su fecha al lado), así que el
+   del Markdown se oculta: si no, todos los documentos saldrían con el título dos veces. */
+.docs-prose h1:first-child {
+  display: none;
+}
+
+.docs-prose h1,
+.docs-prose h2,
+.docs-prose h3,
+.docs-prose h4 {
+  font-family: var(--font-display, inherit);
+  color: var(--color-fg);
+  font-weight: 500;
+  letter-spacing: -0.01em;
+  scroll-margin-top: 5rem;
+}
+
+.docs-prose h1 {
+  font-size: 1.75rem;
+  margin: 2.5rem 0 1rem;
+}
+
+.docs-prose h2 {
+  font-size: 1.35rem;
+  margin: 2.25rem 0 0.75rem;
+  padding-bottom: 0.4rem;
+  border-bottom: 1px solid var(--color-line-soft);
+}
+
+.docs-prose h3 {
+  font-size: 1.1rem;
+  margin: 1.75rem 0 0.5rem;
+}
+
+.docs-prose h4 {
+  font-size: 0.98rem;
+  margin: 1.5rem 0 0.5rem;
+  color: var(--color-fg-muted);
+}
+
+.docs-prose p {
+  margin: 0.85rem 0;
+}
+
+.docs-prose ul,
+.docs-prose ol {
+  margin: 0.85rem 0;
+  padding-left: 1.4rem;
+}
+
+.docs-prose ul {
+  list-style: disc;
+}
+
+.docs-prose ol {
+  list-style: decimal;
+}
+
+.docs-prose li {
+  margin: 0.35rem 0;
+}
+
+.docs-prose li > ul,
+.docs-prose li > ol {
+  margin: 0.35rem 0;
+}
+
+/* Código. El `inline` lleva fondo suave y el bloque, su propio scroll horizontal: los ejemplos de
+   SQL y las líneas de comando son largos y sin esto empujan la página entera de costado. */
+.docs-prose code {
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: 0.86em;
+  background: var(--color-muted);
+  border: 1px solid var(--color-line-soft);
+  border-radius: 5px;
+  padding: 0.1em 0.35em;
+  word-break: break-word;
+}
+
+.docs-prose pre {
+  margin: 1.1rem 0;
+  padding: 0.9rem 1rem;
+  background: var(--color-muted);
+  border: 1px solid var(--color-line);
+  border-radius: 10px;
+  overflow-x: auto;
+  line-height: 1.55;
+}
+
+.docs-prose pre code {
+  background: none;
+  border: 0;
+  padding: 0;
+  font-size: 0.82rem;
+  white-space: pre;
+  word-break: normal;
+}
+
+/* Tablas. El contenedor con scroll lo pone el componente; acá van los bordes y la cabecera. */
+.docs-prose th,
+.docs-prose td {
+  border-bottom: 1px solid var(--color-line-soft);
+  padding: 0.5rem 0.75rem;
+  text-align: left;
+  vertical-align: top;
+}
+
+.docs-prose thead th {
+  background: var(--color-muted);
+  font-weight: 600;
+  color: var(--color-fg);
+  white-space: nowrap;
+}
+
+.docs-prose tbody tr:last-child td {
+  border-bottom: 0;
+}
+
+.docs-prose blockquote {
+  margin: 1.1rem 0;
+  padding: 0.6rem 1rem;
+  border-left: 3px solid var(--color-brand);
+  background: var(--color-brand-soft);
+  border-radius: 0 8px 8px 0;
+  color: var(--color-fg);
+}
+
+.docs-prose blockquote > *:first-child {
+  margin-top: 0;
+}
+
+.docs-prose blockquote > *:last-child {
+  margin-bottom: 0;
+}
+
+.docs-prose hr {
+  margin: 2rem 0;
+  border: 0;
+  border-top: 1px solid var(--color-line-soft);
+}
+
+.docs-prose img {
+  max-width: 100%;
+  height: auto;
+  border-radius: 8px;
+}
+
+.docs-prose strong {
+  font-weight: 600;
+  color: var(--color-fg);
+}
