@@ -1,6 +1,7 @@
 import Link from "next/link"
 
 import { PageHeader } from "@/components/ui/page-shell"
+import { requerirAdminDePlataforma } from "@/lib/platform-admin"
 import { arbol, catalogo } from "@/lib/docs/catalogo"
 import {
   buscar,
@@ -22,6 +23,15 @@ export default async function DocsIndexPage({
 }: {
   searchParams: Promise<{ q?: string }>
 }) {
+  // LA GUARDA VA PRIMERO, ANTES DE LEER NADA DEL DISCO.
+  //
+  // El layout de /admin ya comprueba el permiso, y no alcanza: en el App Router el layout y la
+  // página se renderizan EN PARALELO, así que su `notFound()` corta la pantalla pero esta página
+  // ya corrió y sus datos quedan serializados en la respuesta. Es exactamente el incidente del
+  // 24-ago (#208), y acá lo que se filtraría es la documentación de los secretos y la
+  // arquitectura dentro del cuerpo de un 404.
+  await requerirAdminDePlataforma()
+
   const { q } = await searchParams
   const consulta = (q ?? "").trim()
 

@@ -3,6 +3,7 @@ import Link from "next/link"
 
 import { BarraDeDocs, type EntradaDeDocs } from "@/components/docs/barra-de-docs"
 import { arbol } from "@/lib/docs/catalogo"
+import { requerirAdminDePlataforma } from "@/lib/platform-admin"
 
 import "@/components/docs/docs.css"
 
@@ -23,6 +24,10 @@ import "@/components/docs/docs.css"
 // enlaces sería pagar el sitio entero en cada carga.
 
 export default async function DocsLayout({ children }: { children: React.ReactNode }) {
+  // Igual que las páginas: este layout anidado también se renderiza en paralelo con el de
+  // /admin, así que su gate no lo cubre. Acá se filtraría el índice entero de la documentación.
+  await requerirAdminDePlataforma()
+
   const secciones = await arbol()
   const entradas: EntradaDeDocs[] = secciones.flatMap((s) =>
     s.documentos.map((d) => ({ slug: d.slug, titulo: d.titulo, seccion: d.seccion, fecha: d.fecha })),

@@ -2,6 +2,7 @@ import { notFound } from "next/navigation"
 
 import { Markdown } from "@/components/docs/markdown"
 import { PageHeader } from "@/components/ui/page-shell"
+import { requerirAdminDePlataforma } from "@/lib/platform-admin"
 import { catalogo, documentoPorSlug } from "@/lib/docs/catalogo"
 import { TITULO_DE_SECCION } from "@/lib/docs/documento"
 
@@ -15,6 +16,15 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
 }
 
 export default async function DocumentoPage({ params }: { params: Promise<{ slug: string[] }> }) {
+  // LA GUARDA VA PRIMERO, ANTES DE LEER NADA DEL DISCO.
+  //
+  // El layout de /admin ya comprueba el permiso, y no alcanza: en el App Router el layout y la
+  // página se renderizan EN PARALELO, así que su `notFound()` corta la pantalla pero esta página
+  // ya corrió y sus datos quedan serializados en la respuesta. Es exactamente el incidente del
+  // 24-ago (#208), y acá lo que se filtraría es la documentación de los secretos y la
+  // arquitectura dentro del cuerpo de un 404.
+  await requerirAdminDePlataforma()
+
   const slug = (await params).slug.join("/")
   const doc = await documentoPorSlug(slug)
   if (!doc) notFound()
