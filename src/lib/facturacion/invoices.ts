@@ -43,7 +43,12 @@ import type {
   PaymentOutcome,
   TaxStatus,
 } from '@/lib/facturacion/domain/types';
-import type { InvoiceRow, NumberingRangeRow, PaymentTerms } from '@/lib/supabase/types';
+import type {
+  InvoiceLineRow,
+  InvoiceRow,
+  NumberingRangeRow,
+  PaymentTerms,
+} from '@/lib/supabase/types';
 import { getFiscalProvider } from './fiscal/factory';
 import type { FiscalResult, FiscalSubmission } from './fiscal/types';
 import {
@@ -156,6 +161,16 @@ export interface DraftRequest {
    * base que ya no existe.
    */
   globalDiscountCents?: number;
+  /**
+   * Por qué se dio el descuento de factura. La base lo EXIGE cuando hay descuento (0081): un
+   * descuento es la única forma en que sale plata de una venta sin quedar registrada como pago,
+   * devolución ni nota crédito.
+   */
+  globalDiscountReason?: string | null;
+  /** «Referencia/Nombre»: ref. de mascota, historia o nombre libre. No es un dato fiscal. */
+  reference?: string | null;
+  /** Contado (IMMEDIATE) o crédito (CREDIT). Por defecto lo que traiga la columna. */
+  paymentTerms?: 'IMMEDIATE' | 'CREDIT';
   /** Observaciones libres que van impresas en la factura. */
   notes?: string | null;
   wantsElectronicDelivery?: boolean;
@@ -257,6 +272,10 @@ export async function createDraftInvoice(
       tax_cents: totals.taxCents,
       total_cents: totals.totalCents,
       balance_cents: totals.totalCents,
+      global_discount_cents: req.globalDiscountCents ?? 0,
+      global_discount_reason: req.globalDiscountReason?.trim() || null,
+      reference: req.reference?.trim() || null,
+      payment_terms: req.paymentTerms ?? 'IMMEDIATE',
       notes: req.notes?.trim() || null,
     })
     .select('*')
@@ -1162,4 +1181,62 @@ export async function setInvoiceRemindersPaused(
   if (error || !invoice) throw new Error('Factura no encontrada');
   await appendEvent(supabase, invoiceId, paused ? 'REMINDERS_PAUSED' : 'REMINDERS_RESUMED');
   await refreshInvoiceStatus(supabase, clinicId, invoiceId);
+}
+
+/**
+ * Los avisos de un borrador YA GUARDADO, recalculados desde lo que quedó persistido.
+ *
+ * ── POR QUÉ EXISTE ────────────────────────────────────────────────────────────────────────────
+ *
+ * Hasta el 24-ago la emisión vivía en el carrito, y ahí los avisos —existencia insuficiente,
+ * datos del pagador incompletos— se mostraban con lo que el borrador acababa de devolver. Al mover
+ * la emisión al documento (copia de OkVet: «Guardar» crea la cuenta, se emite después) esa pantalla
+ * se quedaba SIN los avisos, y eso reabría exactamente el defecto medido el 23-ago contra
+ * producción: se emitió un producto con existencia 0, quedó en −1, y en pantalla no apareció nada.
+ *
+ * `block_on_insufficient_stock` es `false` a propósito —una clínica no puede dejar de cobrar una
+ * vacuna porque la compra no se cargó todavía— y por eso mismo el aviso es TODA la decisión de
+ * producto: sin él, «avisar sin bloquear» y «no hacer nada» son lo mismo.
+ *
+ * ── POR QUÉ SE RECALCULA Y NO SE GUARDA ───────────────────────────────────────────────────────
+ *
+ * Un aviso guardado envejece. La existencia cambia entre que se arma la cuenta y que se emite —que
+ * es justo el rato en que llega el pedido del proveedor—, así que un aviso persistido diría que
+ * falta stock cuando ya llegó, o callaría cuando ya se agotó. Se recalcula con `previewDraft`, la
+ * MISMA función que valida al crear: una sola definición de qué merece aviso.
+ */
+export async function avisosDelBorrador(
+  supabase: SupabaseClient,
+  clinicId: string,
+  invoice: InvoiceRow,
+  lines: InvoiceLineRow[],
+  now = new Date(),
+): Promise<ValidationIssue[]> {
+  if (invoice.status !== 'BORRADOR' || !invoice.payer_id) return [];
+  try {
+    const preview = await previewDraft(
+      supabase,
+      clinicId,
+      {
+        payerId: invoice.payer_id,
+        patientId: invoice.patient_id,
+        consultationId: invoice.consultation_id,
+        docKind: invoice.doc_kind,
+        lines: lines.map((l) => ({
+          catalogItemId: l.catalog_item_id,
+          description: l.description,
+          qty: l.qty,
+          unitPriceCents: l.unit_price_cents,
+          taxRate: l.tax_rate,
+          discountCents: l.discount_cents,
+        })),
+      },
+      now,
+    );
+    return preview.warnings;
+  } catch {
+    // Un aviso que no se pudo calcular NO puede tumbar la pantalla del documento: el vet tiene que
+    // poder abrir su borrador aunque el catálogo de un ítem haya desaparecido.
+    return [];
+  }
 }

@@ -13,7 +13,7 @@ import { InvoiceCart } from '@/components/facturacion/InvoiceCart';
 import { sugerirRenglones } from '@/lib/facturacion/lo-recetado';
 import { FormularioDeFiltros } from "@/components/ui/formulario-de-filtros"
 
-export const metadata = { title: "Nueva factura · Tuvetia" }
+export const metadata = { title: "Nueva cuenta · Tuvetia" }
 
 
 export const dynamic = 'force-dynamic';
@@ -118,9 +118,9 @@ export default async function NuevaFacturaPage({ searchParams }: { searchParams:
             renglonesIniciales={renglonesIniciales}
             defaultDocKind={settings?.default_doc_kind ?? 'POS'}
             uvtValueCents={settings?.uvt_value_cents ?? DEFAULT_UVT_VALUE_CENTS}
-            defaultTermsDays={settings?.default_payment_terms_days ?? 15}
-            reminderChannel={settings?.reminder_channel ?? 'WHATSAPP'}
-            remindersEnabled={settings?.reminders_enabled ?? false}
+            // La hora se sella acá y no en el componente: en un componente de cliente `new Date()`
+            // es impuro y `react-hooks/purity` lo rechaza. La página ya es `force-dynamic`.
+            abiertaEn={new Date().toISOString()}
           />
         </div>
       </section>

@@ -594,6 +594,12 @@ const CreateDraftSchema = z.object({
   lines: z.array(DraftLineSchema).min(1, 'La factura necesita al menos una línea'),
   /** Descuento de la factura. Se prorratea entre las líneas antes de liquidar el IVA. */
   globalDiscountCents: z.number().int().min(0).nullish(),
+  /** Obligatoria cuando hay descuento de factura. La base lo exige además (0081). */
+  globalDiscountReason: z.string().trim().max(300).nullish(),
+  /** «Referencia/Nombre» de la cuenta. */
+  reference: z.string().trim().max(200).nullish(),
+  /** Contado o crédito, como lo pide la referencia. Fija `invoices.payment_terms`. */
+  paymentTerms: z.enum(['IMMEDIATE', 'CREDIT']).nullish(),
   /** Observaciones libres impresas en la factura. El tope es el de un párrafo, no un expediente. */
   notes: z.string().trim().max(1000).nullish(),
 });
@@ -610,6 +616,12 @@ export async function createInvoiceDraft(
       return { ok: false, error: parsed.error.issues[0]?.message ?? 'Datos inválidos' };
     }
     const d = parsed.data;
+
+    // La base lo garantiza con un CHECK (0081), pero un `check_violation` de Postgres llega en
+    // inglés y con el nombre de la constraint. Acá se dice en español y antes de tocar nada.
+    if ((d.globalDiscountCents ?? 0) > 0 && !d.globalDiscountReason?.trim()) {
+      return { ok: false, error: 'Escribe la razón del descuento global.' };
+    }
 
     let payerId = d.payerId ?? null;
     if (!payerId && d.ownerId) {
@@ -633,6 +645,9 @@ export async function createInvoiceDraft(
         discountCents: l.discountCents ?? undefined,
       })),
       globalDiscountCents: d.globalDiscountCents ?? undefined,
+      globalDiscountReason: d.globalDiscountReason ?? null,
+      reference: d.reference ?? null,
+      paymentTerms: d.paymentTerms ?? undefined,
       notes: d.notes ?? null,
       createdBy: userId,
     });
