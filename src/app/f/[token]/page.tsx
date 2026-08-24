@@ -18,8 +18,14 @@ import { formatCOP } from "@/lib/facturacion/format"
 //    armando y no tiene por qué ser visible aunque alguien tenga el enlace.
 //  · Todo lo que no se sirve devuelve el MISMO 404: token inválido, factura inexistente y borrador
 //    son indistinguibles desde afuera. Distinguirlos confirmaría que un token existe.
-//  · Nada interno sale de acá: ni `notes`, ni ids, ni el resto de la cartera del titular. Sólo esta
-//    factura, su clínica y sus líneas.
+//  · Nada interno sale de acá: ni ids, ni el resto de la cartera del titular. Sólo esta factura,
+//    su clínica y sus líneas.
+//  · `notes` SÍ sale, y es a propósito: es el campo «Observaciones» que el vet escribe en la
+//    factura, y una observación de la factura es para quien la recibe. Hasta el 24-ago no lo
+//    escribía nadie —la columna estaba vacía en toda la base— así que al conectarlo no se publicó
+//    ningún dato viejo. QUEDA DICHO PARA EL PRÓXIMO: este campo es del titular por definición. Si
+//    algún día hace falta una anotación que el cliente NO deba ver, va en una columna nueva; no
+//    acá.
 //  · `noindex`: es una URL pública con un dato privado. `robots.txt` la desalienta además, pero el
 //    meta es lo que de verdad la mantiene fuera del índice si alguien la enlaza.
 
@@ -44,6 +50,7 @@ type Invoice = {
   due_date: string | null
   subtotal_cents: number
   discount_cents: number
+  notes: string | null
   tax_cents: number
   total_cents: number
   paid_cents: number
@@ -79,7 +86,7 @@ export default async function FacturaPublicaPage({ params }: { params: Promise<{
   const { data: invRow } = await admin
     .from("invoices")
     .select(
-      "id, clinic_id, full_number, number, status, issued_at, due_date, subtotal_cents, discount_cents, tax_cents, total_cents, paid_cents, credited_cents, balance_cents, payer_id",
+      "id, clinic_id, full_number, number, status, issued_at, due_date, subtotal_cents, discount_cents, tax_cents, total_cents, paid_cents, credited_cents, balance_cents, payer_id, notes",
     )
     .eq("share_token", token)
     .maybeSingle()
@@ -222,6 +229,15 @@ export default async function FacturaPublicaPage({ params }: { params: Promise<{
             </div>
           )}
         </div>
+
+        {invoice.notes && (
+          <div className="border-t px-6 py-4 text-sm text-neutral-600">
+            <div className="mb-1 text-xs font-medium text-neutral-500">Observaciones</div>
+            {/* `whitespace-pre-line` respeta los saltos que el vet escribió: una observación suele
+                ser una lista corta, y en un solo párrafo se vuelve ilegible. */}
+            <p className="whitespace-pre-line">{invoice.notes}</p>
+          </div>
+        )}
 
         {/* Cómo pagar: sin pasarela todavía, así que se dirige a la clínica en vez de prometer algo
             que no existe. */}

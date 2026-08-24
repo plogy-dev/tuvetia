@@ -166,6 +166,7 @@ export default async function FacturaDetallePage({
                     <th className="px-4 py-2 font-medium">Descripción</th>
                     <th className="px-2 py-2 text-right font-medium">Cant.</th>
                     <th className="px-2 py-2 text-right font-medium">Precio</th>
+                    <th className="px-2 py-2 text-right font-medium">Desc.</th>
                     <th className="px-2 py-2 text-right font-medium">IVA</th>
                     <th className="px-4 py-2 text-right font-medium">Total</th>
                   </tr>
@@ -181,6 +182,9 @@ export default async function FacturaDetallePage({
                         {formatCOP(l.unit_price_cents)}
                       </td>
                       <td className="px-2 py-2 text-right text-fg-muted">
+                        {l.discount_cents > 0 ? `− ${formatCOP(l.discount_cents)}` : '—'}
+                      </td>
+                      <td className="px-2 py-2 text-right text-fg-muted">
                         {l.tax_status === 'GRAVADO'
                           ? `${l.tax_rate}%`
                           : l.tax_status === 'EXENTO'
@@ -193,21 +197,31 @@ export default async function FacturaDetallePage({
                 </tbody>
                 <tfoot>
                   <tr className="border-t border-line text-sm">
-                    <td colSpan={4} className="px-4 py-2 text-right text-fg-muted">
+                    <td colSpan={5} className="px-4 py-2 text-right text-fg-muted">
                       Subtotal
                     </td>
                     <td className="px-4 py-2 text-right text-fg">
                       {formatCOP(invoice.subtotal_cents)}
                     </td>
                   </tr>
+                  {invoice.discount_cents > 0 && (
+                    <tr>
+                      <td colSpan={5} className="px-4 py-1 text-right text-fg-muted">
+                        Descuento
+                      </td>
+                      <td className="px-4 py-1 text-right text-fg-muted">
+                        − {formatCOP(invoice.discount_cents)}
+                      </td>
+                    </tr>
+                  )}
                   <tr>
-                    <td colSpan={4} className="px-4 py-1 text-right text-fg-muted">
+                    <td colSpan={5} className="px-4 py-1 text-right text-fg-muted">
                       IVA
                     </td>
                     <td className="px-4 py-1 text-right text-fg">{formatCOP(invoice.tax_cents)}</td>
                   </tr>
                   <tr className="text-base font-semibold">
-                    <td colSpan={4} className="px-4 py-2 text-right text-fg">
+                    <td colSpan={5} className="px-4 py-2 text-right text-fg">
                       Total
                     </td>
                     <td className="px-4 py-2 text-right text-fg">
@@ -216,7 +230,7 @@ export default async function FacturaDetallePage({
                   </tr>
                   {invoice.status === 'EMITIDA' && (
                     <tr className="text-sm">
-                      <td colSpan={4} className="px-4 pb-3 text-right text-fg-muted">
+                      <td colSpan={5} className="px-4 pb-3 text-right text-fg-muted">
                         Saldo
                       </td>
                       <td className="px-4 pb-3 text-right text-fg">
@@ -227,6 +241,18 @@ export default async function FacturaDetallePage({
                 </tfoot>
               </table>
             </section>
+
+            {invoice.notes && (
+              <section className="rounded-xl border border-line bg-surface p-4 text-sm">
+                <h2 className="mb-2 text-xs font-medium uppercase tracking-wide text-fg-faint">
+                  Observaciones
+                </h2>
+                {/* Se respetan los saltos de línea: lo que el vet escribió como lista corta no
+                    debe leerse como un párrafo corrido. Va con el mismo texto que ve el titular en
+                    su factura — no es una nota interna. */}
+                <p className="whitespace-pre-line text-fg-muted">{invoice.notes}</p>
+              </section>
+            )}
 
             {/* Info fiscal */}
             {fiscalDoc && (

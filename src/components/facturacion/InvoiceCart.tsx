@@ -10,7 +10,13 @@ import {
   issueInvoiceAction,
   type CreateDraftInput,
 } from '@/lib/facturacion/actions';
-import { computeLineAmounts, computeInvoiceTotals, formatCOP } from '@/lib/facturacion/domain/money';
+import {
+  computeLineAmounts,
+  computeInvoiceTotals,
+  formatCOP,
+  lineSubtotalCents,
+  prorratearDescuentoGlobal,
+} from '@/lib/facturacion/domain/money';
 import { checkPosThreshold } from '@/lib/facturacion/domain/dian-rules';
 import type { DocKind } from '@/lib/facturacion/domain/types';
 import type { CatalogItemRow } from '@/lib/supabase/types';
@@ -36,6 +42,8 @@ type CartLine = {
   qty: number;
   unitPriceCents: number;
   taxRate: number;
+  /** Descuento propio de la línea, en centavos. El global se suma aparte, prorrateado. */
+  discountCents: number;
 };
 
 export function InvoiceCart({
@@ -97,9 +105,14 @@ export function InvoiceCart({
       qty: 1,
       unitPriceCents: r.unitPriceCents,
       taxRate: r.taxRate,
+      discountCents: 0,
     })),
   );
   const [docKind, setDocKind] = useState<DocKind>(defaultDocKind);
+  // Descuento de la FACTURA (no de una línea). Se guarda en centavos como todo el dinero del
+  // sistema; el input trabaja en pesos porque nadie teclea centavos en una recepción.
+  const [descuentoGlobalCents, setDescuentoGlobalCents] = useState(0);
+  const [notes, setNotes] = useState('');
   const [plan, setPlan] = useState<PaymentPlan>(() => makeDefaultPlan(defaultTermsDays));
   // Arranca DESPUÉS de las líneas sembradas, o la primera que se agregue a mano pisaría la clave
   // de una de ellas y React reusaría la fila equivocada.
@@ -124,6 +137,7 @@ export function InvoiceCart({
           qty: 1,
           unitPriceCents: item.price_cents,
           taxRate: item.tax_rate,
+          discountCents: 0,
         },
       ];
     });
@@ -133,7 +147,15 @@ export function InvoiceCart({
   function addManualLine() {
     setLines((ls) => [
       ...ls,
-      { key: nextKey, catalogItemId: null, description: '', qty: 1, unitPriceCents: 0, taxRate: 19 },
+      {
+        key: nextKey,
+        catalogItemId: null,
+        description: '',
+        qty: 1,
+        unitPriceCents: 0,
+        taxRate: 19,
+        discountCents: 0,
+      },
     ]);
     setNextKey((k) => k + 1);
   }
@@ -147,17 +169,37 @@ export function InvoiceCart({
   }
 
   // Totales en vivo con el dominio (mismo redondeo half-up del servidor).
-  const totals = useMemo(() => {
+  //
+  // EL DESCUENTO GLOBAL SE PRORRATEA ACÁ, con la misma función pura que usa el servidor al
+  // persistir. No es una duplicación del cálculo: es la única forma de que el total que el vet
+  // aprueba en pantalla y el que queda en la factura no se separen en el último centavo.
+  //
+  // El error no se traga: un descuento mayor que el subtotal es lo que más probablemente se teclee
+  // mal, y con un `catch` mudo la pantalla solo mostraría rayas sin decir por qué.
+  const calculo = useMemo(() => {
     try {
-      return computeInvoiceTotals(
-        lines.map((l) =>
-          computeLineAmounts({ qty: l.qty, unitPriceCents: l.unitPriceCents, taxRate: l.taxRate }),
-        ),
+      const bases = lines.map(
+        (l) => lineSubtotalCents(l.qty, l.unitPriceCents) - l.discountCents,
       );
-    } catch {
-      return null;
+      const partes = prorratearDescuentoGlobal(bases, descuentoGlobalCents);
+      const montos = lines.map((l, i) =>
+        computeLineAmounts({
+          qty: l.qty,
+          unitPriceCents: l.unitPriceCents,
+          taxRate: l.taxRate,
+          discountCents: l.discountCents + partes[i],
+        }),
+      );
+      return { montos, totals: computeInvoiceTotals(montos), problema: null as string | null };
+    } catch (e) {
+      return {
+        montos: null,
+        totals: null,
+        problema: e instanceof Error ? e.message : 'Los importes no cuadran.',
+      };
     }
-  }, [lines]);
+  }, [lines, descuentoGlobalCents]);
+  const totals = calculo.totals;
 
   const posWarning =
     totals && docKind === 'POS'
@@ -176,7 +218,12 @@ export function InvoiceCart({
         qty: l.qty,
         unitPriceCents: l.catalogItemId ? null : l.unitPriceCents,
         taxRate: l.catalogItemId ? null : l.taxRate,
+        // Va el descuento PROPIO de la línea. El global viaja aparte y lo prorratea el servidor:
+        // mandarlo ya repartido dejaría al cliente decidiendo cuánto tributa cada línea.
+        discountCents: l.discountCents,
       })),
+      globalDiscountCents: descuentoGlobalCents,
+      notes: notes.trim() || null,
     };
   }
 
@@ -185,6 +232,10 @@ export function InvoiceCart({
     setWarnings([]);
     if (lines.length === 0) {
       setError('Agrega al menos una línea.');
+      return;
+    }
+    if (calculo.problema) {
+      setError(calculo.problema);
       return;
     }
     const planError = mode === 'issue' ? validatePlan(plan, totals?.totalCents ?? 0) : null;
@@ -299,24 +350,18 @@ export function InvoiceCart({
                 <th className="px-4 py-2 font-medium">Descripción</th>
                 <th className="px-2 py-2 font-medium">Cant.</th>
                 <th className="px-2 py-2 font-medium">Precio unit.</th>
+                <th className="px-2 py-2 font-medium">Desc.</th>
                 <th className="px-2 py-2 font-medium">IVA</th>
                 <th className="px-2 py-2 text-right font-medium">Total</th>
                 <th className="px-2 py-2" />
               </tr>
             </thead>
             <tbody>
-              {lines.map((l) => {
-                const amounts = (() => {
-                  try {
-                    return computeLineAmounts({
-                      qty: l.qty,
-                      unitPriceCents: l.unitPriceCents,
-                      taxRate: l.taxRate,
-                    });
-                  } catch {
-                    return null;
-                  }
-                })();
+              {lines.map((l, idx) => {
+                // Del cálculo de arriba, no de un recálculo acá: si esta fila volviera a computar
+                // por su cuenta ignoraría el descuento global prorrateado y mostraría un total de
+                // línea que no suma al total de la factura.
+                const amounts = calculo.montos?.[idx] ?? null;
                 return (
                   <tr key={l.key} className="border-b border-line/60 last:border-0">
                     <td className="px-4 py-2">
@@ -358,6 +403,23 @@ export function InvoiceCart({
                           className="w-28 rounded-md border border-line bg-surface px-2 py-1 text-sm text-fg outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
                         />
                       )}
+                    </td>
+                    <td className="px-2 py-2">
+                      {/* Editable SIEMPRE, también en líneas de catálogo: rebajar un ítem del
+                          catálogo es justamente el caso normal de un descuento. */}
+                      <input
+                        type="number"
+                        min={0}
+                        step={100}
+                        value={l.discountCents / 100}
+                        onChange={(e) =>
+                          updateLine(l.key, {
+                            discountCents: Math.max(0, Math.round(Number(e.target.value) * 100)),
+                          })
+                        }
+                        aria-label={`Descuento de ${l.description || 'la línea'}`}
+                        className="w-24 rounded-md border border-line bg-surface px-2 py-1 text-sm text-fg outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
+                      />
                     </td>
                     <td className="px-2 py-2">
                       {l.catalogItemId ? (
@@ -409,6 +471,21 @@ export function InvoiceCart({
               <option value="FACTURA_VENTA">Factura electrónica de venta</option>
             </select>
           </div>
+          <div>
+            <label htmlFor="observaciones" className="block text-xs font-medium text-fg-muted">
+              Observaciones
+            </label>
+            <p className="text-xs text-fg-faint">Se imprimen en la factura que ve el titular.</p>
+            <textarea
+              id="observaciones"
+              value={notes}
+              onChange={(e) => setNotes(e.target.value)}
+              rows={2}
+              maxLength={1000}
+              placeholder="Ej.: garantía del procedimiento, próximo control, acuerdo de pago"
+              className="mt-1 w-full rounded-lg border border-line bg-surface px-3 py-2 text-sm text-fg placeholder:text-fg-faint outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
+            />
+          </div>
           <PaymentSection
             plan={plan}
             onChange={setPlan}
@@ -432,6 +509,35 @@ export function InvoiceCart({
               <dt>Subtotal</dt>
               <dd>{totals ? formatCOP(totals.subtotalCents) : '—'}</dd>
             </div>
+            <div className="flex items-center justify-between gap-2 text-fg-muted">
+              <dt>
+                <label htmlFor="descuento-global">Descuento factura</label>
+              </dt>
+              <dd>
+                <input
+                  id="descuento-global"
+                  type="number"
+                  min={0}
+                  step={1000}
+                  value={descuentoGlobalCents / 100}
+                  onChange={(e) =>
+                    setDescuentoGlobalCents(Math.max(0, Math.round(Number(e.target.value) * 100)))
+                  }
+                  className="w-28 rounded-md border border-line bg-surface px-2 py-1 text-right text-sm text-fg outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
+                />
+              </dd>
+            </div>
+            {totals && totals.discountCents > 0 && (
+              <div className="flex justify-between text-fg-muted">
+                <dt>Descuento total</dt>
+                <dd>− {formatCOP(totals.discountCents)}</dd>
+              </div>
+            )}
+            {calculo.problema && (
+              <p className="rounded-md border border-warn bg-surface-2 px-2 py-1.5 text-xs text-warn">
+                {calculo.problema}
+              </p>
+            )}
             <div className="flex justify-between text-fg-muted">
               <dt>IVA</dt>
               <dd>{totals ? formatCOP(totals.taxCents) : '—'}</dd>
