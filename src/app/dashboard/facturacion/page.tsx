@@ -1,22 +1,17 @@
 import Link from 'next/link';
 import { TOPE_SIN_FACTURAR, hayMasQueElTope } from '@/lib/facturacion/sin-facturar';
 import {
+  MailWarning,
   Receipt,
   Plus,
-  Boxes,
-  BookOpen,
-  Settings2,
   FlaskConical,
   Stethoscope,
-  MailWarning,
-  Wallet,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { requireClinicPage } from '@/lib/facturacion/page-auth';
 import {
   getActiveRange,
   getBillingSettings,
-  getDashboardKpis,
   getUnbilledConsultations,
   getUnsentIssuedCount,
 } from '@/lib/facturacion/queries';
@@ -30,8 +25,8 @@ import {
 import type { InvoiceRow } from '@/lib/supabase/types';
 import { TrLink } from '@/components/ui/TrLink';
 import { PageHeader, PageShell } from '@/components/ui/page-shell';
-import { StatCard } from '@/components/ui/stat-card';
 import { FormularioDeFiltros } from '@/components/ui/formulario-de-filtros';
+import { MenuDeVentas } from '@/components/facturacion/MenuDeVentas';
 
 export const metadata = { title: "Ventas · Tuvetia" }
 
@@ -66,18 +61,14 @@ export default async function FacturacionPage({ searchParams }: { searchParams: 
   if (!ctx) return null;
   const { supabase, clinicId } = ctx;
 
-  // Inicio de mes en Bogotá (UTC-5 fijo, sin DST): la frontera del KPI es la del negocio, no la
-  // del servidor — en Vercel (UTC) el corte de mes caía 5 horas antes.
-  const nowUtc = new Date();
-  const bogota = new Date(nowUtc.getTime() - 5 * 3_600_000);
-  const monthStartIso = new Date(
-    Date.UTC(bogota.getUTCFullYear(), bogota.getUTCMonth(), 1, 5),
-  ).toISOString();
 
   // Una sola ola: settings y datos del dashboard no dependen entre sí. El listado sigue trayendo
   // las últimas 100 (es una tabla de recientes); los KPIs de dinero YA NO salen de esas 100 filas
   // sino de agregados sobre todo el historial (getDashboardKpis).
-  const [settings, { data }, unbilled, unsentCount, kpis] = await Promise.all([
+  // `getDashboardKpis` se fue con las tarjetas: era un agregado sobre TODO el historial que ahora
+  // no se pinta en ningún lado de esta pantalla. Las cifras viven en Finanzas, que las calcula por
+  // su cuenta. Un viaje de red menos en la ruta más visitada de la zona.
+  const [settings, { data }, unbilled, unsentCount] = await Promise.all([
     getBillingSettings(supabase, clinicId),
     (() => {
       // SE FILTRA EN LA BASE, no en memoria: el tope de 100 se aplica DESPUÉS del filtro, así que
@@ -98,7 +89,6 @@ export default async function FacturacionPage({ searchParams }: { searchParams: 
     })(),
     getUnbilledConsultations(supabase, clinicId, { limit: 25 }),
     getUnsentIssuedCount(supabase, clinicId),
-    getDashboardKpis(supabase, clinicId, monthStartIso),
   ]);
   const active = settings?.module_status === 'ACTIVO';
 
@@ -143,13 +133,9 @@ export default async function FacturacionPage({ searchParams }: { searchParams: 
     );
   }
 
-  // ── Módulo activo: KPIs + lista + puente CRM ──────────────────────────────
+  // ── Módulo activo: lista + avisos + puente CRM ────────────────────────────
   const invoices = (data as InvoiceWithPayer[] | null) ?? [];
   const hayFiltro = Boolean(f.desde || f.hasta || f.tipo || f.estado);
-
-  const { billedCents, collectedCents, issuedCount, outstandingCents, openCount, overdueCount } =
-    kpis;
-  const drafts = kpis.draftCount;
   // Una sola fuente de verdad para una afirmación FISCAL: el rango de numeración activo (igual que
   // configuración). La heurística anterior (startsWith('S') sobre las últimas 100 facturas) daba
   // falso "sin validez fiscal" con prefijos legítimos tipo SETP y con cero facturas emitidas.
@@ -171,29 +157,11 @@ export default async function FacturacionPage({ searchParams }: { searchParams: 
           description={`Factura electrónica DIAN · ${monthLabel}`}
           actions={
             <>
-              <Button render={<Link href="/dashboard/facturacion/finanzas" />} variant="outline">
-                <Wallet aria-hidden />
-                Finanzas
-              </Button>
-              <Button render={<Link href="/dashboard/facturacion/cartera" />} variant="outline">
-                <MailWarning aria-hidden />
-                Cartera
-              </Button>
-              <Button render={<Link href="/dashboard/facturacion/inventario" />} variant="outline">
-                <Boxes aria-hidden />
-                Inventario
-              </Button>
-              <Button render={<Link href="/dashboard/facturacion/catalogo" />} variant="outline">
-                <BookOpen aria-hidden />
-                Catálogo
-              </Button>
-              <Button
-                render={<Link href="/dashboard/facturacion/configuracion" />}
-                variant="outline"
-              >
-                <Settings2 aria-hidden />
-                Configuración
-              </Button>
+              {/* UNA sola acción destacada, como en la referencia. Los cinco destinos —Finanzas,
+                  Cartera, Inventario, Catálogo, Configuración— se fueron al menú: no son acciones,
+                  y con el mismo peso que «Nueva factura» convertían la cabecera en una pared de
+                  seis opciones donde la que sirve para cobrar era la última. */}
+              <MenuDeVentas />
               <Button render={<Link href="/dashboard/facturacion/nueva" />}>
                 <Plus aria-hidden />
                 Nueva factura
@@ -244,49 +212,19 @@ export default async function FacturacionPage({ searchParams }: { searchParams: 
           </div>
         )}
 
-        {/* ── Stat row ──
-            NO SE PINTA SI LA CLÍNICA NUNCA FACTURÓ. Cuatro tarjetas en «$ 0» sobre una pantalla
-            sin datos no informan: compiten con lo único que hay que hacer ahí, que es crear la
-            primera factura. Es el mismo criterio que el doc de facturación ya fijaba para el
-            tablero —«un $ 0 inventado se lee como un dato malo, no como un módulo apagado»— y que
-            esta pantalla no estaba aplicando.
+        {/* ── LAS CIFRAS NO VIVEN ACÁ ──────────────────────────────────────────────────────
+            Esta pantalla es un LIBRO DE VENTAS: documentos, con sus filtros. Tenía encima cuatro
+            tarjetas —facturado, recaudado, por cobrar, borradores— que la convertían en dos cosas a
+            la vez y empujaban la tabla debajo del pliegue.
 
-            La condición mira las TRES fuentes, no la lista: `invoices` puede venir vacía por un
-            filtro y las cifras seguir teniendo sentido. Con cero emitidas, cero borradores y cero
-            filas, no hay nada que resumir. */}
-        {(invoices.length > 0 || issuedCount > 0 || drafts > 0) && (
-        <div className="mb-[22px] grid gap-3 [grid-template-columns:repeat(auto-fit,minmax(200px,1fr))]">
-          <StatCard
-            label={`Facturado en ${monthName}`}
-            value={formatCOP(billedCents)}
-            sub={issuedCount === 1 ? '1 factura emitida' : `${issuedCount} facturas emitidas`}
-          />
-          <StatCard
-            label="Recaudado este mes"
-            value={formatCOP(collectedCents)}
-            sub="pagos aplicados a facturas del mes"
-          />
-          <StatCard
-            label="Por cobrar"
-            value={formatCOP(outstandingCents)}
-            sub={
-              <>
-                {openCount === 1 ? '1 factura con saldo' : `${openCount} facturas con saldo`}
-                {overdueCount > 0 && (
-                  <span className="font-medium text-warn">
-                    · {overdueCount} {overdueCount === 1 ? 'vencida' : 'vencidas'}
-                  </span>
-                )}
-              </>
-            }
-          />
-          <StatCard
-            label="Borradores"
-            value={String(drafts)}
-            sub="por emitir"
-          />
-        </div>
-        )}
+            Es lo que hace la referencia: en OkVet «Ventas, recibos y facturas» no tiene una sola
+            métrica, y su «Dashboard de ventas» es OTRA pantalla (de hecho, de pago). Acá el
+            equivalente ya existe y es gratis: Finanzas, en el menú de Secciones.
+
+            NO SE PIERDE NADA. Lo que de verdad exige acción —facturas emitidas sin enviar, consultas
+            sin facturar, cartera vencida— sigue arriba como aviso, que es donde sirve: un número en
+            una tarjeta se mira, un aviso se atiende. */}
+
 
         {/* ── Filtros ──
             La lista traía las últimas 100 SIN forma de acotarlas: con un par de meses de uso, una
