@@ -31,6 +31,7 @@ import type { InvoiceRow } from '@/lib/supabase/types';
 import { TrLink } from '@/components/ui/TrLink';
 import { PageHeader, PageShell } from '@/components/ui/page-shell';
 import { StatCard } from '@/components/ui/stat-card';
+import { FormularioDeFiltros } from '@/components/ui/formulario-de-filtros';
 
 export const metadata = { title: "Ventas · Tuvetia" }
 
@@ -41,10 +42,26 @@ type InvoiceWithPayer = InvoiceRow & { payer: { name: string } | null };
 
 // ─── Piezas de presentación (estilo mockup app-rediseno-shadcn) ──────────────
 
+// Vocabulario REAL de la base (`invoices_status_check` y `invoices_doc_kind_check`), no inventado.
+// Son listas cerradas porque lo que llega por la URL es entrada de fuera.
+const DOC_KINDS = ['FACTURA_VENTA', 'POS'];
+const ESTADOS = ['BORRADOR', 'EMITIENDO', 'EMITIDA', 'ANULADA'];
+
+/** `YYYY-MM-DD` y nada más. */
+function esFecha(v: string | undefined): v is string {
+  return typeof v === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(v);
+}
+
 const TH_BASE =
   'border-b border-line-soft px-3.5 py-[9px] text-left text-[11px] font-semibold uppercase tracking-[0.06em] text-muted-foreground';
 
-export default async function FacturacionPage() {
+// Los filtros viajan por la URL y no por estado de cliente: así una búsqueda se puede compartir,
+// se puede volver con el botón de atrás, y la pantalla sigue siendo un componente de servidor sin
+// una sola línea de JavaScript enviada al navegador.
+type FiltrosDeVentas = Promise<{ desde?: string; hasta?: string; tipo?: string; estado?: string }>;
+
+export default async function FacturacionPage({ searchParams }: { searchParams: FiltrosDeVentas }) {
+  const f = await searchParams;
   const ctx = await requireClinicPage();
   if (!ctx) return null;
   const { supabase, clinicId } = ctx;
@@ -62,12 +79,23 @@ export default async function FacturacionPage() {
   // sino de agregados sobre todo el historial (getDashboardKpis).
   const [settings, { data }, unbilled, unsentCount, kpis] = await Promise.all([
     getBillingSettings(supabase, clinicId),
-    supabase
-      .from('invoices')
-      .select('*, payer:billing_payers(name)')
-      .eq('clinic_id', clinicId)
-      .order('created_at', { ascending: false })
-      .limit(100),
+    (() => {
+      // SE FILTRA EN LA BASE, no en memoria: el tope de 100 se aplica DESPUÉS del filtro, así que
+      // buscar una factura de marzo entre miles la encuentra. Filtrando en JS sobre las últimas
+      // 100, marzo simplemente no estaría.
+      let q = supabase
+        .from('invoices')
+        .select('*, payer:billing_payers(name)')
+        .eq('clinic_id', clinicId);
+      // Los valores vienen de la URL, o sea de fuera: se comparan contra las listas cerradas de
+      // abajo antes de tocar la consulta. Un `estado=<script>` no llega a Postgres.
+      if (f.tipo && DOC_KINDS.includes(f.tipo)) q = q.eq('doc_kind', f.tipo);
+      if (f.estado && ESTADOS.includes(f.estado)) q = q.eq('status', f.estado);
+      if (esFecha(f.desde)) q = q.gte('created_at', `${f.desde}T00:00:00-05:00`);
+      // `hasta` es INCLUSIVO: quien escribe 31 de agosto espera que entren las de ese día.
+      if (esFecha(f.hasta)) q = q.lte('created_at', `${f.hasta}T23:59:59-05:00`);
+      return q.order('created_at', { ascending: false }).limit(100);
+    })(),
     getUnbilledConsultations(supabase, clinicId, { limit: 25 }),
     getUnsentIssuedCount(supabase, clinicId),
     getDashboardKpis(supabase, clinicId, monthStartIso),
@@ -117,6 +145,7 @@ export default async function FacturacionPage() {
 
   // ── Módulo activo: KPIs + lista + puente CRM ──────────────────────────────
   const invoices = (data as InvoiceWithPayer[] | null) ?? [];
+  const hayFiltro = Boolean(f.desde || f.hasta || f.tipo || f.estado);
 
   const { billedCents, collectedCents, issuedCount, outstandingCents, openCount, overdueCount } =
     kpis;
@@ -259,9 +288,93 @@ export default async function FacturacionPage() {
         </div>
         )}
 
+        {/* ── Filtros ──
+            La lista traía las últimas 100 SIN forma de acotarlas: con un par de meses de uso, una
+            factura de marzo no se podía encontrar. Son los mismos tres ejes por los que filtra
+            cualquier libro de ventas —cuándo, qué documento, en qué estado— y viajan por la URL.
+
+            Es un `form` GET, sin JavaScript: el navegador arma la query, la página sigue siendo de
+            servidor, y el resultado se puede compartir o volver con el botón de atrás. */}
+        <FormularioDeFiltros
+          action="/dashboard/facturacion"
+          className="mb-3 flex flex-wrap items-end gap-2"
+        >
+          <label className="flex flex-col gap-1">
+            <span className="text-[11px] font-medium text-fg-muted">Desde</span>
+            <input
+              type="date"
+              name="desde"
+              defaultValue={f.desde ?? ''}
+              className="h-9 rounded-lg border border-line bg-surface px-2.5 text-sm text-fg"
+            />
+          </label>
+          <label className="flex flex-col gap-1">
+            <span className="text-[11px] font-medium text-fg-muted">Hasta</span>
+            <input
+              type="date"
+              name="hasta"
+              defaultValue={f.hasta ?? ''}
+              className="h-9 rounded-lg border border-line bg-surface px-2.5 text-sm text-fg"
+            />
+          </label>
+          <label className="flex flex-col gap-1">
+            <span className="text-[11px] font-medium text-fg-muted">Documento</span>
+            <select
+              name="tipo"
+              defaultValue={f.tipo ?? ''}
+              className="h-9 rounded-lg border border-line bg-surface px-2.5 text-sm text-fg"
+            >
+              <option value="">Todos</option>
+              <option value="FACTURA_VENTA">Factura electrónica</option>
+              <option value="POS">Tiquete POS</option>
+            </select>
+          </label>
+          <label className="flex flex-col gap-1">
+            <span className="text-[11px] font-medium text-fg-muted">Estado</span>
+            <select
+              name="estado"
+              defaultValue={f.estado ?? ''}
+              className="h-9 rounded-lg border border-line bg-surface px-2.5 text-sm text-fg"
+            >
+              <option value="">Todos</option>
+              <option value="BORRADOR">Borrador</option>
+              <option value="EMITIDA">Emitida</option>
+              <option value="ANULADA">Anulada</option>
+            </select>
+          </label>
+          <Button type="submit" variant="outline" className="h-9">
+            Filtrar
+          </Button>
+          {hayFiltro && (
+            <Link
+              href="/dashboard/facturacion"
+              className="h-9 self-end px-2 text-sm text-fg-muted underline underline-offset-2 hover:text-fg"
+            >
+              Limpiar
+            </Link>
+          )}
+        </FormularioDeFiltros>
+
         {/* ── Tabla de facturas ── */}
         <div className="mb-[14px] overflow-hidden rounded-lg border border-line-soft bg-card">
           {invoices.length === 0 ? (
+            hayFiltro ? (
+            <div className="flex flex-col items-center gap-2 px-4 py-12 text-center">
+              {/* DOS VACÍOS DISTINTOS. "No hay facturas" cuando el filtro es el que no encuentra
+                  nada se lee como que se perdieron los datos. */}
+              <p className="text-base font-medium text-fg">Ninguna factura con esos filtros</p>
+              <p className="max-w-sm text-sm text-fg-muted">
+                Probá ampliar el rango de fechas, o quitá el tipo de documento y el estado.
+              </p>
+              <Button
+                render={<Link href="/dashboard/facturacion" />}
+                variant="outline"
+                className="mt-2"
+              >
+                Limpiar filtros
+              </Button>
+            </div>
+            ) : (
             <div className="flex flex-col items-center gap-2 px-4 py-12 text-center">
               <p className="text-base font-medium text-fg">Todavía no facturaste nada</p>
               {/* QUÉ VA A PASAR AL APRETAR, dicho antes de apretar. El primer paso de «Nueva
@@ -276,6 +389,7 @@ export default async function FacturacionPage() {
                 Crear la primera factura
               </Button>
             </div>
+            )
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full border-collapse text-[13px]">
