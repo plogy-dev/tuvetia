@@ -1,43 +1,129 @@
 "use client"
 
-// Las secciones de la zona de ventas, en un menú.
+// Las secciones de la zona de ventas, con la estructura y los nombres de OkVet.
 //
-// ── POR QUÉ DEJARON DE SER BOTONES ────────────────────────────────────────────────────────────
+// ── UNA CORRECCIÓN, PORQUE LA PRIMERA LECTURA FUE MALA ────────────────────────────────────────
 //
-// La cabecera de Ventas tenía SEIS botones en fila —Finanzas, Cartera, Inventario, Catálogo,
-// Configuración y Nueva factura— y cinco de ellos no son acciones: son DESTINOS. Puestos con el
-// mismo peso que la única acción real, lo primero que ve alguien que entra a cobrar una consulta es
-// una pared de seis opciones, y la que necesita es la última.
+// El 24-ago se miró OkVet y se concluyó que «no tiene menú de secciones»: su `···`, al lado de
+// «Registrar venta», sólo trae «Unificador de cuentas». Eso es cierto y era la conclusión
+// equivocada — el menú de ventas de OkVet SÍ existe, cuelga de su PESTAÑA «Ventas» en la barra de
+// navegación, y tiene DOS NIVELES con doce entradas:
 //
-// Reportado por un vet el 24-ago probando facturación en producción: «super confuso».
+//   Dashboard de ventas · Documentos ▸ (Cotizaciones · Ventas, recibos y facturas · Notas crédito ·
+//   Documentos soporte) · Ingresos y Egresos · Inventario ▸ (Productos y servicios · Categorías ·
+//   Salidas y reservas · Ordenes de compra · Compras) · Proveedores · Clientes · Crédito Welli ·
+//   Configuración de facturación
 //
-// La referencia lo resuelve igual: en OkVet la zona de ventas cuelga de un menú desplegable
-// —Dashboard de ventas, Cotizaciones, Ventas/recibos/facturas, Productos y servicios, Categorías,
-// Salidas y reservas, Configuración— y en la pantalla queda UNA sola acción destacada, «Registrar
-// venta». Se miró su producto con la cuenta del cliente el 24-ago; hasta entonces el repo trabajaba
-// a ciegas porque OkVet no publica capturas.
+// O sea que el problema nunca fue que el menú sobrara: era que se quedaba corto.
 //
-// NO SE ESCONDE NADA. Un menú con etiqueta visible («Secciones») y siete entradas es más
-// descubrible que seis botones que compiten: el que busca Inventario lo encuentra igual, y el que
-// viene a facturar ya no tiene que leerlos todos para llegar al que le sirve.
+// ── LO QUE ESTABA CONSTRUIDO Y CASI NO TENÍA PUERTA ───────────────────────────────────────────
+//
+// Este menú mostraba CINCO destinos. La zona de ventas tiene nueve pantallas, y cuatro sólo se
+// alcanzaban entrando primero a Inventario y buscando un enlace adentro:
+//
+//   · Compras            — lista, nueva, editar y detalle, todo hecho
+//   · Proveedores        — sólo enlazado desde dentro de Compras
+//   · Salidas y reservas — los movimientos de inventario
+//   · Importar catálogo
+//
+// Nadie las iba a encontrar. Un vet que quiere registrar una compra no adivina que el camino es
+// Ventas → Secciones → Inventario → Compras.
+//
+// ── Y LOS NOMBRES NO COINCIDÍAN NI CON NOSOTROS MISMOS ────────────────────────────────────────
+//
+// El menú decía «Finanzas» y esa página se titula, en su propio `h1`, «Ingresos y egresos» — que
+// resulta ser el nombre exacto que usa OkVet. Se adoptan sus etiquetas donde hay equivalente:
+// «Productos y servicios» en vez de «Catálogo», «Salidas y reservas» en vez de «Movimientos»,
+// «Configuración de facturación» en vez de «Configuración». El motivo es el de siempre con esta
+// referencia: los veterinarios ya saben usar OkVet, y cada palabra distinta es una que reaprenden.
+//
+// ── LO QUE NO SE COPIA, DICHO ─────────────────────────────────────────────────────────────────
+//
+// No están Cotizaciones, Documentos soporte, Órdenes de compra ni Crédito Welli: no existen acá y
+// una entrada que lleva a una pantalla vacía es peor que su ausencia. «Cartera» sí está y es
+// nuestra — OkVet no tiene equivalente.
+//
+// Este menú sigue viviendo en la cabecera y no en la barra lateral, que es donde estaría la copia
+// fiel. Subirlo toca el orden que definió Luciano el 19-ago y es una decisión de Felipe, no de este
+// archivo.
 
 import Link from "next/link"
-import { BookOpen, Boxes, ChevronDown, MailWarning, Settings2, Wallet } from "lucide-react"
+import {
+  BookOpen,
+  Boxes,
+  ChevronDown,
+  FileText,
+  MailWarning,
+  Package,
+  Receipt,
+  Settings2,
+  ShoppingCart,
+  Truck,
+  Upload,
+  Wallet,
+} from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import {
   DropdownMenu,
   DropdownMenuContent,
-  DropdownMenuItem,
   DropdownMenuTrigger,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuSub,
+  DropdownMenuSubContent,
+  DropdownMenuSubTrigger,
 } from "@/components/ui/dropdown-menu"
 
-const SECCIONES = [
-  { href: "/dashboard/facturacion/finanzas", label: "Finanzas", Icono: Wallet },
+/** Los documentos de venta. En OkVet es un submenú; acá son dos, así que van sueltos con su rótulo. */
+const DOCUMENTOS = [
+  {
+    href: "/dashboard/facturacion",
+    label: "Ventas, recibos y facturas",
+    Icono: Receipt,
+  },
   { href: "/dashboard/facturacion/cartera", label: "Cartera", Icono: MailWarning },
-  { href: "/dashboard/facturacion/inventario", label: "Inventario", Icono: Boxes },
-  { href: "/dashboard/facturacion/catalogo", label: "Catálogo", Icono: BookOpen },
-  { href: "/dashboard/facturacion/configuracion", label: "Configuración", Icono: Settings2 },
+] as const
+
+/** Inventario, con las etiquetas de la referencia. */
+const INVENTARIO = [
+  {
+    href: "/dashboard/facturacion/catalogo",
+    label: "Productos y servicios",
+    Icono: BookOpen,
+  },
+  { href: "/dashboard/facturacion/inventario", label: "Existencias", Icono: Package },
+  {
+    href: "/dashboard/facturacion/inventario/movimientos",
+    label: "Salidas y reservas",
+    Icono: Boxes,
+  },
+  { href: "/dashboard/facturacion/compras", label: "Compras", Icono: ShoppingCart },
+  {
+    href: "/dashboard/facturacion/inventario/importar",
+    label: "Importar catálogo",
+    Icono: Upload,
+  },
+] as const
+
+/** Lo que en OkVet cuelga directo de «Ventas». */
+const SUELTOS = [
+  {
+    href: "/dashboard/facturacion/finanzas",
+    label: "Ingresos y egresos",
+    Icono: Wallet,
+  },
+  {
+    href: "/dashboard/facturacion/compras/proveedores",
+    label: "Proveedores",
+    Icono: Truck,
+  },
+  {
+    href: "/dashboard/facturacion/configuracion",
+    label: "Configuración de facturación",
+    Icono: Settings2,
+  },
 ] as const
 
 export function MenuDeVentas() {
@@ -47,8 +133,40 @@ export function MenuDeVentas() {
         Secciones
         <ChevronDown className="size-4" aria-hidden />
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="w-52">
-        {SECCIONES.map(({ href, label, Icono }) => (
+      <DropdownMenuContent align="end" className="w-64">
+        <DropdownMenuLabel className="flex items-center gap-2">
+          <FileText className="size-3.5 text-fg-faint" aria-hidden />
+          Documentos
+        </DropdownMenuLabel>
+        {DOCUMENTOS.map(({ href, label, Icono }) => (
+          <DropdownMenuItem key={href} render={<Link href={href} />}>
+            <Icono className="size-4" aria-hidden />
+            {label}
+          </DropdownMenuItem>
+        ))}
+
+        <DropdownMenuSeparator />
+
+        {/* Inventario va en submenú, como en la referencia: son cinco pantallas y sueltas
+            duplicarían el largo del menú. */}
+        <DropdownMenuSub>
+          <DropdownMenuSubTrigger>
+            <Boxes className="size-4" aria-hidden />
+            Inventario
+          </DropdownMenuSubTrigger>
+          <DropdownMenuSubContent className="w-56">
+            {INVENTARIO.map(({ href, label, Icono }) => (
+              <DropdownMenuItem key={href} render={<Link href={href} />}>
+                <Icono className="size-4" aria-hidden />
+                {label}
+              </DropdownMenuItem>
+            ))}
+          </DropdownMenuSubContent>
+        </DropdownMenuSub>
+
+        <DropdownMenuSeparator />
+
+        {SUELTOS.map(({ href, label, Icono }) => (
           <DropdownMenuItem key={href} render={<Link href={href} />}>
             <Icono className="size-4" aria-hidden />
             {label}
