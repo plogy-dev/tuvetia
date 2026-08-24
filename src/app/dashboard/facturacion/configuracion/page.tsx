@@ -3,6 +3,7 @@ import { ArrowLeft, FlaskConical } from 'lucide-react';
 import { requireClinicPage } from '@/lib/facturacion/page-auth';
 import { getBillingSettings, getActiveRange } from '@/lib/facturacion/queries';
 import { SettingsForm } from '@/components/facturacion/SettingsForm';
+import { PlantillasDeRecordatorio } from '@/components/cartera/PlantillasDeRecordatorio';
 
 export const metadata = { title: "Configuración de ventas · Tuvetia" }
 
@@ -53,6 +54,18 @@ export default async function ConfiguracionFacturacionPage() {
         )}
 
         <SettingsForm settings={settings} />
+
+        {/* El texto de la cobranza vive acá, junto al interruptor que la enciende. El documento del
+            cliente dejaba abierto si iba en el onboarding o en un flujo aparte al integrar
+            WhatsApp; mientras se decide, éste es el único sitio donde ya se gestionan los
+            recordatorios —la lista de ventas enlaza acá con «Gestionar en configuración»— así que
+            no hace falta que nadie aprenda un lugar nuevo. */}
+        {settings && (
+          <PlantillasDeRecordatorio
+            guardadas={settings.reminder_templates}
+            canal={settings.reminder_channel ?? 'WHATSAPP'}
+          />
+        )}
       </div>
     </section>
   );
