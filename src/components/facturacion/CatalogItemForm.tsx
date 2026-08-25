@@ -52,6 +52,7 @@ export function CatalogItemForm({
       itemType: type,
       name: String(fd.get('name') ?? ''),
       sku: str('sku'),
+      itemGroup: str('itemGroup'),
       categoryId: str('categoryId') as string | null,
       priceCents: Math.round((num('pricePesos') ?? 0) * 100),
       costCents: num('costPesos') === null ? null : Math.round((num('costPesos') as number) * 100),
@@ -118,8 +119,22 @@ export function CatalogItemForm({
         </select>
       </div>
       <div>
-        <label className={labelCls}>SKU / referencia (opcional)</label>
+        {/* «Ref.» es como lo llama OkVet en su inventario; se conserva «SKU» al lado porque es lo
+            que dice cualquier planilla de proveedor. */}
+        <label className={labelCls}>Ref. / SKU (opcional)</label>
         <input name="sku" defaultValue={initial?.sku ?? ''} className={inputCls} />
+      </div>
+      <div>
+        {/* «Grupo» es OTRO eje que «Categoría», no su padre: en OkVet las categorías se gestionan
+            en su propia pantalla y no tienen grupo encima. Va como texto libre. */}
+        <label className={labelCls}>Grupo (opcional)</label>
+        <input
+          name="itemGroup"
+          defaultValue={initial?.item_group ?? ''}
+          maxLength={80}
+          placeholder="Ej.: Medicamentos, Peluquería, Alimento"
+          className={inputCls}
+        />
       </div>
       <div>
         <label className={labelCls}>Precio de venta (COP)</label>

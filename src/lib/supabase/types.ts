@@ -146,6 +146,12 @@ export type CatalogItemRow = {
   item_type: CatalogKind;
   name: string;
   sku: string | null;
+  /**
+   * Campo «Grupo» del inventario de OkVet: etiqueta libre de la clínica.
+   * Es OTRO eje que `category_id` — en OkVet no hay pantalla de grupos y las categorías no tienen
+   * grupo padre, así que no es una jerarquía sino dos clasificaciones sueltas.
+   */
+  item_group: string | null;
   description: string | null;
   purchase_unit: string;
   use_unit: string;
