@@ -244,7 +244,7 @@ export default async function FinanzasPage({
         {/* KPIs del período */}
         <div className="mb-6 grid gap-3 sm:grid-cols-3">
           <div className="rounded-xl border border-line bg-surface px-4 py-3">
-            <p className="text-[11px] font-semibold uppercase tracking-wide text-fg-faint">
+            <p className="text-[11.5px] font-medium text-fg-faint">
               Ingresos del período
             </p>
             <p className="mt-1 text-xl font-semibold tabular-nums text-ok">
@@ -252,7 +252,7 @@ export default async function FinanzasPage({
             </p>
           </div>
           <div className="rounded-xl border border-line bg-surface px-4 py-3">
-            <p className="text-[11px] font-semibold uppercase tracking-wide text-fg-faint">
+            <p className="text-[11.5px] font-medium text-fg-faint">
               Egresos del período
             </p>
             <p className="mt-1 text-xl font-semibold tabular-nums text-warn">
@@ -260,7 +260,7 @@ export default async function FinanzasPage({
             </p>
           </div>
           <div className="rounded-xl border border-line bg-surface px-4 py-3">
-            <p className="text-[11px] font-semibold uppercase tracking-wide text-fg-faint">Neto</p>
+            <p className="text-[11.5px] font-medium text-fg-faint">Neto</p>
             <p
               className={`mt-1 text-xl font-semibold tabular-nums ${
                 summary.netCents >= 0 ? 'text-ok' : 'text-warn'

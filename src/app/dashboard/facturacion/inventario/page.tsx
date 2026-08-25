@@ -44,7 +44,7 @@ const MOVEMENT_LABELS: Record<string, string> = {
 function Kpi({ label, value, tone }: { label: string; value: string; tone?: 'warn' | 'ok' }) {
   return (
     <div className="rounded-xl border border-line bg-surface px-4 py-3">
-      <p className="text-[11px] uppercase tracking-wider text-fg-faint">{label}</p>
+      <p className="text-[11.5px] font-medium text-fg-faint">{label}</p>
       <p
         className={`mt-1 text-lg font-semibold ${
           tone === 'warn' ? 'text-warn' : tone === 'ok' ? 'text-ok' : 'text-fg'

@@ -18,6 +18,7 @@ import {
 } from '@/lib/facturacion/queries';
 import { formatCOP, fmtDate, fmtDateTime } from '@/lib/facturacion/format';
 import { terminoBuscable } from '@/lib/facturacion/busqueda-de-ventas';
+import { CONTROL, TD, TD_NUM, TH, TH_DER } from '@/components/facturacion/densidad';
 import {
   CollectionBadge,
   DeliveryBadge,
@@ -60,8 +61,8 @@ function hoyEnBogota(): string {
   return new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Bogota' }).format(new Date());
 }
 
-const TH_BASE =
-  'border-b border-line-soft px-3.5 py-[9px] text-left text-[11px] font-semibold uppercase tracking-[0.06em] text-muted-foreground';
+// La densidad vive en `components/facturacion/densidad.ts`: estaba copiada en cinco archivos con
+// valores parecidos pero distintos, que es como una tabla termina viéndose de otro módulo.
 
 // Los filtros viajan por la URL y no por estado de cliente: así una búsqueda se puede compartir,
 // se puede volver con el botón de atrás, y la pantalla sigue siendo un componente de servidor sin
@@ -376,7 +377,7 @@ export default async function FacturacionPage({ searchParams }: { searchParams: 
               type="date"
               name="desde"
               defaultValue={f.desde ?? ''}
-              className="h-9 rounded-lg border border-line bg-surface px-2.5 text-sm text-fg"
+              className={`${CONTROL} rounded-lg border border-line bg-surface px-2.5 text-[12.5px] text-fg`}
             />
           </label>
           <label className="flex flex-col gap-1">
@@ -385,7 +386,7 @@ export default async function FacturacionPage({ searchParams }: { searchParams: 
               type="date"
               name="hasta"
               defaultValue={f.hasta ?? ''}
-              className="h-9 rounded-lg border border-line bg-surface px-2.5 text-sm text-fg"
+              className={`${CONTROL} rounded-lg border border-line bg-surface px-2.5 text-[12.5px] text-fg`}
             />
           </label>
           <label className="flex flex-col gap-1">
@@ -393,7 +394,7 @@ export default async function FacturacionPage({ searchParams }: { searchParams: 
             <select
               name="tipo"
               defaultValue={f.tipo ?? ''}
-              className="h-9 rounded-lg border border-line bg-surface px-2.5 text-sm text-fg"
+              className={`${CONTROL} rounded-lg border border-line bg-surface px-2.5 text-[12.5px] text-fg`}
             >
               <option value="">Todos</option>
               <option value="FACTURA_VENTA">Factura electrónica</option>
@@ -405,7 +406,7 @@ export default async function FacturacionPage({ searchParams }: { searchParams: 
             <select
               name="estado"
               defaultValue={f.estado ?? ''}
-              className="h-9 rounded-lg border border-line bg-surface px-2.5 text-sm text-fg"
+              className={`${CONTROL} rounded-lg border border-line bg-surface px-2.5 text-[12.5px] text-fg`}
             >
               <option value="">Todos</option>
               <option value="BORRADOR">Borrador</option>
@@ -417,13 +418,13 @@ export default async function FacturacionPage({ searchParams }: { searchParams: 
           {busqueda && <input type="hidden" name="q" value={busqueda} />}
           {porPagina !== 10 && <input type="hidden" name="n" value={porPagina} />}
           {verTodo && <input type="hidden" name="todo" value="1" />}
-          <Button type="submit" variant="outline" className="h-9">
+          <Button type="submit" variant="outline" className={CONTROL}>
             Filtrar
           </Button>
           {hayFiltro && (
             <Link
               href="/dashboard/facturacion"
-              className="h-9 self-end px-2 text-sm text-fg-muted underline underline-offset-2 hover:text-fg"
+              className={`${CONTROL} self-end px-2 text-[12.5px] text-fg-muted underline underline-offset-2 hover:text-fg`}
             >
               Limpiar
             </Link>
@@ -475,7 +476,7 @@ export default async function FacturacionPage({ searchParams }: { searchParams: 
                 type="search"
                 defaultValue={busqueda}
                 placeholder="Número o cliente"
-                className="h-8 rounded-lg border border-line bg-surface px-2.5 text-sm text-fg placeholder:text-fg-faint"
+                className={`${CONTROL} rounded-lg border border-line bg-surface px-2.5 text-[12.5px] text-fg placeholder:text-fg-faint`}
               />
             </FormularioDeFiltros>
           </div>
@@ -529,13 +530,13 @@ export default async function FacturacionPage({ searchParams }: { searchParams: 
                     ventas no se puede perder. */}
                 <thead>
                   <tr>
-                    <th className={TH_BASE}>Opciones</th>
-                    <th className={TH_BASE}>Identificación/Cliente</th>
-                    <th className={`${TH_BASE} text-right`}>Valor</th>
-                    <th className={`${TH_BASE} text-right`}>Pagos</th>
-                    <th className={TH_BASE}>Estado</th>
-                    <th className={TH_BASE}>Usuario</th>
-                    <th className={TH_BASE}>Actualizado</th>
+                    <th className={TH}>Opciones</th>
+                    <th className={TH}>Identificación/Cliente</th>
+                    <th className={TH_DER}>Valor</th>
+                    <th className={TH_DER}>Pagos</th>
+                    <th className={TH}>Estado</th>
+                    <th className={TH}>Usuario</th>
+                    <th className={TH}>Actualizado</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -545,7 +546,7 @@ export default async function FacturacionPage({ searchParams }: { searchParams: 
                       href={`/dashboard/facturacion/${i.id}`}
                       className="border-b border-line-soft transition-colors last:border-0 hover:bg-accent"
                     >
-                      <td className="px-3.5 py-[11px] align-middle font-mono text-xs font-medium tabular-nums">
+                      <td className={`${TD_NUM} text-left font-medium`}>
                         <Link
                           href={`/dashboard/facturacion/${i.id}`}
                           className="text-fg underline-offset-2 hover:underline"
@@ -553,7 +554,7 @@ export default async function FacturacionPage({ searchParams }: { searchParams: 
                           {i.full_number ?? `Borrador · ${i.doc_kind === 'POS' ? 'POS' : 'FV'}`}
                         </Link>
                       </td>
-                      <td className="px-3.5 py-[11px] align-middle">
+                      <td className={TD}>
                         <span className="block font-semibold text-fg">
                           {i.payer?.name ?? 'Venta a persona indeterminada'}
                         </span>
@@ -563,15 +564,15 @@ export default async function FacturacionPage({ searchParams }: { searchParams: 
                           </span>
                         )}
                       </td>
-                      <td className="px-3.5 py-[11px] text-right align-middle font-mono text-xs tabular-nums text-fg">
+                      <td className={`${TD_NUM} text-fg`}>
                         {formatCOP(i.total_cents)}
                       </td>
-                      <td className="px-3.5 py-[11px] text-right align-middle font-mono text-xs tabular-nums text-fg-muted">
+                      <td className={`${TD_NUM} text-fg-muted`}>
                         {/* Lo PAGADO, no el saldo: es la columna «Pagos» de la referencia. El saldo
                             se lee restando, y en un borrador todavía no hay nada que pagar. */}
                         {i.status === 'EMITIDA' ? formatCOP(i.paid_cents) : '—'}
                       </td>
-                      <td className="px-3.5 py-[11px] align-middle">
+                      <td className={TD}>
                         <span className="inline-flex flex-wrap gap-1">
                           <LifecycleBadge status={i.status} />
                           <FiscalBadge status={i.fiscal_status} />
@@ -583,10 +584,10 @@ export default async function FacturacionPage({ searchParams }: { searchParams: 
                           )}
                         </span>
                       </td>
-                      <td className="px-3.5 py-[11px] align-middle text-fg-muted">
+                      <td className={`${TD} text-fg-muted`}>
                         {i.usuario?.full_name ?? '—'}
                       </td>
-                      <td className="px-3.5 py-[11px] align-middle font-mono text-xs tabular-nums text-fg-muted">
+                      <td className={`${TD_NUM} text-fg-muted`}>
                         {fmtDateTime(i.updated_at)}
                       </td>
                     </TrLink>

@@ -15,6 +15,7 @@ import {
 import { getBillingSettings } from '@/lib/facturacion/queries';
 import { InvoiceActionsPanel } from '@/components/facturacion/InvoiceActionsPanel';
 import { avisosDelBorrador } from '@/lib/facturacion/invoices';
+import { TD, TD_NUM, TH, TH_DER } from '@/components/facturacion/densidad';
 import { FollowupActions } from '@/components/cartera/FollowupActions';
 import { getInvoiceCommMessages } from '@/lib/cartera/queries';
 import type { InvoiceEventType } from '@/lib/facturacion/domain/types';
@@ -169,35 +170,35 @@ export default async function FacturaDetallePage({
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b border-line text-left text-xs text-fg-faint">
-                    <th className="px-4 py-2 font-medium">Descripción</th>
-                    <th className="px-2 py-2 text-right font-medium">Cant.</th>
-                    <th className="px-2 py-2 text-right font-medium">Precio</th>
-                    <th className="px-2 py-2 text-right font-medium">Desc.</th>
-                    <th className="px-2 py-2 text-right font-medium">IVA</th>
-                    <th className="px-4 py-2 text-right font-medium">Total</th>
+                    <th className={TH}>Descripción</th>
+                    <th className={TH_DER}>Cant.</th>
+                    <th className={TH_DER}>Precio</th>
+                    <th className={TH_DER}>Desc.</th>
+                    <th className={TH_DER}>IVA</th>
+                    <th className={TH_DER}>Total</th>
                   </tr>
                 </thead>
                 <tbody>
                   {lines.map((l) => (
                     <tr key={l.id} className="border-b border-line/60 last:border-0">
-                      <td className="px-4 py-2 text-fg">{l.description}</td>
-                      <td className="px-2 py-2 text-right text-fg-muted">
+                      <td className={`${TD} text-fg`}>{l.description}</td>
+                      <td className={`${TD_NUM} text-fg-muted`}>
                         {l.qty} {l.unit !== 'unidad' ? l.unit : ''}
                       </td>
-                      <td className="px-2 py-2 text-right text-fg-muted">
+                      <td className={`${TD_NUM} text-fg-muted`}>
                         {formatCOP(l.unit_price_cents)}
                       </td>
-                      <td className="px-2 py-2 text-right text-fg-muted">
+                      <td className={`${TD_NUM} text-fg-muted`}>
                         {l.discount_cents > 0 ? `− ${formatCOP(l.discount_cents)}` : '—'}
                       </td>
-                      <td className="px-2 py-2 text-right text-fg-muted">
+                      <td className={`${TD_NUM} text-fg-muted`}>
                         {l.tax_status === 'GRAVADO'
                           ? `${l.tax_rate}%`
                           : l.tax_status === 'EXENTO'
                             ? 'Exento'
                             : 'Excl.'}
                       </td>
-                      <td className="px-4 py-2 text-right text-fg">{formatCOP(l.total_cents)}</td>
+                      <td className={`${TD_NUM} text-fg`}>{formatCOP(l.total_cents)}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -206,7 +207,7 @@ export default async function FacturaDetallePage({
                     <td colSpan={5} className="px-4 py-2 text-right text-fg-muted">
                       Subtotal
                     </td>
-                    <td className="px-4 py-2 text-right text-fg">
+                    <td className={`${TD_NUM} text-fg`}>
                       {formatCOP(invoice.subtotal_cents)}
                     </td>
                   </tr>
@@ -230,7 +231,7 @@ export default async function FacturaDetallePage({
                     <td colSpan={5} className="px-4 py-2 text-right text-fg">
                       Total
                     </td>
-                    <td className="px-4 py-2 text-right text-fg">
+                    <td className={`${TD_NUM} text-fg`}>
                       {formatCOP(invoice.total_cents)}
                     </td>
                   </tr>

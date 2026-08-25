@@ -253,7 +253,7 @@ function AgingCell({
   const active = bucket.amountCents > 0;
   return (
     <div className="rounded-xl border border-line bg-surface px-3 py-2.5">
-      <div className="text-[11px] uppercase tracking-wider text-fg-faint">{label}</div>
+      <div className="text-[11.5px] font-medium text-fg-faint">{label}</div>
       <div
         className={`mt-0.5 text-base font-semibold ${active && tone === 'warn' ? 'text-warn' : 'text-fg'}`}
       >
