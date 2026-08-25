@@ -262,7 +262,7 @@ estaban ocupadas por las de multi-clínica que entraron en paralelo. No es cosm�
 `enforce_profile_clinic_invariant`, que crean `0021`/`0022` — con la numeración anterior corría antes
 que ellas y **fallaba en cualquier entorno nuevo**.
 
-> **Al 2026-08-24 la última aplicada es la `0084`, y la próxima arranca en `0085`.** Esta línea
+> **Al 2026-08-25 la última aplicada es la `0085`, y la próxima arranca en `0086`.** Esta línea
 > decía `0037` hasta hoy — o sea que llevaba 47 migraciones desactualizada, que es exactamente
 > el problema que este archivo se advierte a sí mismo en «Pendientes conocidos». Quien cree una
 > migración la actualiza acá en el mismo PR.
@@ -661,6 +661,130 @@ corrida y sin residuos.
 
 > ⚠️ **La `0080` de Santiago —`metricas` en `tablero_preferencias`— NO está aplicada.** Verificado
 > el 24-ago: la columna no existe. Su tablero elegible sí está en master.
+
+## Sesión 2026-08-25 — el recordatorio de citas, y ventas cerrado contra OkVet
+
+Cuatro PRs (#226–#229) y una migración aplicada (`0085`). El día tuvo dos mitades: una función nueva
+que llevaba semanas anotada como imposible de empezar, y el cierre de la copia de OkVet.
+
+### El recordatorio de cita, que estaba bloqueado por una decisión y no por código
+
+Del documento de cambios del 24-ago, punto de Santiago: «confirmaciones y recordatorios de citas por
+WhatsApp (no solo correo) — es la vía principal en Colombia». **No existía nada**: la máquina de
+envío estaba entera desde hacía semanas y cableada sólo a facturas.
+
+Lo que faltaba era el **cuándo**, y lo decidió Felipe: **24 horas antes**, configurable, con su
+sección en Ajustes.
+
+Se construyó completo —ajustes Y envío— a propósito. Una sección de ajustes con un interruptor que
+no manda nada es exactamente la clase de cosa que parece hecha y no lo está, y este repo ya llevaba
+tres encontradas en dos días.
+
+**Las decisiones que lo definen:**
+
+- **ARRANCA APAGADO.** Encender mensajes automáticos hacia los clientes de una clínica que no lo
+  pidió sería hablar en su nombre — y bajo la Ley 1581, tratar datos personales para una finalidad
+  que el titular no autorizó. Verificado tras aplicar la migración: **0 clínicas quedaron
+  encendidas**.
+- **LA GRANULARIDAD ES EL DÍA, Y LA PANTALLA LO DICE.** El barrido cuelga del cron de cartera de las
+  9 a. m. —el plan de Vercel da dos crons diarios y los dos están usados— así que «24 horas antes»
+  se cumple como «la mañana anterior». Está escrito con esas palabras en Ajustes, y por eso sólo se
+  ofrecen múltiplos de un día: «6 horas antes» sería aceptar una configuración que la máquina no
+  puede cumplir, y eso no se descubre en la pantalla sino cuando un titular reclama.
+- **NO ES COBRANZA, Y ESO CAMBIA LAS REGLAS.** Las ventanas de la Ley 2300 que respeta cartera son
+  para perseguir una DEUDA; un recordatorio de cita es transaccional. Por eso NO reusa el
+  despachador de cartera ni su outbox: comparten el puerto de salida (`sendWhatsAppText`) y nada
+  más. Mezclarlos haría que un cambio en las reglas de cobranza moviera sin querer los avisos de
+  cita.
+- **EXACTAMENTE UNA VEZ, sellando ANTES de mandar.** El cron se reintenta, y el peor caso tiene que
+  ser «no llegó» —que se nota— y no «llegó tres veces». El sello es condicional para que dos
+  corridas simultáneas no se pisen. Una cita SIN TELÉFONO no se sella: no se intentó nada, así que
+  si mañana le cargan el número, que le llegue.
+
+> ⚠️ **El documento del 24-ago asigna este punto a Santiago** (resaltado azul). Se construyó por
+> pedido explícito de Felipe. Si Santiago tenía algo empezado, hay dos implementaciones y conviene
+> reconciliar.
+
+### Informes con PDF: se analizó y NO se construyó
+
+El último punto rojo abierto. Se fue a mirar OkVet antes de estimar, y el hallazgo cambió el tamaño
+del trabajo por completo: **su «PDF» es un volcado de tabla**. El botón «Exportar» de sus informes
+despliega `Imprimir · Excel · CSV · PDF` — el conjunto exacto de la barra de DataTables — sobre la
+tabla que ya está en pantalla. No es un documento diseñado.
+
+Y **PDF por impresión ya existe acá**: `InvoiceDocument` con `@media print` + `PrintAutoTrigger`, y
+el botón se llama literalmente «Imprimir / PDF». Lo que falta no es la capacidad: es **la sección**.
+Hoy los exports están desperdigados —uno en inventario, otro en pacientes, otro en finanzas— y
+ninguno se llama «informes».
+
+**Se paró ahí a propósito.** OkVet tiene ~40 informes y nosotros podríamos llenar seis. Construir
+seis pantallas que nadie abra es mucho trabajo para nada, así que Felipe le va a preguntar a David
+cuáles necesita.
+
+> **Vale la distinción, porque «faltan los PDF» puede ser dos cosas:** el PDF de un INFORME (tabla
+> filtrada, la exporta el contador — un volcado sirve) y el PDF de una FACTURA (documento fiscal que
+> recibe el titular — ése no puede ser un volcado, y ya está hecho).
+
+### La verificación visual contra OkVet, y qué se adoptó
+
+Se pidió depurar OkVet para verificar UI/UX. **El navegador no dejó tomar capturas** —el extension
+falló cuatro veces con dos errores distintos— así que se midieron sus **estilos computados**, que
+para esto dicen más que una imagen:
+
+| | OkVet | Tuvetia (antes) |
+|---|---|---|
+| Fuente | Poppins | Inter Tight |
+| Cuerpo | 12 px | 13–14 px |
+| Encabezado de tabla | 12 px / 500, caja normal | 11 px / 600, VERSALITAS + tracking |
+| Fondo | `#f3faff` | `#ffffff` |
+| Botón primario | azul translúcido | menta sólido |
+
+**Se adoptó la densidad; NO la identidad** (#228), y la decisión la tomó el cliente cuando se le
+plantearon los tres caminos. Copiar Poppins y su azul sería copiar su MARCA, no su usabilidad — y
+atropellaría el mockup que trabajó Luciano y sobre el que ya hay decisiones tomadas (el orden de la
+barra, los puntos en vez de iconos, el botón menta relleno).
+
+**Se fueron las versalitas de los encabezados de tabla.** Eran nuestras. Se ven ordenadas y se leen
+PEOR de reojo: las mayúsculas quitan la silueta que distingue una palabra de otra, que es justo lo
+que usa el ojo al barrer una tabla sin leerla. Los rótulos de SECCIÓN (`<h2>`) se conservan en
+versalitas — el argumento es sobre barrer una tabla, y una etiqueta de una palabra no se barre.
+
+La densidad vive ahora en `components/facturacion/densidad.ts`. Estaba copiada en **cinco archivos**
+con valores parecidos pero distintos —11 px acá, `tracking-wider` allá, `tracking-[0.06em]` más
+allá—: así es como una tabla termina viéndose de otro módulo.
+
+### Las líneas de la cuenta, como tarjeta (#229)
+
+La última diferencia funcional. **No fue sólo fidelidad:** la tabla declaraba `min-w-[760px]` y se
+desplazaba en horizontal, así que en el portátil de una recepción «Monto» quedaba fuera de la
+pantalla JUSTO mientras se tecleaba la cantidad — no se podía ver el efecto de lo que se escribía.
+
+Arriba lo que se teclea en toda venta, abajo lo tributario: al revés, lo raro tapa lo común. Y
+aparece **«Valor base»**, que es de la referencia y no teníamos: sobre eso se liquida el IVA, y
+mostrarlo deja ver POR QUÉ el impuesto da lo que da.
+
+**Con esto ventas no tiene ninguna diferencia estructural ni funcional contra OkVet.** Lo único que
+falta de su formulario es «Desde escáner», que necesita hardware.
+
+### Los cerrojos, otra vez
+
+Vale anotarlo porque ya van tres días seguidos en que esto paga:
+
+- **Se verificó que los cerrojos que escanean `InvoiceCart` siguen mordiendo** tras rediseñarlo
+  entero, y que el de columnas del inventario sigue mordiendo tras cambiarle el marcado. Un cerrojo
+  que deja de matchear su objetivo **pasa en verde sin leer nada** — ya pasó una vez en este repo, y
+  es la razón por la que se comprueba cada vez que se toca lo que vigilan.
+
+### Lo que quedó pendiente del cliente
+
+- **Qué informes necesita David** (Felipe se lo pregunta).
+- **Si el menú de ventas sube a la barra lateral**, que es donde estaría la copia fiel. Toca el
+  orden que definió Luciano el 19-ago.
+- **Avisarle a David de dos cambios de comportamiento**: una venta de mostrador ahora son dos
+  pantallas, y el formulario abre a nombre de «consumidor final» (sin atar cliente, la factura queda
+  fuera de cartera y sin correo).
+- **Comprobar en producción el doble check de WhatsApp**: es la única pieza del 24-ago que no se
+  pudo verificar contra algo real.
 
 ## Pendientes conocidos
 
