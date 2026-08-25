@@ -17,7 +17,9 @@
 import { useEffect, useRef, useState } from "react"
 import { useChat } from "@ai-sdk/react"
 import { DefaultChatTransport } from "ai"
-import { Bot, Loader2, SendHorizontal, Sparkles, X } from "lucide-react"
+import { Loader2, SendHorizontal, Sparkles, X } from "lucide-react"
+
+import { BrandGlyph } from "@/components/brand-glyph"
 import { toast } from "sonner"
 
 import { AthosMensajes } from "@/components/athos/athos-mensajes"
@@ -115,7 +117,11 @@ export function AthosWidget() {
           aria-expanded={false}
           className="pointer-events-auto grid size-12 place-items-center rounded-full bg-primary text-primary-foreground shadow-popover transition hover:brightness-110 focus-visible:outline-2 focus-visible:outline-offset-2"
         >
-          <Bot className="size-5" />
+          {/* EL GLIFO DE LA MARCA, no un robot genérico. Lo pidió David el 25-ago.
+              `currentColor` y no el acento: el botón es `bg-primary text-primary-foreground`, y
+              sobre ese menta el acento no contrastaría. Así hereda el color del botón y sigue
+              contrastando si mañana cambia la marca o si el modo oscuro invierte el par. */}
+          <BrandGlyph className="size-5" fill="currentColor" />
         </button>
       </>
     )
@@ -131,8 +137,10 @@ export function AthosWidget() {
       className="pointer-events-auto flex h-[min(32rem,calc(100svh-6rem))] w-[min(23rem,calc(100vw-1.5rem))] flex-col rounded-2xl border bg-card shadow-popover"
     >
       <header className="flex items-center gap-2 border-b px-3 py-2">
+        {/* El mismo glifo que la burbuja: abrirla no puede convertir el logo de la marca en un
+            robot genérico. Mismo fondo `bg-primary`, misma razón para `currentColor`. */}
         <div className="grid size-7 shrink-0 place-items-center rounded-lg bg-primary text-primary-foreground">
-          <Bot className="size-4" />
+          <BrandGlyph className="size-4" fill="currentColor" />
         </div>
         <p className="min-w-0 flex-1 text-sm font-semibold">Athos</p>
         <Button size="icon" variant="ghost" onClick={() => setAbierto(false)} aria-label="Cerrar Athos">

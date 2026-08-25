@@ -75,15 +75,42 @@ const BARRA = leer("components/app-sidebar.tsx")
 const SECCION = leer("components/athos/athos-sidebar-section.tsx")
 
 describe("abajo", () => {
-  it("el historial va DESPUÉS del menú y de las secciones de abajo", () => {
-    // Estaba justo debajo del menú principal, o sea en el MEDIO: al crecer empujaba Configuración
-    // y Ayuda fuera de la barra. "Abajo" es literal — después de todo lo demás.
+  // ── ESTE BLOQUE CAMBIÓ DE MECANISMO EL 25-AGO, NO DE INTENCIÓN ────────────────────────────────
+  //
+  // Vigilaba que el historial fuera DESPUÉS de Integraciones/Configuración/Ayuda. Ése era el
+  // arreglo del 19-ago para un problema real: el historial crece con las consultas y, estando
+  // arriba, empujaba esas tres fuera de la barra.
+  //
+  // David pidió el 25-ago lo contrario —«integraciones y configuración deben ir abajo al final»— y
+  // el orden se invirtió. Pero EL PROBLEMA DEL 19-AGO NO DESAPARECIÓ: si esas tres quedaran al
+  // final del CONTENIDO, un historial largo volvería a empujarlas fuera.
+  //
+  // Se resolvió anclándolas en el PIE, que no scrollea con el contenido. Así que lo que se vigila
+  // ahora es eso —el ancla— y no el orden, que era sólo cómo se conseguía antes.
+
+  it("el historial no está arriba del menú", () => {
     const iMenu = BARRA.indexOf("<NavMain")
-    const iSecundario = BARRA.indexOf("<NavSecondary")
     const iHistorial = BARRA.indexOf("<AthosSidebarSection")
     expect(iMenu).toBeGreaterThan(-1)
     expect(iHistorial).toBeGreaterThan(iMenu)
-    expect(iHistorial).toBeGreaterThan(iSecundario)
+  })
+
+  it("INTEGRACIONES/CONFIGURACIÓN/AYUDA VIVEN EN EL PIE, no en el contenido", () => {
+    // Es lo que impide que un historial de cuarenta consultas las saque de la pantalla. En el
+    // contenido, «al final» dura hasta que alguien tenga muchas consultas.
+    const iPie = BARRA.indexOf("<SidebarFooter>")
+    const iFinDelPie = BARRA.indexOf("</SidebarFooter>")
+    const iSecundario = BARRA.indexOf("<NavSecondary")
+    expect(iPie).toBeGreaterThan(-1)
+    expect(iSecundario).toBeGreaterThan(iPie)
+    expect(iSecundario).toBeLessThan(iFinDelPie)
+  })
+
+  it("y el historial sigue en el contenido, que es lo que scrollea", () => {
+    // Si se metiera al pie «para que se vea siempre», con muchas consultas taparía la barra entera.
+    const iFinContenido = BARRA.indexOf("</SidebarContent>")
+    const iHistorial = BARRA.indexOf("<AthosSidebarSection")
+    expect(iHistorial).toBeLessThan(iFinContenido)
   })
 })
 
