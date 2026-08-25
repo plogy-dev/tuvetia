@@ -209,13 +209,21 @@ export default async function NuevaFacturaPage({
               <h1 className="text-2xl font-semibold tracking-tight text-fg">Nueva cuenta</h1>
             </>
           )}
-          {/* SE DICE QUE SON DOS PASOS, y en cuál se está. Esta pantalla es un BUSCADOR: quien
-              aprieta «Nueva factura» espera una factura y encuentra una caja de búsqueda, sin nada
-              que le diga que todavía falta un paso. Nombrarlo cuesta una línea y quita la sensación
-              de haber llegado a otro lado. */}
+{/* YA NO ES UN PASO, ES UN SELECTOR — y esa diferencia la pidió David el 25-ago con estas
+              palabras: «este primer paso toca eliminarlo», «que no haya que usar lupa al principio».
+              La «lupa» era literal: la caja de búsqueda.
+
+              Lo que pasaba: apretabas «crear la primera factura» y aparecía un BUSCADOR. En OkVet la
+              cuenta abre lista, con «Venta a persona indeterminada» puesta y un «Editar» al lado
+              para atarla a un cliente — se factura sin buscar a nadie, y buscar es una opción, no un
+              peaje.
+
+              Antes había un rótulo «Paso 1 de 2» acá. Se puso el 23-ago con buen criterio —quien
+              llegaba a un buscador sin aviso creía haberse equivocado de pantalla— pero era la
+              curita de un flujo equivocado: ahora no hay paso que nombrar. */}
           <p className="mt-1 text-sm text-fg-muted">
-            <span className="font-medium text-fg">Paso 1 de 2 · ¿A quién le facturás?</span>{' '}
-            Buscá el paciente o el titular, o registrá una venta de mostrador.
+            <span className="font-medium text-fg">¿A quién le facturás?</span> Buscá el paciente o el
+            titular. Si es una venta de mostrador, no hace falta: seguí sin elegir a nadie.
           </p>
         </header>
 
