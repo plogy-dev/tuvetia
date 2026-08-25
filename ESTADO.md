@@ -260,7 +260,15 @@ Las migraciones de esta tanda se renumeraron a **`0026`–`0036`** el 29-jul, po
 estaban ocupadas por las de multi-clínica que entraron en paralelo. No es cosmético:
 `0026_security_hardening` hace `revoke execute` sobre `switch_active_clinic` y
 `enforce_profile_clinic_invariant`, que crean `0021`/`0022` — con la numeración anterior corría antes
-que ellas y **fallaba en cualquier entorno nuevo**. La próxima migración arranca en `0037`.
+que ellas y **fallaba en cualquier entorno nuevo**.
+
+> **Al 2026-08-24 la última aplicada es la `0084`, y la próxima arranca en `0085`.** Esta línea
+> decía `0037` hasta hoy — o sea que llevaba 47 migraciones desactualizada, que es exactamente
+> el problema que este archivo se advierte a sí mismo en «Pendientes conocidos». Quien cree una
+> migración la actualiza acá en el mismo PR.
+>
+> ⚠️ La **`0080`** (de Santiago: `metricas` en `tablero_preferencias`) **no está aplicada al
+> principal** — verificado el 24-ago. Su código sí está en master.
 
 Los duplicados `0019` y `0020` (dos archivos cada uno) son historia ya aplicada en prod y se dejan
 como están: la BD las ordena por su timestamp real, no por el prefijo del archivo.
@@ -426,7 +434,7 @@ notas crédito por factura rompió suposiciones que nadie volvió a mirar (el CU
 guarda de un solo uso, el panel que no volvía a su estado). **Cuando un cambio toca plata, el review
 no puede ser el último paso.**
 
-## Sesión 2026-08-24 — el panel de administración filtraba datos con un 404 de por medio
+## Sesión 2026-08-24 — la fuga del panel, ventas copiado de OkVet, y tres funciones que no rendían
 
 ### 🔴 La fuga
 
@@ -505,6 +513,155 @@ caso que parece arreglado y no lo está.
   cambiarse el rol a uno mismo, no tocar a alguien de otra clínica, y no dejar la clínica sin
   administrador. El **envío masivo NO es de ellos**: está detrás de `isPlatformAdmin`.
 
+### Ventas, copiado de OkVet — y dos veces que este repo dedujo en vez de mirar
+
+David acumuló quejas del módulo. El pedido era **copia exacta** de OkVet y hubo que repetirlo: la
+primera vez se tomó como «acercarse» y se fueron cerrando puntos sueltos de una lista.
+
+**Sólo al entrar al producto del cliente aparecieron las cosas que el documento no decía.** Y las
+dos correcciones importantes del día son a conclusiones de este mismo repo:
+
+- **El descuento de línea va en PORCENTAJE**, no en pesos. Se había hecho en pesos ese mismo día.
+- **El menú de secciones SÍ existe en OkVet.** Se había mirado su `···` —que sólo trae «Unificador
+  de cuentas»— y se concluyó que no existía. Existe: cuelga de su PESTAÑA «Ventas», con **dos
+  niveles y doce entradas**. El problema nunca fue que el menú sobrara; era que se quedaba corto.
+
+> **La lección, y es la misma dos veces:** una referencia no se deduce de un documento que la
+> describe. Cada vez que se miró OkVet aparecieron hechos que ninguna lista traía — y cada vez que
+> no se miró, se construyó lo equivocado.
+
+**Lo que se descubrió mirando, y valía más que lo construido:**
+
+- **Compras y Proveedores estaban TERMINADOS y sin puerta** (#220). Lista, creación, edición y
+  detalle, todo hecho — y el menú mostraba cinco de los nueve destinos. Sólo se alcanzaban entrando
+  a Inventario y encontrando un enlace adentro. Un vet que quiere registrar una compra no adivina
+  que el camino es Ventas → Secciones → Inventario → Compras: **para efectos prácticos no
+  existían**, y eso explica parte de la queja.
+- **El descuento ya estaba entero del lado del servidor** (#215) y llevaba meses sin poder usarse:
+  cálculo, validación, persistencia, esquema de la acción, y hasta un **tope por rol**
+  (`maxDiscountPctForRole`) con bloqueante. Una regla de autorización completa que nunca pudo
+  dispararse porque no había dónde teclear el número.
+- **El menú y las páginas hablaban idiomas distintos**: el menú decía «Finanzas» y esa página se
+  titula, en su propio `h1`, «Ingresos y egresos» — que resulta ser el nombre exacto de OkVet.
+
+**Lo que quedó** (#211, #212, #215, #216, #217, #220, #221, #222):
+
+- La lista, con las columnas de OkVet (`Opciones · Identificación/Cliente · Valor · Pagos · Estado ·
+  Usuario · Actualizado`), `Mostrar 10/25/50/100`, buscador, paginación real —traía un `.limit(100)`
+  fijo, así que **con un año de uso la factura 101 no existía para esta pantalla**— y arranque en
+  «Hoy» con «Ver todo».
+- El formulario **«Nueva cuenta»**, que **abre como modal sobre la lista** (ranura paralela + ruta
+  interceptora). Es una RUTA y no un `useState`: el botón «atrás» cierra el modal en vez de sacar al
+  vet del módulo, un F5 no pierde la cuenta, y la URL se puede compartir.
+- Descuento de línea en %, **descuento global con razón obligatoria** (0081, con `CHECK`),
+  `Referencia/Nombre`, `Forma de pago`, observaciones, y **un solo botón `Guardar`** que lleva al
+  documento.
+- Inventario con las columnas y los nombres de OkVet, y el campo «Grupo» (0083).
+
+**El descuento global se PRORRATEA, no se resta del total.** Restarlo habría sido una línea y
+habría estado mal: el IVA se liquida por línea sobre su base, y las líneas de una factura no
+comparten tarifa. Restando al final, el impuesto ya calculado no se entera y el documento deja de
+cuadrar consigo mismo —`base × tarifa ≠ impuesto`—, que es lo que la DIAN valida.
+
+**Dos cambios de comportamiento que hay que avisar antes de que se prueben:**
+
+1. Una venta de mostrador ahora son **dos pantallas**: guardar → emitir en el documento. Es lo que
+   hace OkVet, pero es un clic más.
+2. El formulario **abre a nombre de «consumidor final»**. Sin atar un cliente con «Editar», la
+   factura queda **fuera de cartera y sin correo**. OkVet funciona igual y lo compensa con ese
+   control visible; acá va al lado del nombre por lo mismo.
+
+**Lo que se decidió NO copiar, y por qué:** los estados `Cerrado · Facturado · Unificado` son del
+modelo de OkVet; el nuestro es borrador → emitida → anulada **porque lo exige la DIAN**. Renombrarlos
+por parecerse rompería el significado. Tampoco las columnas `Inv. · Disponibles · Pick.` del
+inventario: las existencias viven en su propia pantalla, y tenerlas en dos sitios es tenerlas
+diciendo cosas distintas.
+
+**Sigue abierto:** que el menú suba a la barra lateral —que es donde estaría la copia fiel— toca el
+orden que definió Luciano el 19-ago, y es decisión del cliente.
+
+### Los dos cerrojos que hicieron su trabajo el mismo día que se escribieron
+
+Vale anotarlo porque es la contracara de la lección del 23-ago («una guarda que nadie probó que
+muerde no es una guarda»): estos mordieron solos, sin que nadie los provocara.
+
+- **`avisos-al-emitir` frenó una regresión al inventario.** Al sacar «Emitir ahora» del formulario
+  (copia de OkVet), el test se puso en rojo: vigilaba el aviso de existencia insuficiente en un
+  camino que acababa de dejar de existir, y **el panel del documento no mostraba aviso ninguno**.
+  Emitir desde ahí habría vuelto a dejar el inventario en −1 en silencio — exactamente lo medido el
+  23-ago. Borrar el test habría sido reabrir el defecto sin que nadie se enterara. En vez de eso,
+  `avisosDelBorrador()` los recalcula con `previewDraft` —la MISMA validación— y el documento los
+  pinta ARRIBA del botón de emitir. Se recalculan y no se guardan: un aviso guardado envejece, y la
+  existencia cambia justo entre armar la cuenta y emitirla.
+- **El cerrojo de pantallas huérfanas mordió su propio cambio.** Recién escrito (#220), señaló
+  `@modal/(.)nueva` como pantalla sin puerta. Tenía razón a medias: es un `page.tsx` nuevo, pero no
+  es un destino — es una proyección de `nueva`. Se le enseñaron las convenciones de ruteo
+  (`@ranura`, `(.)interceptor`, `(grupo)`) **y se verificó que sigue cazando lo de verdad**: con una
+  `cotizaciones/page.tsx` de mentira se pone en rojo con su nombre.
+
+### WhatsApp: tres funciones que ya estaban pagadas y no rendían
+
+- **Los acuses nunca llegaban** (#223). Medido: **0 de 3.491 salientes** tenían `delivered_at` o
+  `read_at`. Todo mensaje de la clínica se quedaba en un check, para siempre — incluidos los
+  recordatorios de cobranza, donde saber si el titular LEYÓ es la diferencia entre «no le llegó» y
+  «no quiere pagar». La cadena estaba entera salvo un eslabón: la suscripción de Evolution no
+  incluía `MESSAGES_UPDATE`.
+
+  **Y por poco se despliega muerto.** Los eventos sólo se registran al CONECTAR, así que agregar el
+  evento al arreglo **no alcanza a las instancias que ya existen**: las cuatro clínicas conectadas
+  se habrían quedado con la lista vieja hasta que alguien reescaneara un QR. Ahora el webhook
+  refresca su propia suscripción una vez por arranque en frío, sin tocar la sesión.
+
+  Los acuses **llegan desordenados**, así que ningún sello se pisa: un `DELIVERY_ACK` tardío después
+  de un `READ` habría devuelto el tick azul a gris — el vet vería que el titular «des-leyó» su
+  mensaje. Y **sólo se tocan los salientes**: en los entrantes `read_at` ya significa otra cosa (lo
+  escribe la bandeja al abrir la conversación, y alimenta el contador de no leídos).
+
+- **El nombre de quien escribe** (#224, migración 0084). Se reportó que un número desconocido
+  aparecía sin nombre. Baileys manda `pushName` en cada entrante, **estaba declarado en nuestro
+  propio tipo `EvoMessage` desde siempre**, y el webhook lo tiraba. No hace falta sincronizar la
+  agenda del teléfono: el nombre viaja EN EL MENSAJE.
+
+  El orden es **titular → perfil → número**, y no al revés: el titular es el dato que la clínica
+  verificó. Y **no es identidad verificada** —lo elige quien escribe— así que se pinta con una marca
+  «WA» y **nunca** se usa para resolver a qué titular pertenece un mensaje.
+
+- **El aviso de mensajes sin leer** (#225). No había ninguna señal de que llegó un mensaje: había
+  que entrar a Comunicaciones y mirar. **No se cuenta en el layout** —se midió en 1.023 ms el 23-ago
+  y se le sacaron dos viajes a mano— sino en el cliente, después de pintar. **Se recuenta, no se
+  incrementa**: sumar y restar se desincroniza solo y no se arregla nunca.
+
+- **Guardar como titular** desde la bandeja (#213) y **plantillas de cobranza por clínica** (#218,
+  migración 0082). Las plantillas destaparon dos defectos que el cambio volvía alcanzables:
+  `.replace('{link}', v)` con una cadena sustituye **sólo la primera** aparición, y el reemplazo
+  interpretaba `$&` y `$1` del valor — y el valor que se inyecta es el **saldo**, que en Colombia
+  siempre trae un `$`.
+
+### Lo demás
+
+- **El correo se ve como correo** (#214): se pintaba como texto plano, así que cualquier correo con
+  maquetado se leía como su propio código fuente. Ahora va en un `<iframe sandbox="">` — sin
+  `allow-scripts` ni `allow-same-origin`, como hacen Gmail y Outlook.
+- **Flechas del onboarding** (#219). El wizard sólo avanzaba. Lo frágil no era la flecha sino que
+  **volver no pierda lo tecleado**, y eso es cierto sólo mientras el estado viva en el wizard: por
+  eso el cerrojo vigila dónde vive el estado, no la flecha.
+- **Un cerrojo nuevo sobre la factura pública** (#215), que es la única pantalla que entrega datos
+  sin sesión. Es lista blanca y no lista negra a propósito, y **encontró algo apenas se escribió**:
+  los datos del emisor y del pagador que ya se servían. Quedaron autorizados por escrito — la
+  clínica y su NIT van impresos por obligación legal, y del pagador sale **sólo el nombre**.
+- **`invoices.notes` se conectó** y quedó decidido que es **del titular por definición**: sale en la
+  factura pública. Se pudo hacer sin riesgo porque la columna estaba vacía en toda la base — nadie
+  la escribía. Si algún día hace falta una anotación interna, va en columna nueva.
+
+### Migraciones aplicadas y verificadas al principal
+
+`0081` (descuento con razón, con `CHECK` y `btrim`), `0082` (plantillas por clínica),
+`0083` (grupo del producto), `0084` (nombre de perfil de WhatsApp). Las cuatro con su verificación
+corrida y sin residuos.
+
+> ⚠️ **La `0080` de Santiago —`metricas` en `tablero_preferencias`— NO está aplicada.** Verificado
+> el 24-ago: la columna no existe. Su tablero elegible sí está en master.
+
 ## Pendientes conocidos
 
 > **Revisado contra el repo el 2026-08-22.** De las diez entradas verificables, **cuatro estaban
@@ -547,31 +704,31 @@ caso que parece arreglado y no lo está.
   adivinando pondría unidades que siguen en la casa del cliente. Con selección de líneas y cantidades
   sí se puede calcular, y ahí una devolución parcial cerraría entera.
 
-- 🟡 **Los acuses de WhatsApp nunca llegan: todo mensaje enviado se queda en un solo check.**
-  Encontrado el 23-ago recorriendo Comunicaciones. Medido: **0 de 3.491** salientes tienen
-  `delivered_at` o `read_at` — incluidos los 13 que mandó Tuvetia, no sólo los del espejo del
-  teléfono del vet.
+- ~~**Los acuses de WhatsApp nunca llegan: todo mensaje enviado se queda en un solo check.**~~ —
+  **RESUELTO el 24-ago** (#223). Medido antes: **0 de 3.491** salientes tenían `delivered_at` o
+  `read_at`.
 
-  La cadena está casi entera y le falta un eslabón: la bandeja LEE los dos campos y pinta el tick
-  correspondiente (`inbox.tsx:561-569`), el webhook de **Meta** los ESCRIBE (`whatsapp/webhook`,
-  rama `value.statuses`)… pero producción corre **Evolution**, y ahí
-  `EVOLUTION_WEBHOOK_EVENTS = ["MESSAGES_UPSERT", "CONNECTION_UPDATE"]` — sin `MESSAGES_UPDATE`, que
-  es por donde Evolution manda los acuses. El webhook de Evolution tampoco lo manejaría: sólo tiene
-  esos dos `if`.
+  Era lo que decía esta entrada: faltaba `MESSAGES_UPDATE` en `EVOLUTION_WEBHOOK_EVENTS` y el
+  webhook no lo manejaba. Se aceptan las DOS formas del estado —nombre (`"DELIVERY_ACK"`) y número
+  del enum (`3`)— y los tres nombres con que viaja el id (`keyId`, `messageId`, `key.id`), porque no
+  hay forma de probar contra la versión que corra mañana. `PLAYED` cuenta como leído; `SERVER_ACK`
+  no sella nada (ése es el primer check, y ya lo da `created_at`).
 
-  **Lo cosmético:** en el lenguaje de WhatsApp un solo check es "enviado, sin acuse", así que no
-  miente — pero tampoco avanza nunca.
-  **Lo que sí importa:** un envío que Evolution ACEPTA y después no entrega (número inexistente,
-  bloqueado) llega por ese mismo evento. Hoy es invisible. Los fallos SINCRÓNICOS sí se ven —
-  `whatsapp/send` los clasifica y se los devuelve al vet.
+  **Lo que esta entrada no había previsto, y era lo que más importaba:** los eventos SÓLO se
+  registran al CONECTAR (`ensureInstance` ← `/api/whatsapp/evolution/connect`), así que agregar el
+  evento al arreglo NO alcanza a las instancias que ya existen. Las cuatro clínicas conectadas se
+  habrían quedado con la lista vieja y esto se habría desplegado sin cambiar nada, hasta que alguien
+  reescaneara un QR. El webhook ahora refresca su propia suscripción una vez por arranque en frío.
 
-  El arreglo son dos mitades: sumar `MESSAGES_UPDATE` a la suscripción y manejar el evento mapeando
-  el ACK de Evolution (`SERVER_ACK` / `DELIVERY_ACK` / `READ` / `ERROR`) a los campos que la bandeja
-  ya lee. NO se hizo el 23-ago a propósito: la forma exacta del payload de Evolution no se pudo
-  verificar contra una instancia viva, y escribir un handler adivinando la forma horas antes de una
-  entrega es la clase de cosa que parece hecha y no lo está. Si no calza, no rompe nada (actualiza
-  por `wa_message_id`, así que no encuentra fila y no hace nada) — pero tampoco sirve, y quedaría
-  dando la impresión contraria.
+  Otras dos que aparecieron al hacerlo: los acuses **llegan desordenados**, así que ningún sello se
+  pisa —un `DELIVERY_ACK` tardío después de un `READ` devolvería el tick azul a gris—; y **sólo se
+  tocan los SALIENTES**, porque en los entrantes `read_at` ya significa «el vet lo leyó» y alimenta
+  el contador de no leídos.
+
+  La duda que dejó escrita el 23-ago —no verificar la forma del payload contra una instancia viva—
+  se resolvió aceptando las variantes en vez de apostar a una. **Queda una comprobación real
+  pendiente:** que en producción aparezca el doble check. Si a la media hora sigue en uno, Evolution
+  manda una forma no contemplada y el log del webhook dice cuál.
 
 - 🟡 **`calendar_integrations` guarda 3 `refresh_token` de Google de un camino que ya no existe.**
   Encontrado el 23-ago recorriendo Conexiones.
