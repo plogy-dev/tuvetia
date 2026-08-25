@@ -92,8 +92,11 @@ export async function registrarUso(entrada: {
   surface: SuperficieDeUso
   elegido: ModeloElegido
   usage: UsoDeTokens
+  /** Cuánto tardó el turno completo, loop de tools incluido (0087). Opcional: no toda superficie
+   *  lo mide todavía, y un null honesto vale más que un 0 inventado. */
+  duracionMs?: number
 }): Promise<void> {
-  const { clinicId, userId, surface, elegido, usage } = entrada
+  const { clinicId, userId, surface, elegido, usage, duracionMs } = entrada
   try {
     const cayoAlRespaldo = elegido.modelId !== elegido.modeloPrimario
     // OJO: `.insert()` de supabase-js NO rechaza la promesa ante un error de la base — resuelve con
@@ -119,6 +122,9 @@ export async function registrarUso(entrada: {
         // tienen precios distintos, por eso van separados (ver migración 0065).
         tokens_cache_read: usage?.inputTokenDetails?.cacheReadTokens ?? null,
         tokens_cache_write: usage?.inputTokenDetails?.cacheWriteTokens ?? null,
+        // Latencia del turno (0087): la cifra que convierte "Athos tarda un minuto" de anécdota
+        // en dato. Redondeada — nadie decide nada con el decimal de un milisegundo.
+        duration_ms: duracionMs != null ? Math.round(duracionMs) : null,
       })
     if (error) {
       console.error(`[athos/usage] la base rechazó el consumo de ${surface}:`, error.message)

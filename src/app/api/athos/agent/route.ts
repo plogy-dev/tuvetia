@@ -7,6 +7,7 @@ import {
   sanearHistorial,
   esConsultaClinica,
   preguntasDuplicadas,
+  recortarHistorial,
   textoDe,
   turnoAGuardar,
 } from "@/lib/athos-agent/conversacion"
@@ -23,7 +24,12 @@ import { senalesDeLaClinica } from "@/lib/senales/consultar"
 import type { AgentContext } from "@/lib/athos-agent/actions"
 
 export const runtime = "nodejs"
-export const maxDuration = 60
+// 300 y no 60 (2026-08-26): con 60, un turno con dos-tres tools lentas + la velocidad de salida
+// del proveedor cruzaba el tope y Vercel MATABA la función a mitad de stream — el vet veía a
+// Athos "colgado en blanco" (reportado dos veces en las pruebas del 25-ago; athos_messages
+// registra turnos de 114s y 160s). El tope alto es la red de seguridad, no la meta: la latencia
+// se ataca recortando el historial (recortarHistorial) y midiendo cada turno (duration_ms).
+export const maxDuration = 300
 
 // Agente Athos (Vercel AI SDK): corre con la SESIÓN del vet — las tools de lectura pasan por RLS
 // y las de escritura solo PROPONEN acciones (athos_actions) que el vet aprueba en una tarjeta.
@@ -171,12 +177,15 @@ export async function POST(req: Request) {
     pendientes: senales.pendientes,
   })}`
 
+  const t0 = Date.now()
   const result = streamText({
     model: elegido.model,
     system,
-    // `sanearHistorial` desactiva los turnos VIEJOS que dicen haber propuesto algo sin haberlo
-    // hecho: son los que le enseñaron el patrón al modelo, y siguen en la base.
-    messages: await convertToModelMessages(sanearHistorial(messages as UIMessage[])),
+    // `recortarHistorial` acota lo que VE el modelo (medido: 22-57k tokens de entrada por turno
+    // reenviando el hilo entero con tool parts — ver conversacion.ts); `sanearHistorial` desactiva
+    // los turnos VIEJOS que dicen haber propuesto algo sin haberlo hecho. La persistencia de abajo
+    // sigue usando `messages` completo: el recorte es del camino al modelo, no de la conversación.
+    messages: await convertToModelMessages(sanearHistorial(recortarHistorial(messages as UIMessage[]))),
     maxOutputTokens: 2000,
     tools: buildAthosTools(supabase, ctx),
     stopWhen: stepCountIs(8),
@@ -193,6 +202,9 @@ export async function POST(req: Request) {
         surface: source === "widget" ? "widget" : "agent",
         elegido,
         usage: totalUsage,
+        // Cuánto tardó el turno COMPLETO (loop de tools incluido): la cifra que faltaba para
+        // diagnosticar "Athos tarda un minuto" con datos en vez de anécdota (migración 0087).
+        duracionMs: Date.now() - t0,
       })
     },
   })

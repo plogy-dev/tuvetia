@@ -122,12 +122,19 @@ function sinMarcas(texto: string): string {
 // persistidos de esta semana lo traen y deben seguir renderizando.
 const OPCIONES_RE = /```opciones\s*\n?([\s\S]*?)```\s*$/
 
-function extraerOpciones(texto: string): { limpio: string; preguntas: PreguntaDeContexto[] } {
+function extraerOpciones(
+  texto: string,
+  streaming: boolean,
+): { limpio: string; preguntas: PreguntaDeContexto[] } {
   const m = OPCIONES_RE.exec(texto)
   if (!m) {
-    // Sin cierre de fence = el bloque todavía está llegando por streaming: se oculta la cola para
-    // que el vet no vea JSON crudo escribiéndose. Si no hay bloque, replace no toca nada.
-    return { limpio: texto.replace(/```opciones[\s\S]*$/, "").trimEnd(), preguntas: [] }
+    // Sin cierre de fence: DURANTE el streaming el bloque todavía está llegando y se oculta la
+    // cola para que el vet no vea JSON crudo escribiéndose. Pero en un mensaje TERMINADO, un
+    // bloque sin cierre es un bloque malformado — y ocultarlo dejaba la respuesta EN BLANCO si el
+    // modelo lo abría temprano (reportado 25-ago: "Athos se quedó en blanco"). Feo gana a
+    // invisible: terminado y malformado, se muestra tal cual.
+    if (streaming) return { limpio: texto.replace(/```opciones[\s\S]*$/, "").trimEnd(), preguntas: [] }
+    return { limpio: texto, preguntas: [] }
   }
   try {
     const arr: unknown = JSON.parse(m[1])
@@ -159,8 +166,18 @@ function extraerOpciones(texto: string): { limpio: string; preguntas: PreguntaDe
   return { limpio: texto, preguntas: [] }
 }
 
-function TextBlocks({ text, kp, onOpcion }: { text: string; kp: string; onOpcion?: (s: string) => void }) {
-  const { limpio, preguntas } = extraerOpciones(sinMarcas(text))
+function TextBlocks({
+  text,
+  kp,
+  onOpcion,
+  streaming = false,
+}: {
+  text: string
+  kp: string
+  onOpcion?: (s: string) => void
+  streaming?: boolean
+}) {
+  const { limpio, preguntas } = extraerOpciones(sinMarcas(text), streaming)
   if (!limpio && preguntas.length === 0) return null
   return (
     // SIN BURBUJA. La respuesta se lee como texto sobre la página, que es lo que distingue a un chat
@@ -301,7 +318,7 @@ function AssistantMessage({
         {message.parts.map((part, i) => {
           if (part.type === "text") {
             return part.text ? (
-              <TextBlocks key={i} text={part.text} kp={`t${i}-`} onOpcion={onOpcion} />
+              <TextBlocks key={i} text={part.text} kp={`t${i}-`} onOpcion={onOpcion} streaming={streaming} />
             ) : null
           }
           if (isStaticToolUIPart(part)) {
