@@ -365,11 +365,15 @@ export function Assistant({
         toast.error(`Máximo ${MAX_ADJUNTOS} documentos por mensaje.`)
         break
       }
+      // Toast de progreso: un txt es instantáneo, pero un PDF escaneado pasa por el lector con IA
+      // y tarda varios segundos — sin señal, el vet vuelve a clickear o cree que se rompió.
+      const t = toast.loading(`Leyendo ${f.name}…`)
       try {
         const adj = await leerAdjunto(f)
         setAdjuntos((prev) => (prev.length >= MAX_ADJUNTOS ? prev : [...prev, adj]))
+        toast.success(`${f.name} listo para enviar`, { id: t })
       } catch (e) {
-        toast.error((e as Error).message)
+        toast.error((e as Error).message, { id: t })
       }
     }
     if (fileRef.current) fileRef.current.value = "" // volver a elegir el mismo archivo debe funcionar

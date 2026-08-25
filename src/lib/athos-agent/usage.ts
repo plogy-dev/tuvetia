@@ -44,6 +44,14 @@ export type SuperficieDeUso =
    * ponerle precio. Sumarla a `agent` haría incontestable esa pregunta incluso a posteriori.
    */
   | "consulta_viva"
+  /**
+   * Leer con el modelo un PDF ESCANEADO adjuntado al chat (0086). Es la fase 2 de la cascada de
+   * adjuntos: la fase 1 (pdfjs en el navegador) es gratis y no pasa por acá — solo se paga cuando
+   * el documento no trae texto digital. Se mide aparte porque es la única superficie cuyo costo
+   * escala con PÁGINAS de documento y no con turnos de conversación: la cifra que dice si el
+   * fallback multimodal se puede regalar o hay que topearlo es exactamente esta.
+   */
+  | "leer_documento"
 
 /**
  * Lo que devuelve `result.usage` del AI SDK (`LanguageModelUsage`).
