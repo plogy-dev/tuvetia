@@ -17,12 +17,13 @@
 import { useEffect, useRef, useState } from "react"
 import { useChat } from "@ai-sdk/react"
 import { DefaultChatTransport } from "ai"
-import { Loader2, SendHorizontal, Sparkles, X } from "lucide-react"
+import { SendHorizontal, Sparkles, X } from "lucide-react"
 
 import { BrandGlyph } from "@/components/brand-glyph"
 import { toast } from "sonner"
 
 import { AthosMensajes } from "@/components/athos/athos-mensajes"
+import { Pensando } from "@/components/athos/pensando"
 import { useAthosContexto } from "@/components/athos/athos-provider"
 import { useCapacidad } from "@/components/planes/plan-provider"
 import { useModalPro } from "@/components/planes/modal-subir-a-pro"
@@ -156,9 +157,12 @@ export function AthosWidget() {
           </p>
         )}
         <AthosMensajes messages={messages} />
-        {busy && (
-          <div className="flex items-center gap-[9px] text-[13px] text-fg-faint">
-            <Loader2 className="size-3.5 animate-spin" /> Athos está escribiendo…
+        {/* Solo mientras NO llegó nada (`submitted`): con el stream ya escribiendo, el propio
+            texto en movimiento es la señal de vida y esta fila sobraba. La espera muda es la que
+            necesita puntos que laten y una frase que evoluciona (components/athos/pensando.tsx). */}
+        {status === "submitted" && (
+          <div className="flex items-center">
+            <Pensando />
           </div>
         )}
       </div>

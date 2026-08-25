@@ -37,3 +37,20 @@ describe("componerRespuestas", () => {
     expect(texto).toBe("Sí")
   })
 })
+
+// La espera viva: los umbrales de fraseDeEspera son producto (la frase que cambia ES la señal de
+// que no está colgado). Si alguien los aplana a una sola frase, esto se pone rojo.
+import { fraseDeEspera } from "@/components/athos/pensando"
+
+describe("fraseDeEspera — la frase evoluciona con la espera", () => {
+  it("arranca pensando y termina agradeciendo la paciencia", () => {
+    expect(fraseDeEspera(0)).toBe("Athos está pensando…")
+    expect(fraseDeEspera(10)).toBe("Armando la respuesta…")
+    expect(fraseDeEspera(25)).toContain("respuesta completa")
+    expect(fraseDeEspera(60)).toContain("paciencia")
+  })
+  it("las cuatro fases son DISTINTAS (el cambio es la señal de vida)", () => {
+    const fases = [fraseDeEspera(0), fraseDeEspera(10), fraseDeEspera(25), fraseDeEspera(60)]
+    expect(new Set(fases).size).toBe(4)
+  })
+})

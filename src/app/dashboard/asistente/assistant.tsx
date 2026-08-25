@@ -24,6 +24,7 @@ import {
 
 import { renderInline, splitBlocks } from "@/components/athos/rich-text"
 import { Cuestionario, type PreguntaDeContexto } from "@/components/athos/cuestionario"
+import { Pensando } from "@/components/athos/pensando"
 import { ActionApprovalCard } from "@/components/athos/action-approval-card"
 import { ConnectEmailCard } from "@/components/athos/connect-email-card"
 import { PendingActions } from "@/components/athos/pending-actions"
@@ -764,16 +765,18 @@ export function Assistant({
         )}
 
         {/* Con el MISMO avatar que las respuestas: así el turno que está por llegar ocupa el lugar
-            que va a ocupar, y el hilo no salta cuando llega el primer token. */}
+            que va a ocupar, y el hilo no salta cuando llega el primer token. La espera es VIVA
+            (puntos que laten + frase que evoluciona): un indicador estático de 40 segundos se lee
+            como un bug — ver components/athos/pensando.tsx. */}
         {status === "submitted" && (
-          <div className="flex items-center gap-[11px] text-[13px] text-fg-faint">
+          <div className="flex items-center gap-[11px]">
             <span
               aria-hidden
               className="grid size-[26px] shrink-0 place-items-center rounded-[8px] bg-brand-soft text-brand-text"
             >
-              <Loader2 className="size-3.5 animate-spin" />
+              <Sparkles className="size-3.5" />
             </span>
-            Athos está pensando…
+            <Pensando />
           </div>
         )}
 
