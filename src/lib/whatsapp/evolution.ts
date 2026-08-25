@@ -44,7 +44,15 @@ async function evo<T>(path: string, init?: RequestInit, timeoutMs = TIMEOUT_MS):
   return (await res.json().catch(() => ({}))) as T
 }
 
-export const EVOLUTION_WEBHOOK_EVENTS = ["MESSAGES_UPSERT", "CONNECTION_UPDATE"] as const
+// MESSAGES_UPDATE es por donde Baileys manda los ACUSES (entregado / leído). Sin él, la
+// suscripción recibía mensajes y estados de conexión pero ningún acuse — y medido el 23-ago, los
+// 3.491 salientes de producción estaban los 3.491 sin `delivered_at` ni `read_at`: todo mensaje de
+// la clínica se quedaba en un solo check para siempre.
+export const EVOLUTION_WEBHOOK_EVENTS = [
+  "MESSAGES_UPSERT",
+  "MESSAGES_UPDATE",
+  "CONNECTION_UPDATE",
+] as const
 
 export function webhookUrl(): string {
   const site = process.env.NEXT_PUBLIC_SITE_URL
@@ -80,6 +88,50 @@ export async function ensureInstance(instanceName: string): Promise<void> {
     })
   } catch (e) {
     console.warn("evolution webhook/set:", (e as Error).message)
+  }
+}
+
+/**
+ * Instancias cuya suscripción ya se refrescó EN ESTE PROCESO.
+ *
+ * Sirve para no gastar una llamada por webhook recibido: con una por arranque en frío alcanza, y
+ * `/webhook/set` es idempotente.
+ */
+const yaResuscritas = new Set<string>()
+
+/**
+ * Se asegura de que la instancia esté suscrita a los eventos ACTUALES.
+ *
+ * ── POR QUÉ HACE FALTA ────────────────────────────────────────────────────────────────────────
+ *
+ * `ensureInstance` es lo único que registra los eventos, y sólo corre al CONECTAR
+ * (`/api/whatsapp/evolution/connect`). Las instancias que ya existen quedaron con la lista que
+ * había el día que se crearon: agregar `MESSAGES_UPDATE` al arreglo no las alcanza.
+ *
+ * Sin esto, el arreglo de los acuses se habría desplegado y no habría cambiado NADA en las cuatro
+ * clínicas conectadas hasta que alguien volviera a escanear un QR — que es justo lo que no se le
+ * puede pedir a un vet para arreglar algo que él no rompió.
+ *
+ * ── POR QUÉ NO ES PELIGROSO ───────────────────────────────────────────────────────────────────
+ *
+ * `/webhook/set` sólo cambia la configuración del webhook: no toca la sesión, no desconecta y no
+ * pide QR. Y falla en silencio a propósito — si Evolution no responde, lo que NO puede pasar es que
+ * un mensaje entrante se pierda porque la resuscripción falló.
+ */
+export async function asegurarEventosDelWebhook(instanceName: string): Promise<void> {
+  if (yaResuscritas.has(instanceName)) return
+  yaResuscritas.add(instanceName)
+  try {
+    await evo(`/webhook/set/${encodeURIComponent(instanceName)}`, {
+      method: "POST",
+      body: JSON.stringify({
+        webhook: { enabled: true, url: webhookUrl(), webhookByEvents: false, events: EVOLUTION_WEBHOOK_EVENTS },
+      }),
+    })
+  } catch (e) {
+    // Se reintenta en el próximo arranque en frío.
+    yaResuscritas.delete(instanceName)
+    console.warn("evolution resuscripción:", (e as Error).message)
   }
 }
 

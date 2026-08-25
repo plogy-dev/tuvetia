@@ -2,7 +2,7 @@ import { NextResponse, after } from "next/server"
 
 import { createAdminClient } from "@/lib/supabase/admin"
 import { verifySharedSecret } from "@/lib/whatsapp/verify"
-import { getOwnerPhone } from "@/lib/whatsapp/evolution"
+import { asegurarEventosDelWebhook, getOwnerPhone } from "@/lib/whatsapp/evolution"
 import { capturarMediaEvolution } from "@/lib/whatsapp/media"
 import { horaDelProveedor } from "@/lib/whatsapp/hora-del-proveedor"
 import {
@@ -13,6 +13,7 @@ import {
   type EvoMessage,
 } from "@/lib/whatsapp/baileys-mensaje"
 import { routeInbound } from "@/lib/whatsapp/inbound-router"
+import { acuseDe, camposDelAcuse } from "@/lib/whatsapp/acuses"
 
 export const runtime = "nodejs"
 export const maxDuration = 60 // after(): debounce del modo auto
@@ -25,12 +26,22 @@ export const maxDuration = 60 // after(): debounce del modo auto
 //  - messages.upsert: entrantes Y salientes (fromMe=true = lo que el vet escribe desde su teléfono
 //    → sync completo del número, sin coexistencia de Meta). Grupos y broadcasts se IGNORAN siempre
 //    (protección: el agente jamás toca grupos).
+//  - messages.update: los ACUSES (entregado / leído). Ver el bloque de abajo.
 //  - connection.update: open → connected · close → disconnected (aviso en Configuración).
+
+/** Lo que Evolution manda en `messages.update`: el id de la clave y el estado nuevo. */
+type EvoAcuse = {
+  keyId?: string
+  messageId?: string
+  key?: { id?: string }
+  status?: string | number
+  update?: { status?: string | number }
+}
 
 type EvoPayload = {
   event?: string
   instance?: string
-  data?: EvoMessage | EvoMessage[] | { state?: string; connection?: string }
+  data?: EvoMessage | EvoMessage[] | { state?: string; connection?: string } | EvoAcuse | EvoAcuse[]
 }
 
 const digits = (s: string) => s.replace(/\D/g, "")
@@ -70,6 +81,14 @@ export async function POST(req: Request, { params }: { params: Promise<{ token: 
   }
   const clinicId = integ.clinic_id
 
+  // Refresca la suscripción de esta instancia a los eventos actuales, una vez por arranque en frío.
+  // Las instancias creadas antes de que `MESSAGES_UPDATE` entrara a la lista no lo tienen, y sin
+  // esto el arreglo de los acuses no llegaría nunca a las clínicas ya conectadas.
+  //
+  // Va en `after()`: es una llamada a Evolution que no tiene por qué demorar la respuesta de este
+  // webhook — si tardamos, Evolution reintenta y duplicamos trabajo.
+  after(() => asegurarEventosDelWebhook(instance))
+
   if (event === "connection.update") {
     const d = payload.data as { state?: string; connection?: string } | undefined
     const state = d?.state ?? d?.connection
@@ -91,6 +110,47 @@ export async function POST(req: Request, { params }: { params: Promise<{ token: 
         .eq("clinic_id", clinicId)
     }
     return NextResponse.json({ ok: true })
+  }
+
+  // ── ACUSES ────────────────────────────────────────────────────────────────────────────────
+  //
+  // SÓLO SE TOCAN LOS SALIENTES, y no es un detalle: en los ENTRANTES `read_at` ya significa otra
+  // cosa —lo escribe nuestra propia bandeja cuando el vet abre la conversación, y alimenta el
+  // contador de no leídos (`inbox.tsx`)—. Un acuse que lo sellara marcaría como leídas
+  // conversaciones que nadie abrió, y el vet dejaría de ver que tiene mensajes esperando.
+  if (event === "messages.update") {
+    const raw = payload.data
+    const list = (Array.isArray(raw) ? raw : [raw]) as EvoAcuse[]
+    let sellados = 0
+    for (const u of list) {
+      // El id viaja con tres nombres distintos según la versión de Evolution; se aceptan los tres
+      // en vez de apostar a uno, porque equivocarse acá significa volver a cero acuses.
+      const waMessageId = u?.keyId ?? u?.messageId ?? u?.key?.id
+      const acuse = acuseDe(u?.update?.status ?? u?.status)
+      if (!waMessageId || !acuse) continue
+
+      const { data: filaRaw } = await admin
+        .from("whatsapp_messages")
+        .select("id, direction, delivered_at, read_at")
+        .eq("clinic_id", clinicId)
+        .eq("wa_message_id", waMessageId)
+        .maybeSingle()
+      const fila = filaRaw as
+        | { id: string; direction: string; delivered_at: string | null; read_at: string | null }
+        | null
+      if (!fila || fila.direction !== "outbound") continue
+
+      const campos = camposDelAcuse(acuse, fila, new Date().toISOString())
+      if (Object.keys(campos).length === 0) continue // ya estaba sellado: no se pisa
+
+      const { error } = await admin.from("whatsapp_messages").update(campos).eq("id", fila.id)
+      if (error) {
+        console.error("evolution/webhook acuse:", error.message)
+        continue
+      }
+      sellados += 1
+    }
+    return NextResponse.json({ ok: true, sellados })
   }
 
   if (event === "messages.upsert") {
