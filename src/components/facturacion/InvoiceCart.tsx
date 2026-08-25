@@ -88,6 +88,7 @@ export function InvoiceCart({
   renglonesIniciales,
   defaultDocKind,
   uvtValueCents,
+  cobertura,
   abiertaEn,
 }: {
   items: CatalogItemRow[];
@@ -115,6 +116,23 @@ export function InvoiceCart({
   }[];
   defaultDocKind: DocKind;
   uvtValueCents: number;
+  /**
+   * El plan de salud del paciente, si tiene uno vigente, con lo que le queda de cada servicio.
+   *
+   * ── POR QUÉ AVISA Y NO DESCUENTA SOLO ─────────────────────────────────────────────────────
+   *
+   * Sería fácil poner la línea en cero automáticamente. No se hace, y es a propósito: quien decide
+   * si esta consulta se imputa al plan o se cobra aparte es el veterinario, no la pantalla. Una
+   * cuenta que se descuenta sola es una cuenta que nadie revisa hasta que el titular reclama.
+   *
+   * Lo que sí hace es que sea IMPOSIBLE no verlo: si la línea está cubierta y quedan usos, lo dice
+   * ahí mismo. El plan que no se ve en el momento de cobrar es un plan que la clínica vendió y
+   * después cobró igual.
+   */
+  cobertura?: {
+    planNombre: string;
+    porItem: Record<string, { nombre: string; incluidas: number; restantes: number }>;
+  } | null;
   /**
    * Cuándo se abrió la cuenta, en ISO. Viene del SERVIDOR a propósito: `new Date()` dentro del
    * componente es impuro y `react-hooks/purity` lo rechaza — con razón, porque haría que el mismo
@@ -564,6 +582,19 @@ export function InvoiceCart({
 
            Y SE PUEDEN PLEGAR: una cuenta de ocho renglones son ocho tarjetas, y a partir de la
            tercera lo único que importa de las anteriores es el concepto y cuánto suman. */
+        <>
+        {/* El plan, aunque todavía no haya ninguna línea cubierta en el carrito. Sin esto, quien
+            factura sólo se entera de que el paciente tiene plan si por casualidad agrega el
+            servicio incluido — y si no lo agrega, la clínica cobró un plan que nunca prestó. */}
+        {cobertura && (
+          <p className="mb-2 rounded-lg border border-brand/30 bg-brand/5 px-3 py-2 text-xs text-fg-muted">
+            Este paciente tiene <b className="text-fg">{cobertura.planNombre}</b>. Incluye:{" "}
+            {Object.values(cobertura.porItem)
+              .map((c) => `${c.nombre} (${c.restantes} de ${c.incluidas})`)
+              .join(" · ")}
+            .
+          </p>
+        )}
         <ul className="space-y-2">
           {lines.map((l, idx) => {
             // Del cálculo de arriba, no de un recálculo acá: si esta tarjeta volviera a computar
@@ -607,6 +638,36 @@ export function InvoiceCart({
                     </button>
                   </span>
                 </div>
+
+                {/* Lo cubre el plan. Va en el encabezado y NO adentro del pliegue: una tarjeta
+                    plegada tiene que seguir diciéndolo — plegar es dejar de mirar los números, no
+                    dejar de saber que esto ya está pagado. */}
+                {(() => {
+                  const cub = l.catalogItemId ? cobertura?.porItem[l.catalogItemId] : undefined
+                  if (!cub) return null
+                  return (
+                    <p
+                      className={
+                        "mb-2 rounded-md px-2 py-1 text-[11.5px] " +
+                        (cub.restantes > 0
+                          ? "bg-brand/10 text-brand"
+                          : "bg-surface-2 text-fg-faint")
+                      }
+                    >
+                      {cub.restantes > 0 ? (
+                        <>
+                          Lo cubre <b>{cobertura?.planNombre}</b> — quedan {cub.restantes} de{" "}
+                          {cub.incluidas}.
+                        </>
+                      ) : (
+                        <>
+                          {cobertura?.planNombre} incluía {cub.incluidas} y ya se usaron todas: esta
+                          va cobrada.
+                        </>
+                      )}
+                    </p>
+                  )
+                })()}
 
                 {!plegada && (
                   <>
@@ -731,6 +792,7 @@ export function InvoiceCart({
             )
           })}
         </ul>
+        </>
       )}
 
       {/* Descuento global y su razón, uno al lado del otro como en la referencia. */}

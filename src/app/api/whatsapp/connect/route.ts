@@ -64,7 +64,7 @@ export async function POST(req: Request) {
     const fwdProto = req.headers.get("x-forwarded-proto") ?? "https"
     const origin =
       process.env.NEXT_PUBLIC_SITE_URL ?? (fwdHost ? `${fwdProto}://${fwdHost}` : new URL(req.url).origin)
-    const setupUrl = await createSetupLink(kapsoCustomerId, `${origin}/dashboard/settings?whatsapp=connected`)
+    const setupUrl = await createSetupLink(kapsoCustomerId, `${origin}/dashboard/administracion/clinica?tab=cuenta&whatsapp=connected`)
 
     const { error: linkErr } = await admin
       .from("whatsapp_integrations")

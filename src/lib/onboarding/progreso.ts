@@ -57,21 +57,23 @@ export type Progreso = {
 }
 
 /**
- * `/dashboard/settings` aparece tres veces porque las tres cosas se configuran ahí. No se inventan
- * anclas: un `#hash` que no exista deja al vet mirando el tope de la página sin entender por qué.
+ * Cada paso aterriza en la PESTAÑA donde se hace, no en el tope de la pantalla. Antes tres pasos
+ * apuntaban al mismo `/dashboard/settings` y el vet caía arriba de todo a buscar el ajuste que le
+ * acababan de prometer; desde que la configuración vive en pestañas con URL propia (`?tab=`), el
+ * enlace puede llevar exactamente adonde dice. Siguen sin inventarse `#hash` que no existan.
  */
 const DEFINICIONES: ReadonlyArray<Omit<Paso, "hecho">> = [
   {
     id: "logo",
     titulo: "Logo de la clínica",
     porQue: "Sale en las facturas y en los correos al titular.",
-    href: "/dashboard/settings",
+    href: "/dashboard/administracion/clinica",
   },
   {
     id: "horarios",
     titulo: "Horarios de atención",
     porQue: "Sin ellos Athos no puede ofrecer un espacio libre ni agendar nada.",
-    href: "/dashboard/settings",
+    href: "/dashboard/administracion/clinica?tab=agenda",
   },
   {
     id: "paciente",
@@ -95,7 +97,7 @@ const DEFINICIONES: ReadonlyArray<Omit<Paso, "hecho">> = [
     id: "equipo",
     titulo: "Equipo invitado",
     porQue: "Cada quien entra con su usuario y la ficha dice quién atendió.",
-    href: "/dashboard/settings",
+    href: "/dashboard/administracion/clinica?tab=equipo",
   },
 ]
 

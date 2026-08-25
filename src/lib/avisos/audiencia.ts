@@ -26,10 +26,12 @@ import "server-only"
 // Cada segmento está definido por algo que pasó —hay un paciente, hubo una consulta, hay una cita—
 // así que las direcciones que trae son de gente que estuvo en la clínica.
 //
-// ── LO QUE NO SE PUDO OFRECER ─────────────────────────────────────────────────────────────────
+// ── «VACUNA VENCIDA»: LA TABLA SÍ EXISTÍA ─────────────────────────────────────────────────────
 //
-// «Vacuna vencida» era el segmento estrella del plan y NO EXISTE la tabla de vacunaciones. Ofrecerlo
-// habría significado inventarme de dónde sale la fecha. Cuando exista, entra acá y nada más cambia.
+// Al planear esto dije que el segmento no se podía ofrecer porque no había tabla de vacunaciones.
+// Estaba buscando `vaccinations`: se llama `vaccines`, y trae `next_dose_at`. El segmento entró el
+// 25-ago y es probablemente el más útil de los cinco — avisar de una vacuna que toca es exactamente
+// el aviso operativo que una clínica quiere mandar.
 
 import { createAdminClient } from "@/lib/supabase/admin"
 import { normalizarCorreo, sinLosDeBaja } from "@/lib/email/baja"
@@ -51,6 +53,11 @@ export const SEGMENTOS = {
   CON_CITA_PROXIMA: {
     etiqueta: "Con cita agendada próximamente",
     ayuda: "Para avisar de un cambio de horario o de una indicación previa.",
+  },
+  VACUNA_VENCIDA: {
+    etiqueta: "Con una vacuna vencida",
+    ayuda:
+      "La próxima dosis ya pasó y no hay una más nueva de la misma vacuna. Mira el último año.",
   },
 } as const
 
@@ -79,6 +86,94 @@ function haceMeses(meses: number, ahora: Date): string {
   const d = new Date(ahora)
   d.setMonth(d.getMonth() - meses)
   return d.toISOString()
+}
+
+/**
+ * Los titulares de un paciente al que se le venció una vacuna.
+ *
+ * ── LA TRAMPA: UNA DOSIS VIEJA NO SIGNIFICA UNA VACUNA VENCIDA ────────────────────────────────
+ *
+ * `vaccines` guarda APLICACIONES, una fila por pinchazo. Si a Milo le pusieron rabia en 2024 con
+ * `next_dose_at` en 2025, y se la volvieron a poner en 2025 con `next_dose_at` en 2026, la fila de
+ * 2024 sigue diciendo que venció — y es mentira: el perro está al día.
+ *
+ * Filtrar `next_dose_at <= hoy` a secas le escribiría a media clínica para avisarle de vacunas que
+ * ya se pusieron, que es la clase de error que hace que el titular deje de abrir los correos.
+ *
+ * Por eso se agrupa por PACIENTE + NOMBRE DE VACUNA y se mira la fecha MÁS NUEVA de cada grupo. Si
+ * ésa ya pasó, toca de verdad.
+ *
+ * ── Y UNA VENTANA HACIA ATRÁS ─────────────────────────────────────────────────────────────────
+ *
+ * Sólo el último año. Una vacuna que venció en 2021 no es un recordatorio: es un paciente que no
+ * vuelve desde hace cuatro años, y ese correo probablemente ya no existe. Rebotes, otra vez.
+ */
+/**
+ * Qué pacientes tienen una vacuna vencida, dadas las filas de `vaccines`.
+ *
+ * Se separa de la consulta porque es la parte que se puede equivocar y la única que vale la pena
+ * probar: la consulta trae filas, esto decide a quién se le escribe.
+ *
+ * `hoy` en formato `YYYY-MM-DD`, igual que la columna `date`. Se comparan como TEXTO a propósito —
+ * ese formato ordena lexicográficamente igual que cronológicamente, y convertir a `Date` metería
+ * una zona horaria en una fecha civil que no la tiene.
+ */
+export function pacientesConVacunaVencida(
+  filas: { patient_id: string; vaccine_name: string | null; next_dose_at: string }[],
+  hoy: string,
+): string[] {
+  const ultima = new Map<string, { paciente: string; fecha: string }>()
+  for (const v of filas) {
+    // El nombre normalizado: «Rabia» y «rabia » son la misma vacuna, y si no se unifican cada una
+    // arma su propio grupo y la vieja vuelve a parecer vencida.
+    const clave = `${v.patient_id}|${(v.vaccine_name ?? "").trim().toLowerCase()}`
+    const previa = ultima.get(clave)
+    if (!previa || v.next_dose_at > previa.fecha) {
+      ultima.set(clave, { paciente: v.patient_id, fecha: v.next_dose_at })
+    }
+  }
+
+  const pacientes = new Set<string>()
+  for (const { paciente, fecha } of ultima.values()) {
+    if (fecha <= hoy) pacientes.add(paciente)
+  }
+  return [...pacientes]
+}
+
+async function titularesConVacunaVencida(
+  admin: ReturnType<typeof createAdminClient>,
+  clinicId: string,
+  ahora: Date,
+): Promise<string[]> {
+  const hoy = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Bogota" }).format(ahora)
+  const desde = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Bogota" }).format(
+    new Date(ahora.getFullYear() - 1, ahora.getMonth(), ahora.getDate()),
+  )
+
+  // Se traen TODAS las filas con próxima dosis del último año —vencidas y por venir— porque para
+  // saber si la vencida quedó relevada hace falta ver también la que la relevó.
+  const { data } = await admin
+    .from("vaccines")
+    .select("patient_id, vaccine_name, next_dose_at")
+    .eq("clinic_id", clinicId)
+    .not("next_dose_at", "is", null)
+    .gte("next_dose_at", desde)
+    .limit(5000)
+
+  const pacientes = pacientesConVacunaVencida(
+    (data ?? []) as { patient_id: string; vaccine_name: string | null; next_dose_at: string }[],
+    hoy,
+  )
+  if (pacientes.length === 0) return []
+
+  const { data: filas } = await admin
+    .from("patients")
+    .select("owner_id")
+    .eq("clinic_id", clinicId)
+    .in("id", pacientes)
+    .not("owner_id", "is", null)
+
+  return [...new Set(((filas ?? []) as { owner_id: string }[]).map((p) => p.owner_id))]
 }
 
 /**
@@ -119,6 +214,8 @@ export async function armarAudiencia(
       ((conPaciente ?? []) as { owner_id: string }[]).map((p) => p.owner_id),
     )
     ids = [...todos].filter((id) => !vinieron.has(id))
+  } else if (segmento === "VACUNA_VENCIDA") {
+    ids = await titularesConVacunaVencida(admin, clinicId, ahora)
   } else if (segmento === "CON_CITA_PROXIMA") {
     const { data } = await admin
       .from("appointments")

@@ -1,236 +1,30 @@
-import Link from "next/link"
-import { Building2, CalendarClock, Clock, Download, Plug, User, Users } from "lucide-react"
-import { Button } from "@/components/ui/button"
+import { redirect } from "next/navigation"
 
-import { sesionDelServidor } from "@/lib/supabase/sesion"
-import { ProfileSettings } from "@/components/settings/profile-settings"
-import { DireccionDeLaClinica } from "@/components/settings/direccion-de-la-clinica"
-import { ClinicHoursSettings, type ClinicHourRow } from "@/components/settings/clinic-hours-settings"
-import { RecordatorioCitasSettings } from "@/components/settings/recordatorio-citas-settings"
-import {
-  TeamSettings,
-  type PendingInvitation,
-  type TeamMember,
-} from "@/components/settings/team-settings"
-import { composioConfigurado, estadoConexion } from "@/lib/composio/correo"
-import { HelpTip } from "@/components/help-tip"
-import { PageHeader, PageShell } from "@/components/ui/page-shell"
-// Los rótulos de rol se mudaron a `lib/roles.ts`: el pie de la barra lateral también los usa ahora.
-import { ROLES_LEGIBLES } from "@/lib/roles"
+// La configuración se mudó a `/dashboard/administracion/clinica`, dentro del panel de
+// administración (25-ago). Esta ruta queda como redirección y NO como una copia.
+//
+// ── POR QUÉ SIGUE EXISTIENDO ──────────────────────────────────────────────────────────────────
+//
+// Porque hay enlaces a `/dashboard/settings` que no están en este repo y no podemos repuntar:
+// correos viejos, cosas que alguien marcó, y sobre todo el callback de WhatsApp, que vuelve del
+// proveedor a `?whatsapp=connected`. Borrar la ruta convertiría esos tres en un 404.
+//
+// ── LA QUERY VIAJA ────────────────────────────────────────────────────────────────────────────
+//
+// Se reenvía tal cual. Si se perdiera, el vet volvería de conectar WhatsApp a una pantalla que no
+// le dice que quedó conectado — que es justo el momento en que necesita esa confirmación.
 
-export const metadata = { title: "Configuración · Tuvetia" }
-
-
-
-export default async function SettingsPage() {
-  const { supabase, user } = await sesionDelServidor()
-
-  const profile = user
-    ? (
-        await supabase
-          .from("profiles")
-          .select("full_name, role, clinic_id")
-          .eq("id", user.id)
-          .single()
-      ).data
-    : null
-  const p = profile as { full_name: string | null; role: string | null; clinic_id: string | null } | null
-
-  // `address` y `city` viajan en la MISMA consulta que ya se hacía: la dirección se adjunta a cada
-  // cita que se empuja al calendario, así que la clínica necesita poder cargarla desde acá.
-  const clinic = p?.clinic_id
-    ? (
-        await supabase
-          .from("clinics")
-          .select(
-            "name, address, city, recordatorio_citas_activo, recordatorio_citas_horas, recordatorio_citas_texto",
-          )
-          .eq("id", p.clinic_id)
-          .single()
-      ).data
-    : null
-  const c = clinic as {
-    name: string
-    address: string | null
-    city: string | null
-    recordatorio_citas_activo: boolean
-    recordatorio_citas_horas: number
-    recordatorio_citas_texto: string | null
-  } | null
-  const clinicName = c?.name ?? "—"
-
-  // Sólo el estado, para el resumen: los formularios de conexión viven en /dashboard/conexiones.
-  // (RLS: cada SELECT trae únicamente la fila de la clínica, y las credenciales están revocadas
-  // para PostgREST.)
-  //
-  // El correo se lee de Composio y no de `email_integrations`: esa tabla era de la cuenta SMTP
-  // institucional, que se retiró — las facturas salen por el correo de Tuvetia y no hay nada que
-  // conectar. Lo único conectable hoy es la cuenta personal desde la que Athos escribe, y es
-  // por persona, así que el resumen habla de la de QUIEN MIRA, no de la clínica.
-  const [{ data: wa }, correoAthos] = await Promise.all([
-    supabase.from("whatsapp_integrations").select("status").maybeSingle(),
-    user && composioConfigurado()
-      ? estadoConexion(user.id)
-      : Promise.resolve({ conectado: false, proveedor: null, email: null }),
-  ])
-  const waConnected = (wa as { status?: string } | null)?.status === "connected"
-
-  // Horarios de atención (RLS de la clínica) — los usa Athos para citas y respuestas automáticas.
-  // `vet_id` viaja porque desde la 0069 hay dos horarios en la misma tabla: el de la clínica
-  // (nulo) y el de cada persona. La RLS de SELECT deja ver los dos — el de un compañero se lee
-  // para poder agendar con él; lo que no se hace es escribirlo.
-  const { data: hoursRows } = await supabase
-    .from("clinic_hours")
-    .select("id, weekday, opens_at, closes_at, slot_minutes, vet_id")
-    .order("weekday")
-    .order("opens_at")
-
-  // Equipo: miembros de la clínica (RPC get_clinic_members: el email vive en auth.users, que
-  // PostgREST no expone directo) + invitaciones pendientes (RLS: solo el admin las ve; para un
-  // vet llega vacío).
-  const isAdmin = p?.role === "admin"
-  const { data: memberRows } = p?.clinic_id
-    ? await supabase.rpc("get_clinic_members")
-    : { data: null }
-  const { data: inviteRows } = await supabase
-    .from("invitations")
-    .select("id, email, role, expires_at")
-    .is("accepted_at", null)
-    .gt("expires_at", new Date().toISOString())
-    .order("created_at", { ascending: false })
-  const members = (memberRows as TeamMember[] | null) ?? []
-  const pendingInvitations = (inviteRows as PendingInvitation[] | null) ?? []
-
-  return (
-    <PageShell width="narrow" className="flex flex-col gap-4">
-      <PageHeader
-        title="Configuración"
-        description="Los datos de tu clínica, tu equipo y tus horarios de atención."
-      />
-
-      {/* Clínica. El nombre y el rol son de sólo lectura; la dirección se edita, porque es lo que
-          sale en cada invitación de calendario y hasta ahora no había dónde cargarla. */}
-      <div className="rounded-xl border bg-card p-4">
-        <div className="mb-2 flex items-center gap-2 text-sm font-semibold">
-          <Building2 className="size-4 text-muted-foreground" /> Clínica
-          <HelpTip>
-            La <b>dirección</b> se adjunta a cada cita que se crea en el calendario: al titular le
-            llega en la invitación y puede abrirla en el mapa. Sin ella, la invitación dice a qué
-            hora pero no dónde.
-          </HelpTip>
-        </div>
-        <dl className="mb-4 grid grid-cols-[auto_1fr] gap-x-4 gap-y-1 text-sm">
-          <dt className="text-muted-foreground">Nombre</dt>
-          <dd className="font-medium">{clinicName}</dd>
-          <dt className="text-muted-foreground">Tu rol</dt>
-          <dd>{p?.role ? (ROLES_LEGIBLES[p.role] ?? p.role) : "—"}</dd>
-        </dl>
-        {p?.clinic_id && (
-          <DireccionDeLaClinica
-            clinicId={p.clinic_id}
-            initialAddress={c?.address ?? ""}
-            initialCity={c?.city ?? ""}
-            isAdmin={isAdmin}
-          />
-        )}
-      </div>
-
-      {/* Equipo de la clínica */}
-      <div className="rounded-xl border bg-card p-4">
-        <div className="mb-3 flex items-center gap-2 text-sm font-semibold">
-          <Users className="size-4 text-muted-foreground" /> Equipo
-          <HelpTip>
-            Los miembros de tu clínica comparten pacientes, consultas y agenda. Solo un{" "}
-            <b>administrador</b> puede invitar o revocar.
-          </HelpTip>
-        </div>
-        <TeamSettings
-          isAdmin={isAdmin}
-          members={members}
-          invitations={pendingInvitations}
-          currentUserId={user?.id ?? ""}
-        />
-      </div>
-
-      {/* Conexiones: WhatsApp y Correo se mudaron a su propia sección. Acá queda el estado y el
-          enlace — repetir los mismos formularios en dos páginas sólo genera la duda de cuál manda. */}
-      <div className="rounded-xl border bg-card p-4">
-        <div className="mb-2 flex items-center gap-2 text-sm font-semibold">
-          <Plug className="size-4 text-muted-foreground" /> Integraciones
-        </div>
-        <p className="mb-3 text-sm text-muted-foreground">
-          WhatsApp {waConnected ? "conectado" : "sin conectar"} · Correo de Athos{" "}
-          {correoAthos.conectado ? "conectado" : "sin conectar"}.
-        </p>
-        <Button variant="outline" render={<Link href="/dashboard/conexiones" />}>
-          <Plug className="size-4" /> Ir a Integraciones
-        </Button>
-      </div>
-
-      {/* Horarios de atención (los usa Athos: citas y respuestas automáticas) */}
-      <div className="rounded-xl border bg-card p-4">
-        <div className="mb-3 flex items-center gap-2 text-sm font-semibold">
-          <Clock className="size-4 text-muted-foreground" /> Horarios de atención
-          <HelpTip>
-            Athos usa estos horarios para proponer citas con cupos reales y para responder
-            &quot;¿a qué hora abren?&quot; por WhatsApp. Sin horarios, no propone ni responde eso.
-            Si tu horario no es el de la clínica, cargá el tuyo en <b>El mío</b>: reemplaza al de la
-            clínica sólo en los días que definas, y sólo para vos.
-          </HelpTip>
-        </div>
-        <ClinicHoursSettings
-          initialHours={(hoursRows as ClinicHourRow[] | null) ?? []}
-          vetId={user?.id ?? null}
-        />
-      </div>
-
-      {/* Recordatorio de cita — vive junto a los horarios: las dos cosas son «cómo funciona la
-          agenda de esta clínica», y quien acaba de cargar sus horarios es exactamente quien va a
-          querer que a los titulares se les avise. */}
-      <div className="rounded-xl border bg-card p-4">
-        <div className="mb-3 flex items-center gap-2 text-sm font-semibold">
-          <CalendarClock className="size-4 text-muted-foreground" /> Recordatorio de citas
-          <HelpTip>
-            Le escribe al titular por WhatsApp antes de su cita. Sale del número de la clínica y
-            necesita WhatsApp conectado. Arranca apagado: encenderlo es decidir que la clínica le
-            habla sola a sus clientes.
-          </HelpTip>
-        </div>
-        <RecordatorioCitasSettings
-          activoInicial={c?.recordatorio_citas_activo ?? false}
-          horasIniciales={c?.recordatorio_citas_horas ?? 24}
-          textoInicial={c?.recordatorio_citas_texto ?? null}
-          puedeEditar={p?.role === "admin"}
-        />
-      </div>
-
-      {/* Perfil (editable) */}
-      <div className="rounded-xl border bg-card p-4">
-        <div className="mb-3 flex items-center gap-2 text-sm font-semibold">
-          <User className="size-4 text-muted-foreground" /> Tu perfil
-        </div>
-        <p className="mb-3 text-sm text-muted-foreground">
-          {user?.email ?? "—"}
-        </p>
-        {user && <ProfileSettings userId={user.id} initialName={p?.full_name ?? ""} />}
-      </div>
-
-      {/* Tus datos (export abierto — sin lock-in) */}
-      <div className="rounded-xl border bg-card p-4">
-        <div className="mb-2 flex items-center gap-2 text-sm font-semibold">
-          <Download className="size-4 text-muted-foreground" /> Tus datos
-          <HelpTip>
-            Tus datos son tuyos: descargá en cualquier momento un archivo JSON (formato abierto) con
-            pacientes, titulares, consultas, transcripciones, notas, citas y mensajes de tu clínica.
-          </HelpTip>
-        </div>
-        <p className="mb-3 text-sm text-muted-foreground">
-          Exportá toda la información de tu clínica en formato abierto, cuando quieras.
-        </p>
-        <Button variant="outline" render={<a href="/api/export" download />}>
-          <Download className="size-4" /> Exportar datos de la clínica
-        </Button>
-      </div>
-    </PageShell>
-  )
+export default async function SettingsRedirectPage({
+  searchParams,
+}: {
+  searchParams: Promise<Record<string, string | string[] | undefined>>
+}) {
+  const params = await searchParams
+  const qs = new URLSearchParams()
+  for (const [clave, valor] of Object.entries(params)) {
+    if (Array.isArray(valor)) valor.forEach((v) => qs.append(clave, v))
+    else if (valor !== undefined) qs.append(clave, valor)
+  }
+  const cola = qs.toString()
+  redirect(`/dashboard/administracion/clinica${cola ? `?${cola}` : ""}`)
 }

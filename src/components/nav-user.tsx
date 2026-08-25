@@ -113,7 +113,7 @@ export function NavUser({
               </DropdownMenuLabel>
             </DropdownMenuGroup>
             <DropdownMenuSeparator />
-            <DropdownMenuItem render={<Link href="/dashboard/settings" />}>
+            <DropdownMenuItem render={<Link href="/dashboard/administracion/clinica?tab=cuenta" />}>
               <SettingsIcon />
               Configuración
             </DropdownMenuItem>
