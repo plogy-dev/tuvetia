@@ -12,6 +12,7 @@ import {
 import { Loader2, Mic, Paperclip, Send, Sparkles, X } from "lucide-react"
 import { toast } from "sonner"
 
+import { athosIndexarDocumento } from "@/lib/athos"
 import { useDictado } from "@/lib/athos-dictado"
 import {
   ADJUNTOS_ACEPTA,
@@ -22,6 +23,7 @@ import {
 } from "@/lib/athos-adjuntos"
 
 import { renderInline, splitBlocks } from "@/components/athos/rich-text"
+import { Cuestionario, type PreguntaDeContexto } from "@/components/athos/cuestionario"
 import { ActionApprovalCard } from "@/components/athos/action-approval-card"
 import { ConnectEmailCard } from "@/components/athos/connect-email-card"
 import { PendingActions } from "@/components/athos/pending-actions"
@@ -114,32 +116,52 @@ function sinMarcas(texto: string): string {
     .trim()
 }
 
-// Bloque ```opciones``` al final de una respuesta: preguntas aclaratorias con respuestas clicables
-// (reunión 24-ago: "preguntas estilo Claude" para que dar contexto no sea eterno). El system prompt
-// del agente define el formato: un único bloque, al final, con un array JSON de strings cortos.
+// Bloque ```opciones``` al final de una respuesta: el CUESTIONARIO de contexto (estilo Claude,
+// pedido del cliente 25-ago). El system prompt define el formato nuevo — array de
+// {pregunta, opciones} — y acá se acepta también el viejo (array de strings) porque los hilos
+// persistidos de esta semana lo traen y deben seguir renderizando.
 const OPCIONES_RE = /```opciones\s*\n?([\s\S]*?)```\s*$/
 
-function extraerOpciones(texto: string): { limpio: string; opciones: string[] } {
+function extraerOpciones(texto: string): { limpio: string; preguntas: PreguntaDeContexto[] } {
   const m = OPCIONES_RE.exec(texto)
   if (!m) {
     // Sin cierre de fence = el bloque todavía está llegando por streaming: se oculta la cola para
     // que el vet no vea JSON crudo escribiéndose. Si no hay bloque, replace no toca nada.
-    return { limpio: texto.replace(/```opciones[\s\S]*$/, "").trimEnd(), opciones: [] }
+    return { limpio: texto.replace(/```opciones[\s\S]*$/, "").trimEnd(), preguntas: [] }
   }
   try {
     const arr: unknown = JSON.parse(m[1])
-    if (Array.isArray(arr) && arr.every((x): x is string => typeof x === "string")) {
-      return { limpio: texto.slice(0, m.index).trimEnd(), opciones: arr.slice(0, 5) }
+    if (Array.isArray(arr)) {
+      // Formato viejo: strings sueltos = una sola pregunta sin enunciado.
+      if (arr.every((x): x is string => typeof x === "string") && arr.length) {
+        return {
+          limpio: texto.slice(0, m.index).trimEnd(),
+          preguntas: [{ pregunta: "", opciones: arr.slice(0, 5) }],
+        }
+      }
+      const objetos = arr.filter(
+        (x): x is PreguntaDeContexto =>
+          typeof x === "object" && x !== null &&
+          typeof (x as PreguntaDeContexto).pregunta === "string" &&
+          Array.isArray((x as PreguntaDeContexto).opciones) &&
+          (x as PreguntaDeContexto).opciones.every((o) => typeof o === "string"),
+      )
+      if (objetos.length) {
+        return {
+          limpio: texto.slice(0, m.index).trimEnd(),
+          preguntas: objetos.slice(0, 3).map((p) => ({ ...p, opciones: p.opciones.slice(0, 5) })),
+        }
+      }
     }
   } catch {
     /* JSON malformado: mejor mostrar el texto tal cual que romper la respuesta */
   }
-  return { limpio: texto, opciones: [] }
+  return { limpio: texto, preguntas: [] }
 }
 
 function TextBlocks({ text, kp, onOpcion }: { text: string; kp: string; onOpcion?: (s: string) => void }) {
-  const { limpio, opciones } = extraerOpciones(sinMarcas(text))
-  if (!limpio && opciones.length === 0) return null
+  const { limpio, preguntas } = extraerOpciones(sinMarcas(text))
+  if (!limpio && preguntas.length === 0) return null
   return (
     // SIN BURBUJA. La respuesta se lee como texto sobre la página, que es lo que distingue a un chat
     // tipo ChatGPT de una mensajería: la única burbuja del hilo es la del veterinario, y por eso se
@@ -167,22 +189,11 @@ function TextBlocks({ text, kp, onOpcion }: { text: string; kp: string; onOpcion
           <div key={j}>{renderInline(blk.text, [], `${kp}p${j}`)}</div>
         ),
       )}
-      {/* Las opciones se pintan SOLO cuando hay quien las reciba (el último turno, con Athos
-          quieto): en turnos viejos el bloque se recorta del texto pero no se ofrece como botón —
-          responder una pregunta de hace tres turnos ya no tiene destinatario. */}
-      {opciones.length > 0 && onOpcion && (
-        <div className="flex flex-wrap gap-[7px] pt-0.5">
-          {opciones.map((o) => (
-            <button
-              key={o}
-              type="button"
-              onClick={() => onOpcion(o)}
-              className="rounded-full border border-brand/30 bg-brand-soft px-3 py-1.5 text-[12.5px] font-medium text-brand-text transition-colors hover:border-brand hover:bg-brand/15 focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
-            >
-              {o}
-            </button>
-          ))}
-        </div>
+      {/* El cuestionario se pinta SOLO cuando hay quien lo reciba (el último turno, con Athos
+          quieto): en turnos viejos el bloque se recorta del texto pero no se ofrece — responder
+          una pregunta de hace tres turnos ya no tiene destinatario. */}
+      {preguntas.length > 0 && onOpcion && (
+        <Cuestionario preguntas={preguntas} onResponder={onOpcion} />
       )}
     </div>
   )
@@ -312,6 +323,7 @@ function AssistantMessage({
 // getUser -> profiles -> patients EN SERIE desde el navegador (3 round-trips al montar).
 // clinicId entra solo por contrato de props: el agente deriva la clínica de la sesión.
 export function Assistant({
+  clinicId,
   patients,
   threads = {},
   initialPatientId,
@@ -453,6 +465,14 @@ export function Assistant({
     if (dictado.activo) dictado.alternar() // mandar con el mic abierto lo cierra
     // Los adjuntos viajan como bloque citado DELANTE de la pregunta (el agente es de texto).
     const conAdjuntos = adjuntos.length ? `${bloqueDeAdjuntos(adjuntos)}\n\n${text}` : text
+    // Con PACIENTE en contexto, el documento además se indexa en su memoria semántica
+    // (fire-and-forget): la consulta del mes que viene puede recordar este laboratorio.
+    // En consulta general no: no hay ficha a la que colgarlo.
+    if (adjuntos.length && !isGeneral) {
+      for (const a of adjuntos) {
+        void athosIndexarDocumento({ clinicId, patientId, nombre: a.nombre, texto: a.texto })
+      }
+    }
     setAdjuntos([])
     // El agente deriva la clínica de la sesión; aquí solo viaja el contexto de paciente.
     void sendMessage(
@@ -461,8 +481,9 @@ export function Assistant({
     )
   }
 
-  // Una opción clicada del bloque ```opciones``` SE ENVÍA directa (no rellena el input): el punto
-  // es que responder la aclaratoria cueste un clic. Pasa por los mismos gates que send().
+  // La respuesta COMPUESTA del cuestionario (```opciones```) se envía directa (no rellena el
+  // input): llega como "Pregunta: respuesta" por línea, todo junto y con un solo clic en
+  // "Responder". Pasa por los mismos gates que send().
   function enviarOpcion(texto: string) {
     if (busy) return
     if (!puedeUsarAthos) {

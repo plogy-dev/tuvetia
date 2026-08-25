@@ -6,23 +6,29 @@
 // soporte de archivos nativos.
 //
 // Formatos: texto plano (txt/md/csv), Excel vía la dependencia `xlsx` que ya usa la importación de
-// pacientes, y PDF con CASCADA DE COSTOS (aprobada 25-ago):
+// pacientes, Word .docx vía `mammoth` (fase 1: el texto sale gratis en el navegador; el .doc
+// binario viejo NO — mammoth no lo lee y no hay extractor razonable acá), PDF con CASCADA DE
+// COSTOS (aprobada 25-ago), e imágenes jpg/jpeg/png/webp:
 //
 //   Fase 1 — pdfjs-dist extrae el texto EN EL NAVEGADOR. Gratis, sin red. Cubre todo PDF digital.
 //   Fase 2 — si la extracción sale vacía (PDF escaneado: los laboratorios impresos y fotografiados
 //            son el caso real), el archivo cae AUTOMÁTICAMENTE a /api/athos/leer-documento, que lo
 //            transcribe con el modelo de visión. Se paga UNA vez por documento, al adjuntarlo: al
 //            chat entra ya como texto y los turnos siguientes no lo re-facturan.
+//
+// Las imágenes NO tienen fase 1 posible (una foto de un laboratorio no trae texto extraíble en el
+// navegador): van DIRECTO a la fase 2, con el mismo registro de costo que el PDF escaneado.
 export type Adjunto = { nombre: string; texto: string }
 
 /** Lo que acepta el input de archivos. Espejo exacto de lo que `leerAdjunto` sabe extraer. */
-export const ADJUNTOS_ACEPTA = ".txt,.md,.csv,.xlsx,.xls,.pdf"
+export const ADJUNTOS_ACEPTA = ".txt,.md,.csv,.xlsx,.xls,.pdf,.docx,.jpg,.jpeg,.png,.webp"
 
 // Tope de páginas del fallback con IA (espejo del route: el costo escala por página). Las primeras
 // MAX_PAGINAS_TEXTO sí se extraen gratis aunque el documento sea más largo.
 const MAX_PAGINAS_IA = 25
 const MAX_PAGINAS_TEXTO = 40
 const MAX_BYTES_PDF = 10_000_000 // ~10 MB; espejo del MAX_BASE64 del route
+const MAX_BYTES_IMAGEN = 8_000_000 // ~8 MB; espejo del MAX_BASE64_IMAGEN del route
 
 export const MAX_ADJUNTOS = 2
 
@@ -86,8 +92,28 @@ async function aBase64(file: File): Promise<string> {
   return btoa(bin)
 }
 
-/** Fase 2: el PDF escaneado se transcribe con el modelo de visión (una llamada por documento). */
-async function leerPdfConIA(file: File, paginas: number): Promise<string> {
+/** Los media types de imagen que el modelo de visión acepta. Espejo del enum del route. */
+export type MediaTypeImagen = "image/jpeg" | "image/png" | "image/webp"
+
+/**
+ * Extensión → media_type de imagen, o null si la extensión no es una imagen soportada.
+ * Función pura y exportada para poder fijar el mapa en tests: si el route deja de aceptar un
+ * media_type (o acepta uno nuevo), este espejo es lo primero que tiene que moverse con él.
+ */
+export function mediaTypeDeImagen(ext: string): MediaTypeImagen | null {
+  if (ext === "jpg" || ext === "jpeg") return "image/jpeg"
+  if (ext === "png") return "image/png"
+  if (ext === "webp") return "image/webp"
+  return null
+}
+
+/** Fase 2: PDF escaneado o imagen se transcriben con el modelo de visión (una llamada por documento). */
+async function leerConIA(
+  file: File,
+  mediaType: "application/pdf" | MediaTypeImagen,
+  paginas: number,
+): Promise<string> {
+  // Solo un PDF puede exceder el tope (una imagen siempre viaja como paginas=1).
   if (paginas > MAX_PAGINAS_IA) {
     throw new Error(
       `"${file.name}" parece escaneado y tiene ${paginas} páginas — el tope para leerlo con IA es ${MAX_PAGINAS_IA}.`,
@@ -96,7 +122,14 @@ async function leerPdfConIA(file: File, paginas: number): Promise<string> {
   const res = await fetch("/api/athos/leer-documento", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ nombre: file.name, pdf_base64: await aBase64(file), paginas }),
+    // El campo se sigue llamando `pdf_base64` aunque hoy también carga imágenes: renombrarlo
+    // rompería a los clientes con el JS anterior aún cargado durante un deploy, sin ganar nada.
+    body: JSON.stringify({
+      nombre: file.name,
+      pdf_base64: await aBase64(file),
+      paginas,
+      media_type: mediaType,
+    }),
   })
   const body = (await res.json().catch(() => null)) as { texto?: string; error?: string } | null
   if (!res.ok || !body?.texto) {
@@ -119,8 +152,33 @@ export async function leerAdjunto(file: File): Promise<Adjunto> {
     }
     // Escaneado: cae solo a la fase 2. El costo (una llamada de visión) queda registrado en
     // athos_agent_usage como `leer_documento` y descuenta del cupo mensual de la clínica.
-    const r = recortar(await leerPdfConIA(file, paginas))
+    const r = recortar(await leerConIA(file, "application/pdf", paginas))
     return { nombre: file.name, texto: r.texto + (r.recortado ? "\n[… documento recortado]" : "") }
+  }
+  const mediaImagen = mediaTypeDeImagen(ext)
+  if (mediaImagen) {
+    // Una foto de un documento no tiene texto extraíble en el navegador: sin fase 1 posible, va
+    // DIRECTO a la ruta de visión. Mismo costo y registro que el PDF escaneado; una imagen cuenta
+    // como una página.
+    if (file.size > MAX_BYTES_IMAGEN) {
+      throw new Error(
+        `"${file.name}" pesa más de 8 MB — recorta o comprime la imagen y vuelve a intentar.`,
+      )
+    }
+    const r = recortar(await leerConIA(file, mediaImagen, 1))
+    return { nombre: file.name, texto: r.texto + (r.recortado ? "\n[… documento recortado]" : "") }
+  }
+  if (ext === "docx") {
+    // Import dinámico como xlsx/pdfjs: mammoth pesa y solo lo paga quien adjunta un Word.
+    const mammoth = await import("mammoth")
+    const { value } = await mammoth.extractRawText({ arrayBuffer: await file.arrayBuffer() })
+    const { texto, recortado } = recortar(value)
+    return { nombre: file.name, texto: texto + (recortado ? "\n[… documento recortado]" : "") }
+  }
+  if (ext === "doc") {
+    // El .doc binario de Word ≤2003 no tiene extractor en el navegador (mammoth solo lee .docx);
+    // un mensaje accionable vale más que un intento condenado a salir en mojibake.
+    throw new Error(`"${file.name}" es un Word viejo (.doc). Guárdalo como .docx y vuelve a intentar.`)
   }
   if (ext === "xlsx" || ext === "xls") {
     // Import dinámico: xlsx pesa, y el 99% de los mensajes no adjuntan Excel.
@@ -137,7 +195,9 @@ export async function leerAdjunto(file: File): Promise<Adjunto> {
     const { texto, recortado } = recortar(await file.text())
     return { nombre: file.name, texto: texto + (recortado ? "\n[… documento recortado]" : "") }
   }
-  throw new Error(`No puedo leer .${ext} todavía — acepto txt, md, csv y Excel.`)
+  throw new Error(
+    `No puedo leer .${ext} todavía — acepto txt, md, csv, Excel, Word (.docx), PDF e imágenes (jpg, png, webp).`,
+  )
 }
 
 /** El prefijo que viaja DELANTE de la pregunta cuando hay adjuntos. */

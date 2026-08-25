@@ -12,11 +12,13 @@ import { consultarPresupuesto, mensajeSinCupo } from "@/lib/athos-agent/presupue
 export const runtime = "nodejs"
 export const maxDuration = 60
 
-// FASE 2 de los adjuntos del chat: leer con el modelo un PDF que NO trae texto digital (escaneado).
+// FASE 2 de los adjuntos del chat: leer con el modelo un PDF que NO trae texto digital (escaneado)
+// o una IMAGEN de un documento (foto de un laboratorio, una receta).
 //
 // La fase 1 es gratis y no pasa por aquí: `lib/athos-adjuntos.ts` extrae el texto con pdfjs en el
 // navegador, y solo cuando esa extracción sale vacía (documento escaneado) el cliente cae a esta
-// ruta. El diseño de costos es deliberado: el PDF se paga UNA vez —aquí, al adjuntarlo— y al chat
+// ruta. Las imágenes en cambio llegan SIEMPRE directo: una foto no tiene texto extraíble gratis.
+// El diseño de costos es deliberado: el documento se paga UNA vez —aquí, al adjuntarlo— y al chat
 // entra ya como texto, así que los turnos siguientes de la conversación no lo re-facturan.
 //
 // Modelo: `visionModel()` — la misma superficie de visión que lee recetas y facturas desde imagen
@@ -33,11 +35,33 @@ const MAX_BASE64 = 14_000_000
 // constantes, así que el número vive dos veces a propósito y cada copia apunta a la otra.)
 const MAX_PAGINAS_IA = 25
 
-const BodySchema = z.object({
-  nombre: z.string().min(1).max(200),
-  pdf_base64: z.string().min(100).max(MAX_BASE64),
-  paginas: z.number().int().positive().max(MAX_PAGINAS_IA),
-})
+// ~8 MB de imagen en base64 (espejo del MAX_BYTES_IMAGEN del cliente). Más chico que el tope de
+// PDF: una foto que pesa más no aporta resolución útil para transcribir, solo tokens.
+const MAX_BASE64_IMAGEN = 11_000_000
+
+const BodySchema = z
+  .object({
+    nombre: z.string().min(1).max(200),
+    // El nombre del campo es histórico (nació solo para PDFs) y hoy también carga imágenes; se
+    // conserva para no romper a los clientes con el JS anterior aún cargado durante un deploy.
+    pdf_base64: z.string().min(100).max(MAX_BASE64),
+    paginas: z.number().int().positive().max(MAX_PAGINAS_IA),
+    // Default pdf: los clientes de antes de las imágenes no mandaban media_type.
+    media_type: z
+      .enum(["application/pdf", "image/jpeg", "image/png", "image/webp"])
+      .default("application/pdf"),
+  })
+  .superRefine((body, ctx) => {
+    if (body.media_type === "application/pdf") return
+    // Una imagen ES una página: el costo no escala por páginas, y aceptar otro número dejaría
+    // mentir al tope de MAX_PAGINAS_IA sin que nada lo use.
+    if (body.paginas !== 1) {
+      ctx.addIssue({ code: "custom", message: "una imagen viaja con paginas=1" })
+    }
+    if (body.pdf_base64.length > MAX_BASE64_IMAGEN) {
+      ctx.addIssue({ code: "custom", message: "imagen de más de ~8 MB" })
+    }
+  })
 
 // Transcripción fiel, no interpretación: el documento entra al chat como CONTEXTO que el vet y
 // Athos discuten después — si el lector "opinara", esa opinión se disfrazaría de contenido del
@@ -72,7 +96,7 @@ export async function POST(req: Request) {
       { status: 400 },
     )
   }
-  const { nombre, pdf_base64 } = parsed.data
+  const { nombre, pdf_base64, media_type } = parsed.data
 
   const sesion = await clinicaDeLaSesion(supabase, user.id)
   if (!sesion.ok) return NextResponse.json({ error: sesion.mensaje }, { status: sesion.status })
@@ -100,7 +124,7 @@ export async function POST(req: Request) {
         {
           role: "user",
           content: [
-            { type: "file", data: pdf_base64, mediaType: "application/pdf" },
+            { type: "file", data: pdf_base64, mediaType: media_type },
             {
               type: "text",
               text: `Transcribe el contenido de este documento ("${nombre}") para el veterinario.`,

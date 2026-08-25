@@ -23,8 +23,10 @@ import {
   type Vaccine,
 } from "@/components/patient/patient-clinical-summary"
 import { EditarPacienteDrawer } from "@/components/patient/editar-paciente-drawer"
+import { EditarTitularDrawer } from "@/components/owners/editar-titular-drawer"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
+import { Button } from "@/components/ui/button"
 
 export const metadata = { title: "Paciente · Tuvetia" }
 
@@ -35,7 +37,15 @@ const SEX_LABELS: Record<string, string> = {
   unknown: "Sexo desconocido",
 }
 
-type Owner = { full_name: string; phone: string | null } | null
+// Todos los campos de contacto, no sólo los dos que pinta la cabecera: son el estado inicial del
+// drawer "Editar titular", que abre desde acá mismo (pedido del cliente, reunión 24-ago).
+type Owner = {
+  full_name: string
+  phone: string | null
+  email: string | null
+  address: string | null
+  document_id: string | null
+} | null
 
 type Patient = {
   id: string
@@ -62,7 +72,7 @@ export default async function PatientHistoryPage({ params }: { params: Promise<{
   const { data: p } = await supabase
     .from("patients")
     .select(
-      "id, clinic_id, name, species, breed, sex, birth_date, weight_kg, color, photo_url, is_deceased, notes, owner_id, owner:owners(full_name, phone)",
+      "id, clinic_id, name, species, breed, sex, birth_date, weight_kg, color, photo_url, is_deceased, notes, owner_id, owner:owners(full_name, phone, email, address, document_id)",
     )
     .eq("id", id)
     .maybeSingle()
@@ -169,6 +179,7 @@ export default async function PatientHistoryPage({ params }: { params: Promise<{
             <EditarPacienteDrawer
               patientId={patient.id}
               ownerId={patient.owner_id}
+              ownerName={patient.owner?.full_name ?? null}
               inicial={{
                 name: patient.name,
                 species: patient.species,
@@ -181,22 +192,47 @@ export default async function PatientHistoryPage({ params }: { params: Promise<{
           </div>
           <p className="text-sm text-muted-foreground">{meta.join(" · ")}</p>
           {patient.owner && (
-            <p className="mt-0.5 text-xs text-muted-foreground">
-              Titular:{" "}
-              {/* Enlace a la ficha del titular: es donde viven su documento, su correo, el
-                  consentimiento de grabación y sus OTRAS mascotas. Antes era texto muerto. */}
-              {patient.owner_id ? (
-                <Link
-                  href={`/dashboard/owners/${patient.owner_id}`}
-                  className="text-foreground hover:underline"
-                >
-                  {patient.owner.full_name}
-                </Link>
-              ) : (
-                <span className="text-foreground">{patient.owner.full_name}</span>
+            <div className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs text-muted-foreground">
+              <span>
+                Titular:{" "}
+                {/* Enlace a la ficha del titular: es donde viven el consentimiento de grabación y
+                    sus OTRAS mascotas. Antes era texto muerto. */}
+                {patient.owner_id ? (
+                  <Link
+                    href={`/dashboard/owners/${patient.owner_id}`}
+                    className="text-foreground hover:underline"
+                  >
+                    {patient.owner.full_name}
+                  </Link>
+                ) : (
+                  <span className="text-foreground">{patient.owner.full_name}</span>
+                )}
+                {patient.owner.phone ? ` · ${patient.owner.phone}` : ""}
+                {patient.owner.email ? ` · ${patient.owner.email}` : ""}
+              </span>
+              {/* Corregir al titular SIN salir de la ficha (reunión 24-ago): el vet está mirando a
+                  la mascota cuando el dueño le dicta el teléfono nuevo. Mismo formulario que en la
+                  ficha del titular; el trigger `xs` es para que quepa en esta línea compacta. */}
+              {patient.owner_id && (
+                <EditarTitularDrawer
+                  ownerId={patient.owner_id}
+                  inicial={{
+                    fullName: patient.owner.full_name,
+                    phone: patient.owner.phone ?? "",
+                    email: patient.owner.email ?? "",
+                    documentId: patient.owner.document_id ?? "",
+                    address: patient.owner.address ?? "",
+                  }}
+                  trigger={
+                    <Button
+                      variant="ghost"
+                      size="xs"
+                      className="text-muted-foreground hover:text-foreground"
+                    />
+                  }
+                />
               )}
-              {patient.owner.phone ? ` · ${patient.owner.phone}` : ""}
-            </p>
+            </div>
           )}
         </div>
       </div>
