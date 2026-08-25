@@ -16,7 +16,7 @@ export default async function ComunicacionesPage() {
     supabase.from("whatsapp_integrations").select("status, phone_number, agent_mode").maybeSingle(),
     supabase
       .from("whatsapp_messages")
-      .select("id, owner_id, wa_message_id, wa_phone_from, wa_phone_to, direction, body, media_type, media_url, read_at, delivered_at, failed_at, error_detail, created_at, provider_timestamp")
+      .select("id, owner_id, wa_message_id, wa_phone_from, wa_phone_to, direction, body, media_type, media_url, read_at, delivered_at, failed_at, error_detail, created_at, provider_timestamp, push_name")
       // Payload inicial acotado: las conversaciones viejas salen del historial reciente; el poll
       // trae lo nuevo. (Paginación hacia atrás: backlog.)
       //
