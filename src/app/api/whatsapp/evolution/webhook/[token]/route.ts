@@ -197,6 +197,10 @@ export async function POST(req: Request, { params }: { params: Promise<{ token: 
             wa_phone_from: fromMe ? (integ.phone_number ?? "") : contactPhone,
             wa_phone_to: fromMe ? contactPhone : (integ.phone_number ?? ""),
             direction: fromMe ? "outbound" : "inbound",
+            // SÓLO EN ENTRANTES: en un saliente `pushName` es el nombre de perfil de la CLÍNICA, y
+            // guardarlo sería llenar la tabla con nuestro propio nombre repetido — con el riesgo de
+            // que algún día se pinte como si fuera el del titular.
+            push_name: fromMe ? undefined : (m.pushName?.trim() || undefined),
             body,
             media_type: media,
             // `?? undefined` y no `?? null`: la columna es not null con default now(), así que

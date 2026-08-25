@@ -40,6 +40,12 @@ export type InboxMessage = {
   media_url: string | null
   read_at: string | null
   delivered_at: string | null
+  /**
+   * Nombre de perfil de WhatsApp de quien escribió (`pushName`), sólo en entrantes.
+   *
+   * NO ES IDENTIDAD VERIFICADA: lo elige el remitente. Se pinta distinto de un titular a propósito.
+   */
+  push_name?: string | null
   failed_at?: string | null
   error_detail?: string | null
   created_at: string
@@ -199,9 +205,45 @@ export function WhatsappInbox({
     for (const o of owners) if (o.phone) map.set(digits(o.phone).slice(-10), o)
     return map
   }, [owners])
+  /**
+   * El nombre de perfil MÁS RECIENTE por teléfono.
+   *
+   * La gente cambia su nombre de WhatsApp, y cada mensaje guarda el que tenía al escribir: se
+   * recorre en orden y gana el último. Sólo entrantes — en un saliente el `pushName` es el de la
+   * clínica.
+   */
+  const perfilPorTelefono = useMemo(() => {
+    const map = new Map<string, string>()
+    for (const m of messages) {
+      if (m.direction !== "inbound") continue
+      const nombre = m.push_name?.trim()
+      if (nombre) map.set(digits(m.wa_phone_from).slice(-10), nombre)
+    }
+    return map
+  }, [messages])
+
+  /**
+   * Cómo se llama una conversación.
+   *
+   * El orden importa y es el único posible: TITULAR primero —es el dato que la clínica verificó y
+   * escribió— y sólo si no hay, el nombre de perfil de WhatsApp, que lo eligió quien escribe y
+   * puede decir cualquier cosa. El número queda de último recurso.
+   */
   const nameOf = useCallback(
-    (phone: string) => ownerByPhone.get(phone.slice(-10))?.full_name ?? `+${phone}`,
-    [ownerByPhone],
+    (phone: string) => {
+      const clave = phone.slice(-10)
+      return ownerByPhone.get(clave)?.full_name ?? perfilPorTelefono.get(clave) ?? `+${phone}`
+    },
+    [ownerByPhone, perfilPorTelefono],
+  )
+
+  /** Si el nombre que se está mostrando es el de perfil y no el de un titular. */
+  const esNombreDePerfil = useCallback(
+    (phone: string) => {
+      const clave = phone.slice(-10)
+      return !ownerByPhone.get(clave) && Boolean(perfilPorTelefono.get(clave))
+    },
+    [ownerByPhone, perfilPorTelefono],
   )
 
   // Conversaciones: última primero, con no-leídos.
@@ -271,7 +313,7 @@ export function WhatsappInbox({
     const catchUp = async () => {
       const { data } = await supabase
         .from("whatsapp_messages")
-        .select("id, owner_id, wa_message_id, wa_phone_from, wa_phone_to, direction, body, media_type, media_url, read_at, delivered_at, failed_at, error_detail, created_at, provider_timestamp")
+        .select("id, owner_id, wa_message_id, wa_phone_from, wa_phone_to, direction, body, media_type, media_url, read_at, delivered_at, failed_at, error_detail, created_at, provider_timestamp, push_name")
         // El cursor sigue siendo `created_at` A PROPÓSITO, aunque el hilo se ordene por la hora del
         // proveedor: ponerse al día necesita un reloj monótono de LLEGADA. Con `provider_timestamp`
         // un mensaje con hora vieja (reintento, o teléfono con el reloj atrasado) quedaría por
@@ -506,7 +548,20 @@ export function WhatsappInbox({
               }`}
             >
               <span className="flex items-center justify-between gap-2">
-                <span className="truncate text-sm font-medium">{nameOf(c.phone)}</span>
+                <span className="flex min-w-0 items-center gap-1.5">
+                  <span className="truncate text-sm font-medium">{nameOf(c.phone)}</span>
+                  {/* SE DISTINGUE DE UN TITULAR, y no es cosmético: este nombre lo eligió quien
+                      escribe y puede decir «Servicio Técnico» o el nombre de otra persona. Sin la
+                      marca, la bandeja afirmaría una identidad que nadie verificó. */}
+                  {esNombreDePerfil(c.phone) && (
+                    <span
+                      title="Nombre de perfil de WhatsApp — no es un titular registrado"
+                      className="shrink-0 rounded border px-1 text-[9px] uppercase tracking-wide text-muted-foreground"
+                    >
+                      WA
+                    </span>
+                  )}
+                </span>
                 <span className="shrink-0 text-[10px] text-muted-foreground">{fmtTime(c.last.provider_timestamp)}</span>
               </span>
               <span className="flex items-center gap-2">
@@ -541,7 +596,14 @@ export function WhatsappInbox({
                 sólo deja hablarle a titulares registrados— así que un número sin nombre es también
                 un número sin respuesta. Guardarlo desbloquea las dos cosas de una. */}
             <div className="flex items-center justify-between gap-2 border-b px-4 py-2.5">
-              <span className="truncate text-sm font-semibold">{nameOf(selected)}</span>
+              <span className="flex min-w-0 flex-col">
+                <span className="truncate text-sm font-semibold">{nameOf(selected)}</span>
+                {esNombreDePerfil(selected) && (
+                  <span className="text-[10px] text-muted-foreground">
+                    Nombre de su perfil de WhatsApp · +{selected}
+                  </span>
+                )}
+              </span>
               {!ownerByPhone.get(selected.slice(-10)) && (
                 <CreateOwnerDrawer
                   label="Guardar como titular"
