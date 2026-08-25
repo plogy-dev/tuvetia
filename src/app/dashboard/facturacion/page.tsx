@@ -286,6 +286,9 @@ export default async function FacturacionPage({ searchParams }: { searchParams: 
         {/* Puente CRM: qué clientes necesitan factura / envío */}
         {(unbilled.total > 0 || unsentCount > 0) && (
           <div className="mb-5 flex flex-wrap gap-2">
+            {/* Este aviso SÍ lleva al selector: viene de «hay consultas sin facturar», o sea que ya
+                se sabe a quién se le cobra y lo que falta es elegir cuál. Es el único camino donde
+                buscar es el punto, y no un peaje. */}
             {unbilled.total > 0 && (
               <Link
                 href="/dashboard/facturacion/nueva"
@@ -510,11 +513,19 @@ export default async function FacturacionPage({ searchParams }: { searchParams: 
               {/* QUÉ VA A PASAR AL APRETAR, dicho antes de apretar. El primer paso de «Nueva
                   factura» es un buscador, no una factura, y sin avisarlo se lee como que el botón
                   llevó a otro lado. */}
+              {/* ABRE LA CUENTA, NO UN BUSCADOR. Por acá entró David el 25-ago —es el camino
+                  natural de una clínica sin facturas— y cayó en el paso de búsqueda que «Registrar
+                  venta» ya no usaba. Arreglar sólo el botón principal y dejar éste apuntando al
+                  buscador era peor que no arreglar ninguno: el mismo módulo hacía dos cosas
+                  distintas según por dónde entraras. */}
               <p className="max-w-sm text-sm text-fg-muted">
-                Empezás eligiendo el paciente o el titular —o una venta de mostrador— y desde ahí
-                armás la factura.
+                Se abre lista para cobrar. Si la venta es de un titular, lo atás con «Editar» y
+                seguís.
               </p>
-              <Button render={<Link href="/dashboard/facturacion/nueva" />} className="mt-2">
+              <Button
+                render={<Link href="/dashboard/facturacion/nueva?mostrador=1" />}
+                className="mt-2"
+              >
                 <Plus aria-hidden />
                 Crear la primera factura
               </Button>
