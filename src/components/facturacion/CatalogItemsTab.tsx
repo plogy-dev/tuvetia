@@ -17,6 +17,14 @@ import { RecipeEditor, type RecipeComponentOption } from './RecipeEditor';
  * asignación rápida de categoría, archivar/reactivar. Archivar = active=false;
  * el carrito solo ofrece activos y las líneas históricas quedan intactas.
  */
+/** Los tipos, escritos como se leen. La columna «Tipo» los muestra tal cual en OkVet. */
+const ETIQUETA_DE_TIPO: Record<string, string> = {
+  SERVICIO: 'Servicio',
+  PRODUCTO: 'Producto',
+  MEDICAMENTO: 'Medicamento',
+  INSUMO: 'Insumo',
+}
+
 export function CatalogItemsTab({
   items,
   categories,
@@ -112,12 +120,26 @@ export function CatalogItemsTab({
         ) : (
           <table className="w-full text-sm">
             <thead>
+{/* LAS COLUMNAS Y SU ORDEN SON LOS DE OKVET, mirados con la cuenta del cliente el
+                  24-ago: Opciones · Ref. · Grupo · Categoría · Nombre · Tipo · Inv. · Disponibles ·
+                  Pick. · P.V. · Impuestos · Creado.
+
+                  No están «Inv.», «Disponibles», «Pick.» ni «Creado»: las existencias viven en su
+                  propia pantalla y meterlas acá duplicaría el dato con el riesgo de que digan cosas
+                  distintas. «P.V.» es su etiqueta para el precio de venta — se conserva con su
+                  título completo encima, porque abreviada sola no la entiende quien nunca usó
+                  OkVet. */}
               <tr className="border-b border-line text-left text-xs text-fg-faint">
-                <th className="px-5 py-2 font-medium">Nombre</th>
+                <th className="px-5 py-2 font-medium">Opciones</th>
+                <th className="px-3 py-2 font-medium">Ref.</th>
+                <th className="px-3 py-2 font-medium">Grupo</th>
                 <th className="px-3 py-2 font-medium">Categoría</th>
-                <th className="px-3 py-2 text-right font-medium">Precio</th>
-                <th className="px-3 py-2 font-medium">IVA</th>
-                <th className="px-5 py-2 text-right font-medium">Acciones</th>
+                <th className="px-3 py-2 font-medium">Nombre</th>
+                <th className="px-3 py-2 font-medium">Tipo</th>
+                <th className="px-3 py-2 text-right font-medium" title="Precio de venta">
+                  P.V.
+                </th>
+                <th className="px-5 py-2 font-medium">Impuestos</th>
               </tr>
             </thead>
             <tbody>
@@ -126,10 +148,59 @@ export function CatalogItemsTab({
                   <tr
                     className={`border-b border-line/60 last:border-0 ${i.active ? '' : 'opacity-50'}`}
                   >
-                    <td className="px-5 py-2.5 font-medium text-fg">
-                      {i.name}
-                      {!i.active && <span className="ml-2 text-[10px] uppercase text-fg-faint">archivado</span>}
+                    <td className="px-5 py-2.5">
+                      <div className="flex items-center justify-end gap-1">
+                          {recipesEnabled && i.item_type === 'SERVICIO' && (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setRecipeId(recipeId === i.id ? null : i.id);
+                                setEditId(null);
+                                setCreating(false);
+                              }}
+                              className="inline-flex items-center gap-1 rounded-lg border border-line bg-surface px-2 py-1 text-xs text-fg-muted hover:bg-surface-2 hover:text-fg transition"
+                            >
+                              <FlaskConical className="size-3.5" aria-hidden />
+                              Receta
+                            </button>
+                          )}
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setEditId(editId === i.id ? null : i.id);
+                              setCreating(false);
+                              setRecipeId(null);
+                            }}
+                            className="inline-flex items-center gap-1 rounded-lg border border-line bg-surface px-2 py-1 text-xs text-fg-muted hover:bg-surface-2 hover:text-fg transition"
+                          >
+                            <Pencil className="size-3.5" aria-hidden />
+                            Editar
+                          </button>
+                          <button
+                            type="button"
+                            disabled={isPending}
+                            onClick={() => toggleActive(i.id, !i.active)}
+                            className="inline-flex items-center gap-1 rounded-lg border border-line bg-surface px-2 py-1 text-xs text-fg-muted hover:bg-surface-2 transition disabled:opacity-60"
+                            title={catName(i.category_id)}
+                          >
+                            {i.active ? (
+                              <>
+                                <Archive className="size-3.5" aria-hidden />
+                                Archivar
+                              </>
+                            ) : (
+                              <>
+                                <RotateCcw className="size-3.5" aria-hidden />
+                                Reactivar
+                              </>
+                            )}
+                          </button>
+                        </div>
                     </td>
+                    <td className="px-3 py-2.5 font-mono text-xs tabular-nums text-fg-muted">
+                      {i.sku || '—'}
+                    </td>
+                    <td className="px-3 py-2.5 text-fg-muted">{i.item_group || '—'}</td>
                     <td className="px-3 py-2.5">
                       <select
                         value={i.category_id ?? ''}
@@ -148,58 +219,14 @@ export function CatalogItemsTab({
                           ))}
                       </select>
                     </td>
-                    <td className="px-3 py-2.5 text-right text-fg">{formatCOP(i.price_cents)}</td>
-                    <td className="px-3 py-2.5 text-fg-muted">
-                      {i.tax_status === 'GRAVADO' ? `${i.tax_rate}%` : i.tax_status === 'EXENTO' ? 'Exento' : 'Excluido'}
+                    <td className="px-3 py-2.5 font-medium text-fg">
+                      {i.name}
+                      {!i.active && <span className="ml-2 text-[10px] uppercase text-fg-faint">archivado</span>}
                     </td>
-                    <td className="px-5 py-2.5">
-                      <div className="flex items-center justify-end gap-1">
-                        {recipesEnabled && i.item_type === 'SERVICIO' && (
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setRecipeId(recipeId === i.id ? null : i.id);
-                              setEditId(null);
-                              setCreating(false);
-                            }}
-                            className="inline-flex items-center gap-1 rounded-lg border border-line bg-surface px-2 py-1 text-xs text-fg-muted hover:bg-surface-2 hover:text-fg transition"
-                          >
-                            <FlaskConical className="size-3.5" aria-hidden />
-                            Receta
-                          </button>
-                        )}
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setEditId(editId === i.id ? null : i.id);
-                            setCreating(false);
-                            setRecipeId(null);
-                          }}
-                          className="inline-flex items-center gap-1 rounded-lg border border-line bg-surface px-2 py-1 text-xs text-fg-muted hover:bg-surface-2 hover:text-fg transition"
-                        >
-                          <Pencil className="size-3.5" aria-hidden />
-                          Editar
-                        </button>
-                        <button
-                          type="button"
-                          disabled={isPending}
-                          onClick={() => toggleActive(i.id, !i.active)}
-                          className="inline-flex items-center gap-1 rounded-lg border border-line bg-surface px-2 py-1 text-xs text-fg-muted hover:bg-surface-2 transition disabled:opacity-60"
-                          title={catName(i.category_id)}
-                        >
-                          {i.active ? (
-                            <>
-                              <Archive className="size-3.5" aria-hidden />
-                              Archivar
-                            </>
-                          ) : (
-                            <>
-                              <RotateCcw className="size-3.5" aria-hidden />
-                              Reactivar
-                            </>
-                          )}
-                        </button>
-                      </div>
+                    <td className="px-3 py-2.5 text-fg-muted">{ETIQUETA_DE_TIPO[i.item_type] ?? i.item_type}</td>
+                    <td className="px-3 py-2.5 text-right text-fg">{formatCOP(i.price_cents)}</td>
+                    <td className="px-5 py-2.5 text-fg-muted">
+                      {i.tax_status === 'GRAVADO' ? `${i.tax_rate}%` : i.tax_status === 'EXENTO' ? 'Exento' : 'Excluido'}
                     </td>
                   </tr>
                   {editId === i.id && (

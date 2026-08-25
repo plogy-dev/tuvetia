@@ -144,6 +144,8 @@ const CatalogItemSchema = z
     itemType: z.enum(CATALOG_KINDS),
     name: z.string().trim().min(1, 'Nombre requerido'),
     sku: z.string().trim().nullish(),
+    /** «Grupo» de OkVet: etiqueta libre, distinta de la categoría. */
+    itemGroup: z.string().trim().max(80).nullish(),
     description: z.string().trim().nullish(),
     purchaseUnit: z.string().trim().min(1).default('unidad'),
     useUnit: z.string().trim().min(1).default('unidad'),
@@ -196,6 +198,7 @@ export async function upsertCatalogItem(
       item_type: d.itemType,
       name: d.name,
       sku: d.sku ?? null,
+      item_group: d.itemGroup || null,
       description: d.description ?? null,
       purchase_unit: d.purchaseUnit,
       use_unit: d.useUnit,
