@@ -9,6 +9,7 @@ import {
 } from '@/lib/facturacion/actions';
 import { formatCOP } from '@/lib/facturacion/format';
 import type { CatalogCategoryRow, CatalogItemRow, SupplierRow } from '@/lib/supabase/types';
+import { TD, TD_NUM, TH, TH_DER } from './densidad';
 import { CatalogItemForm } from './CatalogItemForm';
 import { RecipeEditor, type RecipeComponentOption } from './RecipeEditor';
 
@@ -129,17 +130,17 @@ export function CatalogItemsTab({
                   distintas. «P.V.» es su etiqueta para el precio de venta — se conserva con su
                   título completo encima, porque abreviada sola no la entiende quien nunca usó
                   OkVet. */}
-              <tr className="border-b border-line text-left text-xs text-fg-faint">
-                <th className="px-5 py-2 font-medium">Opciones</th>
-                <th className="px-3 py-2 font-medium">Ref.</th>
-                <th className="px-3 py-2 font-medium">Grupo</th>
-                <th className="px-3 py-2 font-medium">Categoría</th>
-                <th className="px-3 py-2 font-medium">Nombre</th>
-                <th className="px-3 py-2 font-medium">Tipo</th>
-                <th className="px-3 py-2 text-right font-medium" title="Precio de venta">
+              <tr className="border-b border-line text-left">
+                <th className={TH}>Opciones</th>
+                <th className={TH}>Ref.</th>
+                <th className={TH}>Grupo</th>
+                <th className={TH}>Categoría</th>
+                <th className={TH}>Nombre</th>
+                <th className={TH}>Tipo</th>
+                <th className={TH_DER} title="Precio de venta">
                   P.V.
                 </th>
-                <th className="px-5 py-2 font-medium">Impuestos</th>
+                <th className={TH}>Impuestos</th>
               </tr>
             </thead>
             <tbody>
@@ -148,7 +149,7 @@ export function CatalogItemsTab({
                   <tr
                     className={`border-b border-line/60 last:border-0 ${i.active ? '' : 'opacity-50'}`}
                   >
-                    <td className="px-5 py-2.5">
+                    <td className={TD}>
                       <div className="flex items-center justify-end gap-1">
                           {recipesEnabled && i.item_type === 'SERVICIO' && (
                             <button
@@ -197,11 +198,11 @@ export function CatalogItemsTab({
                           </button>
                         </div>
                     </td>
-                    <td className="px-3 py-2.5 font-mono text-xs tabular-nums text-fg-muted">
+                    <td className={`${TD} font-mono tabular-nums text-fg-muted`}>
                       {i.sku || '—'}
                     </td>
-                    <td className="px-3 py-2.5 text-fg-muted">{i.item_group || '—'}</td>
-                    <td className="px-3 py-2.5">
+                    <td className={`${TD} text-fg-muted`}>{i.item_group || '—'}</td>
+                    <td className={TD}>
                       <select
                         value={i.category_id ?? ''}
                         onChange={(e) => setCategory(i.id, e.target.value)}
@@ -219,13 +220,13 @@ export function CatalogItemsTab({
                           ))}
                       </select>
                     </td>
-                    <td className="px-3 py-2.5 font-medium text-fg">
+                    <td className={`${TD} font-medium text-fg`}>
                       {i.name}
                       {!i.active && <span className="ml-2 text-[10px] uppercase text-fg-faint">archivado</span>}
                     </td>
-                    <td className="px-3 py-2.5 text-fg-muted">{ETIQUETA_DE_TIPO[i.item_type] ?? i.item_type}</td>
-                    <td className="px-3 py-2.5 text-right text-fg">{formatCOP(i.price_cents)}</td>
-                    <td className="px-5 py-2.5 text-fg-muted">
+                    <td className={`${TD} text-fg-muted`}>{ETIQUETA_DE_TIPO[i.item_type] ?? i.item_type}</td>
+                    <td className={`${TD_NUM} text-fg`}>{formatCOP(i.price_cents)}</td>
+                    <td className={`${TD} text-fg-muted`}>
                       {i.tax_status === 'GRAVADO' ? `${i.tax_rate}%` : i.tax_status === 'EXENTO' ? 'Exento' : 'Excluido'}
                     </td>
                   </tr>
