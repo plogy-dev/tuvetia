@@ -924,7 +924,13 @@ export default function NotaConsultaPage({ params }: { params: Promise<{ id: str
                   <div className="min-w-0 flex-1">
                     {c.title && <div className="text-sm font-medium leading-snug">{c.title}</div>}
                     <div className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs text-muted-foreground">
-                      {c.source && <span className="font-medium text-foreground/80">{c.source}</span>}
+                      {/* La revista, no la base de datos (reunión 24-ago): "PubMed" no es la fuente
+                          del artículo. `source` queda de último recurso para citas viejas sin nada. */}
+                      {c.journal ? (
+                        <span className="font-medium text-foreground/80">{c.journal}</span>
+                      ) : !c.title && c.source ? (
+                        <span className="font-medium text-foreground/80">{c.source}</span>
+                      ) : null}
                       {c.year && <span className="font-mono">{c.year}</span>}
                       {c.locator && <span>· {c.locator}</span>}
                     </div>

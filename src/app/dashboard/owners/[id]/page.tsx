@@ -3,6 +3,7 @@ import { notFound } from "next/navigation"
 import { ArrowLeft } from "lucide-react"
 
 import { createClient } from "@/lib/supabase/server"
+import { EditarTitularDrawer } from "@/components/owners/editar-titular-drawer"
 import { RevokeConsentButton } from "@/components/owners/revoke-consent-button"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
@@ -145,7 +146,23 @@ export default async function FichaDeTitularPage({
           </AvatarFallback>
         </Avatar>
         <div className="min-w-0 flex-1">
-          <h1 className="text-lg font-semibold">{owner.full_name}</h1>
+          <div className="flex flex-wrap items-center gap-2">
+            <h1 className="text-lg font-semibold">{owner.full_name}</h1>
+            {/* La ficha era de sólo lectura: un teléfono mal tecleado al registrar quedaba mal
+                para siempre (y es a donde escriben WhatsApp y los recordatorios). Mismo formulario
+                que abre desde la ficha del paciente. */}
+            <EditarTitularDrawer
+              ownerId={owner.id}
+              label="Editar"
+              inicial={{
+                fullName: owner.full_name,
+                phone: owner.phone ?? "",
+                email: owner.email ?? "",
+                documentId: owner.document_id ?? "",
+                address: owner.address ?? "",
+              }}
+            />
+          </div>
           <p className="text-sm text-fg-muted">
             {vivos.length === 0
               ? "Sin mascotas registradas"

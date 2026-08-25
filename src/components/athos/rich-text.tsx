@@ -6,8 +6,10 @@ import type { Citation } from "@/lib/athos"
 export const POSSIBILITY =
   /(compatible con|sugestivo de|sugerente de|no hay evidencia suficiente|evidencia insuficiente|posiblemente|posible|podría|sugiere|se recomienda valorar)/i
 
-/** Los tokens que este render trata como una unidad: cita `[n]` y negrita `**…**`. */
-const TOKENS = /(\[\d+\])|(\*\*[^*]+\*\*)/g
+/** Los tokens que este render trata como una unidad: link `[texto](url)`, cita `[n]` y negrita
+ *  `**…**`. El link va PRIMERO en la alternancia: `[1](https://…)` debe ganar como link, no como
+ *  marcador de cita con un paréntesis colgando. */
+const TOKENS = /(\[[^\]\n]+\]\(https?:\/\/[^)\s]+\))|(\[\d+\])|(\*\*[^*]+\*\*)/g
 
 /**
  * Dónde empieza y termina cada token, para quien necesite CORTAR el texto sin partirlos.
@@ -48,8 +50,28 @@ export function renderInline(text: string, citations: Citation[], kp: string): R
   while ((m = regex.exec(text)) !== null) {
     if (m.index > last) pushText(text.slice(last, m.index), `${kp}-x${k}`)
     if (m[1]) {
-      const n = parseInt(m[1].slice(1, -1), 10)
-      const c = citations[n - 1]
+      // Link markdown [texto](url). El agente cita así ("[Estudio — Revista, año](url)", reunión
+      // 24-ago) y el prompt promete que la interfaz renderiza markdown. Solo http(s), ya filtrado
+      // por el propio token.
+      const cierra = m[1].indexOf("](")
+      const etiqueta = m[1].slice(1, cierra)
+      const url = m[1].slice(cierra + 2, -1)
+      nodes.push(
+        <a
+          key={`${kp}-l${k}`}
+          href={url}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="font-medium text-brand-text underline decoration-dotted underline-offset-2 hover:decoration-solid"
+        >
+          {etiqueta}
+        </a>,
+      )
+    } else if (m[2]) {
+      const n = parseInt(m[2].slice(1, -1), 10)
+      // Por `n` declarado primero (el backend ORDENA la lista por relevancia, así que la posición
+      // ya no es el marcador); por posición como respaldo para citas viejas persistidas sin `n`.
+      const c = citations.find((x) => x.n === n) ?? citations[n - 1]
       const cls =
         "mx-0.5 inline-block rounded-md border bg-secondary px-1 font-mono text-[11px] font-bold text-foreground underline decoration-dotted underline-offset-2 align-baseline"
       nodes.push(
@@ -59,7 +81,7 @@ export function renderInline(text: string, citations: Citation[], kp: string): R
             href={c.url}
             target="_blank"
             rel="noopener noreferrer"
-            title={c.title ?? c.source ?? "Ver fuente"}
+            title={c.title ?? c.journal ?? "Ver fuente"}
             className={`${cls} hover:bg-accent`}
           >
             [{n}]
@@ -70,10 +92,10 @@ export function renderInline(text: string, citations: Citation[], kp: string): R
           </span>
         ),
       )
-    } else if (m[2]) {
+    } else if (m[3]) {
       nodes.push(
         <strong key={`${kp}-b${k}`} className="font-semibold text-foreground">
-          {m[2].slice(2, -2)}
+          {m[3].slice(2, -2)}
         </strong>,
       )
     }

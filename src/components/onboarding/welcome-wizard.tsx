@@ -11,7 +11,7 @@
 //     wizard la próxima vez — que es lo correcto: no lo terminó.
 //   · Nada de lo que se hace acá es irreversible ni difícil de deshacer después.
 
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
 import {
   Check,
@@ -84,17 +84,32 @@ export function WelcomeWizard({
   initialClinicName,
   initialLogoUrl,
   yaHecho,
+  onPasoChange,
 }: {
   clinicId: string
   initialClinicName: string
   initialLogoUrl: string | null
   /** Ausente = primera vez; nada está hecho. */
   yaHecho?: YaHecho
+  /**
+   * Avisa hacia arriba en qué paso va el wizard (también una vez al montar). Existe para que el
+   * panel de Athos acompañe con texto atado al paso ACTUAL (pedido de la reunión del 24-ago).
+   * Opcional a propósito: el wizard funciona idéntico sin nadie escuchando.
+   */
+  onPasoChange?: (paso: number) => void
 }) {
   const router = useRouter()
   const [supabase] = useState(() => createClient())
   const [paso, setPaso] = useState(0)
   const [busy, setBusy] = useState(false)
+
+  // Se avisa por efecto y no en cada `setPaso`: hay ocho sitios que avanzan de paso, y con avisos a
+  // mano bastaría olvidar uno para que el panel de al lado se quede hablando del paso anterior sin
+  // que nada falle a la vista. El efecto además corre al montar, que es lo que deja al panel
+  // arrancar ya en "Clínica" sin caso especial.
+  useEffect(() => {
+    onPasoChange?.(paso)
+  }, [paso, onPasoChange])
 
   // Paso 2 — horarios. Arrancan LLENOS con la sugerencia: el caso común es confirmar, no escribir.
   const [dias, setDias] = useState<DiaSugerido[]>(() => HORARIO_SUGERIDO.map((d) => ({ ...d })))

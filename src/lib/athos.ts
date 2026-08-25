@@ -39,9 +39,14 @@ export type Citation = {
   doc_id: string
   locator?: string | null
   source?: string | null
-  url?: string | null // link directo al artículo (PubMed/DOI), del corpus
+  url?: string | null // link directo al artículo, del corpus
   title?: string | null // título del documento
   year?: number | null // año de publicación
+  // La fuente que se MUESTRA es la revista, no la base de datos donde vive el artículo
+  // (decisión de producto, reunión 24-ago: nada de "PubMed" en la interfaz).
+  journal?: string | null
+  n?: number | null // número del marcador [n] en el texto (la lista viene ordenada por relevancia)
+  uses?: number // cuántas veces la respuesta la referencia
 }
 
 export type ChatDone = {
@@ -56,6 +61,36 @@ export type ChatHandlers = {
   onToken?: (text: string) => void
   onDone?: (d: ChatDone) => void
   onError?: (e: unknown) => void
+}
+
+/**
+ * Indexa en la memoria del paciente un documento adjuntado al chat (fire-and-forget).
+ *
+ * Se llama al ENVIAR un mensaje con adjuntos y paciente en contexto: el texto extraído queda en
+ * `patient_embeddings` y las consultas futuras lo recuerdan semánticamente ("¿y la creatinina del
+ * laboratorio del mes pasado?"). Best-effort: si falla, el chat ya salió y no se molesta al vet —
+ * el documento sigue vivo como contexto del hilo.
+ */
+export async function athosIndexarDocumento(params: {
+  clinicId: string
+  patientId: string
+  nombre: string
+  texto: string
+}): Promise<void> {
+  try {
+    await fetch(`${ATHOS_URL}/athos/patient-memory/document`, {
+      method: "POST",
+      headers: await authHeaders(),
+      body: JSON.stringify({
+        clinic_id: params.clinicId,
+        patient_id: params.patientId,
+        nombre: params.nombre,
+        texto: params.texto,
+      }),
+    })
+  } catch {
+    /* best-effort: la memoria es mejora, no requisito del envío */
+  }
 }
 
 // Consume el stream SSE de /athos/chat y despacha eventos {warning, token, done}.

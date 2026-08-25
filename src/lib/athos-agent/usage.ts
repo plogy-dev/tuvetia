@@ -44,6 +44,14 @@ export type SuperficieDeUso =
    * ponerle precio. Sumarla a `agent` haría incontestable esa pregunta incluso a posteriori.
    */
   | "consulta_viva"
+  /**
+   * Leer con el modelo un PDF ESCANEADO adjuntado al chat (0086). Es la fase 2 de la cascada de
+   * adjuntos: la fase 1 (pdfjs en el navegador) es gratis y no pasa por acá — solo se paga cuando
+   * el documento no trae texto digital. Se mide aparte porque es la única superficie cuyo costo
+   * escala con PÁGINAS de documento y no con turnos de conversación: la cifra que dice si el
+   * fallback multimodal se puede regalar o hay que topearlo es exactamente esta.
+   */
+  | "leer_documento"
 
 /**
  * Lo que devuelve `result.usage` del AI SDK (`LanguageModelUsage`).
@@ -84,8 +92,11 @@ export async function registrarUso(entrada: {
   surface: SuperficieDeUso
   elegido: ModeloElegido
   usage: UsoDeTokens
+  /** Cuánto tardó el turno completo, loop de tools incluido (0087). Opcional: no toda superficie
+   *  lo mide todavía, y un null honesto vale más que un 0 inventado. */
+  duracionMs?: number
 }): Promise<void> {
-  const { clinicId, userId, surface, elegido, usage } = entrada
+  const { clinicId, userId, surface, elegido, usage, duracionMs } = entrada
   try {
     const cayoAlRespaldo = elegido.modelId !== elegido.modeloPrimario
     // OJO: `.insert()` de supabase-js NO rechaza la promesa ante un error de la base — resuelve con
@@ -111,6 +122,9 @@ export async function registrarUso(entrada: {
         // tienen precios distintos, por eso van separados (ver migración 0065).
         tokens_cache_read: usage?.inputTokenDetails?.cacheReadTokens ?? null,
         tokens_cache_write: usage?.inputTokenDetails?.cacheWriteTokens ?? null,
+        // Latencia del turno (0087): la cifra que convierte "Athos tarda un minuto" de anécdota
+        // en dato. Redondeada — nadie decide nada con el decimal de un milisegundo.
+        duration_ms: duracionMs != null ? Math.round(duracionMs) : null,
       })
     if (error) {
       console.error(`[athos/usage] la base rechazó el consumo de ${surface}:`, error.message)

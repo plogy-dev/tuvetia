@@ -5,9 +5,11 @@ import type { UIMessage } from "ai"
 import {
   densidadClinica,
   esConsultaClinica,
+  MAX_MENSAJES_AL_MODELO,
   MINIMO_PARA_DESARROLLAR,
   preguntasDe,
   preguntasDuplicadas,
+  recortarHistorial,
   textoDe,
   turnoAGuardar,
   sanearHistorial,
@@ -281,5 +283,54 @@ describe("sinMarcaDePropuesta", () => {
     expect(sinMarcaDePropuesta("Ojo.\n\n[[sin-propuesta: no lo imites]]")).toBe(
       "Ojo.\n\n[[sin-propuesta: no lo imites]]",
     )
+  })
+})
+
+describe("recortarHistorial — lo que ve el modelo, no lo que ve el vet", () => {
+  const msj = (role: "user" | "assistant", texto: string, relleno = 0): UIMessage =>
+    ({
+      id: `${role}-${texto.slice(0, 8)}-${relleno}`,
+      role,
+      parts: [
+        { type: "text", text: texto },
+        // El peso real del historial de producción: tool parts con JSON grande.
+        ...(relleno ? [{ type: "text", text: "x".repeat(relleno) }] : []),
+      ],
+    }) as UIMessage
+
+  it("un hilo corto pasa intacto", () => {
+    const hilo = [msj("user", "hola"), msj("assistant", "buenas"), msj("user", "pregunta")]
+    expect(recortarHistorial(hilo)).toEqual(hilo)
+  })
+
+  it("un hilo largo se queda con los últimos MAX_MENSAJES_AL_MODELO", () => {
+    const hilo = Array.from({ length: 40 }, (_, i) =>
+      msj(i % 2 ? "assistant" : "user", `turno ${i}`),
+    )
+    const r = recortarHistorial(hilo)
+    expect(r.length).toBeLessThanOrEqual(MAX_MENSAJES_AL_MODELO)
+    expect(r[r.length - 1]).toBe(hilo[hilo.length - 1]) // el final nunca se pierde
+  })
+
+  it("mensajes PESADOS (tool parts gordos) fuerzan más recorte, sin bajar de 4", () => {
+    const hilo = Array.from({ length: 12 }, (_, i) =>
+      msj(i % 2 ? "assistant" : "user", `turno ${i}`, 9000),
+    )
+    const r = recortarHistorial(hilo)
+    expect(r.length).toBeLessThan(12)
+    expect(r.length).toBeGreaterThanOrEqual(4)
+  })
+
+  it("nunca arranca con un turno del asistente (hay proveedores que lo rechazan)", () => {
+    const hilo = Array.from({ length: 17 }, (_, i) =>
+      msj(i % 2 ? "user" : "assistant", `turno ${i}`),
+    )
+    const r = recortarHistorial(hilo)
+    expect(r[0].role).toBe("user")
+  })
+
+  it("jamás devuelve vacío: en el peor caso, el último mensaje", () => {
+    const solo = [msj("assistant", "colgado")]
+    expect(recortarHistorial(solo)).toHaveLength(1)
   })
 })

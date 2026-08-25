@@ -263,3 +263,39 @@ export function turnoAGuardar(
   }
   return turnos
 }
+
+// ── Recorte del historial que viaja AL MODELO ────────────────────────────────────────────────────
+//
+// Medido en producción (2026-08-26, athos_agent_usage): el agente promediaba 22.000 tokens de
+// entrada por turno con picos de 57.000 — el cliente reenvía el hilo ENTERO en cada petición,
+// tool parts incluidos, y ese prefill se re-paga en CADA paso del loop de herramientas. Sumado a
+// la velocidad de salida del proveedor, los turnos cruzaban el maxDuration de la ruta y Vercel
+// mataba la función a mitad de stream: eso es el "Athos se quedó en blanco" reportado.
+//
+// El recorte es del CAMINO AL MODELO, no de la conversación: `turnoAGuardar` persiste sobre el
+// hilo completo y el vet sigue viendo todo. Lo que el modelo pierde de contexto viejo lo cubren
+// la memoria del paciente (patient_embeddings) y sus tools de historial.
+
+/** Tope de mensajes del hilo que ve el modelo (los últimos). */
+export const MAX_MENSAJES_AL_MODELO = 16
+
+// Tope de PESO (chars del JSON de las parts, que es donde viven los resultados de tools). ~28k
+// chars ≈ 8-9k tokens: suficiente para una conversación larga sin arrastrar el laboratorio de
+// hace veinte turnos por cada paso del loop.
+const MAX_CHARS_AL_MODELO = 28000
+
+export function recortarHistorial(mensajes: UIMessage[]): UIMessage[] {
+  let recorte = mensajes.slice(-MAX_MENSAJES_AL_MODELO)
+  const peso = (m: UIMessage) => JSON.stringify(m.parts ?? []).length
+  let total = recorte.reduce((s, m) => s + peso(m), 0)
+  // Se sueltan mensajes ENTEROS desde el principio (nunca parts sueltas: partir un mensaje deja
+  // tool-calls huérfanos de su resultado y hay proveedores que lo rechazan).
+  while (recorte.length > 4 && total > MAX_CHARS_AL_MODELO) {
+    total -= peso(recorte[0])
+    recorte = recorte.slice(1)
+  }
+  // Algunos proveedores exigen que el primer mensaje no-system sea del usuario.
+  while (recorte.length && recorte[0].role !== "user") recorte = recorte.slice(1)
+  // Nunca vacío: sin historial no hay pregunta que responder.
+  return recorte.length ? recorte : mensajes.slice(-1)
+}

@@ -1,8 +1,7 @@
 import { redirect } from "next/navigation"
 
 import { createClient } from "@/lib/supabase/server"
-import { WelcomeWizard } from "@/components/onboarding/welcome-wizard"
-import { OnboardingAthos } from "@/components/onboarding/onboarding-athos"
+import { WizardConAthos } from "@/components/onboarding/wizard-con-athos"
 import { SinClinica } from "@/components/onboarding/sin-clinica"
 import { CuentaDesactivada } from "@/components/cuenta-desactivada"
 import { estadoDeAcceso } from "@/lib/acceso"
@@ -79,23 +78,20 @@ export default async function BienvenidaPage() {
 
   return (
     <main className="mx-auto grid min-h-svh w-full max-w-6xl gap-6 px-6 py-10 lg:grid-cols-[minmax(0,1fr)_360px]">
-      <div className="flex w-full max-w-md flex-col justify-center justify-self-center">
-        <WelcomeWizard
-          clinicId={p.clinic_id}
-          initialClinicName={c?.name ?? ""}
-          initialLogoUrl={c?.logo_url ?? null}
-          yaHecho={{
-            horarios: hecho("horarios"),
-            servicios: hecho("servicios"),
-            paciente: hecho("paciente"),
-          }}
-        />
-      </div>
-      {/* El panel de Athos es acompañamiento, no camino crítico: en pantallas chicas se oculta y el
-          wizard funciona igual. Si Athos falla o tarda, el onboarding no se bloquea. */}
-      <div className="hidden min-h-0 lg:block">
-        <OnboardingAthos clinicName={c?.name ?? ""} plan={comoPlan(c?.plan)} />
-      </div>
+      {/* Wizard + panel de Athos van juntos en un componente cliente porque ahora COMPARTEN estado:
+          el paso actual del wizard mueve la tarjeta contextual del panel, y esta página —Server
+          Component— no puede sostener ese número. La grilla sigue siendo de acá. */}
+      <WizardConAthos
+        clinicId={p.clinic_id}
+        clinicName={c?.name ?? ""}
+        logoUrl={c?.logo_url ?? null}
+        plan={comoPlan(c?.plan)}
+        yaHecho={{
+          horarios: hecho("horarios"),
+          servicios: hecho("servicios"),
+          paciente: hecho("paciente"),
+        }}
+      />
     </main>
   )
 }

@@ -12,6 +12,9 @@ entre corpus y datos de paciente: son caminos separados que se fusionan en memor
 Mismo modelo y dimensión que el corpus (Cohere embed-v4, 1024): cambiar de modelo obliga a
 re-embeddizar todo.
 """
+import hashlib
+import uuid
+
 from app.db import execute, fetch_all
 from app.embeddings import EmbeddingClient, EmbeddingError
 
@@ -81,6 +84,43 @@ def index_patient_memory(clinic_id: str, patient_id: str) -> int:
              (r["content"] or "")[:MAX_CHARS], _vector_literal(v)),
         )
     return len(pendientes)
+
+
+def index_chat_document(clinic_id: str, patient_id: str, nombre: str, texto: str) -> bool:
+    """Indexa en la memoria del paciente un DOCUMENTO adjuntado al chat (2026-08-26).
+
+    Cierra la limitación de que los adjuntos fueran contexto efímero del hilo: un laboratorio
+    subido hoy debe poder recordarse en la consulta del mes que viene. El `source_id` es
+    DETERMINÍSTICO (uuid5 del hash del contenido): adjuntar el mismo documento dos veces no
+    duplica memoria — el `on conflict do nothing` + el UNIQUE de la migración 0074 lo absorben.
+
+    Aislamiento (reglas 6/7): verifica que el paciente pertenezca a la clínica ANTES de escribir
+    (service_role se salta RLS, el filtro explícito es obligatorio). Best-effort como el resto de
+    la memoria: sin Cohere devuelve False y el chat sigue — la memoria es mejora, no requisito.
+    """
+    texto = (texto or "").strip()
+    if not texto:
+        return False
+    fila = fetch_all(
+        "select 1 from public.patients where id = %s and clinic_id = %s",
+        (patient_id, clinic_id),
+    )
+    if not fila:
+        return False
+    contenido = f"[Documento adjuntado al chat: {nombre}]\n{texto}"[:MAX_CHARS]
+    try:
+        vector = EmbeddingClient().embed([contenido], input_type="search_document")[0]
+    except EmbeddingError:
+        return False
+    huella = hashlib.sha1(contenido.encode("utf-8")).hexdigest()
+    source_id = str(uuid.uuid5(uuid.NAMESPACE_URL, f"tuvetia:chat_document:{clinic_id}:{patient_id}:{huella}"))
+    execute(
+        "insert into public.patient_embeddings "
+        "  (clinic_id, patient_id, source_type, source_id, content, embedding) "
+        "values (%s,%s,'chat_document',%s,%s,%s::vector) on conflict do nothing",
+        (clinic_id, patient_id, source_id, contenido, _vector_literal(vector)),
+    )
+    return True
 
 
 def search_patient_memory(clinic_id: str, patient_id: str, query_vector,

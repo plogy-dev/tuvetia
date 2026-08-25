@@ -9,6 +9,8 @@ from app.arranque import anunciar
 from app.config import get_settings
 from app.auth import verify_jwt, resolve_clinic_id
 from app.models import (
+    ChatDocumentRequest,
+    ChatDocumentResponse,
     ChatRequest,
     LiveRequest,
     LiveResponse,
@@ -100,6 +102,14 @@ def phantom_suggest(body: PhantomSuggestRequest, authorization: str | None = Hea
     return phantom_suggest_service(body.consultation_id, clinic_id, user_id)
 
 
+def _year_or_none(raw) -> int | None:
+    """El `year` del metadata viene como texto ("2022") y a veces vacío o sucio."""
+    try:
+        return int(raw) if raw not in (None, "") else None
+    except (TypeError, ValueError):
+        return None
+
+
 @app.post("/athos/retrieve", response_model=RetrieveResponse)
 def athos_retrieve(body: RetrieveRequest, authorization: str | None = Header(default=None)):
     """Retrieval para el agente de Next (tool search_clinical_evidence): cascada + juez, sin redacción.
@@ -129,10 +139,32 @@ def athos_retrieve(body: RetrieveRequest, authorization: str | None = Header(def
                 locator=c.locator,
                 score=c.score,
                 excerpt=c.content[:600],
+                # Identidad citable (estudio/revista/link): lo que el agente muestra como fuente.
+                title=(c.metadata or {}).get("titulo") or (c.metadata or {}).get("title"),
+                url=(c.metadata or {}).get("url"),
+                year=_year_or_none((c.metadata or {}).get("year")),
+                journal=(c.metadata or {}).get("fuente"),
             )
             for c in chunks[:8]
         ],
     )
+
+
+@app.post("/athos/patient-memory/document", response_model=ChatDocumentResponse)
+def athos_patient_memory_document(
+    body: ChatDocumentRequest, authorization: str | None = Header(default=None)
+):
+    """Indexa en la memoria del paciente un documento adjuntado al chat del agente.
+
+    Lo llama el front (fire-and-forget) cuando el vet adjunta un documento CON paciente en
+    contexto: así el laboratorio de hoy se recuerda semánticamente en la consulta del mes que
+    viene, igual que las notas aprobadas y las transcripciones. Best-effort a propósito — la
+    respuesta dice si quedó indexado, pero el chat nunca depende de esto.
+    """
+    _, clinic_id = _auth(authorization, body.clinic_id)
+    from app.patient_memory import index_chat_document
+    indexed = index_chat_document(clinic_id, body.patient_id, body.nombre[:200], body.texto)
+    return ChatDocumentResponse(indexed=indexed)
 
 
 @app.post("/athos/transcribe", response_model=TranscribeResponse)

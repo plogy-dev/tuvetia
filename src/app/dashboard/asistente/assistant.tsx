@@ -9,10 +9,22 @@ import {
   type ToolUIPart,
   type UIMessage,
 } from "ai"
-import { Loader2, Send, Sparkles } from "lucide-react"
+import { Loader2, Mic, Paperclip, Send, Sparkles, X } from "lucide-react"
 import { toast } from "sonner"
 
+import { athosIndexarDocumento } from "@/lib/athos"
+import { useDictado } from "@/lib/athos-dictado"
+import {
+  ADJUNTOS_ACEPTA,
+  MAX_ADJUNTOS,
+  bloqueDeAdjuntos,
+  leerAdjunto,
+  type Adjunto,
+} from "@/lib/athos-adjuntos"
+
 import { renderInline, splitBlocks } from "@/components/athos/rich-text"
+import { Cuestionario, type PreguntaDeContexto } from "@/components/athos/cuestionario"
+import { Pensando } from "@/components/athos/pensando"
 import { ActionApprovalCard } from "@/components/athos/action-approval-card"
 import { ConnectEmailCard } from "@/components/athos/connect-email-card"
 import { PendingActions } from "@/components/athos/pending-actions"
@@ -43,6 +55,7 @@ const transport = new DefaultChatTransport({ api: "/api/athos/agent" })
 // Las tools que no están aquí son de escritura: proponen acciones que el vet aprueba.
 const READ_TOOL_LABELS: Record<string, string> = {
   search_patients: "pacientes de la clínica",
+  search_patients_by_features: "pacientes por sus señas",
   get_patient_summary: "la ficha del paciente",
   get_owner_by_phone: "el titular por teléfono",
   list_appointments_on_day: "la agenda del día",
@@ -104,9 +117,69 @@ function sinMarcas(texto: string): string {
     .trim()
 }
 
-function TextBlocks({ text, kp }: { text: string; kp: string }) {
-  const limpio = sinMarcas(text)
-  if (!limpio) return null
+// Bloque ```opciones``` al final de una respuesta: el CUESTIONARIO de contexto (estilo Claude,
+// pedido del cliente 25-ago). El system prompt define el formato nuevo — array de
+// {pregunta, opciones} — y acá se acepta también el viejo (array de strings) porque los hilos
+// persistidos de esta semana lo traen y deben seguir renderizando.
+const OPCIONES_RE = /```opciones\s*\n?([\s\S]*?)```\s*$/
+
+function extraerOpciones(
+  texto: string,
+  streaming: boolean,
+): { limpio: string; preguntas: PreguntaDeContexto[] } {
+  const m = OPCIONES_RE.exec(texto)
+  if (!m) {
+    // Sin cierre de fence: DURANTE el streaming el bloque todavía está llegando y se oculta la
+    // cola para que el vet no vea JSON crudo escribiéndose. Pero en un mensaje TERMINADO, un
+    // bloque sin cierre es un bloque malformado — y ocultarlo dejaba la respuesta EN BLANCO si el
+    // modelo lo abría temprano (reportado 25-ago: "Athos se quedó en blanco"). Feo gana a
+    // invisible: terminado y malformado, se muestra tal cual.
+    if (streaming) return { limpio: texto.replace(/```opciones[\s\S]*$/, "").trimEnd(), preguntas: [] }
+    return { limpio: texto, preguntas: [] }
+  }
+  try {
+    const arr: unknown = JSON.parse(m[1])
+    if (Array.isArray(arr)) {
+      // Formato viejo: strings sueltos = una sola pregunta sin enunciado.
+      if (arr.every((x): x is string => typeof x === "string") && arr.length) {
+        return {
+          limpio: texto.slice(0, m.index).trimEnd(),
+          preguntas: [{ pregunta: "", opciones: arr.slice(0, 5) }],
+        }
+      }
+      const objetos = arr.filter(
+        (x): x is PreguntaDeContexto =>
+          typeof x === "object" && x !== null &&
+          typeof (x as PreguntaDeContexto).pregunta === "string" &&
+          Array.isArray((x as PreguntaDeContexto).opciones) &&
+          (x as PreguntaDeContexto).opciones.every((o) => typeof o === "string"),
+      )
+      if (objetos.length) {
+        return {
+          limpio: texto.slice(0, m.index).trimEnd(),
+          preguntas: objetos.slice(0, 3).map((p) => ({ ...p, opciones: p.opciones.slice(0, 5) })),
+        }
+      }
+    }
+  } catch {
+    /* JSON malformado: mejor mostrar el texto tal cual que romper la respuesta */
+  }
+  return { limpio: texto, preguntas: [] }
+}
+
+function TextBlocks({
+  text,
+  kp,
+  onOpcion,
+  streaming = false,
+}: {
+  text: string
+  kp: string
+  onOpcion?: (s: string) => void
+  streaming?: boolean
+}) {
+  const { limpio, preguntas } = extraerOpciones(sinMarcas(text), streaming)
+  if (!limpio && preguntas.length === 0) return null
   return (
     // SIN BURBUJA. La respuesta se lee como texto sobre la página, que es lo que distingue a un chat
     // tipo ChatGPT de una mensajería: la única burbuja del hilo es la del veterinario, y por eso se
@@ -133,6 +206,12 @@ function TextBlocks({ text, kp }: { text: string; kp: string }) {
         ) : (
           <div key={j}>{renderInline(blk.text, [], `${kp}p${j}`)}</div>
         ),
+      )}
+      {/* El cuestionario se pinta SOLO cuando hay quien lo reciba (el último turno, con Athos
+          quieto): en turnos viejos el bloque se recorta del texto pero no se ofrece — responder
+          una pregunta de hace tres turnos ya no tiene destinatario. */}
+      {preguntas.length > 0 && onOpcion && (
+        <Cuestionario preguntas={preguntas} onResponder={onOpcion} />
       )}
     </div>
   )
@@ -210,7 +289,16 @@ function ToolPartView({ part }: { part: ToolUIPart }) {
   return null
 }
 
-function AssistantMessage({ message, streaming }: { message: UIMessage; streaming: boolean }) {
+function AssistantMessage({
+  message,
+  streaming,
+  onOpcion,
+}: {
+  message: UIMessage
+  streaming: boolean
+  /** Recibe la opción clicada del bloque ```opciones``` — solo llega para el último turno. */
+  onOpcion?: (s: string) => void
+}) {
   return (
     <div className="flex gap-3">
       {/* 26px Y CUADRADO-REDONDEADO, con la chispa. Era un círculo de 32 con la inicial "A".
@@ -230,7 +318,9 @@ function AssistantMessage({ message, streaming }: { message: UIMessage; streamin
         <span className="text-xs font-medium text-fg-muted">Athos</span>
         {message.parts.map((part, i) => {
           if (part.type === "text") {
-            return part.text ? <TextBlocks key={i} text={part.text} kp={`t${i}-`} /> : null
+            return part.text ? (
+              <TextBlocks key={i} text={part.text} kp={`t${i}-`} onOpcion={onOpcion} streaming={streaming} />
+            ) : null
           }
           if (isStaticToolUIPart(part)) {
             return <ToolPartView key={part.toolCallId} part={part} />
@@ -251,6 +341,7 @@ function AssistantMessage({ message, streaming }: { message: UIMessage; streamin
 // getUser -> profiles -> patients EN SERIE desde el navegador (3 round-trips al montar).
 // clinicId entra solo por contrato de props: el agente deriva la clínica de la sesión.
 export function Assistant({
+  clinicId,
   patients,
   threads = {},
   initialPatientId,
@@ -277,11 +368,46 @@ export function Assistant({
   /** Petición ya redactada que otra pantalla dejó lista (`?pedir=`). Se escribe, no se envía. */
   textoInicial?: string
 }) {
-  const [patientId, setPatientId] = useState<string>(
-    initialPatientId ?? patients[0]?.id ?? GENERAL,
-  )
+  // CONSULTA GENERAL POR DEFECTO, no el primer paciente (decisión de la reunión del 24-ago: el
+  // vet abre el chat para preguntar lo que sea; encontrarse con un paciente pre-seleccionado que
+  // no eligió tiñe la respuesta con un contexto equivocado). Cambiar de paciente es SIEMPRE una
+  // acción manual del vet en el selector — la única excepción es llegar con `?patient=` explícito.
+  const [patientId, setPatientId] = useState<string>(initialPatientId ?? GENERAL)
   const [input, setInput] = useState<string>(textoInicial ?? "")
   const threadRef = useRef<HTMLDivElement>(null)
+
+  // --- Dictado por micrófono (reunión 24-ago). El dictado APPENDEA sobre lo que había: la base se
+  // congela al prender el mic, y estable+provisional se pintan encima de esa base en cada avance.
+  const baseDictado = useRef("")
+  const dictado = useDictado(({ estable, provisional }) => {
+    setInput(`${baseDictado.current}${estable}${provisional}`)
+  })
+
+  // --- Documentos adjuntos (reunión 24-ago). Se extraen a texto en el navegador y viajan como
+  // bloque citado delante de la pregunta; ver lib/athos-adjuntos.ts para el porqué.
+  const [adjuntos, setAdjuntos] = useState<Adjunto[]>([])
+  const fileRef = useRef<HTMLInputElement>(null)
+
+  async function agregarAdjuntos(files: FileList | null) {
+    if (!files?.length) return
+    for (const f of Array.from(files)) {
+      if (adjuntos.length >= MAX_ADJUNTOS) {
+        toast.error(`Máximo ${MAX_ADJUNTOS} documentos por mensaje.`)
+        break
+      }
+      // Toast de progreso: un txt es instantáneo, pero un PDF escaneado pasa por el lector con IA
+      // y tarda varios segundos — sin señal, el vet vuelve a clickear o cree que se rompió.
+      const t = toast.loading(`Leyendo ${f.name}…`)
+      try {
+        const adj = await leerAdjunto(f)
+        setAdjuntos((prev) => (prev.length >= MAX_ADJUNTOS ? prev : [...prev, adj]))
+        toast.success(`${f.name} listo para enviar`, { id: t })
+      } catch (e) {
+        toast.error((e as Error).message, { id: t })
+      }
+    }
+    if (fileRef.current) fileRef.current.value = "" // volver a elegir el mismo archivo debe funcionar
+  }
 
   // useChat contra el agente. Cambiar de paciente cambia el `id` → el hook crea un Chat nuevo, y
   // `messages` lo siembra con la conversación YA guardada de ese paciente. Antes se montaba vacío,
@@ -354,9 +480,36 @@ export function Assistant({
     }
 
     setInput("")
+    if (dictado.activo) dictado.alternar() // mandar con el mic abierto lo cierra
+    // Los adjuntos viajan como bloque citado DELANTE de la pregunta (el agente es de texto).
+    const conAdjuntos = adjuntos.length ? `${bloqueDeAdjuntos(adjuntos)}\n\n${text}` : text
+    // Con PACIENTE en contexto, el documento además se indexa en su memoria semántica
+    // (fire-and-forget): la consulta del mes que viene puede recordar este laboratorio.
+    // En consulta general no: no hay ficha a la que colgarlo.
+    if (adjuntos.length && !isGeneral) {
+      for (const a of adjuntos) {
+        void athosIndexarDocumento({ clinicId, patientId, nombre: a.nombre, texto: a.texto })
+      }
+    }
+    setAdjuntos([])
     // El agente deriva la clínica de la sesión; aquí solo viaja el contexto de paciente.
     void sendMessage(
-      { text },
+      { text: conAdjuntos },
+      { body: { patientId: isGeneral ? null : patientId, source: "chat" } },
+    )
+  }
+
+  // La respuesta COMPUESTA del cuestionario (```opciones```) se envía directa (no rellena el
+  // input): llega como "Pregunta: respuesta" por línea, todo junto y con un solo clic en
+  // "Responder". Pasa por los mismos gates que send().
+  function enviarOpcion(texto: string) {
+    if (busy) return
+    if (!puedeUsarAthos) {
+      pedirPro()
+      return
+    }
+    void sendMessage(
+      { text: texto },
       { body: { patientId: isGeneral ? null : patientId, source: "chat" } },
     )
   }
@@ -397,7 +550,70 @@ export function Assistant({
         }
         className="max-h-48 w-full resize-none border-0 bg-transparent px-4 pb-1 pt-3.5 text-[13.5px] shadow-none focus-visible:ring-0 dark:bg-transparent"
       />
+      {/* Chips de documentos ya extraídos, con su X. Van DENTRO de la pastilla: son parte del
+          mensaje que está por salir, no un estado aparte de la pantalla. */}
+      {adjuntos.length > 0 && (
+        <div className="flex flex-wrap gap-1.5 px-3 pt-1">
+          {adjuntos.map((a) => (
+            <span
+              key={a.nombre}
+              className="inline-flex items-center gap-1 rounded-full border border-line bg-surface-2 px-2 py-0.5 text-[11.5px] text-fg-muted"
+            >
+              <Paperclip className="size-3" aria-hidden />
+              {a.nombre}
+              <button
+                type="button"
+                aria-label={`Quitar ${a.nombre}`}
+                onClick={() => setAdjuntos((prev) => prev.filter((x) => x.nombre !== a.nombre))}
+                className="ml-0.5 rounded-full p-0.5 hover:bg-surface hover:text-fg"
+              >
+                <X className="size-3" aria-hidden />
+              </button>
+            </span>
+          ))}
+        </div>
+      )}
       <div className="flex items-center gap-1.5 px-2.5 pb-2.5 pt-1.5">
+        <input
+          ref={fileRef}
+          type="file"
+          accept={ADJUNTOS_ACEPTA}
+          multiple
+          className="hidden"
+          onChange={(e) => void agregarAdjuntos(e.target.files)}
+        />
+        <Button
+          type="button"
+          variant="ghost"
+          size="sm"
+          aria-label="Adjuntar documento"
+          onClick={() => fileRef.current?.click()}
+          disabled={busy}
+          className="h-[30px] w-[30px] shrink-0 rounded-[7px] p-0 text-fg-muted"
+        >
+          <Paperclip className="size-3.5" aria-hidden />
+        </Button>
+        {/* El mic solo existe si el navegador trae la Web Speech API (ver lib/athos-dictado.ts). */}
+        {dictado.soportado && (
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            aria-label={dictado.activo ? "Detener dictado" : "Dictar por micrófono"}
+            aria-pressed={dictado.activo}
+            onClick={() => {
+              if (!dictado.activo) baseDictado.current = input ? `${input.trimEnd()} ` : ""
+              dictado.alternar()
+            }}
+            className={
+              dictado.activo
+                ? "h-[30px] w-[30px] shrink-0 animate-pulse rounded-[7px] p-0 text-destructive"
+                : "h-[30px] w-[30px] shrink-0 rounded-[7px] p-0 text-fg-muted"
+            }
+          >
+            <Mic className="size-3.5" aria-hidden />
+          </Button>
+        )}
         <div className="flex-1" />
         <Button
           onClick={send}
@@ -532,7 +748,10 @@ export function Assistant({
                 {msg.parts
                   .filter((p): p is Extract<(typeof msg.parts)[number], { type: "text" }> => p.type === "text")
                   .map((p) => p.text)
-                  .join("")}
+                  .join("")
+                  // El contenido extraído del documento SÍ viajó (el modelo lo necesita), pero en la
+                  // burbuja se colapsa a su nombre: quince mil caracteres de CSV no son conversación.
+                  .replace(/\[Documento adjunto: ([^\]]+)\]\n"""\n[\s\S]*?\n"""/g, "Adjunto: $1")}
               </div>
             </div>
           ) : (
@@ -540,21 +759,24 @@ export function Assistant({
               key={msg.id}
               message={msg}
               streaming={status === "streaming" && msg.id === lastMessage?.id}
+              onOpcion={msg.id === lastMessage?.id && !busy ? enviarOpcion : undefined}
             />
           ),
         )}
 
         {/* Con el MISMO avatar que las respuestas: así el turno que está por llegar ocupa el lugar
-            que va a ocupar, y el hilo no salta cuando llega el primer token. */}
+            que va a ocupar, y el hilo no salta cuando llega el primer token. La espera es VIVA
+            (puntos que laten + frase que evoluciona): un indicador estático de 40 segundos se lee
+            como un bug — ver components/athos/pensando.tsx. */}
         {status === "submitted" && (
-          <div className="flex items-center gap-[11px] text-[13px] text-fg-faint">
+          <div className="flex items-center gap-[11px]">
             <span
               aria-hidden
               className="grid size-[26px] shrink-0 place-items-center rounded-[8px] bg-brand-soft text-brand-text"
             >
-              <Loader2 className="size-3.5 animate-spin" />
+              <Sparkles className="size-3.5" />
             </span>
-            Athos está pensando…
+            <Pensando />
           </div>
         )}
 
@@ -571,12 +793,11 @@ export function Assistant({
 
       {/* Compositor. Franja separada por una línea, como en el mockup: la conversación termina y
           acá empieza la entrada. Antes era una card con sombra flotando sobre otra card. */}
-      {/* SUGERENCIAS PERSISTENTES, no sólo en el estado vacío.
-          Antes desaparecían con el primer mensaje — o sea justo cuando el vet ya vio de qué es capaz
-          Athos y podría querer pedirle lo siguiente. En el mockup viven bajo el briefing y son la
-          forma principal de operar. Se ocultan mientras Athos responde: ofrecer otra cosa a mitad de
-          una respuesta invita a pisarla. */}
-      {!busy && (
+      {/* SUGERENCIAS SOLO CON EL HILO VACÍO. Fueron persistentes una temporada, pero el cliente lo
+          revirtió en la reunión del 24-ago ("si ya se hace una pregunta, que se quiten las
+          pastillas"): con una conversación en curso, las pastillas genéricas compiten con la
+          respuesta y ya no aportan — el vet ya sabe qué pedir. */}
+      {vacio && !busy && (
         <div className="mx-auto flex w-full max-w-[780px] flex-wrap justify-center gap-[7px]">
           {(patient
             ? [

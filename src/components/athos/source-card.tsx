@@ -13,7 +13,15 @@ export function SourceCard({ c }: { c: Citation }) {
       </div>
       {c.title && <div className="text-sm leading-snug font-medium">{c.title}</div>}
       <div className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs text-muted-foreground">
-        {c.source && <span className="font-medium text-foreground">{c.source}</span>}
+        {/* La REVISTA, no la base de datos: "Journal of feline medicine and surgery", no "PubMed"
+            (reunión 24-ago: el artículo es de su revista, no de la biblioteca donde está). El
+            `source` viejo queda solo como último recurso para citas persistidas sin journal y sin
+            título — una tarjeta sin ningún origen es peor. */}
+        {c.journal ? (
+          <span className="font-medium text-foreground">{c.journal}</span>
+        ) : !c.title && c.source ? (
+          <span className="font-medium text-foreground">{c.source}</span>
+        ) : null}
         {c.year && <span className="font-mono">{c.year}</span>}
         {c.locator && <span>· {c.locator}</span>}
         {c.doc_id && <span>{c.doc_id}</span>}

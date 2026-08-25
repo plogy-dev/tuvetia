@@ -55,10 +55,18 @@ export function EditarPacienteDrawer({
   patientId,
   inicial,
   ownerId,
+  ownerName,
 }: {
   patientId: string
   inicial: CamposDePaciente
   ownerId: string | null
+  /**
+   * Nombre del titular ACTUAL. Sin él, el select cerrado no tiene con qué resolver la etiqueta de
+   * `ownerId` hasta que cargue el listado (que es perezoso), y Base UI pinta el valor crudo: el
+   * vet veía el UUID del titular en su propia ficha. Reportado por el cliente en la reunión del
+   * 24-ago.
+   */
+  ownerName: string | null
 }) {
   const router = useRouter()
   const [supabase] = useState(() => createClient())
@@ -101,6 +109,16 @@ export function EditarPacienteDrawer({
       setErrores({})
     }
   }
+
+  // Opciones del select de titular, con etiqueta SIEMPRE resoluble. Antes de que cargue el
+  // listado, la lista se reduce al titular actual (si lo hay): alcanza para que el select cerrado
+  // muestre su nombre y no el uuid.
+  const conocidos =
+    titulares ?? (ownerId && ownerName ? [{ id: ownerId, full_name: ownerName }] : [])
+  const opcionesDeTitular = [
+    { label: "Sin titular", value: SIN_TITULAR },
+    ...conocidos.map((t) => ({ label: t.full_name, value: t.id })),
+  ]
 
   async function guardar(e: React.FormEvent) {
     e.preventDefault()
@@ -245,20 +263,25 @@ export function EditarPacienteDrawer({
 
             <Field>
               <FieldLabel htmlFor="ep-titular">Titular</FieldLabel>
+              {/* `items` es obligatorio: sin él, Base UI pinta el VALOR crudo en el select
+                  cerrado, y acá el valor es un uuid — el vet veía el código del titular en vez de
+                  su nombre (mismo bug que selects-muestran-etiqueta.test.ts, que no lo cazó porque
+                  este <SelectValue> lleva placeholder). Mientras el listado perezoso no cargó, la
+                  única etiqueta conocida es la del titular actual: por eso el fallback. */}
               <Select
                 value={titularId}
                 onValueChange={(v) => setTitularId(v ?? SIN_TITULAR)}
                 disabled={titulares === null}
+                items={opcionesDeTitular}
               >
                 <SelectTrigger id="ep-titular">
                   <SelectValue placeholder={titulares === null ? "Cargando…" : "Sin titular"} />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectGroup>
-                    <SelectItem value={SIN_TITULAR}>Sin titular</SelectItem>
-                    {(titulares ?? []).map((t) => (
-                      <SelectItem key={t.id} value={t.id}>
-                        {t.full_name}
+                    {opcionesDeTitular.map((o) => (
+                      <SelectItem key={o.value} value={o.value}>
+                        {o.label}
                       </SelectItem>
                     ))}
                   </SelectGroup>
