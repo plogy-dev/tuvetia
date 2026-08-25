@@ -1,16 +1,16 @@
--- Verificación de la 0086 — los planes de salud.
+-- Verificación de la 0088 — los planes de salud.
 --
 -- LO QUE MÁS IMPORTA PROBAR es el TOPE: un plan que deja consumir cuatro consultas de tres es un
 -- servicio regalado que nadie factura y nadie nota hasta que las cuentas del mes no cuadran. Se
 -- prueba que deja pasar lo que cabe, que rechaza lo que se pasa, y que rechaza lo que ni siquiera
 -- está en el plan.
 --
--- Y que las tablas nuevas NO rompieron nada de lo que ya había: la 0086 sólo agrega, pero un
+-- Y que las tablas nuevas NO rompieron nada de lo que ya había: la 0088 sólo agrega, pero un
 -- `on delete restrict` mal puesto podría impedir borrar un ítem del catálogo.
 --
 -- Todo se deshace con el `raise exception` final.
 --
--- Se corre en el editor SQL del principal, después de aplicar la 0086.
+-- Se corre en el editor SQL del principal, después de aplicar la 0088.
 
 do $$
 declare
@@ -24,7 +24,7 @@ declare
   v_ok       boolean;
 begin
   insert into public.clinics (name, plan, subscription_status)
-       values ('VERIFICACION 0086', 'pro', 'active') returning id into v_clinic;
+       values ('VERIFICACION 0088', 'pro', 'active') returning id into v_clinic;
 
   insert into public.owners (clinic_id, full_name)
        values (v_clinic, 'Titular de prueba') returning id into v_owner;
@@ -147,5 +147,5 @@ begin
   end if;
   raise notice '9 OK — las cuatro con RLS';
 
-  raise exception 'VERIFICACION 0086 OK — todo revertido a proposito';
+  raise exception 'VERIFICACION 0088 OK — todo revertido a proposito';
 end $$;
