@@ -4,6 +4,7 @@ import * as React from "react"
 import Link from "next/link"
 
 import { AthosSidebarSection } from "@/components/athos/athos-sidebar-section"
+import { BrandGlyph } from "@/components/brand-glyph"
 import { NavClinic } from "@/components/nav-clinic"
 import { NavMain } from "@/components/nav-main"
 import { NavSecondary } from "@/components/nav-secondary"
@@ -31,19 +32,6 @@ import {
   SlidersHorizontalIcon,
   UsersIcon,
 } from "lucide-react"
-
-/* Glifo "chispa" de la marca Tuvetia (patrón del Sidebar del cliente). */
-function BrandGlyph({ className }: { className?: string }) {
-  return (
-    <svg width="21" height="21" viewBox="0 0 64 64" aria-hidden className={className}>
-      <path
-        fill="var(--accent)"
-        fillRule="evenodd"
-        d="M32 8a24 24 0 1 0 0.001 0Z M44 22a5 5 0 1 0 0.001 0Z"
-      />
-    </svg>
-  )
-}
 
 // La navegación partida en dos, como pidió el cliente para la v2: "en el consultorio tiene el athos
 // y el phantom, es decir todo lo necesario para la consulta y en el CRM tiene lo demás".
@@ -188,23 +176,32 @@ export function AppSidebar({
         {/* Cada grupo trae su rótulo, sus secciones y su acción: "Iniciar consulta" en Consultorio,
             "Nuevo paciente" en CRM. */}
         <NavMain consultorio={data.consultorio} crm={data.crm} />
-        <SidebarMenu className="mt-auto px-2">
+        <SidebarMenu className="px-2">
           <SidebarMenuItem>
             <ChipConfiguracion porcentaje={progresoConfiguracion} />
           </SidebarMenuItem>
         </SidebarMenu>
-        {/* `mt-auto` se mudó al bloque de arriba: con los dos empujando, el de Configuración
-            quedaba pegado al menú y Ayuda al fondo, con un hueco entre medio. */}
-        <NavSecondary items={data.navSecondary} />
-        {/* EL HISTORIAL, ABAJO DEL TODO. Lo pidió David el 19-ago —"las consultas y los chats,
-            abajo y plegables"— y estaba justo debajo del menú principal, o sea en el medio: con
-            cuarenta consultas cargadas empujaba Configuración y Ayuda fuera de la barra.
-
-            Sigue apareciendo SÓLO dentro de Athos y del Modo Fantasma, así que en el resto de la
-            app este lugar queda vacío y la barra se ve igual que siempre. */}
+        {/* EL HISTORIAL, ABAJO DEL CONTENIDO. Lo pidió David el 19-ago —"las consultas y los chats,
+            abajo y plegables"—. Sigue apareciendo SÓLO dentro de Athos y del Modo Fantasma, así que
+            en el resto de la app este lugar queda vacío y la barra se ve igual que siempre. */}
         <AthosSidebarSection />
       </SidebarContent>
+      {/* ── INTEGRACIONES · CONFIGURACIÓN · AYUDA, EN EL PIE ─────────────────────────────────
+          «Abajo al final», lo pidió David el 25-ago. Estaban en medio del contenido, con el
+          Historial debajo.
+
+          VAN AL PIE Y NO AL FONDO DEL CONTENIDO, y esa diferencia es la que evita repetir un
+          defecto ya arreglado: el 19-ago el Historial se bajó justamente porque, estando arriba,
+          «con cuarenta consultas cargadas empujaba Configuración y Ayuda fuera de la barra».
+          Intercambiar los dos bloques habría devuelto ese problema con el orden invertido.
+
+          El pie no scrollea con el contenido: por largo que sea el Historial, estas tres se quedan
+          donde el vet las va a buscar.
+
+          Se fue también el `mt-auto` del chip de Primeros pasos. Existía para empujar este bloque al
+          fondo; ahora el fondo lo da el pie, y dejarlo abriría un hueco en medio de la barra. */}
       <SidebarFooter>
+        <NavSecondary items={data.navSecondary} />
         <NavUser user={user} />
       </SidebarFooter>
     </Sidebar>

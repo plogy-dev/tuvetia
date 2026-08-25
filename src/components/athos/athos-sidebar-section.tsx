@@ -5,7 +5,8 @@
 // la app no cuesta ni una consulta.
 //
 // SIN CAMBIOS DE ESQUEMA, a propósito:
-//   · "Consultas" son la tabla `consultations` que ya existe.
+//   · "Cuaderno" son la tabla `consultations` que ya existe (la pestaña se llamaba
+//     "Consultas" hasta el 25-ago).
 //   · "Chats" son los hilos por paciente de `athos_messages`, agrupados igual que
 //     `lib/athos-history.ts` hace para precargar la conversación.
 //
@@ -202,7 +203,11 @@ export function AthosSidebarSection() {
             [
               [
                 "consultas",
-                "Consultas",
+                // «Cuaderno», no «Consultas». Lo pidió David el 25-ago, y encaja: la columna donde
+                // vive lo que se escribe en la consulta se llama `notebook` en la base desde
+                // siempre. La CLAVE sigue siendo `consultas` — es el estado interno y la tabla que
+                // consulta, y renombrarla no le cambiaría nada a nadie.
+                "Cuaderno",
                 <Stethoscope key="c" className="size-3.5" />,
                 consultas?.length,
               ],

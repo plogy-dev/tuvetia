@@ -181,12 +181,25 @@ export function PatientsExplorer({
           `rounded-lg` y no `rounded-xl` —18px contra los 10px que declara el sistema, que es de
           donde sale el "efecto ladrillo"—, `border-line-soft` en vez de `border-line`, y la
           superficie de tarjeta con su sombra. */}
-      <div className="overflow-hidden rounded-lg border border-line-soft bg-card shadow-sm">
+      {/* `overflow-x-auto`, NO `overflow-hidden`. Con `hidden`, en una ventana angosta la última
+          columna no se desplazaba: SE RECORTABA. Es lo que reportó David el 25-ago con una captura
+          donde «Historia» quedaba cortada contra el borde — y lo peor del caso es que no había
+          ninguna señal de que faltaba algo. */}
+      <div className="overflow-x-auto rounded-lg border border-line-soft bg-card shadow-sm">
         {/* 13px y no 14: la tabla de ellos es `text-[13px]`. En una lista de ocho columnas ese
             punto es la diferencia entre leerla de un vistazo y tener que recorrerla. */}
         <Table className="text-[13px]">
           <TableHeader>
             <TableRow className="hover:bg-transparent">
+              {/* HISTORIA VA PRIMERA. Lo pidió David el 25-ago: «historia clínica debe resaltar
+                  como función, debe ir de primera ahí para espichar».
+
+                  Tiene razón por dos motivos que se suman: es LA acción de la fila —lo que el vet
+                  viene a abrir— y estando última era además la que se recortaba en pantallas
+                  angostas. Adelante se ve siempre, sin desplazar. */}
+              <TableHead className={`${CABECERA} w-28`}>
+                Historia
+              </TableHead>
               <TableHead className={CABECERA}>
                 Paciente
               </TableHead>
@@ -210,15 +223,22 @@ export function PatientsExplorer({
               <TableHead className={`${CABECERA} hidden lg:table-cell`}>
                 Teléfono
               </TableHead>
-              <TableHead className={`${CABECERA} w-28 text-right`}>
-                Historia
-              </TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {patients.length ? (
               patients.map((patient) => (
                 <TableRow key={patient.id}>
+                  {/* Primera, por lo mismo que la cabecera: es la acción de la fila. */}
+                  <TableCell className={CELDA}>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      render={<Link href={`/dashboard/patients/${patient.id}`} />}
+                    >
+                      <FileTextIcon className="size-3.5" /> Historia
+                    </Button>
+                  </TableCell>
                   <TableCell className={`${CELDA} font-medium`}>
                     <Link
                       href={`/dashboard/patients/${patient.id}`}
@@ -253,15 +273,6 @@ export function PatientsExplorer({
                   </TableCell>
                   <TableCell className={`${CELDA} hidden font-mono text-xs tabular-nums text-muted-foreground lg:table-cell`}>
                     {patient.owner?.phone ?? "—"}
-                  </TableCell>
-                  <TableCell className={`${CELDA} text-right`}>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      render={<Link href={`/dashboard/patients/${patient.id}`} />}
-                    >
-                      <FileTextIcon className="size-3.5" /> Historia
-                    </Button>
                   </TableCell>
                 </TableRow>
               ))
