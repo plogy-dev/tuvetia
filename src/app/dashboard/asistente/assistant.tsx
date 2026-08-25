@@ -374,6 +374,27 @@ export function Assistant({
   // acción manual del vet en el selector — la única excepción es llegar con `?patient=` explícito.
   const [patientId, setPatientId] = useState<string>(initialPatientId ?? GENERAL)
   const [input, setInput] = useState<string>(textoInicial ?? "")
+
+  // ── EL CLIC EN EL HISTORIAL TIENE QUE FUNCIONAR TAMBIÉN ESTANDO YA ACÁ ──────────────────────
+  //
+  // `?patient=` llega como prop, y `useState` sólo lo lee al MONTAR. Con la app recién abierta eso
+  // alcanza; pero el historial del sidebar navega en suave (misma pantalla, otra query), el
+  // componente NO se remonta, y el clic no hacía nada — «está fallando poder ir a los chats
+  // existentes» (David, 25-ago).
+  //
+  // Se sincroniza con el patrón de React para «estado que se ajusta cuando cambia un prop»:
+  // setState DURANTE el render, comparando contra el prop anterior. No un useEffect —
+  // `react-hooks/set-state-in-effect` lo rechaza con razón: esto no es un efecto, es derivar
+  // estado, y hacerlo acá evita el render de más con el paciente viejo.
+  //
+  // Un remount con `key` en el padre haría lo mismo en una línea, pero tiraría lo que el vet tenga
+  // a medias en OTRO estado (el texto tecleado, los adjuntos leídos): cambiar de conversación no
+  // debería costarle sus adjuntos.
+  const [patientDeLaUrl, setPatientDeLaUrl] = useState(initialPatientId)
+  if (initialPatientId !== patientDeLaUrl) {
+    setPatientDeLaUrl(initialPatientId)
+    if (initialPatientId) setPatientId(initialPatientId)
+  }
   const threadRef = useRef<HTMLDivElement>(null)
 
   // --- Dictado por micrófono (reunión 24-ago). El dictado APPENDEA sobre lo que había: la base se
@@ -413,7 +434,7 @@ export function Assistant({
   // `messages` lo siembra con la conversación YA guardada de ese paciente. Antes se montaba vacío,
   // así que al recargar la página el veterinario perdía de vista el hilo aunque siguiera en la base.
   // La consulta general no tiene historial a propósito: el backend la trata como sin estado.
-  const { messages, sendMessage, status, error, stop } = useChat({
+  const { messages, sendMessage, status, error, stop, regenerate } = useChat({
     id: `athos-${patientId}`,
     messages: threads[patientId] ?? [],
     transport,
@@ -780,9 +801,21 @@ export function Assistant({
           </div>
         )}
 
+        {/* El fallo, EN EL HILO y con salida. Antes era una línea de 12 px + un toast que se
+            esfuma: David escribió, esperó 1:30 y vio una burbuja en blanco (25-ago, 4 preguntas
+            sin respuesta en 2 días). Un fallo que no se ve es indistinguible de la app colgada, y
+            un fallo sin botón obliga a re-teclear la pregunta. `regenerate` reintenta el último
+            turno tal cual — la pregunta no se pierde. */}
         {error && (
-          <div className="text-xs text-destructive">
-            No se pudo consultar a Athos: {error.message}
+          <div className="flex flex-col gap-2 rounded-xl border border-destructive/30 bg-destructive/5 p-3">
+            <p className="text-sm text-destructive">
+              La respuesta no llegó: {error.message}
+            </p>
+            <div>
+              <Button size="sm" variant="outline" onClick={() => regenerate()}>
+                Reintentar
+              </Button>
+            </div>
           </div>
         )}
 

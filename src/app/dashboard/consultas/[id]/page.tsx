@@ -1,6 +1,6 @@
 "use client"
 
-import { use, useCallback, useEffect, useState } from "react"
+import { use, useCallback, useEffect, useRef, useState } from "react"
 import Link from "next/link"
 import {
   Activity,
@@ -29,6 +29,7 @@ import { useRouter } from "next/navigation"
 import { createClient } from "@/lib/supabase/client"
 import { parseTranscript } from "@/lib/transcript"
 import { ConsultationRecorder } from "@/components/consultation-recorder"
+import { laNotaSePideSola } from "@/lib/consultas/nota-sola"
 import { Cuaderno } from "@/components/athos/cuaderno"
 import { ConsultationThread } from "@/components/athos/consultation-thread"
 import { renderInline, tramosIndivisibles } from "@/components/athos/rich-text"
@@ -150,6 +151,8 @@ export default function NotaConsultaPage({ params }: { params: Promise<{ id: str
   const [loading, setLoading] = useState(true)
   const [loadError, setLoadError] = useState(false)
   const [generating, setGenerating] = useState(false)
+  // Un solo intento automático de nota por visita — ver el comentario en load().
+  const autoPedida = useRef(false)
   const [saving, setSaving] = useState(false)
   const [approving, setApproving] = useState(false)
   const [gateAck, setGateAck] = useState(false)
@@ -243,6 +246,34 @@ export default function NotaConsultaPage({ params }: { params: Promise<{ id: str
     // Con nota ya generada, el foco es la nota: el panel de grabación/transcripción arranca plegado.
     setCaptureOpen(!n)
     setLoading(false)
+
+    // ── LA NOTA SE PIDE SOLA ────────────────────────────────────────────────────────────────
+    //
+    // Si la consulta quedó transcrita y sin nota, el borrador se pide acá mismo, sin esperar el
+    // clic — ver `lib/consultas/nota-sola.ts` para el porqué (6 consultas colgadas el 25-ago,
+    // 3 posteriores al arreglo anterior). Cubre los dos caminos con la MISMA condición: abrir una
+    // consulta que quedó colgada, y terminar de grabar (el recorder llama `onTranscribed={load}`).
+    //
+    // `autoPedida` evita el bucle del fallo: generate() re-llama load() al terminar, y si la
+    // generación FALLÓ el estado sigue siendo generating_note — sin la guarda se reintentaría en
+    // círculo contra un servicio caído. Un solo intento automático; el botón queda como reintento.
+    //
+    // Se decide con la foto LOCAL (`c`, `t`, `n`) y no con los estados de React: los setState de
+    // arriba todavía no aterrizaron en este mismo tick.
+    const foto = {
+      status: (c as unknown as Consultation).status,
+      hayTranscripcion: Boolean((t as { full_text: string | null } | null)?.full_text),
+      hayNota: Boolean(n),
+    }
+    if (laNotaSePideSola(foto) && !autoPedida.current) {
+      autoPedida.current = true
+      void generate(c as unknown as Consultation)
+    }
+    // `generate` queda fuera de las deps A PROPÓSITO: es una función que se redefine en cada
+    // render, y metérsela haría que `load` cambie de identidad siempre → el useEffect([load]) de
+    // abajo re-cargaría en bucle. El closure viejo no muerde: la fila viaja como argumento y lo
+    // demás que toca (setState, supabase, id) es estable entre renders.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [supabase, id])
 
   useEffect(() => {
@@ -252,11 +283,12 @@ export default function NotaConsultaPage({ params }: { params: Promise<{ id: str
     load()
   }, [load])
 
-  async function generate() {
-    if (!consultation) return
+  async function generate(fila?: Consultation) {
+    const c = fila ?? consultation
+    if (!c) return
     setGenerating(true)
     try {
-      const res = await athosPhantomSuggest({ consultationId: id, clinicId: consultation.clinic_id })
+      const res = await athosPhantomSuggest({ consultationId: id, clinicId: c.clinic_id })
       setAlerts(res.alerts ?? [])
       // La sugerencia está lista para la revisión del vet -> avanza el estado de la consulta.
       await supabase
@@ -721,7 +753,7 @@ export default function NotaConsultaPage({ params }: { params: Promise<{ id: str
                 transcripción.
               </p>
             </div>
-            <Button onClick={generate} disabled={generating}>
+            <Button onClick={() => generate()} disabled={generating}>
               {generating ? <Loader2 className="size-4 animate-spin" /> : <Sparkles className="size-4" />}
               Generar sugerencia (Modo Fantasma)
             </Button>
