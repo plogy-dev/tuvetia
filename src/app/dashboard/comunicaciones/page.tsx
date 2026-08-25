@@ -1,4 +1,5 @@
-import { MessageCircle } from "lucide-react"
+import Link from "next/link"
+import { MessageCircle, Mail } from "lucide-react"
 
 import { createClient } from "@/lib/supabase/server"
 import { DataError } from "@/components/data-error"
@@ -75,6 +76,19 @@ export default async function ComunicacionesPage() {
           </DataError>
         </div>
       )}
+      {/* La puerta a los avisos por correo. Va acá y no en la barra lateral: es de comunicación con
+          titulares, igual que la bandeja, y la barra tiene un orden que definió Luciano el 19-ago.
+          Sin este enlace la pantalla existiría sin puerta — que es el defecto que se encontró el
+          24-ago con Compras y Proveedores. */}
+      <div className="flex justify-end px-4 pt-4 lg:px-6">
+        <Link
+          href="/dashboard/comunicaciones/avisos"
+          className="inline-flex items-center gap-1.5 rounded-lg border border-line bg-surface px-3 py-1.5 text-sm text-fg-muted transition hover:bg-surface-2 hover:text-fg"
+        >
+          <Mail className="size-4" aria-hidden />
+          Avisos a titulares
+        </Link>
+      </div>
       <WhatsappInbox
         initialMessages={((msgs as InboxMessage[] | null) ?? []).slice().reverse()}
         owners={(owners as InboxOwner[] | null) ?? []}
