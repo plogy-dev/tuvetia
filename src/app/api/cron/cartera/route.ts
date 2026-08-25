@@ -2,6 +2,7 @@ import { runCarteraForAllClinics } from "@/lib/cartera/run-all"
 import { leerRespuestasDeCorreo } from "@/lib/cartera/respuestas-correo"
 import { barrerSuscripciones } from "@/lib/suscripcion/barrido"
 import { reconciliarCobrosColgados } from "@/lib/suscripcion/reconciliar"
+import { correrRecordatoriosDeCita } from "@/lib/citas/run-all"
 
 // Barrido de cartera: recorre las clínicas con recordatorios activos, programa los pasos que
 // falten y despacha los vencidos. El motor ya existía y estaba cubierto por tests, pero no tenía
@@ -86,7 +87,27 @@ export async function GET(req: Request) {
       console.error("cron/cartera email-sync:", email.error)
     }
 
-    return Response.json({ ok: true, ...result, email, suscripciones })
+    // ── RECORDATORIOS DE CITA ─────────────────────────────────────────────────────────────────
+    //
+    // VIVE ACÁ POR EL MISMO MOTIVO que el correo y las suscripciones: los dos cupos de cron del
+    // plan Hobby están usados. Y las 9 de la mañana son buena hora para avisar «mañana a las 10».
+    //
+    // NO ES COBRANZA, y por eso no entra al motor de arriba: las ventanas de la Ley 2300 que
+    // respeta cartera son para perseguir una deuda. Un recordatorio de cita es un mensaje
+    // transaccional del servicio que el titular contrató. Comparten el puerto de salida de WhatsApp
+    // y nada más — mezclarlos haría que un cambio en las reglas de cobranza moviera sin querer los
+    // avisos de cita.
+    //
+    // AISLADO, como los otros dos: que falle avisando citas no puede impedir que salga la cobranza.
+    let citas: Awaited<ReturnType<typeof correrRecordatoriosDeCita>> | { error: string }
+    try {
+      citas = await correrRecordatoriosDeCita()
+    } catch (e) {
+      citas = { error: e instanceof Error ? e.message : "barrido de citas fallido" }
+      console.error("cron/cartera citas:", citas.error)
+    }
+
+    return Response.json({ ok: true, ...result, email, suscripciones, citas })
   } catch (e) {
     // Incluye el aborto por zona horaria incorrecta (assertBusinessTimezone): preferimos un 500
     // ruidoso y ningún envío, antes que despachar cobranzas en el horario equivocado.

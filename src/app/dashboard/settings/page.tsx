@@ -1,11 +1,12 @@
 import Link from "next/link"
-import { Building2, Clock, Download, Plug, User, Users } from "lucide-react"
+import { Building2, CalendarClock, Clock, Download, Plug, User, Users } from "lucide-react"
 import { Button } from "@/components/ui/button"
 
 import { sesionDelServidor } from "@/lib/supabase/sesion"
 import { ProfileSettings } from "@/components/settings/profile-settings"
 import { DireccionDeLaClinica } from "@/components/settings/direccion-de-la-clinica"
 import { ClinicHoursSettings, type ClinicHourRow } from "@/components/settings/clinic-hours-settings"
+import { RecordatorioCitasSettings } from "@/components/settings/recordatorio-citas-settings"
 import {
   TeamSettings,
   type PendingInvitation,
@@ -38,9 +39,24 @@ export default async function SettingsPage() {
   // `address` y `city` viajan en la MISMA consulta que ya se hacía: la dirección se adjunta a cada
   // cita que se empuja al calendario, así que la clínica necesita poder cargarla desde acá.
   const clinic = p?.clinic_id
-    ? (await supabase.from("clinics").select("name, address, city").eq("id", p.clinic_id).single()).data
+    ? (
+        await supabase
+          .from("clinics")
+          .select(
+            "name, address, city, recordatorio_citas_activo, recordatorio_citas_horas, recordatorio_citas_texto",
+          )
+          .eq("id", p.clinic_id)
+          .single()
+      ).data
     : null
-  const c = clinic as { name: string; address: string | null; city: string | null } | null
+  const c = clinic as {
+    name: string
+    address: string | null
+    city: string | null
+    recordatorio_citas_activo: boolean
+    recordatorio_citas_horas: number
+    recordatorio_citas_texto: string | null
+  } | null
   const clinicName = c?.name ?? "—"
 
   // Sólo el estado, para el resumen: los formularios de conexión viven en /dashboard/conexiones.
@@ -165,6 +181,26 @@ export default async function SettingsPage() {
         <ClinicHoursSettings
           initialHours={(hoursRows as ClinicHourRow[] | null) ?? []}
           vetId={user?.id ?? null}
+        />
+      </div>
+
+      {/* Recordatorio de cita — vive junto a los horarios: las dos cosas son «cómo funciona la
+          agenda de esta clínica», y quien acaba de cargar sus horarios es exactamente quien va a
+          querer que a los titulares se les avise. */}
+      <div className="rounded-xl border bg-card p-4">
+        <div className="mb-3 flex items-center gap-2 text-sm font-semibold">
+          <CalendarClock className="size-4 text-muted-foreground" /> Recordatorio de citas
+          <HelpTip>
+            Le escribe al titular por WhatsApp antes de su cita. Sale del número de la clínica y
+            necesita WhatsApp conectado. Arranca apagado: encenderlo es decidir que la clínica le
+            habla sola a sus clientes.
+          </HelpTip>
+        </div>
+        <RecordatorioCitasSettings
+          activoInicial={c?.recordatorio_citas_activo ?? false}
+          horasIniciales={c?.recordatorio_citas_horas ?? 24}
+          textoInicial={c?.recordatorio_citas_texto ?? null}
+          puedeEditar={p?.role === "admin"}
         />
       </div>
 
