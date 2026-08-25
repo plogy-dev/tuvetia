@@ -126,6 +126,18 @@ class PhantomSuggestResponse(BaseModel):
     ai_generated_at: datetime | None = None
 
 
+class ChatDocumentRequest(BaseModel):
+    """Documento adjuntado al chat que se indexa en la memoria del paciente (2026-08-26)."""
+    clinic_id: str
+    patient_id: str
+    nombre: str
+    texto: str
+
+
+class ChatDocumentResponse(BaseModel):
+    indexed: bool
+
+
 class TranscribeRequest(BaseModel):
     consultation_id: str
     clinic_id: str
