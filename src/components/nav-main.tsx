@@ -18,6 +18,11 @@ import {
 } from "@/components/ui/sidebar"
 import { SparklesIcon } from "lucide-react"
 
+import { InsigniaSinLeer } from "@/components/comunicaciones/insignia-sin-leer"
+
+/** Dónde vive la bandeja. El aviso de mensajes sin leer cuelga de este ítem y de ningún otro. */
+const RUTA_COMUNICACIONES = "/dashboard/comunicaciones"
+
 export type NavItem = {
   title: string
   url: string
@@ -135,6 +140,7 @@ function Items({ items, grupo }: { items: NavItem[]; grupo: "consulta" | "crm" }
             tooltip={item.title}
             isActive={isNavActive(pathname, item.url)}
             render={<Link href={item.url} prefetch />}
+            className="relative"
           >
             <Indicador grupo={grupo} />
             {/* El icono SÓLO existe en la barra colapsada. Ahí el punto no sirve —serían siete
@@ -142,6 +148,10 @@ function Items({ items, grupo }: { items: NavItem[]; grupo: "consulta" | "crm" }
                 ítem de otro. */}
             <span className="hidden group-data-[collapsible=icon]:contents">{item.icon}</span>
             <span>{item.title}</span>
+            {/* El aviso vive EN EL ÍTEM, no en un botón aparte: lo que hay que mirar es
+                Comunicaciones, y un número que no está pegado a su destino obliga a adivinar de qué
+                habla. */}
+            {item.url === RUTA_COMUNICACIONES && <InsigniaSinLeer />}
           </SidebarMenuButton>
         </SidebarMenuItem>
       ))}
