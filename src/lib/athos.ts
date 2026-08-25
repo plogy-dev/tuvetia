@@ -39,9 +39,14 @@ export type Citation = {
   doc_id: string
   locator?: string | null
   source?: string | null
-  url?: string | null // link directo al artículo (PubMed/DOI), del corpus
+  url?: string | null // link directo al artículo, del corpus
   title?: string | null // título del documento
   year?: number | null // año de publicación
+  // La fuente que se MUESTRA es la revista, no la base de datos donde vive el artículo
+  // (decisión de producto, reunión 24-ago: nada de "PubMed" en la interfaz).
+  journal?: string | null
+  n?: number | null // número del marcador [n] en el texto (la lista viene ordenada por relevancia)
+  uses?: number // cuántas veces la respuesta la referencia
 }
 
 export type ChatDone = {

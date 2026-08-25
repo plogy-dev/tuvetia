@@ -41,6 +41,33 @@ function escapeLike(q: string): string {
   return q.trim().replace(/[%_\\]/g, "\\$&")
 }
 
+// Cómo lo dice el vet → cómo está guardado en `patients.species`. Solo hacen falta los sinónimos
+// que un ilike no resuelve solo (ilike ya ignora mayúsculas, pero "canino" no se parece a 'Perro').
+const ESPECIE_DB: Record<string, string> = {
+  perro: "Perro",
+  canino: "Perro",
+  gato: "Gato",
+  felino: "Gato",
+}
+
+/** Fecha local (YYYY-MM-DD) de hace `n` años — para traducir edades a cotas sobre birth_date. */
+function fechaHaceAnios(n: number): string {
+  const d = new Date()
+  d.setFullYear(d.getFullYear() - n)
+  return d.toISOString().slice(0, 10)
+}
+
+/** Edad en años cumplidos, o null si la ficha no tiene fecha de nacimiento. */
+function edadAnios(birthDate: string | null): number | null {
+  if (!birthDate) return null
+  const [y, m, d] = birthDate.split("-").map(Number)
+  if (!y || !m || !d) return null
+  const hoy = new Date()
+  let edad = hoy.getFullYear() - y
+  if (hoy.getMonth() + 1 < m || (hoy.getMonth() + 1 === m && hoy.getDate() < d)) edad--
+  return edad
+}
+
 // ─── Tools ───────────────────────────────────────────────────────────────────
 
 /**
@@ -107,6 +134,136 @@ export function buildAthosTools(supabase: SB, ctx: AgentContext) {
             owner_id: p.owner_id,
             owner: p.owner?.full_name ?? null,
             owner_phone: p.owner?.phone ?? null,
+          })),
+        }
+      },
+    }),
+
+    search_patients_by_features: tool({
+      description:
+        "Encuentra pacientes cuando el veterinario NO sabe el nombre y describe al paciente por características: " +
+        "especie, raza, sexo, edad, o lo que pasó en una consulta previa ('me acuerdo que vino hace un mes con diarreas'). " +
+        "Devuelve hasta 10 candidatos con su última consulta — presentáselos y pedile que confirme cuál es antes de " +
+        "operar con el id. Si la respuesta trae `total`, hay más candidatos que los mostrados: pedí más señas para afinar.",
+      inputSchema: z.object({
+        species: z.string().optional().describe("Especie: 'perro'/'canino', 'gato'/'felino'… (se normaliza sola)"),
+        breed: z.string().optional().describe("Raza, aunque sea parcial ('labrador')"),
+        sex: z.enum(["macho", "hembra"]).optional(),
+        motivo_o_sintomas: z
+          .string()
+          .optional()
+          .describe("Qué pasó en la consulta previa, en pocas palabras ('diarrea', 'vacuna', 'cojera')"),
+        dias_atras: z
+          .number()
+          .int()
+          .min(1)
+          .max(3650)
+          .default(90)
+          .describe("Hasta cuántos días atrás mirar las consultas ('hace un mes' → 30–45). Solo aplica con motivo_o_sintomas."),
+        edad_min_anios: z.number().int().min(0).max(50).optional(),
+        edad_max_anios: z.number().int().min(0).max(50).optional(),
+      }),
+      execute: async ({ species, breed, sex, motivo_o_sintomas, dias_atras, edad_min_anios, edad_max_anios }) => {
+        if (!species && !breed && !sex && !motivo_o_sintomas && edad_min_anios == null && edad_max_anios == null)
+          return { error: "Necesito al menos una característica: especie, raza, sexo, edad o algo de la consulta previa." }
+
+        // Con motivo, el punto de partida son las CONSULTAS (ahí vive "vino con diarreas") y los
+        // pacientes se filtran después sobre esos ids — una consulta por tabla, sin N+1.
+        const ultimaConsulta = new Map<string, { fecha: string; motivo: string | null }>()
+        let idsPorMotivo: string[] | null = null
+        if (motivo_o_sintomas) {
+          const desde = new Date(Date.now() - dias_atras * 86_400_000).toISOString()
+          const { data, error } = await supabase
+            .from("consultations")
+            .select("patient_id, chief_complaint, started_at")
+            .ilike("chief_complaint", `%${escapeLike(motivo_o_sintomas)}%`)
+            .gte("started_at", desde)
+            .order("started_at", { ascending: false })
+            .limit(200)
+          if (error) return { error: error.message }
+          // Vienen de la más reciente a la más vieja: la primera de cada paciente ES su última
+          // consulta coincidente — la ultima_consulta del resultado sale de acá, sin otro viaje.
+          for (const c of (data ?? []) as { patient_id: string; chief_complaint: string | null; started_at: string }[]) {
+            if (!ultimaConsulta.has(c.patient_id))
+              ultimaConsulta.set(c.patient_id, { fecha: c.started_at, motivo: c.chief_complaint })
+          }
+          // Tope de 100 ids: PostgREST pasa el `in` por query string y sin tope la URL crece sin límite.
+          idsPorMotivo = [...ultimaConsulta.keys()].slice(0, 100)
+          if (!idsPorMotivo.length)
+            return {
+              count: 0,
+              patients: [],
+              note: `Ninguna consulta de los últimos ${dias_atras} días menciona "${motivo_o_sintomas}". Probá con otra palabra o una ventana mayor.`,
+            }
+        }
+
+        type Candidato = {
+          id: string
+          name: string
+          species: string
+          breed: string | null
+          sex: string | null
+          birth_date: string | null
+          owner: { full_name: string } | null
+        }
+        // Como en las demás tools de lectura: sin .eq('clinic_id') explícito — el cliente es el del
+        // vet y RLS ya acota todo a su clínica.
+        let q = supabase
+          .from("patients")
+          .select("id, name, species, breed, sex, birth_date, owner:owners(full_name)", { count: "exact" })
+        if (idsPorMotivo) q = q.in("id", idsPorMotivo)
+        if (species) {
+          const key = species.trim().toLowerCase()
+          q = q.ilike("species", ESPECIE_DB[key] ?? key)
+        }
+        if (breed) q = q.ilike("breed", `%${escapeLike(breed)}%`)
+        if (sex) q = q.eq("sex", sex === "macho" ? "male" : "female")
+        // La edad no está materializada: se traduce a cotas sobre birth_date. "Entre 2 y 5 años" =
+        // nació hace ≤6 y ≥2 años; el día exacto del cumpleaños no importa para candidatear.
+        if (edad_min_anios != null) q = q.lte("birth_date", fechaHaceAnios(edad_min_anios))
+        if (edad_max_anios != null) q = q.gte("birth_date", fechaHaceAnios(edad_max_anios + 1))
+        // Con motivo NO se limita acá: el orden útil es "consulta coincidente más reciente primero",
+        // y ese dato no está en patients — se ordena abajo con lo que ya trajo consultations.
+        if (!idsPorMotivo) q = q.order("name").limit(10)
+        const { data: pacientes, count, error } = await q
+        if (error) return { error: error.message }
+        let rows = (pacientes ?? []) as unknown as Candidato[]
+
+        if (idsPorMotivo) {
+          rows.sort((a, b) =>
+            (ultimaConsulta.get(b.id)?.fecha ?? "").localeCompare(ultimaConsulta.get(a.id)?.fecha ?? ""),
+          )
+          rows = rows.slice(0, 10)
+        } else if (rows.length) {
+          // Camino directo por ficha: UNA consulta extra trae las últimas consultas de los 10
+          // candidatos juntos (PostgREST no tiene DISTINCT ON: se trae ordenado y gana la primera
+          // de cada paciente). Acá no se acota por dias_atras — es contexto, no filtro.
+          const { data } = await supabase
+            .from("consultations")
+            .select("patient_id, chief_complaint, started_at")
+            .in("patient_id", rows.map((p) => p.id))
+            .order("started_at", { ascending: false })
+            .limit(100)
+          for (const c of (data ?? []) as { patient_id: string; chief_complaint: string | null; started_at: string }[]) {
+            if (!ultimaConsulta.has(c.patient_id))
+              ultimaConsulta.set(c.patient_id, { fecha: c.started_at, motivo: c.chief_complaint })
+          }
+        }
+
+        const total = count ?? rows.length
+        return {
+          count: rows.length,
+          // `total` solo cuando quedaron candidatos afuera: es la señal de "hay más, afiná la búsqueda".
+          ...(total > rows.length ? { total } : {}),
+          patients: rows.map((p) => ({
+            patient_id: p.id,
+            name: p.name,
+            species: p.species,
+            breed: p.breed,
+            sex: p.sex,
+            edad_anios: edadAnios(p.birth_date),
+            owner: p.owner?.full_name ?? null,
+            ultima_consulta: ultimaConsulta.get(p.id) ?? null,
           })),
         }
       },

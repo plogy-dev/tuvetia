@@ -135,6 +135,7 @@ describe("inventario de tools — cobertura y separación lectura/escritura", ()
 
   const LECTURA = [
     "search_patients",
+    "search_patients_by_features",
     "get_patient_summary",
     "get_owner_by_phone",
     "list_appointments_on_day",
@@ -159,7 +160,7 @@ describe("inventario de tools — cobertura y separación lectura/escritura", ()
     "update_patient_record",
   ]
 
-  it("expone exactamente las 21 tools esperadas", () => {
+  it("expone exactamente las 22 tools esperadas", () => {
     expect(Object.keys(tools).sort()).toEqual([...LECTURA, ...ESCRITURA].sort())
   })
 

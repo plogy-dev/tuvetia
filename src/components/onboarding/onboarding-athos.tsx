@@ -15,7 +15,7 @@
 // El agente propone y el vet aprueba, igual que en el resto del producto: nada de lo que Athos
 // sugiera acá se ejecuta solo.
 
-import { useEffect, useRef, useState } from "react"
+import { useEffect, useRef, useState, useSyncExternalStore } from "react"
 import { useChat } from "@ai-sdk/react"
 import { DefaultChatTransport } from "ai"
 import { Bot, Loader2, SendHorizontal, Sparkles } from "lucide-react"
@@ -35,11 +35,37 @@ const SUGERENCIAS = [
   "¿Qué hago después de configurar la clínica?",
 ]
 
+// TARJETA CONTEXTUAL: un texto FIJO por paso del wizard (pedido de la reunión del 24-ago: "que ese
+// Athos que acompaña acompañe de verdad"). Acompaña porque habla de lo que el vet tiene DELANTE en
+// cada paso — pero sin IA: texto quemado, cero llamadas de red, cero tokens. Cada texto dice para
+// qué sirve el paso y qué desbloquea, que es lo que el wizard no tiene espacio para contar.
+//
+// El índice sigue a `PASOS` de `welcome-wizard.tsx` (Clínica, Horarios, Servicios, Primer paciente,
+// Ejemplo, Equipo). Si allá se agrega o reordena un paso, esto se actualiza a mano — por eso el
+// comentario por posición en cada línea.
+const TARJETAS_POR_PASO = [
+  /* Clínica */ "Este nombre y logo aparecen en tus documentos y recordatorios. Con el nombre ya alcanza para arrancar; el logo se puede sumar después.",
+  /* Horarios */ "Tus horarios son los que me dejan ofrecer espacios libres y agendar citas por ti. Ya vienen llenos con lo habitual: ajusta solo lo que no cuadre.",
+  /* Servicios */ "Con al menos un servicio con precio ya puedes facturar. Los nombres vienen sugeridos; tú solo les pones tu precio.",
+  /* Primer paciente */ "Carga tu primer paciente para ver la ficha completa en acción. Después puedes importar el resto desde Excel.",
+  /* Ejemplo */ "Luna es una paciente de ejemplo, con consulta transcrita y nota en borrador, para que explores sin miedo a romper nada. La borras cuando quieras.",
+  /* Equipo */ "Invita a un colega con su correo y entra con su propia cuenta. Este paso se puede saltar: también puedes invitar después desde Configuración.",
+] as const
+
 // EL PLAN LLEGA POR PROP, NO POR CONTEXTO, y no es un descuido: `PlanProvider` sólo envuelve
 // `/dashboard`, y esta pantalla vive fuera. Con `useCapacidad` acá se leería el default del
 // contexto —`free`, que es el correcto para "ante la duda, negar"— y una clínica Pro vería el muro
 // de pago en su primera pantalla. La página ya lee la clínica: el plan viaja en ese mismo select.
-export function OnboardingAthos({ clinicName, plan }: { clinicName: string; plan: Plan }) {
+export function OnboardingAthos({
+  clinicName,
+  plan,
+  paso,
+}: {
+  clinicName: string
+  plan: Plan
+  /** Paso actual del wizard (índice en sus `PASOS`). Mueve la tarjeta contextual; el chat no lo usa. */
+  paso: number
+}) {
   const puedeUsarAthos = tieneAcceso(plan, "athos")
   const { pedirPro, ventana } = useModalPro("athos")
   const [input, setInput] = useState("")
@@ -93,6 +119,10 @@ export function OnboardingAthos({ clinicName, plan }: { clinicName: string; plan
           </p>
         </div>
       </header>
+
+      {/* La tarjeta va FUERA del hilo con scroll: acompaña al paso actual del wizard, así que tiene
+          que seguir a la vista aunque el chat crezca. El chat de abajo no cambia en nada. */}
+      <TarjetaDePaso paso={paso} />
 
       <div ref={hiloRef} className="min-h-0 flex-1 space-y-3 overflow-y-auto px-4 py-3">
         {messages.length === 0 && (
@@ -152,5 +182,67 @@ export function OnboardingAthos({ clinicName, plan }: { clinicName: string; plan
       </div>
     </aside>
     </>
+  )
+}
+
+// `prefers-reduced-motion` como suscripción externa y no como chequeo dentro del efecto: el render
+// necesita saberlo (quien pidió quietud no debe ver los punticos NI un frame), en el efecto no se
+// puede setear estado síncrono (regla `react-hooks/set-state-in-effect`), y de paso el valor se
+// actualiza si el usuario cambia la preferencia con la página abierta.
+const QUIETO = "(prefers-reduced-motion: reduce)"
+function suscribirQuieto(avisar: () => void) {
+  const mq = window.matchMedia(QUIETO)
+  mq.addEventListener("change", avisar)
+  return () => mq.removeEventListener("change", avisar)
+}
+
+/**
+ * La tarjeta contextual con su teatrito de "escribiendo".
+ *
+ * Al cambiar de paso muestra ~600 ms de tres punticos y recién entonces el texto — hace sentir que
+ * Athos reacciona a lo que el vet acaba de hacer, sin gastar un token: es CSS y un timeout, cero
+ * red. Con `prefers-reduced-motion` no hay teatro y el texto aparece directo.
+ */
+function TarjetaDePaso({ paso }: { paso: number }) {
+  // Fuera de rango no debería pasar (el wizard tiene 6 pasos), pero un paso nuevo allá no puede
+  // dejar esta tarjeta en blanco: ante la duda se cae al texto de "Clínica", que es el más general.
+  const texto = TARJETAS_POR_PASO[paso] ?? TARJETAS_POR_PASO[0]
+
+  // En el servidor la preferencia no se conoce: se asume quietud, que renderiza el texto directo —
+  // el default que no le molesta a nadie mientras el cliente hidrata y responde de verdad.
+  const prefiereQuieto = useSyncExternalStore(
+    suscribirQuieto,
+    () => window.matchMedia(QUIETO).matches,
+    () => true,
+  )
+
+  // `pasoMostrado` corre DETRÁS de `paso`: mientras no lo alcanza, la tarjeta está "escribiendo".
+  // El estado se deriva así porque todo setState debe pasar por el timeout (asíncrono), nunca por
+  // el cuerpo del efecto. Con quietud el timer es de 0 ms: no anima, pero DEJA SINCRONIZADO
+  // `pasoMostrado` — si la preferencia cambiara después, no quedan punticos colgados sin timer que
+  // los apague.
+  const [pasoMostrado, setPasoMostrado] = useState(paso)
+  useEffect(() => {
+    if (pasoMostrado === paso) return
+    const t = window.setTimeout(() => setPasoMostrado(paso), prefiereQuieto ? 0 : 600)
+    return () => window.clearTimeout(t)
+  }, [paso, pasoMostrado, prefiereQuieto])
+
+  const escribiendo = !prefiereQuieto && pasoMostrado !== paso
+
+  // `aria-live` para que el lector de pantalla anuncie el texto nuevo al avanzar de paso; los
+  // punticos van con `aria-hidden` para que ese anuncio no sea "cargando" tres veces.
+  return (
+    <div className="border-b bg-muted/40 px-4 py-3" aria-live="polite">
+      {escribiendo ? (
+        <span className="flex min-h-8 items-center gap-1" aria-hidden>
+          <span className="size-1.5 animate-bounce rounded-full bg-muted-foreground [animation-delay:-0.3s]" />
+          <span className="size-1.5 animate-bounce rounded-full bg-muted-foreground [animation-delay:-0.15s]" />
+          <span className="size-1.5 animate-bounce rounded-full bg-muted-foreground" />
+        </span>
+      ) : (
+        <p className="min-h-8 text-xs leading-relaxed text-muted-foreground">{texto}</p>
+      )}
+    </div>
   )
 }
