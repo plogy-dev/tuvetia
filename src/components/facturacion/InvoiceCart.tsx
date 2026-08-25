@@ -3,7 +3,16 @@
 import { useEffect, useMemo, useRef, useState, useTransition } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { AlertTriangle, ChevronDown, ChevronUp, Plus, Save, Search, Trash2 } from 'lucide-react';
+import {
+  AlertTriangle,
+  ChevronDown,
+  ChevronUp,
+  Plus,
+  Save,
+  ScanBarcode,
+  Search,
+  Trash2,
+} from 'lucide-react';
 import { createInvoiceDraft, type CreateDraftInput } from '@/lib/facturacion/actions';
 import {
   computeLineAmounts,
@@ -14,6 +23,7 @@ import {
   roundHalfUp,
 } from '@/lib/facturacion/domain/money';
 import { checkPosThreshold } from '@/lib/facturacion/domain/dian-rules';
+import { buscarPorCodigo } from '@/lib/facturacion/buscar-por-codigo';
 import type { DocKind } from '@/lib/facturacion/domain/types';
 import type { CatalogItemRow, PaymentTerms } from '@/lib/supabase/types';
 
@@ -147,6 +157,38 @@ export function InvoiceCart({
    * conjunto de «abiertas» habría que acordarse de agregarla en los tres sitios que crean líneas.
    */
   const [plegadas, setPlegadas] = useState<Set<number>>(() => new Set())
+
+  // ── El lector de código de barras ───────────────────────────────────────────────────────────
+  const [escaneando, setEscaneando] = useState(false)
+  const [codigo, setCodigo] = useState('')
+  const [avisoDelEscaner, setAvisoDelEscaner] = useState<
+    { tono: 'ok' | 'mal'; texto: string } | null
+  >(null)
+  const campoDelEscaner = useRef<HTMLInputElement | null>(null)
+
+  function leerCodigo() {
+    const r = buscarPorCodigo(items, codigo)
+    if (r.tipo === 'vacio') return
+    if (r.tipo === 'encontrado') {
+      addCatalogLine(r.item.id)
+      setAvisoDelEscaner({ tono: 'ok', texto: `Agregado: ${r.item.name}` })
+    } else if (r.tipo === 'ambiguo') {
+      // NO se elige uno: facturaría el producto equivocado y no se descubre hasta que el
+      // inventario no cuadra. Es un error de datos que la clínica puede arreglar — si se lo dicen.
+      setAvisoDelEscaner({
+        tono: 'mal',
+        texto: `Hay ${r.items.length} productos con ese código (${r.items
+          .map((i) => i.name)
+          .join(', ')}). Corregilo en el catálogo.`,
+      })
+    } else {
+      setAvisoDelEscaner({ tono: 'mal', texto: `«${codigo.trim()}» no está en el catálogo.` })
+    }
+    // Se limpia y se queda listo para la siguiente, con o sin acierto: en un mostrador se escanean
+    // varias cosas seguidas y volver a hacer clic entre una y otra convierte el lector en estorbo.
+    setCodigo('')
+    campoDelEscaner.current?.focus()
+  }
 
   function alternarPlegada(key: number) {
     setPlegadas((prev) => {
@@ -433,6 +475,22 @@ export function InvoiceCart({
         <CatalogPicker items={items} onPick={addCatalogLine} />
         <button
           type="button"
+          onClick={() => {
+            setEscaneando((v) => !v)
+            setAvisoDelEscaner(null)
+          }}
+          aria-pressed={escaneando}
+          className={`inline-flex items-center gap-1.5 rounded-lg border px-3 py-2 text-sm transition ${
+            escaneando
+              ? 'border-brand bg-brand/10 text-brand'
+              : 'border-line bg-surface text-fg-muted hover:bg-surface-2 hover:text-fg'
+          }`}
+        >
+          <ScanBarcode className="size-4" aria-hidden />
+          Desde escáner
+        </button>
+        <button
+          type="button"
           onClick={addManualLine}
           className="inline-flex items-center gap-1.5 rounded-lg border border-line bg-surface px-3 py-2 text-sm text-fg-muted hover:bg-surface-2 hover:text-fg transition"
         >
@@ -440,6 +498,56 @@ export function InvoiceCart({
           Agregar
         </button>
       </div>
+
+      {/* ── DESDE ESCÁNER ────────────────────────────────────────────────────────────────────
+          Un lector USB es un TECLADO: teclea el código muy rápido y manda Enter. No hay API que
+          pedir ni permiso que dar — sólo hace falta un campo enfocado y saber qué hacer con lo que
+          llega. Por eso esto es un input y no una integración.
+
+          EL CAMPO NO PIERDE EL FOCO entre lecturas: en un mostrador se escanean cuatro cosas
+          seguidas, y tener que volver a hacer clic entre una y otra convierte el lector en un
+          estorbo. Se limpia y se queda listo para la siguiente.
+
+          ESCANEAR LO MISMO DOS VECES SUMA CANTIDAD, no agrega una línea repetida — es lo que ya
+          hacía `addCatalogLine` y acá es exactamente el comportamiento que se quiere: dos frascos
+          iguales son cantidad 2. */}
+      {escaneando && (
+        <div className="rounded-xl border border-brand/40 bg-surface-2 p-3">
+          <label htmlFor="codigo-escaneado" className="block text-[11.5px] font-medium text-fg-muted">
+            Escaneá el código
+          </label>
+          <input
+            id="codigo-escaneado"
+            ref={campoDelEscaner}
+            autoFocus
+            value={codigo}
+            onChange={(e) => setCodigo(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key !== "Enter") return
+              // El lector manda Enter al terminar. Sin esto, en algunos navegadores dispara el
+              // botón por defecto de la zona — que acá es «Guardar».
+              e.preventDefault()
+              leerCodigo()
+            }}
+            placeholder="El lector escribe acá y agrega solo"
+            className="mt-1 w-full rounded-lg border border-line bg-surface px-3 py-2 font-mono text-sm text-fg placeholder:font-sans placeholder:text-fg-faint outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
+          />
+          {avisoDelEscaner && (
+            <p
+              className={`mt-1.5 text-xs ${
+                avisoDelEscaner.tono === "ok" ? "text-ok" : "text-warn"
+              }`}
+            >
+              {avisoDelEscaner.texto}
+            </p>
+          )}
+          <p className="mt-1.5 text-xs text-fg-faint">
+            Sirve con el código de barras del producto o con su referencia. Escanear lo mismo dos
+            veces suma cantidad.
+          </p>
+        </div>
+      )}
+
 
       {lines.length === 0 ? (
         <p className="rounded-xl border border-dashed border-line px-4 py-8 text-center text-sm text-fg-faint">
