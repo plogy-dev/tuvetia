@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState, useTransition } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { AlertTriangle, Plus, Save, Search, Trash2 } from 'lucide-react';
+import { AlertTriangle, ChevronDown, ChevronUp, Plus, Save, Search, Trash2 } from 'lucide-react';
 import { createInvoiceDraft, type CreateDraftInput } from '@/lib/facturacion/actions';
 import {
   computeLineAmounts,
@@ -139,7 +139,23 @@ export function InvoiceCart({
   const [notes, setNotes] = useState('');
   // Arranca DESPUÉS de las líneas sembradas, o la primera que se agregue a mano pisaría la clave
   // de una de ellas y React reusaría la fila equivocada.
-  const [nextKey, setNextKey] = useState((renglonesIniciales?.length ?? 0) + 1);
+  const [nextKey, setNextKey] = useState((renglonesIniciales?.length ?? 0) + 1)
+  /**
+   * Qué tarjetas están plegadas, por clave de línea.
+   *
+   * Se guarda lo PLEGADO y no lo desplegado: una línea nueva tiene que aparecer abierta, y con un
+   * conjunto de «abiertas» habría que acordarse de agregarla en los tres sitios que crean líneas.
+   */
+  const [plegadas, setPlegadas] = useState<Set<number>>(() => new Set())
+
+  function alternarPlegada(key: number) {
+    setPlegadas((prev) => {
+      const siguiente = new Set(prev)
+      if (siguiente.has(key)) siguiente.delete(key)
+      else siguiente.add(key)
+      return siguiente
+    })
+  };
 
   const itemById = useMemo(() => new Map(items.map((i) => [i.id, i])), [items]);
 
@@ -430,126 +446,183 @@ export function InvoiceCart({
           Busca un producto/servicio o agrega una línea libre.
         </p>
       ) : (
-        <div className="overflow-x-auto rounded-xl border border-line bg-surface">
-          <table className="w-full min-w-[760px] text-left text-sm">
-            <thead className="border-b border-line text-xs text-fg-faint">
-              <tr>
-                <th className="px-4 py-2 font-medium">Concepto</th>
-                <th className="px-2 py-2 font-medium">Valor unitario</th>
-                <th className="px-2 py-2 font-medium">Descuento</th>
-                <th className="px-2 py-2 font-medium">Cantidad</th>
-                <th className="px-2 py-2 font-medium">IVA</th>
-                <th className="px-2 py-2 text-right font-medium">Monto</th>
-                <th className="px-2 py-2" />
-              </tr>
-            </thead>
-            <tbody>
-              {lines.map((l, idx) => {
-                // Del cálculo de arriba, no de un recálculo acá: si esta fila volviera a computar
-                // por su cuenta ignoraría el descuento global prorrateado y mostraría un monto de
-                // línea que no suma al total de la cuenta.
-                const amounts = calculo.montos?.[idx] ?? null;
-                return (
-                  <tr key={l.key} className="border-b border-line/60 last:border-0">
-                    <td className="px-4 py-2">
-                      {l.catalogItemId ? (
-                        <span className="text-fg">{l.description}</span>
+        /* ── CADA LÍNEA ES UNA TARJETA DE DOS FILAS, como en la referencia ────────────────────
+           Arriba lo que se teclea en toda venta —concepto, valor unitario, descuento, cantidad— y
+           el monto calculado; abajo lo tributario, que casi nunca se toca.
+
+           NO ES SÓLO FIDELIDAD. La tabla que había medía 760 px de ancho mínimo y se desplazaba en
+           horizontal: en un portátil de recepción, «Monto» quedaba fuera de la pantalla mientras se
+           tecleaba la cantidad. Una tarjeta se acomoda al ancho que haya.
+
+           Y SE PUEDEN PLEGAR: una cuenta de ocho renglones son ocho tarjetas, y a partir de la
+           tercera lo único que importa de las anteriores es el concepto y cuánto suman. */
+        <ul className="space-y-2">
+          {lines.map((l, idx) => {
+            // Del cálculo de arriba, no de un recálculo acá: si esta tarjeta volviera a computar
+            // por su cuenta ignoraría el descuento global prorrateado y mostraría un monto de línea
+            // que no suma al total de la cuenta.
+            const amounts = calculo.montos?.[idx] ?? null
+            const plegada = plegadas.has(l.key)
+            const base = amounts ? amounts.subtotalCents - amounts.discountCents : null
+            return (
+              <li key={l.key} className="rounded-xl border border-line bg-surface p-3">
+                <div className="mb-2 flex items-start justify-between gap-2">
+                  <span className="min-w-0 flex-1 truncate text-sm font-medium text-fg">
+                    {l.description || <span className="text-fg-faint">Línea sin descripción</span>}
+                  </span>
+                  <span className="flex shrink-0 items-center gap-1">
+                    {plegada && amounts && (
+                      <span className="mr-1 font-mono text-sm tabular-nums text-fg">
+                        {formatCOP(amounts.totalCents)}
+                      </span>
+                    )}
+                    <button
+                      type="button"
+                      onClick={() => alternarPlegada(l.key)}
+                      aria-expanded={!plegada}
+                      aria-label={plegada ? "Desplegar la línea" : "Plegar la línea"}
+                      className="rounded-md p-1 text-fg-faint transition hover:bg-surface-2 hover:text-fg"
+                    >
+                      {plegada ? (
+                        <ChevronDown className="size-4" aria-hidden />
                       ) : (
-                        <input
-                          value={l.description}
-                          onChange={(e) => updateLine(l.key, { description: e.target.value })}
-                          placeholder="Descripción del servicio/producto"
-                          className="w-full rounded-md border border-line bg-surface px-2 py-1 text-sm text-fg placeholder:text-fg-faint outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
-                        />
+                        <ChevronUp className="size-4" aria-hidden />
                       )}
-                    </td>
-                    <td className="px-2 py-2">
-                      {l.catalogItemId ? (
-                        <span className="text-fg-muted">{formatCOP(l.unitPriceCents)}</span>
-                      ) : (
-                        <input
-                          type="number"
-                          min={0}
-                          step={100}
-                          value={l.unitPriceCents / 100}
-                          onChange={(e) =>
-                            updateLine(l.key, {
-                              unitPriceCents: Math.round(Number(e.target.value) * 100),
-                            })
-                          }
-                          className="w-28 rounded-md border border-line bg-surface px-2 py-1 text-sm text-fg outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
-                        />
-                      )}
-                    </td>
-                    <td className="px-2 py-2">
-                      {/* En PORCENTAJE, como la referencia — y editable también en líneas de
-                          catálogo, que es justamente el caso normal de un descuento. */}
-                      <div className="flex items-center">
-                        <input
-                          type="number"
-                          min={0}
-                          max={100}
-                          step={1}
-                          value={l.discountPct}
-                          onChange={(e) =>
-                            updateLine(l.key, {
-                              discountPct: Math.min(100, Math.max(0, Number(e.target.value))),
-                            })
-                          }
-                          aria-label={`Descuento de ${l.description || 'la línea'}, en porcentaje`}
-                          className="w-16 rounded-l-md border border-line bg-surface px-2 py-1 text-sm text-fg outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
-                        />
-                        <span className="rounded-r-md border border-l-0 border-line bg-surface-2 px-2 py-1 text-xs text-fg-faint">
-                          %
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => removeLine(l.key)}
+                      className="rounded-md p-1 text-fg-faint transition hover:bg-surface-2 hover:text-warn"
+                      aria-label="Quitar línea"
+                    >
+                      <Trash2 className="size-4" aria-hidden />
+                    </button>
+                  </span>
+                </div>
+
+                {!plegada && (
+                  <>
+                    {/* Fila 1 — lo que se teclea en toda venta. */}
+                    <div className="grid gap-3 sm:grid-cols-[1fr_130px_110px_100px_auto]">
+                      <label className="flex flex-col gap-1">
+                        <span className="text-[11.5px] font-medium text-fg-faint">Concepto</span>
+                        {l.catalogItemId ? (
+                          <span className="py-1.5 text-sm text-fg">{l.description}</span>
+                        ) : (
+                          <input
+                            value={l.description}
+                            onChange={(e) => updateLine(l.key, { description: e.target.value })}
+                            placeholder="Descripción del servicio/producto"
+                            className="rounded-md border border-line bg-surface px-2 py-1.5 text-sm text-fg placeholder:text-fg-faint outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
+                          />
+                        )}
+                      </label>
+
+                      <label className="flex flex-col gap-1">
+                        <span className="text-[11.5px] font-medium text-fg-faint">Valor unitario</span>
+                        {l.catalogItemId ? (
+                          <span className="py-1.5 font-mono text-sm tabular-nums text-fg-muted">
+                            {formatCOP(l.unitPriceCents)}
+                          </span>
+                        ) : (
+                          <input
+                            type="number"
+                            min={0}
+                            step={100}
+                            value={l.unitPriceCents / 100}
+                            onChange={(e) =>
+                              updateLine(l.key, {
+                                unitPriceCents: Math.round(Number(e.target.value) * 100),
+                              })
+                            }
+                            className="rounded-md border border-line bg-surface px-2 py-1.5 text-sm text-fg outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
+                          />
+                        )}
+                      </label>
+
+                      <label className="flex flex-col gap-1">
+                        <span className="text-[11.5px] font-medium text-fg-faint">Descuento</span>
+                        {/* En PORCENTAJE, como la referencia — y editable también en líneas de
+                            catálogo, que es justamente el caso normal de un descuento. */}
+                        <span className="flex items-center">
+                          <input
+                            type="number"
+                            min={0}
+                            max={100}
+                            step={1}
+                            value={l.discountPct}
+                            onChange={(e) =>
+                              updateLine(l.key, {
+                                discountPct: Math.min(100, Math.max(0, Number(e.target.value))),
+                              })
+                            }
+                            aria-label={`Descuento de ${l.description || "la línea"}, en porcentaje`}
+                            className="w-full rounded-l-md border border-line bg-surface px-2 py-1.5 text-sm text-fg outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
+                          />
+                          <span className="rounded-r-md border border-l-0 border-line bg-surface-2 px-2 py-1.5 text-xs text-fg-faint">
+                            %
+                          </span>
                         </span>
-                      </div>
-                    </td>
-                    <td className="px-2 py-2">
-                      <input
-                        type="number"
-                        min={0.25}
-                        step={0.25}
-                        value={l.qty}
-                        onChange={(e) => updateLine(l.key, { qty: Number(e.target.value) })}
-                        aria-label={`Cantidad de ${l.description || 'la línea'}`}
-                        className="w-20 rounded-md border border-line bg-surface px-2 py-1 text-sm text-fg outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
-                      />
-                    </td>
-                    <td className="px-2 py-2">
-                      {l.catalogItemId ? (
-                        <span className="text-fg-muted">{l.taxRate}%</span>
-                      ) : (
-                        <select
-                          value={l.taxRate}
-                          onChange={(e) => updateLine(l.key, { taxRate: Number(e.target.value) })}
-                          aria-label={`IVA de ${l.description || 'la línea'}`}
-                          className="rounded-md border border-line bg-surface px-2 py-1 text-sm text-fg outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
-                        >
-                          <option value={0}>0%</option>
-                          <option value={5}>5%</option>
-                          <option value={19}>19%</option>
-                        </select>
-                      )}
-                    </td>
-                    <td className="px-2 py-2 text-right text-fg">
-                      {amounts ? formatCOP(amounts.totalCents) : '—'}
-                    </td>
-                    <td className="px-2 py-2 text-right">
-                      <button
-                        type="button"
-                        onClick={() => removeLine(l.key)}
-                        className="rounded-md p-1 text-fg-faint hover:bg-surface-2 hover:text-warn transition"
-                        aria-label="Quitar línea"
-                      >
-                        <Trash2 className="size-4" aria-hidden />
-                      </button>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
+                      </label>
+
+                      <label className="flex flex-col gap-1">
+                        <span className="text-[11.5px] font-medium text-fg-faint">Cantidad</span>
+                        <input
+                          type="number"
+                          min={0.25}
+                          step={0.25}
+                          value={l.qty}
+                          onChange={(e) => updateLine(l.key, { qty: Number(e.target.value) })}
+                          aria-label={`Cantidad de ${l.description || "la línea"}`}
+                          className="rounded-md border border-line bg-surface px-2 py-1.5 text-sm text-fg outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
+                        />
+                      </label>
+
+                      <span className="flex flex-col gap-1 sm:items-end">
+                        <span className="text-[11.5px] font-medium text-fg-faint">Monto</span>
+                        <span className="py-1.5 font-mono text-sm font-medium tabular-nums text-fg">
+                          {amounts ? formatCOP(amounts.totalCents) : "—"}
+                        </span>
+                      </span>
+                    </div>
+
+                    {/* Fila 2 — lo tributario. Va abajo porque casi nunca se toca: en una línea de
+                        catálogo el IVA ya viene del ítem, y el valor base es un cálculo. */}
+                    <div className="mt-3 grid gap-3 border-t border-line-soft pt-3 sm:grid-cols-[130px_1fr]">
+                      <label className="flex flex-col gap-1">
+                        <span className="text-[11.5px] font-medium text-fg-faint">IVA</span>
+                        {l.catalogItemId ? (
+                          <span className="py-1.5 text-sm text-fg-muted">{l.taxRate}%</span>
+                        ) : (
+                          <select
+                            value={l.taxRate}
+                            onChange={(e) => updateLine(l.key, { taxRate: Number(e.target.value) })}
+                            aria-label={`IVA de ${l.description || "la línea"}`}
+                            className="rounded-md border border-line bg-surface px-2 py-1.5 text-sm text-fg outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
+                          >
+                            <option value={0}>0%</option>
+                            <option value={5}>5%</option>
+                            <option value={19}>19%</option>
+                          </select>
+                        )}
+                      </label>
+
+                      <span className="flex flex-col gap-1">
+                        <span className="text-[11.5px] font-medium text-fg-faint">Valor base</span>
+                        {/* Sobre esto se liquida el IVA: subtotal menos el descuento, incluida la
+                            parte prorrateada del global. Mostrarlo es lo que deja ver POR QUÉ el
+                            impuesto da lo que da. */}
+                        <span className="py-1.5 font-mono text-sm tabular-nums text-fg-muted">
+                          {base !== null ? formatCOP(base) : "—"}
+                        </span>
+                      </span>
+                    </div>
+                  </>
+                )}
+              </li>
+            )
+          })}
+        </ul>
       )}
 
       {/* Descuento global y su razón, uno al lado del otro como en la referencia. */}
