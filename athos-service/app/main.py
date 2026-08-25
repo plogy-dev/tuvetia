@@ -100,6 +100,14 @@ def phantom_suggest(body: PhantomSuggestRequest, authorization: str | None = Hea
     return phantom_suggest_service(body.consultation_id, clinic_id, user_id)
 
 
+def _year_or_none(raw) -> int | None:
+    """El `year` del metadata viene como texto ("2022") y a veces vacío o sucio."""
+    try:
+        return int(raw) if raw not in (None, "") else None
+    except (TypeError, ValueError):
+        return None
+
+
 @app.post("/athos/retrieve", response_model=RetrieveResponse)
 def athos_retrieve(body: RetrieveRequest, authorization: str | None = Header(default=None)):
     """Retrieval para el agente de Next (tool search_clinical_evidence): cascada + juez, sin redacción.
@@ -129,6 +137,11 @@ def athos_retrieve(body: RetrieveRequest, authorization: str | None = Header(def
                 locator=c.locator,
                 score=c.score,
                 excerpt=c.content[:600],
+                # Identidad citable (estudio/revista/link): lo que el agente muestra como fuente.
+                title=(c.metadata or {}).get("titulo") or (c.metadata or {}).get("title"),
+                url=(c.metadata or {}).get("url"),
+                year=_year_or_none((c.metadata or {}).get("year")),
+                journal=(c.metadata or {}).get("fuente"),
             )
             for c in chunks[:8]
         ],

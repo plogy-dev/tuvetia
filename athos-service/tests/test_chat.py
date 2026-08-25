@@ -45,11 +45,17 @@ def test_cited_enriquece_url_title_year_desde_el_chunk():
     assert c.title == "CKD in cats" and c.year == 2020
 
 
-def test_format_numbered_enumera_desde_1():
-    txt = _format_numbered(_lit())
-    assert "[1] fuente=PubMed" in txt
-    assert "[2] fuente=PMC OA" in txt
-    assert "[3] fuente=PubMed" in txt
+def test_format_numbered_enumera_desde_1_y_nombra_el_estudio():
+    """La cabecera de cada pasaje es el ESTUDIO (título — revista, año), no la base de datos:
+    con `fuente=PubMed` el modelo escribía "según PubMed" (decisión de producto, reunión 24-ago).
+    Sin metadata, cae al `source` como último recurso."""
+    lit = _lit()
+    lit[0].metadata = {"titulo": "Canine renal disease outcomes", "fuente": "JVIM", "year": "2021"}
+    txt = _format_numbered(lit)
+    assert "[1] «Canine renal disease outcomes» — JVIM, 2021" in txt
+    assert "fuente=PubMed" not in txt          # el formato viejo no vuelve
+    assert "[2] «PMC OA»" in txt               # sin metadata: fallback al source
+    assert "[3] «PubMed»" in txt
 
 
 def test_format_numbered_vacio():

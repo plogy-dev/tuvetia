@@ -75,6 +75,9 @@ CHAT_SYSTEM = (
     "- Menciona los CRITERIOS DE ALARMA: qué hallazgo cambiaría la conducta o exigiría "
     "hospitalización/derivación urgente.\n"
     "- Si el cuadro admite coinfecciones o el tratamiento cambia según el resultado, dilo.\n"
+    "- Si nombras una fuente en el texto, nombra el ESTUDIO o la REVISTA (como aparece en la "
+    "cabecera del pasaje), nunca la base de datos: no escribas 'PubMed', 'PMC' ni 'la base de "
+    "datos'. El número [n] basta; el nombre es para cuando aporta ('un estudio en JFMS de 2022').\n"
     "No expliques lo obvio: tu interlocutor es veterinario. Prefiere ser útil a ser exhaustivo."
 )
 
@@ -85,11 +88,20 @@ def _sse(obj: dict) -> str:
 
 def _format_numbered(literature) -> str:
     """Presenta la literatura con referencias numeradas [1], [2]... (el modelo cita por número,
-    más fiable que copiar chunk_id crudos). El índice mapea de vuelta al chunk en _cited_from_answer."""
+    más fiable que copiar chunk_id crudos). El índice mapea de vuelta al chunk en _cited_from_answer.
+
+    La cabecera de cada pasaje es el ESTUDIO (título — revista, año), no la base de datos: antes
+    decía `fuente=PubMed` y el modelo escribía "según PubMed" en las respuestas (reunión 24-ago:
+    la fuente citable es el artículo/la revista; la base de datos ni se menciona)."""
     lines = []
     for i, c in enumerate(literature, 1):
+        md = c.metadata or {}
+        titulo = md.get("titulo") or md.get("title") or c.source or "?"
+        revista = md.get("fuente")
+        anio = md.get("year")
+        cabecera = f"«{titulo}»" + (f" — {revista}" if revista else "") + (f", {anio}" if anio else "")
         content = (c.content or "")[:_MAX_CHUNK_CHARS]
-        lines.append(f"[{i}] fuente={c.source or '?'} loc={c.locator or '?'}\n{content}")
+        lines.append(f"[{i}] {cabecera} (loc={c.locator or '?'})\n{content}")
     return "\n\n".join(lines) if lines else "(sin literatura suficiente)"
 
 
@@ -103,12 +115,24 @@ def _cited_from_answer(answer: str, literature, drop: frozenset[int] | None = No
     """
     used: list[Citation] = []
     seen: set[int] = set()
+    conteo: dict[int, int] = {}
     for m in re.findall(r"\[(\d+)\]", answer):
         n = int(m)
         i = n - 1
-        if 0 <= i < len(literature) and i not in seen and not (drop and n in drop):
+        if not (0 <= i < len(literature)) or (drop and n in drop):
+            continue
+        conteo[n] = conteo.get(n, 0) + 1
+        if i not in seen:
             seen.add(i)
-            used.append(Citation.from_chunk(literature[i]))
+            cita = Citation.from_chunk(literature[i])
+            cita.n = n
+            used.append(cita)
+    for cita in used:
+        cita.uses = conteo.get(cita.n or 0, 0)
+    # Más referenciada primero (a igualdad, orden de aparición): el front muestra las 2-3 de arriba
+    # y pliega el resto (reunión 24-ago: "no volcar los 18 documentos"). El marcador [n] de cada una
+    # viaja en `n`, así que reordenar no rompe el mapeo texto->cita.
+    used.sort(key=lambda c: -c.uses)
     return used
 
 

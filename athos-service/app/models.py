@@ -25,6 +25,12 @@ class Citation(BaseModel):
     url: str | None = None                 # link directo al artículo (del corpus: PubMed/DOI)
     title: str | None = None               # título del documento (para citar "un estudio de … dice …")
     year: int | None = None                # año de publicación
+    journal: str | None = None             # revista/publicación (metadata `fuente`): lo que se MUESTRA
+                                           # como origen — decisión de producto 2026-08-24: la fuente es
+                                           # el estudio/la revista, no la base de datos (PubMed/PMC)
+    n: int | None = None                   # número del marcador [n] en el texto (para que el front
+                                           # mapee marcador -> cita sin adivinar por posición)
+    uses: int = 0                          # cuántas veces la respuesta la referencia (relevancia UI)
 
     @classmethod
     def from_chunk(cls, chunk: "RetrievedChunk") -> "Citation":
@@ -39,6 +45,7 @@ class Citation(BaseModel):
         return cls(
             chunk_id=chunk.chunk_id, doc_id=chunk.doc_id, locator=chunk.locator, source=chunk.source,
             url=md.get("url"), title=md.get("titulo") or md.get("title"), year=year,
+            journal=md.get("fuente"),
         )
 
 
@@ -181,6 +188,13 @@ class RetrievedChunkLite(BaseModel):
     locator: str | None = None
     score: float = 0.0
     excerpt: str
+    # Identidad citable del documento (2026-08-25): sin esto el agente de Next solo sabía decir
+    # "PubMed" — no podía nombrar el estudio ni linkearlo. Decisión de producto (reunión 24-ago):
+    # la cita visible es el estudio/la revista con su link; la base de datos no se menciona.
+    title: str | None = None
+    url: str | None = None
+    year: int | None = None
+    journal: str | None = None
 
 
 class RetrieveResponse(BaseModel):
