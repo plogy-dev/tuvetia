@@ -356,15 +356,27 @@ const threadId = String(p.thread_id ?? "")
 
     case "update_appointment": {
       // La RPC reemplaza todos los campos: cargar la cita actual (RLS) y mergear los cambios.
+      // `es_bloqueo`, `tipo` y `sin_hora` VIAJAN AUNQUE VetGPT NO LOS TOQUE (0093).
+      //
+      // `update_appointment` reemplaza TODOS los campos, así que lo que no se le manda se pierde:
+      // sin estas tres, reprogramar desde VetGPT borraba el tipo de la cita —justo la
+      // clasificación por la que existe la función— y, peor, mover un BLOQUEO fallaba siempre.
+      // Un bloqueo no tiene paciente ni titular, así que al llegar `p_es_bloqueo` en su default
+      // `false` la RPC lo trataba como cita normal y cortaba con «El paciente es obligatorio», un
+      // error que el vet no puede resolver desde el chat. El cajón de la agenda sí se actualizó
+      // con la 0093; este llamador se quedó atrás.
       const { data: current, error: curErr } = await supabase
         .from("appointments")
-        .select("id, title, reason, status, starts_at, ends_at, patient_id, owner_id, vet_id, notes")
+        .select(
+          "id, title, reason, status, starts_at, ends_at, patient_id, owner_id, vet_id, notes, es_bloqueo, tipo, sin_hora",
+        )
         .eq("id", String(p.appointment_id))
         .maybeSingle()
       if (curErr || !current) throw new Error("No se encontró la cita a modificar")
       const cur = current as {
         title: string; reason: string | null; status: string; starts_at: string; ends_at: string
         patient_id: string | null; owner_id: string | null; vet_id: string | null; notes: string | null
+        es_bloqueo: boolean | null; tipo: string | null; sin_hora: boolean | null
       }
       const durationMin =
         (p.duration_min as number | undefined) ??
@@ -390,6 +402,10 @@ const threadId = String(p.thread_id ?? "")
         p_reason: p.reason !== undefined ? p.reason : cur.reason,
         p_status: (p.status as string | undefined) ?? cur.status,
         p_notes: p.notes !== undefined ? p.notes : cur.notes,
+        // Se reenvían tal como estaban: VetGPT reprograma, no reclasifica.
+        p_es_bloqueo: cur.es_bloqueo ?? false,
+        p_tipo: cur.tipo,
+        p_sin_hora: cur.sin_hora ?? false,
       })
       if (error) throw new Error(`No se pudo actualizar la cita: ${error.message}`)
       return { appointment_id: p.appointment_id as string }
