@@ -224,3 +224,57 @@ describe("una clínica free no recibe el demo del Modo Fantasma", () => {
     expect(insertados).toEqual(["owners", "patients"])
   })
 })
+
+// ── EL MODO COMPLETO ────────────────────────────────────────────────────────────────────────────
+//
+// Lo que se defiende acá es lo contrario de lo de arriba: que el modo nuevo **no exista** para
+// quien no lo pide. El asistente de bienvenida llama a este mismo endpoint para toda clínica nueva,
+// y si la siembra comercial se colara por ahí, una clínica real nacería con facturas emitidas —con
+// su consecutivo y su lugar en la historia— que nadie hizo.
+describe("el modo completo es opt-in", () => {
+  it("sin cuerpo no siembra nada comercial: es como llama el asistente", async () => {
+    const res = await POST()
+    const cuerpo = await res.json()
+
+    expect(res.status).toBe(200)
+    expect(cuerpo.completo).toBeUndefined()
+    // Ni catálogo, ni existencias, ni facturas: sólo las cinco de siempre.
+    expect(insertados).not.toContain("catalog_items")
+    expect(insertados).not.toContain("inventory_movements")
+    expect(insertados).not.toContain("invoices")
+  })
+
+  it("con `completo: false` tampoco — sólo el `true` explícito cuenta", async () => {
+    const req = new Request("http://x/api", {
+      method: "POST",
+      body: JSON.stringify({ completo: false }),
+    })
+    const res = await POST(req)
+
+    expect(res.status).toBe(200)
+    expect((await res.json()).completo).toBeUndefined()
+    expect(insertados).not.toContain("catalog_items")
+  })
+
+  it("un cuerpo ilegible no enciende el modo completo", async () => {
+    // Falla hacia el lado seguro: un `POST` con basura en el cuerpo no puede terminar sembrando
+    // veinte facturas en una clínica real.
+    const req = new Request("http://x/api", { method: "POST", body: "{ no es json" })
+    const res = await POST(req)
+
+    expect(res.status).toBe(200)
+    expect(insertados).not.toContain("invoices")
+  })
+
+  it("se lo niega a quien no administra la clínica", async () => {
+    respuestas["profiles:select"] = { data: { clinic_id: CLINICA, is_active: true, role: "vet" } }
+    const req = new Request("http://x/api", {
+      method: "POST",
+      body: JSON.stringify({ completo: true }),
+    })
+    const res = await POST(req)
+
+    expect(res.status).toBe(403)
+    expect(insertados).toEqual([])
+  })
+})

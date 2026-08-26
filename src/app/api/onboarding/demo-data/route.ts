@@ -3,6 +3,12 @@ import { NextResponse } from "next/server"
 import { createClient } from "@/lib/supabase/server"
 import { createAdminClient } from "@/lib/supabase/admin"
 import { clinicaPuede } from "@/lib/planes/servidor"
+import {
+  borrarDemoCompleto,
+  sembrarCatalogo,
+  sembrarFacturas,
+  sembrarMeta,
+} from "@/lib/onboarding/demo-completo"
 
 // Datos de ejemplo del onboarding: paciente "Luna (ejemplo)" con consulta transcrita y nota SOAP
 // draft, para que el vet explore el Modo Fantasma sin grabar nada. Marcador: el titular
@@ -47,23 +53,109 @@ async function clinicOf(userId: string) {
   const admin = createAdminClient()
   const { data } = await admin
     .from("profiles")
-    .select("clinic_id, is_active")
+    .select("clinic_id, is_active, role")
     .eq("id", userId)
     .maybeSingle()
-  const p = data as { clinic_id: string | null; is_active: boolean | null } | null
-  if (p?.is_active === false) return { admin, clinicId: null }
-  return { admin, clinicId: p?.clinic_id ?? null }
+  const p = data as {
+    clinic_id: string | null
+    is_active: boolean | null
+    role: string | null
+  } | null
+  if (p?.is_active === false) return { admin, clinicId: null, role: null }
+  return { admin, clinicId: p?.clinic_id ?? null, role: p?.role ?? null }
 }
 
-export async function POST() {
+/**
+ * Las fases con volumen: catálogo con existencias, facturas del mes y la meta.
+ *
+ * ── EL ORDEN NO ES NEGOCIABLE ─────────────────────────────────────────────────────────────────
+ *
+ * Catálogo y existencias ANTES que las facturas, porque emitir descuenta inventario de verdad
+ * (`issueInvoice` inserta su `SALIDA_VENTA`). Al revés, o quedan existencias en negativo, o la
+ * emisión corta con «existencia insuficiente» si la clínica tiene activado ese bloqueo.
+ *
+ * Y la meta AL FINAL, porque se calcula sobre lo que efectivamente se vendió: ponerla antes sería
+ * inventar un número que no guarda relación con lo que el anillo va a comparar.
+ *
+ * Las facturas se le hacen a los titulares REALES de la clínica, no al titular de ejemplo: son
+ * ellos los que aparecen en el libro de ventas y en la cartera, y una lista donde los quince
+ * documentos son del mismo cliente no se parece a una clínica.
+ */
+async function sembrarComercial(
+  admin: ReturnType<typeof createAdminClient>,
+  clinicId: string,
+  userId: string,
+) {
+  const items = await sembrarCatalogo(admin, clinicId, userId)
+
+  const { data: titulares } = await admin
+    .from("owners")
+    .select("id")
+    .eq("clinic_id", clinicId)
+    .limit(12)
+  const ownerIds = ((titulares as { id: string }[] | null) ?? []).map((o) => o.id)
+
+  const hoy = new Date()
+  const facturas = await sembrarFacturas(admin, clinicId, userId, ownerIds, items, hoy)
+
+  // Lo vendido de verdad, leído de la base y no acumulado en memoria: si alguna emisión falló, la
+  // meta tiene que salir de lo que quedó escrito, no de lo que se intentó.
+  const inicioDeMes = new Date(
+    Date.UTC(hoy.getUTCFullYear(), hoy.getUTCMonth(), 1) + 5 * 3_600_000,
+  )
+  const { data: emitidas } = await admin
+    .from("invoices")
+    .select("total_cents")
+    .eq("clinic_id", clinicId)
+    .eq("status", "EMITIDA")
+    .gte("issued_at", inicioDeMes.toISOString())
+  const vendido = ((emitidas as { total_cents: number }[] | null) ?? []).reduce(
+    (s, f) => s + (f.total_cents ?? 0),
+    0,
+  )
+  const meta = await sembrarMeta(admin, clinicId, vendido)
+
+  return { items: items.length, ...facturas, vendidoCents: vendido, metaCents: meta }
+}
+
+// `request` es OPCIONAL a propósito: los tests que fijan el contrato de la siembra de siempre
+// llaman `POST()` sin argumentos, y ese contrato es justamente lo que no se puede mover — es la
+// prueba de que las clínicas nuevas siguen recibiendo lo mismo. Sin cuerpo, no hay modo completo.
+export async function POST(request?: Request) {
   const supabase = await createClient()
   const {
     data: { user },
   } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: "No autenticado" }, { status: 401 })
 
-  const { admin, clinicId } = await clinicOf(user.id)
+  const { admin, clinicId, role } = await clinicOf(user.id)
   if (!clinicId) return NextResponse.json({ error: "El usuario no tiene clínica" }, { status: 400 })
+
+  // ── EL MODO COMPLETO ES OPT-IN, Y NO ES UN DETALLE ────────────────────────────────────────────
+  //
+  // Este mismo endpoint lo llama el asistente de bienvenida para TODA clínica nueva. La siembra
+  // comercial —catálogo, existencias, facturas emitidas con su consecutivo— no puede entrar por
+  // ese camino: una clínica real nacería con ventas que nadie hizo, y esas facturas llevan número,
+  // quedan en la historia y ensucian los números de su primer mes.
+  //
+  // Sin la bandera, todo lo de abajo se comporta EXACTAMENTE como antes. Es lo que fijan los tests
+  // que ya existían, y por eso no se tocaron.
+  //
+  // El cuerpo puede venir vacío (el asistente hace `POST` sin cuerpo), así que el parseo falla
+  // hacia el lado seguro: sin cuerpo, no hay modo completo.
+  const cuerpo = request
+    ? ((await request.json().catch(() => ({}))) as { completo?: boolean })
+    : {}
+  const completo = cuerpo?.completo === true
+
+  // Sembrar veinte facturas es una escritura grande y visible para toda la clínica. Que la pida
+  // quien administra, no cualquiera con sesión.
+  if (completo && role !== "admin") {
+    return NextResponse.json(
+      { error: "Sólo un administrador puede sembrar los datos de demostración completos" },
+      { status: 403 },
+    )
+  }
 
   // EL TITULAR CREADO EN ESTA LLAMADA, para poder deshacer si algo falla a mitad de camino.
   //
@@ -85,7 +177,15 @@ export async function POST() {
       .eq("clinic_id", clinicId)
       .eq("full_name", DEMO_OWNER)
       .maybeSingle()
-    if (existing) return NextResponse.json({ ok: true, already: true })
+    if (existing) {
+      // LA GUARDA VIEJA NO PUEDE CORTAR EL MODO COMPLETO. Preguntaba sólo por el titular, así que
+      // una clínica ya sembrada respondía «already» y no se le podía agregar nada — que es
+      // exactamente el caso de la clínica que había que preparar para la demostración: tenía el
+      // titular desde hace días y ni una factura. Cada fase de abajo trae su propia guarda.
+      if (!completo) return NextResponse.json({ ok: true, already: true })
+      const extra = await sembrarComercial(admin, clinicId, user.id)
+      return NextResponse.json({ ok: true, already: true, completo: extra })
+    }
 
     const { data: owner, error: oErr } = await admin
       .from("owners")
@@ -170,6 +270,10 @@ export async function POST() {
     })
     if (nErr) throw new Error(nErr.message)
 
+    if (completo) {
+      const extra = await sembrarComercial(admin, clinicId, user.id)
+      return NextResponse.json({ ok: true, completo: extra })
+    }
     return NextResponse.json({ ok: true })
   } catch (e) {
     // DESHACER lo sembrado a medias. Sin esto, el reintento encuentra al titular, lo da por completo
@@ -207,14 +311,23 @@ export async function DELETE() {
     const { admin, clinicId } = await clinicOf(user.id)
     if (!clinicId) return NextResponse.json({ error: "El usuario no tiene clínica" }, { status: 400 })
 
-    // Borrar el titular demo: los FKs en cascada limpian paciente -> consulta -> transcript/nota.
-    const { error } = await admin
+    // PRIMERO LO QUE NO CUELGA DEL TITULAR. Facturas, catálogo y movimientos tienen sus claves a
+    // paciente y titular en `set null`, así que la cascada no los alcanza: borrar sólo al titular
+    // los dejaría para siempre, invisibles y sin forma de encontrarlos. Se borran por su marca.
+    const borrados = await borrarDemoCompleto(admin, clinicId)
+
+    // Y ahora sí el titular demo: los FKs en cascada limpian paciente -> consulta -> transcript/nota.
+    const { error, count } = await admin
       .from("owners")
-      .delete()
+      .delete({ count: "exact" })
       .eq("clinic_id", clinicId)
       .eq("full_name", DEMO_OWNER)
     if (error) throw new Error(error.message)
-    return NextResponse.json({ ok: true })
+
+    // Se devuelve el CONTEO y no un `ok` a secas. El borrado viejo respondía éxito aunque no
+    // hubiera borrado nada —por ejemplo si alguien le cambió el nombre al titular—, y desde afuera
+    // era indistinguible de haber limpiado de verdad.
+    return NextResponse.json({ ok: true, borrados: { ...borrados, owners: count ?? 0 } })
   } catch (e) {
     return NextResponse.json({ error: (e as Error).message }, { status: 500 })
   }
