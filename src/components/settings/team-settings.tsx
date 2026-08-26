@@ -278,25 +278,45 @@ export function TeamSettings({
                   {ROLE_LABELS[m.role] ?? m.role}
                 </span>
               )}
-              {/* EL PERMISO DE AGENDA, sólo para quien puede otorgarlo y sólo sobre quien lo
-                  necesita. A un admin no se le muestra: ya la ve por ser admin, y un interruptor
-                  apagado que no cambia nada es peor que ninguno — invita a tocarlo. */}
-              {isAdmin && m.role !== "admin" && (
-                <label
-                  className="flex shrink-0 cursor-pointer items-center gap-1.5 text-xs text-muted-foreground"
-                  title="Ver la agenda de toda la clínica, no sólo la propia"
-                >
-                  <input
-                    type="checkbox"
-                    checked={permisos[m.id] === true}
-                    disabled={cambiandoPermiso === m.id}
-                    onChange={(e) => cambiarPermisoDeAgenda(m, e.target.checked)}
-                    className="size-3.5 accent-primary"
-                  />
-                  <CalendarDays className="size-3.5" aria-hidden />
-                  <span className="hidden sm:inline">Agenda completa</span>
-                </label>
-              )}
+              {/* EL PERMISO DE AGENDA, AHORA TAMBIÉN VISIBLE SOBRE UN ADMIN (Felipe, 26-ago).
+                  Antes no se le pintaba nada, y el argumento tenía una mitad buena y otra mala: es
+                  cierto que un admin ve la agenda completa por su rol —`puedeVerLaAgendaCompleta`
+                  devuelve `true` sin mirar la bandera— pero de ahí no se sigue que haya que
+                  ESCONDER el dato. Quien revisa el equipo quiere saber quién ve qué, y una fila en
+                  blanco no lo dice: obliga a recordar la regla.
+
+                  Así que sobre un admin se muestra el ESTADO, no un interruptor. Un checkbox
+                  editable ahí sí sería la trampa que el comentario viejo temía: apagarlo no le
+                  quitaría nada —la agenda le llega por el rol— y quedaría una casilla que miente
+                  sobre lo que hace. Se ve encendido, no se puede tocar, y el `title` dice por qué. */}
+              {isAdmin &&
+                (m.role === "admin" ? (
+                  <span
+                    className="flex shrink-0 items-center gap-1.5 text-xs text-muted-foreground"
+                    title="Un administrador ve la agenda de toda la clínica por su rol. No es un permiso que se otorgue ni se quite."
+                  >
+                    <CalendarDays className="size-3.5" aria-hidden />
+                    <span className="hidden sm:inline">Agenda completa</span>
+                    <span className="rounded-full bg-muted px-1.5 py-0.5 text-[10px] font-medium">
+                      por su rol
+                    </span>
+                  </span>
+                ) : (
+                  <label
+                    className="flex shrink-0 cursor-pointer items-center gap-1.5 text-xs text-muted-foreground"
+                    title="Ver la agenda de toda la clínica, no sólo la propia"
+                  >
+                    <input
+                      type="checkbox"
+                      checked={permisos[m.id] === true}
+                      disabled={cambiandoPermiso === m.id}
+                      onChange={(e) => cambiarPermisoDeAgenda(m, e.target.checked)}
+                      className="size-3.5 accent-primary"
+                    />
+                    <CalendarDays className="size-3.5" aria-hidden />
+                    <span className="hidden sm:inline">Agenda completa</span>
+                  </label>
+                ))}
               {/* QUITAR SE VE SIEMPRE, NO SÓLO AL PASAR EL MOUSE.
                   Estaba en `opacity-0 group-hover:opacity-100`, y una función que sólo existe
                   mientras el puntero está encima es una función que no existe: no se descubre
