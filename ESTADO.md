@@ -1204,4 +1204,7 @@ protege las dos direcciones (la landing no vuelve a decir Athos-producto; el per
 Y el punto del «menú de ventas a la barra» se cerró sin código: eran dos menús confundidos — el de
 ventas ya es la réplica de OkVet y ahí se queda.
 
-⚠️ **Pendientes de aplicar: 0089 y 0090** (la 0090 con verificación).
+**0089 y 0090 aplicadas el mismo 26-ago** — la 0090 con verificación en verde (4 casos: el índice
+normalizado muerde, sin nombres vacíos, RLS activa) y confirmación posterior por lectura: el check
+de `client_reports` acepta whatsapp, `vaccine_types` con RLS + índice + policy, cero residuos. Con
+esto, TODO lo desplegado hasta el #242 tiene su esquema en el principal.
