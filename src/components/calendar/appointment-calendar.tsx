@@ -47,6 +47,7 @@ import { HelpTip } from "@/components/help-tip"
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 import { citasVisibles, deOtros, sinAsignar, type FiltroDeAgenda } from "@/lib/agenda/filtro"
 import { coincideConLaBusqueda } from "@/lib/agenda/buscar"
+import { tipoDeCita } from "@/lib/agenda/tipos-de-cita"
 import { PanelDeAgenda } from "./panel-de-agenda"
 import { AvisoDeLaCita, type ResultadoDeAviso } from "./aviso-de-la-cita"
 import {
@@ -318,6 +319,9 @@ export function AppointmentCalendar({
         owner_id: a.owner_id,
         vet_id: a.vet_id,
         notes: a.notes ?? undefined,
+        es_bloqueo: a.es_bloqueo ?? false,
+        tipo: a.tipo,
+        sin_hora: a.sin_hora ?? false,
         google_event_id: a.google_event_id,
         microsoft_event_id: a.microsoft_event_id,
         calendar_owner_id: a.calendar_owner_id,
@@ -576,9 +580,37 @@ export function AppointmentCalendar({
             week: { header: DayColumnHeader, event: EventContent },
             agenda: { event: AgendaEventContent },
           }}
-          eventPropGetter={(event: CalendarEvent) => ({
-            style: { backgroundColor: APPOINTMENT_STATUS[event.resource.status].color, border: "none" },
-          })}
+          /* ── DE QUÉ COLOR VA CADA BLOQUE ─────────────────────────────────────────────────
+              El TIPO manda cuando lo hay: es lo que se busca con la vista en una semana llena
+              —dónde están las cirugías, cuántas vacunaciones— y el estado ya se lee en la lista.
+
+              Sin tipo se cae al ESTADO, que es como se pintaba antes de la 0093. Las citas
+              anteriores no tienen tipo y darles uno por defecto sería inventarles un dato.
+
+              UN BLOQUEO SE VE DISTINTO A PROPÓSITO: rayado y apagado. Ocupa la agenda igual que una
+              cita, pero no es una — y si se vieran iguales, el vet contaría un almuerzo como
+              paciente atendido. */
+          eventPropGetter={(event: CalendarEvent) => {
+            const a = event.resource
+            if (a.es_bloqueo) {
+              return {
+                style: {
+                  backgroundColor: "var(--color-muted)",
+                  backgroundImage:
+                    "repeating-linear-gradient(45deg, transparent, transparent 5px, color-mix(in srgb, var(--color-fg-faint) 22%, transparent) 5px, color-mix(in srgb, var(--color-fg-faint) 22%, transparent) 10px)",
+                  border: "1px solid var(--color-line-strong)",
+                  color: "var(--color-fg-muted)",
+                },
+              }
+            }
+            const porTipo = tipoDeCita(a.tipo)?.color
+            return {
+              style: {
+                backgroundColor: porTipo ?? APPOINTMENT_STATUS[a.status].color,
+                border: "none",
+              },
+            }
+          }}
           style={{ height: "100%" }}
         />
         </div>
