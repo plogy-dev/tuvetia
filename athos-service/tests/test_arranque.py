@@ -70,5 +70,7 @@ def test_NUNCA_escribe_una_key():
     for texto in resumen(_config()) + advertencias(_config(llm_provider="anthropic")):
         assert SECRETO not in texto, f"se filtró una credencial: {texto}"
     # Y sí dice si hay o no hay, que es lo único que se necesita saber.
-    assert "llm=sí" in resumen(_config())[-1]
-    assert "llm=NO" in resumen(_config(llm_api_key=""))[-1]
+    # En CUALQUIER línea, no en la última: la línea de STT (auditoría 26-ago) va después de la
+    # de credenciales y el índice posicional se volvió frágil.
+    assert any("llm=sí" in l for l in resumen(_config()))
+    assert any("llm=NO" in l for l in resumen(_config(llm_api_key="")))

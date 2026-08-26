@@ -83,13 +83,22 @@ def _grok_a_payload_comun(grok: dict[str, Any]) -> dict[str, Any]:
     y sus tests — mantiene UNA sola ruta de armado de segmentos e inferencia de roles para los dos
     proveedores: lo que está probado sigue probado.
     """
+    def _speaker(v) -> int:
+        # Coacción defensiva: el formato del campo no está verificado end-to-end (la cuenta aún no
+        # tiene créditos). Un "0" como string revienta `s["speaker"] + 1` aguas abajo con un 500
+        # DESPUÉS de que el proveedor respondió bien — la transcripción pagada se tiraría.
+        try:
+            return int(v)
+        except (TypeError, ValueError):
+            return 0
+
     words = [
         {
             "word": w.get("text", ""),
             "punctuated_word": w.get("text", ""),
             "start": w.get("start", 0.0),
             "end": w.get("end", 0.0),
-            "speaker": w.get("speaker", 0),
+            "speaker": _speaker(w.get("speaker", 0)),
         }
         for w in (grok.get("words") or [])
     ]
@@ -120,7 +129,14 @@ def _call_grok(audio: bytes, mime: str = "audio/webm") -> dict[str, Any]:
         # Igual que con Deepgram: el detail llega al toast del vet — el cuerpo crudo, al log.
         log.error("Grok STT respondió %s: %s", resp.status_code, resp.text[:500])
         raise HTTPException(status_code=502, detail=f"no se pudo transcribir el audio ({resp.status_code})")
-    return _grok_a_payload_comun(resp.json())
+    cuerpo = resp.json()
+    # Un 200 VACÍO también es un fallo (auditoría 26-ago): sin esto, `{}` o `{"text":""}` pasaba el
+    # adaptador, se insertaba un transcript en blanco y la grabación real se perdía EN SILENCIO —
+    # exactamente lo que el respaldo a Deepgram existe para impedir. Lanzar acá lo activa.
+    if not (cuerpo.get("text") or "").strip() and not cuerpo.get("words"):
+        log.error("Grok STT respondió 200 sin contenido: %s", str(cuerpo)[:300])
+        raise HTTPException(status_code=502, detail="no se pudo transcribir el audio (respuesta vacía)")
+    return _grok_a_payload_comun(cuerpo)
 
 
 def _transcribir_con_proveedor(audio: bytes, mime: str = "audio/webm") -> tuple[dict[str, Any], str, str]:
@@ -131,7 +147,9 @@ def _transcribir_con_proveedor(audio: bytes, mime: str = "audio/webm") -> tuple[
     mismo principio de toda cascada de proveedores del servicio. Sin key de Deepgram, el fallo de
     Grok se propaga tal cual (no hay red de seguridad que fingir).
     """
-    proveedor = _settings_value("stt_provider", "STT_PROVIDER", "deepgram").lower()
+    # .strip(): un "grok " con espacio en Railway caía a Deepgram EN SILENCIO, anulando la
+    # migración de costos sin que nadie lo notara (auditoría 26-ago).
+    proveedor = _settings_value("stt_provider", "STT_PROVIDER", "deepgram").strip().lower()
     if proveedor == "grok":
         try:
             return _call_grok(audio, mime), "grok", "grok-stt"

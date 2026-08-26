@@ -156,7 +156,11 @@ export function AthosWidget() {
             me repitas el contexto. Todo lo que proponga lo aprobás vos.
           </p>
         )}
-        <AthosMensajes messages={messages} />
+        <AthosMensajes
+          messages={messages}
+          streaming={status === "streaming"}
+          onOpcion={(t) => enviar(t)}
+        />
         {/* Solo mientras NO llegó nada (`submitted`): con el stream ya escribiendo, el propio
             texto en movimiento es la señal de vida y esta fila sobraba. La espera muda es la que
             necesita puntos que laten y una frase que evoluciona (components/athos/pensando.tsx). */}

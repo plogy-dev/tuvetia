@@ -127,11 +127,14 @@ class PhantomSuggestResponse(BaseModel):
 
 
 class ChatDocumentRequest(BaseModel):
-    """Documento adjuntado al chat que se indexa en la memoria del paciente (2026-08-26)."""
+    """Documento adjuntado al chat que se indexa en la memoria del paciente (2026-08-26).
+
+    Topes EN EL MODELO (auditoría 26-ago): el recorte posterior corría después de que pydantic ya
+    había parseado el body entero en memoria — un JSON gigante inflaba el contenedor igual."""
     clinic_id: str
     patient_id: str
-    nombre: str
-    texto: str
+    nombre: str = Field(max_length=200)
+    texto: str = Field(max_length=200_000)
 
 
 class ChatDocumentResponse(BaseModel):

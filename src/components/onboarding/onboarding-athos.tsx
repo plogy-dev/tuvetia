@@ -149,7 +149,11 @@ export function OnboardingAthos({
           </div>
         )}
 
-        <AthosMensajes messages={messages} />
+        <AthosMensajes
+          messages={messages}
+          streaming={status === "streaming"}
+          onOpcion={(t) => enviar(t)}
+        />
 
         {busy && (
           <div className="flex items-center gap-[9px] text-[13px] text-fg-faint">

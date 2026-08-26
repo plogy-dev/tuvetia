@@ -62,8 +62,8 @@ describe("mediaTypeDeImagen — qué extensiones van directo a la ruta de visió
 describe("bloqueDeAdjuntos — el prefijo que viaja delante de la pregunta", () => {
   it("cada documento va con su nombre y su contenido entre triple comilla", () => {
     const bloque = bloqueDeAdjuntos([
-      { nombre: "lab.pdf", texto: "Hematocrito 45%" },
-      { nombre: "dieta.txt", texto: "Renal, 2 tomas" },
+      { id: "a1", nombre: "lab.pdf", texto: "Hematocrito 45%" },
+      { id: "a2", nombre: "dieta.txt", texto: "Renal, 2 tomas" },
     ])
     expect(bloque).toContain('[Documento adjunto: lab.pdf]\n"""\nHematocrito 45%\n"""')
     expect(bloque).toContain('[Documento adjunto: dieta.txt]\n"""\nRenal, 2 tomas\n"""')

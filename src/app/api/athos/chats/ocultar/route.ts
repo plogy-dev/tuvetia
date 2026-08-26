@@ -22,6 +22,10 @@ const BodySchema = z
     accion: z.enum(["ocultar", "restaurar"]),
     patient_id: z.string().uuid().optional(),
     thread_key: z.string().min(1).max(64).optional(),
+    // La marca que devolvió el ocultado, para que "Deshacer" restaure SOLO ese borrado
+    // (auditoría 26-ago): sin ella, deshacer el de hoy resucitaba también los chats del mismo
+    // hilo ocultados hace un mes.
+    marca: z.string().datetime({ offset: true }).optional(),
   })
   // Exactamente UNO de los dos: un hilo es de paciente o es general, nunca ambos.
   .refine((b) => Boolean(b.patient_id) !== Boolean(b.thread_key), {
@@ -40,23 +44,31 @@ export async function POST(req: Request) {
 
   const parsed = BodySchema.safeParse(await req.json().catch(() => null))
   if (!parsed.success) return NextResponse.json({ error: "Bad request" }, { status: 400 })
-  const { accion, patient_id, thread_key } = parsed.data
+  const { accion, patient_id, thread_key, marca } = parsed.data
 
   const sesion = await clinicaDeLaSesion(supabase, user.id)
   if (!sesion.ok) return NextResponse.json({ error: sesion.mensaje }, { status: sesion.status })
 
+  // Un solo timestamp para TODO el borrado: es lo que "Deshacer" usa para restaurar exactamente
+  // este ocultado y no los anteriores del mismo hilo.
+  const marcaDeOcultado = new Date().toISOString()
   let q = createAdminClient()
     .from("athos_messages")
-    .update({ hidden_at: accion === "ocultar" ? new Date().toISOString() : null })
+    .update({ hidden_at: accion === "ocultar" ? marcaDeOcultado : null })
     // service_role se salta la RLS: el filtro por la clínica DE LA SESIÓN es obligatorio — sin él,
     // un thread_key adivinado ocultaría chats ajenos.
     .eq("clinic_id", sesion.clinicId)
   q = patient_id ? q.eq("patient_id", patient_id) : q.eq("thread_key", thread_key)
+  if (accion === "ocultar") {
+    q = q.is("hidden_at", null) // no re-marcar (ni re-fechar) lo que un borrado anterior ya ocultó
+  } else if (marca) {
+    q = q.eq("hidden_at", marca)
+  }
 
   const { error } = await q
   if (error) {
     console.error("athos/chats/ocultar:", error.message)
     return NextResponse.json({ error: "No se pudo actualizar el chat." }, { status: 502 })
   }
-  return NextResponse.json({ ok: true })
+  return NextResponse.json({ ok: true, marca: accion === "ocultar" ? marcaDeOcultado : null })
 }

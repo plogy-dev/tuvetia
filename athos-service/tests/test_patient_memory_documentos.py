@@ -18,9 +18,17 @@ class _Cliente:
         return [[0.1] * 4 for _ in textos]
 
 
-def _capturar(monkeypatch, *, paciente_existe=True):
+def _capturar(monkeypatch, *, paciente_existe=True, ya_indexado=False):
     llamadas = {"inserts": []}
-    monkeypatch.setattr(pm, "fetch_all", lambda sql, params: [{"?column?": 1}] if paciente_existe else [])
+
+    def fake_fetch_all(sql, params):
+        # Dos consultas distintas desde la auditoría 26-ago: la pertenencia del paciente y el
+        # dedup ANTES de embeber (para no pagar Cohere por un documento repetido).
+        if "patient_embeddings" in sql:
+            return [{"?column?": 1}] if ya_indexado else []
+        return [{"?column?": 1}] if paciente_existe else []
+
+    monkeypatch.setattr(pm, "fetch_all", fake_fetch_all)
     monkeypatch.setattr(pm, "execute", lambda sql, params: llamadas["inserts"].append(params))
     monkeypatch.setattr(pm, "EmbeddingClient", _Cliente)
     return llamadas
@@ -62,4 +70,18 @@ def test_sin_cohere_devuelve_false_sin_insertar(monkeypatch):
 def test_texto_vacio_no_indexa(monkeypatch):
     llamadas = _capturar(monkeypatch)
     assert pm.index_chat_document("cl-1", "pac-1", "lab.pdf", "   ") is False
+    assert llamadas["inserts"] == []
+
+
+def test_documento_ya_indexado_no_paga_cohere(monkeypatch):
+    """El dedup corre ANTES del embed (auditoría 26-ago): re-adjuntar el mismo documento no debe
+    pagar Cohere otra vez — antes el on conflict solo ahorraba la fila."""
+    llamadas = _capturar(monkeypatch, ya_indexado=True)
+
+    class _NoDebeLlamarse:
+        def __init__(self, *a, **k):
+            raise AssertionError("se llamó a Cohere con el documento ya indexado")
+
+    monkeypatch.setattr(pm, "EmbeddingClient", _NoDebeLlamarse)
+    assert pm.index_chat_document("cl-1", "pac-1", "lab.pdf", "Hematocrito 45%") is True
     assert llamadas["inserts"] == []

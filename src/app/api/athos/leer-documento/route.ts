@@ -126,8 +126,10 @@ export async function POST(req: Request) {
           content: [
             { type: "file", data: pdf_base64, mediaType: media_type },
             {
+              // Sin el nombre del archivo (auditoría 26-ago): es texto libre del usuario dentro
+              // de la instrucción — inyección de prompt de bajo impacto, pero gratuita de evitar.
               type: "text",
-              text: `Transcribe el contenido de este documento ("${nombre}") para el veterinario.`,
+              text: "Transcribe el contenido de este documento para el veterinario.",
             },
           ],
         },
@@ -135,9 +137,11 @@ export async function POST(req: Request) {
       maxOutputTokens: 3000,
     })
 
-    // Best-effort, como todas las superficies (`registrarUso` no lanza). `totalUsage` por si el
-    // proveedor parte la respuesta en pasos.
-    void registrarUso({
+    // `await` y NO `void` (auditoría 26-ago): esta ruta responde JSON inmediatamente después, y
+    // Vercel puede congelar la lambda antes de que un insert suelto llegue — el consumo se perdía
+    // y el tope mensual contaba de menos justo en la superficie cuyo costo escala por página.
+    // `registrarUso` no lanza, así que esperar no arriesga la respuesta.
+    await registrarUso({
       clinicId,
       userId: user.id,
       surface: "leer_documento",

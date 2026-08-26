@@ -18,7 +18,9 @@
 //
 // Las imágenes NO tienen fase 1 posible (una foto de un laboratorio no trae texto extraíble en el
 // navegador): van DIRECTO a la fase 2, con el mismo registro de costo que el PDF escaneado.
-export type Adjunto = { nombre: string; texto: string }
+// `id` propio por adjunto (auditoría 26-ago): dos archivos con el MISMO nombre rompían las keys
+// de React y la X del chip borraba ambos.
+export type Adjunto = { id: string; nombre: string; texto: string }
 
 /** Lo que acepta el input de archivos. Espejo exacto de lo que `leerAdjunto` sabe extraer. */
 export const ADJUNTOS_ACEPTA = ".txt,.md,.csv,.xlsx,.xls,.pdf,.docx,.jpg,.jpeg,.png,.webp"
@@ -27,8 +29,13 @@ export const ADJUNTOS_ACEPTA = ".txt,.md,.csv,.xlsx,.xls,.pdf,.docx,.jpg,.jpeg,.
 // MAX_PAGINAS_TEXTO sí se extraen gratis aunque el documento sea más largo.
 const MAX_PAGINAS_IA = 25
 const MAX_PAGINAS_TEXTO = 40
-const MAX_BYTES_PDF = 10_000_000 // ~10 MB; espejo del MAX_BASE64 del route
-const MAX_BYTES_IMAGEN = 8_000_000 // ~8 MB; espejo del MAX_BASE64_IMAGEN del route
+const MAX_BYTES_PDF = 10_000_000 // ~10 MB para la FASE 1 (pdfjs local: no viaja por la red)
+
+// TOPE REAL de la fase 2 (auditoría 26-ago): las funciones de Vercel cortan el body en 4,5 MB y
+// el base64 infla x1,33 — el tope efectivo de SUBIDA es ~3 MB de archivo, no los 8-10 que
+// prometíamos (todo lo mayor moría en un 413 opaco). Las imágenes se COMPRIMEN en el navegador
+// antes de subir (canvas → jpeg), que es lo que salva la foto de celular de 3-8 MB.
+const MAX_BYTES_SUBIDA = 3_000_000
 
 export const MAX_ADJUNTOS = 2
 
@@ -66,7 +73,11 @@ async function extraerTextoPdf(file: File): Promise<{ texto: string; paginas: nu
     "pdfjs-dist/build/pdf.worker.min.mjs",
     import.meta.url,
   ).toString()
-  const doc = await pdfjs.getDocument({ data: await file.arrayBuffer() }).promise
+  // pdfjs >=6.2.108 (auditoría 26-ago): la parcheada del advisory de ejecución de JS al abrir un
+  // PDF malicioso. En v6 el soporte de eval se ELIMINÓ del motor (la opción `isEvalSupported` ya
+  // ni existe), que es defensa más fuerte que apagarlo. Acá solo se extrae texto.
+  const tarea = pdfjs.getDocument({ data: await file.arrayBuffer() })
+  const doc = await tarea.promise
   try {
     const partes: string[] = []
     const hasta = Math.min(doc.numPages, MAX_PAGINAS_TEXTO)
@@ -77,12 +88,13 @@ async function extraerTextoPdf(file: File): Promise<{ texto: string; paginas: nu
     }
     return { texto: partes.join("\n\n"), paginas: doc.numPages }
   } finally {
-    void doc.destroy() // libera el worker; con varios PDFs seguidos, no acumular documentos vivos
+    // En v6 la destrucción vive en el loading task, no en el documento.
+    void tarea.destroy() // libera el worker; con varios PDFs seguidos, no acumular documentos vivos
   }
 }
 
-/** File → base64 por trozos: `btoa(String.fromCharCode(...buf))` entero revienta la pila con MBs. */
-async function aBase64(file: File): Promise<string> {
+/** Blob → base64 por trozos: `btoa(String.fromCharCode(...buf))` entero revienta la pila con MBs. */
+async function aBase64(file: Blob): Promise<string> {
   const buf = new Uint8Array(await file.arrayBuffer())
   let bin = ""
   const TROZO = 0x8000
@@ -107,16 +119,48 @@ export function mediaTypeDeImagen(ext: string): MediaTypeImagen | null {
   return null
 }
 
+/**
+ * Reescala y recomprime una imagen en el navegador (canvas → jpeg): una foto de celular de 3-8 MB
+ * queda típicamente por debajo de 1 MB sin perder legibilidad para transcripción. Sin esto, el
+ * caso de uso declarado (la foto del laboratorio) moría contra el tope de body de Vercel.
+ */
+async function comprimirImagen(file: File): Promise<Blob> {
+  const LADO_MAX = 2000
+  try {
+    const bitmap = await createImageBitmap(file)
+    const escala = Math.min(1, LADO_MAX / Math.max(bitmap.width, bitmap.height))
+    const canvas = document.createElement("canvas")
+    canvas.width = Math.max(1, Math.round(bitmap.width * escala))
+    canvas.height = Math.max(1, Math.round(bitmap.height * escala))
+    const ctx = canvas.getContext("2d")
+    if (!ctx) return file
+    ctx.drawImage(bitmap, 0, 0, canvas.width, canvas.height)
+    bitmap.close()
+    const blob = await new Promise<Blob | null>((res) => canvas.toBlob(res, "image/jpeg", 0.82))
+    // Si la compresión no ayudó (raro: un png chico puede crecer al pasar a jpeg), gana el menor.
+    return blob && blob.size < file.size ? blob : file
+  } catch {
+    return file // formato que el navegador no decodifica: se intenta subir tal cual
+  }
+}
+
 /** Fase 2: PDF escaneado o imagen se transcriben con el modelo de visión (una llamada por documento). */
 async function leerConIA(
-  file: File,
+  contenido: Blob,
+  nombre: string,
   mediaType: "application/pdf" | MediaTypeImagen,
   paginas: number,
 ): Promise<string> {
   // Solo un PDF puede exceder el tope (una imagen siempre viaja como paginas=1).
   if (paginas > MAX_PAGINAS_IA) {
     throw new Error(
-      `"${file.name}" parece escaneado y tiene ${paginas} páginas — el tope para leerlo con IA es ${MAX_PAGINAS_IA}.`,
+      `"${nombre}" parece escaneado y tiene ${paginas} páginas — el tope para leerlo con IA es ${MAX_PAGINAS_IA}.`,
+    )
+  }
+  if (contenido.size > MAX_BYTES_SUBIDA) {
+    // Antes de gastar red: por encima de ~3 MB la plataforma corta el body con un 413 opaco.
+    throw new Error(
+      `"${nombre}" pesa demasiado para leerlo con IA (tope ~3 MB). Comprímelo o adjunta solo las páginas que importan.`,
     )
   }
   const res = await fetch("/api/athos/leer-documento", {
@@ -125,15 +169,15 @@ async function leerConIA(
     // El campo se sigue llamando `pdf_base64` aunque hoy también carga imágenes: renombrarlo
     // rompería a los clientes con el JS anterior aún cargado durante un deploy, sin ganar nada.
     body: JSON.stringify({
-      nombre: file.name,
-      pdf_base64: await aBase64(file),
+      nombre,
+      pdf_base64: await aBase64(contenido),
       paginas,
       media_type: mediaType,
     }),
   })
   const body = (await res.json().catch(() => null)) as { texto?: string; error?: string } | null
   if (!res.ok || !body?.texto) {
-    throw new Error(body?.error ?? `No se pudo leer "${file.name}".`)
+    throw new Error(body?.error ?? `No se pudo leer "${nombre}".`)
   }
   return body.texto
 }
@@ -148,32 +192,30 @@ export async function leerAdjunto(file: File): Promise<Adjunto> {
     const { texto, paginas } = await extraerTextoPdf(file)
     if (textoUtilDePdf(texto, Math.min(paginas, MAX_PAGINAS_TEXTO))) {
       const r = recortar(texto)
-      return { nombre: file.name, texto: r.texto + (r.recortado ? "\n[… documento recortado]" : "") }
+      return { id: crypto.randomUUID(), nombre: file.name, texto: r.texto + (r.recortado ? "\n[… documento recortado]" : "") }
     }
     // Escaneado: cae solo a la fase 2. El costo (una llamada de visión) queda registrado en
     // athos_agent_usage como `leer_documento` y descuenta del cupo mensual de la clínica.
-    const r = recortar(await leerConIA(file, "application/pdf", paginas))
-    return { nombre: file.name, texto: r.texto + (r.recortado ? "\n[… documento recortado]" : "") }
+    const r = recortar(await leerConIA(file, file.name, "application/pdf", paginas))
+    return { id: crypto.randomUUID(), nombre: file.name, texto: r.texto + (r.recortado ? "\n[… documento recortado]" : "") }
   }
   const mediaImagen = mediaTypeDeImagen(ext)
   if (mediaImagen) {
     // Una foto de un documento no tiene texto extraíble en el navegador: sin fase 1 posible, va
     // DIRECTO a la ruta de visión. Mismo costo y registro que el PDF escaneado; una imagen cuenta
     // como una página.
-    if (file.size > MAX_BYTES_IMAGEN) {
-      throw new Error(
-        `"${file.name}" pesa más de 8 MB — recorta o comprime la imagen y vuelve a intentar.`,
-      )
-    }
-    const r = recortar(await leerConIA(file, mediaImagen, 1))
-    return { nombre: file.name, texto: r.texto + (r.recortado ? "\n[… documento recortado]" : "") }
+    // La compresión local es lo que hace viable la foto de celular (3-8 MB → <1 MB típico).
+    const comprimida = await comprimirImagen(file)
+    const media = comprimida === file ? mediaImagen : "image/jpeg"
+    const r = recortar(await leerConIA(comprimida, file.name, media, 1))
+    return { id: crypto.randomUUID(), nombre: file.name, texto: r.texto + (r.recortado ? "\n[… documento recortado]" : "") }
   }
   if (ext === "docx") {
     // Import dinámico como xlsx/pdfjs: mammoth pesa y solo lo paga quien adjunta un Word.
     const mammoth = await import("mammoth")
     const { value } = await mammoth.extractRawText({ arrayBuffer: await file.arrayBuffer() })
     const { texto, recortado } = recortar(value)
-    return { nombre: file.name, texto: texto + (recortado ? "\n[… documento recortado]" : "") }
+    return { id: crypto.randomUUID(), nombre: file.name, texto: texto + (recortado ? "\n[… documento recortado]" : "") }
   }
   if (ext === "doc") {
     // El .doc binario de Word ≤2003 no tiene extractor en el navegador (mammoth solo lee .docx);
@@ -189,11 +231,11 @@ export async function leerAdjunto(file: File): Promise<Adjunto> {
       partes.push(`— Hoja: ${nombre} —\n${XLSX.utils.sheet_to_csv(wb.Sheets[nombre])}`)
     }
     const { texto, recortado } = recortar(partes.join("\n\n"))
-    return { nombre: file.name, texto: texto + (recortado ? "\n[… documento recortado]" : "") }
+    return { id: crypto.randomUUID(), nombre: file.name, texto: texto + (recortado ? "\n[… documento recortado]" : "") }
   }
   if (ext === "txt" || ext === "md" || ext === "csv") {
     const { texto, recortado } = recortar(await file.text())
-    return { nombre: file.name, texto: texto + (recortado ? "\n[… documento recortado]" : "") }
+    return { id: crypto.randomUUID(), nombre: file.name, texto: texto + (recortado ? "\n[… documento recortado]" : "") }
   }
   throw new Error(
     `No puedo leer .${ext} todavía — acepto txt, md, csv, Excel, Word (.docx), PDF e imágenes (jpg, png, webp).`,
