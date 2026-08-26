@@ -199,8 +199,16 @@ export default async function DashboardLayout({
               ella —no sobre el viewport, que con el sidebar abierto está 144px corrido— y queda
               debajo de la cabecera en vez de taparle el título y el buscador. */}
           <NotchDeConsulta />
-          <div className="flex flex-1 flex-col">
-            <div className="@container/main flex flex-1 flex-col gap-2">
+          {/* `min-h-0` EN LOS DOS. En una columna flex, un hijo con `flex-1` no se encoge por
+              debajo de su contenido salvo que se le diga — y sin eso, una pantalla que quiera
+              ocupar exactamente el alto disponible no tiene forma de saber cuál es.
+
+              No cambia nada para las pantallas que scrollean: `min-h-0` PERMITE encogerse, no
+              obliga. Una tabla larga sigue creciendo y sigue empujando el scroll de la página,
+              porque nada dentro de ella acota el alto. Lo que habilita es que una pantalla que SÍ
+              se acota —el chat— pueda decir `flex-1` en vez de calcular píxeles de viewport. */}
+          <div className="flex min-h-0 flex-1 flex-col">
+            <div className="@container/main flex min-h-0 flex-1 flex-col gap-2">
               {children}
             </div>
           </div>

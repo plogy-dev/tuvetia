@@ -369,7 +369,7 @@ export function Assistant({
   contexto?: string
   /** `TiraClinica`, el riel de la derecha aplastado a una línea. Se pinta sola por debajo de `xl`,
    *  que es justo donde el riel grande desaparece. Va acá dentro y no envolviendo esta pantalla
-   *  porque el alto es `h-[calc(100svh-var(--header-height))]`: cualquier cosa apilada por fuera
+   *  porque el alto de la pantalla está acotado al del área de contenido: cualquier cosa apilada por fuera
    *  empujaría el compositor fuera de la ventana. */
   tiraClinica?: React.ReactNode
   /** Petición ya redactada que otra pantalla dejó lista (`?pedir=`). Se escribe, no se envía. */
@@ -713,7 +713,22 @@ export function Assistant({
   return (
     // Llena el ancho en vez de ser una columna de 3xl centrada: al lado va el riel de la clínica, y
     // dos bloques centrados con aire a los costados leerían como dos páginas pegadas.
-    <div className="flex h-[calc(100svh-var(--header-height))] min-w-0 flex-1 flex-col gap-4 overflow-hidden p-4 md:p-6">
+    //
+    // ── EL ALTO SE HEREDA, NO SE CALCULA ─────────────────────────────────────────────────────
+    //
+    // Era `h-[calc(100svh-var(--header-height))]`, y de ahí salía la barra de desplazamiento de la
+    // PÁGINA que no se iba con nada. La cuenta estaba mal por 16 px: con `variant="inset"` el
+    // `SidebarInset` lleva `m-2`, así que el alto disponible no es `100svh - header` sino
+    // `100svh - header - 16`. Dieciséis píxeles de más son suficientes para que el navegador pinte
+    // la barra de la ventana entera, y desde ahí scrollea todo — encabezado y compositor incluidos.
+    //
+    // Arreglarlo restando otro `1rem` habría durado hasta el primer cambio de esa clase, y encima
+    // sería incorrecto en móvil: el margen del inset es `md:` y abajo de eso no existe.
+    //
+    // `flex-1 min-h-0` no calcula nada: toma lo que quede después del encabezado, sea cual sea. El
+    // `min-h-0` es lo que le permite encogerse por debajo de su contenido; sin él, el hilo la
+    // volvería a empujar hacia afuera.
+    <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-4 overflow-hidden p-4 md:p-6">
       {/* ── ACÁ VIVÍA EL ENCABEZADO ────────────────────────────────────────────────────────────
           Tres cosas se fueron de esta zona, y las tres por el mismo motivo: con una conversación en
           curso, lo único que importa es la conversación.
