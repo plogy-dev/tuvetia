@@ -6,6 +6,7 @@ import { MovementForm } from '@/components/facturacion/MovementForm';
 import { MovementsExport } from '@/components/facturacion/MovementsExport';
 import { TrLink } from '@/components/ui/TrLink';
 import { FormularioDeFiltros } from "@/components/ui/formulario-de-filtros"
+import { PageShell } from '@/components/ui/page-shell';
 
 export const metadata = { title: "Movimientos de inventario · Tuvetia" }
 
@@ -60,18 +61,16 @@ export default async function MovimientosPage({
 
   if (!active) {
     return (
-      <section className="flex-1 min-w-0">
-        <div className="mx-auto w-full max-w-5xl px-8 py-10">
-          <h1 className="text-2xl font-semibold tracking-tight text-fg">Movimientos</h1>
-          <p className="mt-4 rounded-xl border border-line bg-surface-2 px-4 py-3 text-sm text-fg-muted">
-            El módulo no está activo.{' '}
-            <Link href="/dashboard/facturacion/configuracion" className="underline underline-offset-2">
-              Configúralo primero
-            </Link>
-            .
-          </p>
-        </div>
-      </section>
+      <PageShell>
+        <h1 className="text-2xl font-semibold tracking-tight text-fg">Movimientos</h1>
+        <p className="mt-4 rounded-xl border border-line bg-surface-2 px-4 py-3 text-sm text-fg-muted">
+          El módulo no está activo.{' '}
+          <Link href="/dashboard/facturacion/configuracion" className="underline underline-offset-2">
+            Configúralo primero
+          </Link>
+          .
+        </p>
+      </PageShell>
     );
   }
 
@@ -131,178 +130,176 @@ export default async function MovimientosPage({
   };
 
   return (
-    <section className="flex-1 min-w-0">
-      <div className="mx-auto w-full max-w-5xl px-8 py-10">
-        <header className="mb-6">
-          <Link
-            href="/dashboard/facturacion/inventario"
-            className="mb-3 inline-flex items-center gap-1 text-xs text-fg-faint hover:text-fg"
-          >
-            <ArrowLeft className="size-3.5" aria-hidden />
-            Inventario
-          </Link>
-          <h1 className="flex items-center gap-2 text-2xl font-semibold tracking-tight text-fg">
-            <ArrowLeftRight className="size-6 text-fg-muted" aria-hidden />
-            Movimientos y salidas
-          </h1>
-          <p className="mt-1 text-sm text-fg-faint">
-            Historial completo de entradas y salidas. La existencia siempre es la suma
-            de estos movimientos.
-          </p>
-        </header>
+    <PageShell>
+      <header>
+        <Link
+          href="/dashboard/facturacion/inventario"
+          className="mb-3 inline-flex items-center gap-1 text-xs text-fg-faint hover:text-fg"
+        >
+          <ArrowLeft className="size-3.5" aria-hidden />
+          Inventario
+        </Link>
+        <h1 className="flex items-center gap-2 text-2xl font-semibold tracking-tight text-fg">
+          <ArrowLeftRight className="size-6 text-fg-muted" aria-hidden />
+          Movimientos y salidas
+        </h1>
+        <p className="mt-1 text-sm text-fg-faint">
+          Historial completo de entradas y salidas. La existencia siempre es la suma
+          de estos movimientos.
+        </p>
+      </header>
 
-        {/* Dirección */}
-        <div className="mb-3 flex flex-wrap gap-2">
-          <Link href={dirHref(undefined)} className={chipCls(!dir)}>
-            Todos
-          </Link>
-          <Link href={dirHref('entrada')} className={chipCls(dir === 'entrada')}>
-            Entradas
-          </Link>
-          <Link href={dirHref('salida')} className={chipCls(dir === 'salida')}>
-            Salidas
-          </Link>
-        </div>
+      {/* Dirección */}
+      <div className="mb-3 flex flex-wrap gap-2">
+        <Link href={dirHref(undefined)} className={chipCls(!dir)}>
+          Todos
+        </Link>
+        <Link href={dirHref('entrada')} className={chipCls(dir === 'entrada')}>
+          Entradas
+        </Link>
+        <Link href={dirHref('salida')} className={chipCls(dir === 'salida')}>
+          Salidas
+        </Link>
+      </div>
 
-        {/* Filtros (GET) */}
-        <FormularioDeFiltros action="/dashboard/facturacion/inventario/movimientos" className="mb-5 flex flex-wrap items-end gap-3">
-          {dir && <input type="hidden" name="dir" value={dir} />}
-          <label className="text-xs text-fg-muted">
-            Tipo
-            <select name="type" defaultValue={type ?? ''} className={`${inputCls} mt-1 block`}>
-              <option value="">Todos</option>
-              {Object.entries(MOVEMENT_LABELS).map(([k, v]) => (
-                <option key={k} value={k}>
-                  {v}
+      {/* Filtros (GET) */}
+      <FormularioDeFiltros action="/dashboard/facturacion/inventario/movimientos" className="mb-5 flex flex-wrap items-end gap-3">
+        {dir && <input type="hidden" name="dir" value={dir} />}
+        <label className="text-xs text-fg-muted">
+          Tipo
+          <select name="type" defaultValue={type ?? ''} className={`${inputCls} mt-1 block`}>
+            <option value="">Todos</option>
+            {Object.entries(MOVEMENT_LABELS).map(([k, v]) => (
+              <option key={k} value={k}>
+                {v}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label className="text-xs text-fg-muted">
+          Ítem
+          <select name="item" defaultValue={itemFilter ?? ''} className={`${inputCls} mt-1 block max-w-56`}>
+            <option value="">Todos</option>
+            {items
+              .filter((i) => i.track_stock)
+              .map((i) => (
+                <option key={i.id} value={i.id}>
+                  {i.name}
                 </option>
               ))}
-            </select>
-          </label>
-          <label className="text-xs text-fg-muted">
-            Ítem
-            <select name="item" defaultValue={itemFilter ?? ''} className={`${inputCls} mt-1 block max-w-56`}>
-              <option value="">Todos</option>
-              {items
-                .filter((i) => i.track_stock)
-                .map((i) => (
-                  <option key={i.id} value={i.id}>
-                    {i.name}
-                  </option>
-                ))}
-            </select>
-          </label>
-          <label className="text-xs text-fg-muted">
-            Desde
-            <input type="date" name="from" defaultValue={from} className={`${inputCls} mt-1 block`} />
-          </label>
-          <label className="text-xs text-fg-muted">
-            Hasta
-            <input type="date" name="to" defaultValue={to} className={`${inputCls} mt-1 block`} />
-          </label>
-          <button
-            type="submit"
-            className="rounded-lg border border-line bg-surface px-4 py-2 text-sm text-fg-muted hover:text-fg transition"
-          >
-            Aplicar
-          </button>
-        </FormularioDeFiltros>
+          </select>
+        </label>
+        <label className="text-xs text-fg-muted">
+          Desde
+          <input type="date" name="from" defaultValue={from} className={`${inputCls} mt-1 block`} />
+        </label>
+        <label className="text-xs text-fg-muted">
+          Hasta
+          <input type="date" name="to" defaultValue={to} className={`${inputCls} mt-1 block`} />
+        </label>
+        <button
+          type="submit"
+          className="rounded-lg border border-line bg-surface px-4 py-2 text-sm text-fg-muted hover:text-fg transition"
+        >
+          Aplicar
+        </button>
+      </FormularioDeFiltros>
 
-        <div className="mb-3 flex items-center justify-between">
-          <p className="text-sm text-fg-muted">
-            {total === 1 ? '1 movimiento' : `${total} movimientos`}
-            {pages > 1 && ` · página ${page} de ${pages}`}
+      <div className="mb-3 flex items-center justify-between">
+        <p className="text-sm text-fg-muted">
+          {total === 1 ? '1 movimiento' : `${total} movimientos`}
+          {pages > 1 && ` · página ${page} de ${pages}`}
+        </p>
+        <MovementsExport rows={csvRows} />
+      </div>
+
+      {/* Tabla */}
+      <div className="overflow-x-auto rounded-xl border border-line bg-surface">
+        {movements.length === 0 ? (
+          <p className="px-5 py-8 text-sm text-fg-faint">
+            Sin movimientos con estos filtros.
           </p>
-          <MovementsExport rows={csvRows} />
-        </div>
-
-        {/* Tabla */}
-        <div className="overflow-x-auto rounded-xl border border-line bg-surface">
-          {movements.length === 0 ? (
-            <p className="px-5 py-8 text-sm text-fg-faint">
-              Sin movimientos con estos filtros.
-            </p>
-          ) : (
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b border-line text-left text-xs text-fg-faint">
-                  <th className="px-4 py-2 font-medium">Fecha</th>
-                  <th className="px-2 py-2 font-medium">Ítem</th>
-                  <th className="px-2 py-2 font-medium">Tipo</th>
-                  <th className="px-2 py-2 text-right font-medium">Cantidad</th>
-                  <th className="px-4 py-2 font-medium">Nota</th>
-                </tr>
-              </thead>
-              <tbody>
-                {movements.map((m) => {
-                  // Fila clicable hacia el documento de origen del movimiento.
-                  const href =
-                    m.ref_type === 'PURCHASE' && m.ref_id
-                      ? `/dashboard/facturacion/compras/${m.ref_id}`
-                      : m.ref_type === 'INVOICE' && m.ref_id
-                        ? `/dashboard/facturacion/${m.ref_id}`
-                        : null;
-                  const cells = (
-                    <>
-                      <td className="px-4 py-2 font-mono text-xs tabular-nums text-fg-muted">
-                        {dateKeyBogota(m.created_at)}
-                      </td>
-                      <td className="px-2 py-2 text-fg">{m.item?.name ?? '(ítem eliminado)'}</td>
-                      <td className="px-2 py-2 text-xs text-fg-muted">
-                        {MOVEMENT_LABELS[m.movement_type] ?? m.movement_type}
-                        {href && <span className="ml-1 text-fg-faint">↗</span>}
-                      </td>
-                      <td
-                        className={`px-2 py-2 text-right font-mono text-xs tabular-nums ${
-                          Number(m.qty) >= 0 ? 'text-ok' : 'text-warn'
-                        }`}
-                      >
-                        {Number(m.qty) >= 0 ? '+' : ''}
-                        {Number(m.qty)} {m.item?.use_unit ?? ''}
-                      </td>
-                      <td className="px-4 py-2 text-xs text-fg-faint">{m.note ?? '—'}</td>
-                    </>
-                  );
-                  return href ? (
-                    <TrLink
-                      key={m.id}
-                      href={href}
-                      className="border-b border-line/60 last:border-0 hover:bg-surface-2/50"
+        ) : (
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b border-line text-left text-xs text-fg-faint">
+                <th className="px-4 py-2 font-medium">Fecha</th>
+                <th className="px-2 py-2 font-medium">Ítem</th>
+                <th className="px-2 py-2 font-medium">Tipo</th>
+                <th className="px-2 py-2 text-right font-medium">Cantidad</th>
+                <th className="px-4 py-2 font-medium">Nota</th>
+              </tr>
+            </thead>
+            <tbody>
+              {movements.map((m) => {
+                // Fila clicable hacia el documento de origen del movimiento.
+                const href =
+                  m.ref_type === 'PURCHASE' && m.ref_id
+                    ? `/dashboard/facturacion/compras/${m.ref_id}`
+                    : m.ref_type === 'INVOICE' && m.ref_id
+                      ? `/dashboard/facturacion/${m.ref_id}`
+                      : null;
+                const cells = (
+                  <>
+                    <td className="px-4 py-2 font-mono text-xs tabular-nums text-fg-muted">
+                      {dateKeyBogota(m.created_at)}
+                    </td>
+                    <td className="px-2 py-2 text-fg">{m.item?.name ?? '(ítem eliminado)'}</td>
+                    <td className="px-2 py-2 text-xs text-fg-muted">
+                      {MOVEMENT_LABELS[m.movement_type] ?? m.movement_type}
+                      {href && <span className="ml-1 text-fg-faint">↗</span>}
+                    </td>
+                    <td
+                      className={`px-2 py-2 text-right font-mono text-xs tabular-nums ${
+                        Number(m.qty) >= 0 ? 'text-ok' : 'text-warn'
+                      }`}
                     >
-                      {cells}
-                    </TrLink>
-                  ) : (
-                    <tr key={m.id} className="border-b border-line/60 last:border-0">
-                      {cells}
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
+                      {Number(m.qty) >= 0 ? '+' : ''}
+                      {Number(m.qty)} {m.item?.use_unit ?? ''}
+                    </td>
+                    <td className="px-4 py-2 text-xs text-fg-faint">{m.note ?? '—'}</td>
+                  </>
+                );
+                return href ? (
+                  <TrLink
+                    key={m.id}
+                    href={href}
+                    className="border-b border-line/60 last:border-0 hover:bg-surface-2/50"
+                  >
+                    {cells}
+                  </TrLink>
+                ) : (
+                  <tr key={m.id} className="border-b border-line/60 last:border-0">
+                    {cells}
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        )}
+      </div>
+
+      {/* Paginación */}
+      {pages > 1 && (
+        <div className="mt-4 flex items-center gap-2">
+          {page > 1 && (
+            <Link href={pageHref(page - 1)} className={`${inputCls} hover:text-fg`}>
+              ← Anterior
+            </Link>
+          )}
+          {page < pages && (
+            <Link href={pageHref(page + 1)} className={`${inputCls} hover:text-fg`}>
+              Siguiente →
+            </Link>
           )}
         </div>
+      )}
 
-        {/* Paginación */}
-        {pages > 1 && (
-          <div className="mt-4 flex items-center gap-2">
-            {page > 1 && (
-              <Link href={pageHref(page - 1)} className={`${inputCls} hover:text-fg`}>
-                ← Anterior
-              </Link>
-            )}
-            {page < pages && (
-              <Link href={pageHref(page + 1)} className={`${inputCls} hover:text-fg`}>
-                Siguiente →
-              </Link>
-            )}
-          </div>
-        )}
-
-        {/* Registrar salida/ajuste manual */}
-        <div className="mt-8">
-          <h2 className="mb-2 text-sm font-medium text-fg">Registrar movimiento manual</h2>
-          <MovementForm items={items} />
-        </div>
+      {/* Registrar salida/ajuste manual */}
+      <div className="mt-8">
+        <h2 className="mb-2 text-sm font-medium text-fg">Registrar movimiento manual</h2>
+        <MovementForm items={items} />
       </div>
-    </section>
+    </PageShell>
   );
 }

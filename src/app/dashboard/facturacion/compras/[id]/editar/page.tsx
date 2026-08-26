@@ -4,6 +4,7 @@ import { ArrowLeft } from 'lucide-react';
 import { requireClinicPage } from '@/lib/facturacion/page-auth';
 import { getPurchaseDetail, listCatalogItems, listSuppliers } from '@/lib/facturacion/queries';
 import { PurchaseForm } from '@/components/facturacion/PurchaseForm';
+import { PageShell } from '@/components/ui/page-shell';
 
 export const metadata = { title: "Editar compra · Tuvetia" }
 
@@ -32,17 +33,15 @@ export default async function EditarCompraPage({
 
   if (purchase.status !== 'BORRADOR') {
     return (
-      <section className="flex-1 min-w-0">
-        <div className="mx-auto w-full max-w-4xl px-8 py-10">
-          <p className="rounded-xl border border-line bg-surface-2 px-4 py-3 text-sm text-fg-muted">
-            Solo se edita una compra en borrador.{' '}
-            <Link href={`/dashboard/facturacion/compras/${id}`} className="underline underline-offset-2">
-              Ábrela y usa «Reabrir para editar»
-            </Link>
-            .
-          </p>
-        </div>
-      </section>
+      <PageShell>
+        <p className="rounded-xl border border-line bg-surface-2 px-4 py-3 text-sm text-fg-muted">
+          Solo se edita una compra en borrador.{' '}
+          <Link href={`/dashboard/facturacion/compras/${id}`} className="underline underline-offset-2">
+            Ábrela y usa «Reabrir para editar»
+          </Link>
+          .
+        </p>
+      </PageShell>
     );
   }
 
@@ -62,44 +61,42 @@ export default async function EditarCompraPage({
     }));
 
   return (
-    <section className="flex-1 min-w-0">
-      <div className="mx-auto w-full max-w-5xl px-8 py-10">
-        <header className="mb-6">
-          <Link
-            href={`/dashboard/facturacion/compras/${id}`}
-            className="mb-3 inline-flex items-center gap-1 text-xs text-fg-faint hover:text-fg"
-          >
-            <ArrowLeft className="size-3.5" aria-hidden />
-            Detalle de la compra
-          </Link>
-          <h1 className="text-2xl font-semibold tracking-tight text-fg">Editar compra</h1>
-          <p className="mt-1 text-sm text-fg-faint">
-            Ajusta lo que necesites y confirma: el stock, los costos y el egreso se
-            recalculan con los valores nuevos.
-          </p>
-        </header>
+    <PageShell>
+      <header>
+        <Link
+          href={`/dashboard/facturacion/compras/${id}`}
+          className="mb-3 inline-flex items-center gap-1 text-xs text-fg-faint hover:text-fg"
+        >
+          <ArrowLeft className="size-3.5" aria-hidden />
+          Detalle de la compra
+        </Link>
+        <h1 className="text-2xl font-semibold tracking-tight text-fg">Editar compra</h1>
+        <p className="mt-1 text-sm text-fg-faint">
+          Ajusta lo que necesites y confirma: el stock, los costos y el egreso se
+          recalculan con los valores nuevos.
+        </p>
+      </header>
 
-        <PurchaseForm
-          suppliers={suppliers}
-          items={items}
-          today={todayBogota()}
-          initial={{
-            id: purchase.id,
-            supplierId: purchase.supplier_id,
-            purchasedOn: purchase.purchased_on,
-            docNumber: purchase.doc_number,
-            method: purchase.method,
-            note: purchase.note,
-            lines: lines.map((l) => ({
-              catalogItemId: l.catalog_item_id,
-              qty: Number(l.qty),
-              unitCostCents: l.unit_cost_cents,
-              lotCode: l.lot_code,
-              expiresOn: l.expires_on,
-            })),
-          }}
-        />
-      </div>
-    </section>
+      <PurchaseForm
+        suppliers={suppliers}
+        items={items}
+        today={todayBogota()}
+        initial={{
+          id: purchase.id,
+          supplierId: purchase.supplier_id,
+          purchasedOn: purchase.purchased_on,
+          docNumber: purchase.doc_number,
+          method: purchase.method,
+          note: purchase.note,
+          lines: lines.map((l) => ({
+            catalogItemId: l.catalog_item_id,
+            qty: Number(l.qty),
+            unitCostCents: l.unit_cost_cents,
+            lotCode: l.lot_code,
+            expiresOn: l.expires_on,
+          })),
+        }}
+      />
+    </PageShell>
   );
 }

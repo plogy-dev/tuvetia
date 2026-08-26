@@ -11,6 +11,7 @@ import {
 import { CatalogItemsTab } from '@/components/facturacion/CatalogItemsTab';
 import { CategoryManager } from '@/components/facturacion/CategoryManager';
 import { TabNav, TabNavLink } from '@/components/ui/tab-nav';
+import { PageShell } from '@/components/ui/page-shell';
 
 export const metadata = { title: "Catálogo · Tuvetia" }
 
@@ -40,18 +41,16 @@ export default async function CatalogoPage({
   const settings = await getBillingSettings(supabase, clinicId);
   if (settings?.module_status !== 'ACTIVO') {
     return (
-      <section className="flex-1 min-w-0">
-        <div className="mx-auto w-full max-w-4xl px-8 py-10">
-          <h1 className="text-2xl font-semibold tracking-tight text-fg">Catálogo</h1>
-          <p className="mt-4 rounded-xl border border-line bg-surface-2 px-4 py-3 text-sm text-fg-muted">
-            El módulo no está activo.{' '}
-            <Link href="/dashboard/facturacion/configuracion" className="underline underline-offset-2">
-              Configúralo primero
-            </Link>
-            .
-          </p>
-        </div>
-      </section>
+      <PageShell>
+        <h1 className="text-2xl font-semibold tracking-tight text-fg">Catálogo</h1>
+        <p className="mt-4 rounded-xl border border-line bg-surface-2 px-4 py-3 text-sm text-fg-muted">
+          El módulo no está activo.{' '}
+          <Link href="/dashboard/facturacion/configuracion" className="underline underline-offset-2">
+            Configúralo primero
+          </Link>
+          .
+        </p>
+      </PageShell>
     );
   }
 
@@ -72,72 +71,70 @@ export default async function CatalogoPage({
     .map((i) => ({ id: i.id, name: i.name, use_unit: i.use_unit }));
 
   return (
-    <section className="flex-1 min-w-0">
-      <div className="mx-auto w-full max-w-4xl px-8 py-10">
-        <header className="mb-6">
-          <Link
-            href="/dashboard/facturacion/inventario"
-            className="mb-3 inline-flex items-center gap-1 text-xs text-fg-faint hover:text-fg"
+    <PageShell>
+      <header>
+        <Link
+          href="/dashboard/facturacion/inventario"
+          className="mb-3 inline-flex items-center gap-1 text-xs text-fg-faint hover:text-fg"
+        >
+          <ArrowLeft className="size-3.5" aria-hidden />
+          Inventario
+        </Link>
+        <h1 className="flex items-center gap-2 text-2xl font-semibold tracking-tight text-fg">
+          <Boxes className="size-6 text-fg-muted" aria-hidden />
+          Catálogo
+        </h1>
+        <p className="mt-1 text-sm text-fg-faint">
+          Servicios, productos y categorías de tu práctica. Editable en cualquier momento.
+        </p>
+      </header>
+
+      <TabNav>
+        {TABS.map((t) => (
+          <TabNavLink
+            key={t.key}
+            href={`/dashboard/facturacion/catalogo?tab=${t.key}`}
+            active={tab === t.key}
           >
-            <ArrowLeft className="size-3.5" aria-hidden />
-            Inventario
-          </Link>
-          <h1 className="flex items-center gap-2 text-2xl font-semibold tracking-tight text-fg">
-            <Boxes className="size-6 text-fg-muted" aria-hidden />
-            Catálogo
-          </h1>
-          <p className="mt-1 text-sm text-fg-faint">
-            Servicios, productos y categorías de tu práctica. Editable en cualquier momento.
-          </p>
-        </header>
+            {t.label}
+          </TabNavLink>
+        ))}
+      </TabNav>
 
-        <TabNav>
-          {TABS.map((t) => (
-            <TabNavLink
-              key={t.key}
-              href={`/dashboard/facturacion/catalogo?tab=${t.key}`}
-              active={tab === t.key}
+      {tab === 'productos' && (
+        <CatalogItemsTab
+          items={productos}
+          categories={categories}
+          defaultType="PRODUCTO"
+          suppliers={suppliers}
+        />
+      )}
+      {tab === 'servicios' && (
+        <div className="space-y-4">
+          <div className="flex justify-end">
+            {/* Sin `?preset=servicios`: el destino lo ignoraba, así que era un parámetro que
+                aparentaba una precarga inexistente. Y se anuncia el estado antes del clic. */}
+            <Link
+              href="/dashboard/facturacion/inventario/importar"
+              title="La importación desde Excel está deshabilitada mientras reemplazamos la librería de planillas; al entrar te contamos las alternativas."
+              className="inline-flex items-center gap-1.5 rounded-lg border border-line bg-surface px-3 py-1.5 text-sm text-fg-muted hover:border-brand hover:text-fg transition"
             >
-              {t.label}
-            </TabNavLink>
-          ))}
-        </TabNav>
-
-        {tab === 'productos' && (
-          <CatalogItemsTab
-            items={productos}
-            categories={categories}
-            defaultType="PRODUCTO"
-            suppliers={suppliers}
-          />
-        )}
-        {tab === 'servicios' && (
-          <div className="space-y-4">
-            <div className="flex justify-end">
-              {/* Sin `?preset=servicios`: el destino lo ignoraba, así que era un parámetro que
-                  aparentaba una precarga inexistente. Y se anuncia el estado antes del clic. */}
-              <Link
-                href="/dashboard/facturacion/inventario/importar"
-                title="La importación desde Excel está deshabilitada mientras reemplazamos la librería de planillas; al entrar te contamos las alternativas."
-                className="inline-flex items-center gap-1.5 rounded-lg border border-line bg-surface px-3 py-1.5 text-sm text-fg-muted hover:border-brand hover:text-fg transition"
-              >
-                <FileUp className="size-4" aria-hidden />
-                Importar servicios
-                <span className="rounded-full border border-line-soft px-1.5 py-px text-[10px] uppercase tracking-wide text-fg-faint">
-                  pronto
-                </span>
-              </Link>
-            </div>
-            <CatalogItemsTab
-              items={servicios}
-              categories={categories}
-              defaultType="SERVICIO"
-              recipeComponents={recipeComponents}
-            />
+              <FileUp className="size-4" aria-hidden />
+              Importar servicios
+              <span className="rounded-full border border-line-soft px-1.5 py-px text-[10px] uppercase tracking-wide text-fg-faint">
+                pronto
+              </span>
+            </Link>
           </div>
-        )}
-        {tab === 'categorias' && <CategoryManager categories={categoriesAll} />}
-      </div>
-    </section>
+          <CatalogItemsTab
+            items={servicios}
+            categories={categories}
+            defaultType="SERVICIO"
+            recipeComponents={recipeComponents}
+          />
+        </div>
+      )}
+      {tab === 'categorias' && <CategoryManager categories={categoriesAll} />}
+    </PageShell>
   );
 }

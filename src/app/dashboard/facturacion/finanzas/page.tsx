@@ -20,6 +20,7 @@ import { IncomeForm, type IncomeInitial } from '@/components/facturacion/IncomeF
 import { FinanceBars } from '@/components/facturacion/FinanceBars';
 import { FinanceTable, type FinanceItem } from '@/components/facturacion/FinanceTable';
 import { FormularioDeFiltros } from "@/components/ui/formulario-de-filtros"
+import { PageShell } from '@/components/ui/page-shell';
 
 export const metadata = { title: "Finanzas · Tuvetia" }
 
@@ -66,18 +67,16 @@ export default async function FinanzasPage({
 
   if (!active) {
     return (
-      <section className="flex-1 min-w-0">
-        <div className="mx-auto w-full max-w-5xl px-8 py-10">
-          <h1 className="text-2xl font-semibold tracking-tight text-fg">Ingresos y egresos</h1>
-          <p className="mt-4 rounded-xl border border-line bg-surface-2 px-4 py-3 text-sm text-fg-muted">
-            El módulo no está activo.{' '}
-            <Link href="/dashboard/facturacion/configuracion" className="underline underline-offset-2">
-              Configúralo primero
-            </Link>
-            .
-          </p>
-        </div>
-      </section>
+      <PageShell>
+        <h1 className="text-2xl font-semibold tracking-tight text-fg">Ingresos y egresos</h1>
+        <p className="mt-4 rounded-xl border border-line bg-surface-2 px-4 py-3 text-sm text-fg-muted">
+          El módulo no está activo.{' '}
+          <Link href="/dashboard/facturacion/configuracion" className="underline underline-offset-2">
+            Configúralo primero
+          </Link>
+          .
+        </p>
+      </PageShell>
     );
   }
 
@@ -192,118 +191,116 @@ export default async function FinanzasPage({
     'rounded-lg border border-line bg-surface px-3 py-1.5 text-sm text-fg outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50';
 
   return (
-    <section className="flex-1 min-w-0">
-      <div className="mx-auto w-full max-w-5xl px-8 py-10">
-        <header className="mb-6">
-          <Link
-            href="/dashboard/facturacion"
-            className="mb-3 inline-flex items-center gap-1 text-xs text-fg-faint hover:text-fg"
-          >
-            <ArrowLeft className="size-3.5" aria-hidden />
-            Facturación
-          </Link>
-          <h1 className="flex items-center gap-2 text-2xl font-semibold tracking-tight text-fg">
-            <Wallet className="size-6 text-fg-muted" aria-hidden />
-            Ingresos y egresos
-          </h1>
-          <p className="mt-1 text-sm text-fg-faint">
-            Los ingresos son tus pagos recibidos; los egresos, tus gastos y compras de
-            inventario. Todo en un solo lugar.
+    <PageShell>
+      <header>
+        <Link
+          href="/dashboard/facturacion"
+          className="mb-3 inline-flex items-center gap-1 text-xs text-fg-faint hover:text-fg"
+        >
+          <ArrowLeft className="size-3.5" aria-hidden />
+          Facturación
+        </Link>
+        <h1 className="flex items-center gap-2 text-2xl font-semibold tracking-tight text-fg">
+          <Wallet className="size-6 text-fg-muted" aria-hidden />
+          Ingresos y egresos
+        </h1>
+        <p className="mt-1 text-sm text-fg-faint">
+          Los ingresos son tus pagos recibidos; los egresos, tus gastos y compras de
+          inventario. Todo en un solo lugar.
+        </p>
+      </header>
+
+      {/* Filtros (GET) */}
+      <FormularioDeFiltros action="/dashboard/facturacion/finanzas" className="mb-5 flex flex-wrap items-end gap-3">
+        <label className="text-xs text-fg-muted">
+          Desde
+          <input type="date" name="from" defaultValue={from} className={`${inputCls} mt-1 block`} />
+        </label>
+        <label className="text-xs text-fg-muted">
+          Hasta
+          <input type="date" name="to" defaultValue={to} className={`${inputCls} mt-1 block`} />
+        </label>
+        <label className="text-xs text-fg-muted">
+          Categoría (egresos)
+          <select name="cat" defaultValue={cat ?? ''} className={`${inputCls} mt-1 block`}>
+            <option value="">Todas</option>
+            {EXPENSE_CATEGORIES.map((c) => (
+              <option key={c} value={c}>
+                {EXPENSE_CATEGORY_LABELS[c]}
+              </option>
+            ))}
+          </select>
+        </label>
+        <button
+          type="submit"
+          className="rounded-lg border border-line bg-surface px-4 py-2 text-sm text-fg-muted hover:text-fg transition"
+        >
+          Aplicar
+        </button>
+      </FormularioDeFiltros>
+
+      {/* KPIs del período */}
+      <div className="mb-6 grid gap-3 sm:grid-cols-3">
+        <div className="rounded-xl border border-line bg-surface px-4 py-3">
+          <p className="text-[11.5px] font-medium text-fg-faint">
+            Ingresos del período
           </p>
-        </header>
-
-        {/* Filtros (GET) */}
-        <FormularioDeFiltros action="/dashboard/facturacion/finanzas" className="mb-5 flex flex-wrap items-end gap-3">
-          <label className="text-xs text-fg-muted">
-            Desde
-            <input type="date" name="from" defaultValue={from} className={`${inputCls} mt-1 block`} />
-          </label>
-          <label className="text-xs text-fg-muted">
-            Hasta
-            <input type="date" name="to" defaultValue={to} className={`${inputCls} mt-1 block`} />
-          </label>
-          <label className="text-xs text-fg-muted">
-            Categoría (egresos)
-            <select name="cat" defaultValue={cat ?? ''} className={`${inputCls} mt-1 block`}>
-              <option value="">Todas</option>
-              {EXPENSE_CATEGORIES.map((c) => (
-                <option key={c} value={c}>
-                  {EXPENSE_CATEGORY_LABELS[c]}
-                </option>
-              ))}
-            </select>
-          </label>
-          <button
-            type="submit"
-            className="rounded-lg border border-line bg-surface px-4 py-2 text-sm text-fg-muted hover:text-fg transition"
+          <p className="mt-1 text-xl font-semibold tabular-nums text-ok">
+            {cat ? '—' : formatCOP(summary.incomeCents)}
+          </p>
+        </div>
+        <div className="rounded-xl border border-line bg-surface px-4 py-3">
+          <p className="text-[11.5px] font-medium text-fg-faint">
+            Egresos del período
+          </p>
+          <p className="mt-1 text-xl font-semibold tabular-nums text-warn">
+            {formatCOP(summary.expenseCents)}
+          </p>
+        </div>
+        <div className="rounded-xl border border-line bg-surface px-4 py-3">
+          <p className="text-[11.5px] font-medium text-fg-faint">Neto</p>
+          <p
+            className={`mt-1 text-xl font-semibold tabular-nums ${
+              summary.netCents >= 0 ? 'text-ok' : 'text-warn'
+            }`}
           >
-            Aplicar
-          </button>
-        </FormularioDeFiltros>
-
-        {/* KPIs del período */}
-        <div className="mb-6 grid gap-3 sm:grid-cols-3">
-          <div className="rounded-xl border border-line bg-surface px-4 py-3">
-            <p className="text-[11.5px] font-medium text-fg-faint">
-              Ingresos del período
-            </p>
-            <p className="mt-1 text-xl font-semibold tabular-nums text-ok">
-              {cat ? '—' : formatCOP(summary.incomeCents)}
-            </p>
-          </div>
-          <div className="rounded-xl border border-line bg-surface px-4 py-3">
-            <p className="text-[11.5px] font-medium text-fg-faint">
-              Egresos del período
-            </p>
-            <p className="mt-1 text-xl font-semibold tabular-nums text-warn">
-              {formatCOP(summary.expenseCents)}
-            </p>
-          </div>
-          <div className="rounded-xl border border-line bg-surface px-4 py-3">
-            <p className="text-[11.5px] font-medium text-fg-faint">Neto</p>
-            <p
-              className={`mt-1 text-xl font-semibold tabular-nums ${
-                summary.netCents >= 0 ? 'text-ok' : 'text-warn'
-              }`}
-            >
-              {cat ? '—' : formatCOP(summary.netCents)}
-            </p>
-          </div>
+            {cat ? '—' : formatCOP(summary.netCents)}
+          </p>
         </div>
-
-        {/* Barras últimos 6 meses */}
-        <div className="mb-6">
-          <FinanceBars data={bars} />
-        </div>
-
-        {/* Alta/edición de movimientos. El key por registro es OBLIGATORIO: los campos son no
-            controlados (defaultValue), y sin key React reconcilia el formulario al pasar de editar
-            A a editar B — el id oculto cambia a B pero los importes en pantalla siguen siendo los
-            de A, y guardar persiste los valores de A sobre el registro B. */}
-        {editIncome || editExpense ? (
-          <div className="mb-6">
-            {editIncome ? (
-              <IncomeForm key={`ing-${editIncome.id}`} today={today} initial={editIncome} closeHref={hrefWith()} />
-            ) : (
-              <ExpenseForm
-                key={`egr-${editExpense!.id}`}
-                suppliers={suppliers}
-                today={today}
-                initial={editExpense}
-                closeHref={hrefWith()}
-              />
-            )}
-          </div>
-        ) : (
-          <div className="mb-6 flex flex-wrap gap-3">
-            <ExpenseForm key="egr-nuevo" suppliers={suppliers} today={today} />
-            <IncomeForm key="ing-nuevo" today={today} />
-          </div>
-        )}
-
-        {/* Tabla combinada + export */}
-        <FinanceTable items={items} />
       </div>
-    </section>
+
+      {/* Barras últimos 6 meses */}
+      <div className="mb-6">
+        <FinanceBars data={bars} />
+      </div>
+
+      {/* Alta/edición de movimientos. El key por registro es OBLIGATORIO: los campos son no
+          controlados (defaultValue), y sin key React reconcilia el formulario al pasar de editar
+          A a editar B — el id oculto cambia a B pero los importes en pantalla siguen siendo los
+          de A, y guardar persiste los valores de A sobre el registro B. */}
+      {editIncome || editExpense ? (
+        <div className="mb-6">
+          {editIncome ? (
+            <IncomeForm key={`ing-${editIncome.id}`} today={today} initial={editIncome} closeHref={hrefWith()} />
+          ) : (
+            <ExpenseForm
+              key={`egr-${editExpense!.id}`}
+              suppliers={suppliers}
+              today={today}
+              initial={editExpense}
+              closeHref={hrefWith()}
+            />
+          )}
+        </div>
+      ) : (
+        <div className="mb-6 flex flex-wrap gap-3">
+          <ExpenseForm key="egr-nuevo" suppliers={suppliers} today={today} />
+          <IncomeForm key="ing-nuevo" today={today} />
+        </div>
+      )}
+
+      {/* Tabla combinada + export */}
+      <FinanceTable items={items} />
+    </PageShell>
   );
 }

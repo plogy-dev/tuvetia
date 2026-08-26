@@ -17,6 +17,7 @@ import { InvoiceActionsPanel } from '@/components/facturacion/InvoiceActionsPane
 import { avisosDelBorrador } from '@/lib/facturacion/invoices';
 import { TD, TD_NUM, TH, TH_DER } from '@/components/facturacion/densidad';
 import { FollowupActions } from '@/components/cartera/FollowupActions';
+import { PageShell } from '@/components/ui/page-shell';
 import { getInvoiceCommMessages } from '@/lib/cartera/queries';
 import type { InvoiceEventType } from '@/lib/facturacion/domain/types';
 
@@ -109,306 +110,304 @@ export default async function FacturaDetallePage({
   const isSandbox = fiscalDoc?.provider === 'SANDBOX';
 
   return (
-    <section className="flex-1 min-w-0">
-      <div className="mx-auto w-full max-w-4xl px-8 py-10">
-        <header className="mb-6">
-          <Link
-            href="/dashboard/facturacion"
-            className="mb-3 inline-flex items-center gap-1 text-xs text-fg-faint hover:text-fg"
-          >
-            <ArrowLeft className="size-3.5" aria-hidden />
-            Facturación
-          </Link>
-          <div className="flex flex-wrap items-center gap-3">
-            <h1 className="text-2xl font-semibold tracking-tight text-fg">
-              {invoice.full_number ??
-                `Borrador · ${invoice.doc_kind === 'POS' ? 'POS' : 'Factura de venta'}`}
-            </h1>
-            <LifecycleBadge status={invoice.status} />
-            {isSandbox && (
-              <span className="inline-flex items-center gap-1 rounded-full border border-line bg-surface-2 px-2 py-0.5 text-[11px] text-fg-muted">
-                <FlaskConical className="size-3" aria-hidden />
-                sandbox
-              </span>
-            )}
-          </div>
-          <div className="mt-2 flex flex-wrap items-center gap-1.5">
-            <FiscalBadge status={invoice.fiscal_status} />
-            {invoice.status === 'EMITIDA' && (
+    <PageShell>
+      <header>
+        <Link
+          href="/dashboard/facturacion"
+          className="mb-3 inline-flex items-center gap-1 text-xs text-fg-faint hover:text-fg"
+        >
+          <ArrowLeft className="size-3.5" aria-hidden />
+          Facturación
+        </Link>
+        <div className="flex flex-wrap items-center gap-3">
+          <h1 className="text-2xl font-semibold tracking-tight text-fg">
+            {invoice.full_number ??
+              `Borrador · ${invoice.doc_kind === 'POS' ? 'POS' : 'Factura de venta'}`}
+          </h1>
+          <LifecycleBadge status={invoice.status} />
+          {isSandbox && (
+            <span className="inline-flex items-center gap-1 rounded-full border border-line bg-surface-2 px-2 py-0.5 text-[11px] text-fg-muted">
+              <FlaskConical className="size-3" aria-hidden />
+              sandbox
+            </span>
+          )}
+        </div>
+        <div className="mt-2 flex flex-wrap items-center gap-1.5">
+          <FiscalBadge status={invoice.fiscal_status} />
+          {invoice.status === 'EMITIDA' && (
+            <>
+              <CollectionBadge status={invoice.collection_status} />
+              <DeliveryBadge status={invoice.delivery_status} />
+              <FollowupBadge status={invoice.followup_status} />
+            </>
+          )}
+        </div>
+      </header>
+
+      <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_300px]">
+        <div className="space-y-5">
+          {/* Cliente */}
+          <section className="rounded-xl border border-line bg-surface p-4 text-sm">
+            <h2 className="mb-2 text-xs font-medium uppercase tracking-wide text-fg-faint">
+              Cliente
+            </h2>
+            {payer ? (
               <>
-                <CollectionBadge status={invoice.collection_status} />
-                <DeliveryBadge status={invoice.delivery_status} />
-                <FollowupBadge status={invoice.followup_status} />
+                <p className="font-medium text-fg">{payer.name}</p>
+                <p className="text-fg-muted">
+                  {payer.doc_type} {payer.doc_number}
+                  {payer.email ? ` · ${payer.email}` : ''}
+                  {payer.phone ? ` · ${payer.phone}` : ''}
+                </p>
               </>
+            ) : (
+              <p className="text-fg-faint">Sin responsable de pago.</p>
             )}
-          </div>
-        </header>
+          </section>
 
-        <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_300px]">
-          <div className="space-y-5">
-            {/* Cliente */}
-            <section className="rounded-xl border border-line bg-surface p-4 text-sm">
-              <h2 className="mb-2 text-xs font-medium uppercase tracking-wide text-fg-faint">
-                Cliente
-              </h2>
-              {payer ? (
-                <>
-                  <p className="font-medium text-fg">{payer.name}</p>
-                  <p className="text-fg-muted">
-                    {payer.doc_type} {payer.doc_number}
-                    {payer.email ? ` · ${payer.email}` : ''}
-                    {payer.phone ? ` · ${payer.phone}` : ''}
-                  </p>
-                </>
-              ) : (
-                <p className="text-fg-faint">Sin responsable de pago.</p>
-              )}
-            </section>
-
-            {/* Líneas */}
-            <section className="overflow-x-auto rounded-xl border border-line bg-surface">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="border-b border-line text-left text-xs text-fg-faint">
-                    <th className={TH}>Descripción</th>
-                    <th className={TH_DER}>Cant.</th>
-                    <th className={TH_DER}>Precio</th>
-                    <th className={TH_DER}>Desc.</th>
-                    <th className={TH_DER}>IVA</th>
-                    <th className={TH_DER}>Total</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {lines.map((l) => (
-                    <tr key={l.id} className="border-b border-line/60 last:border-0">
-                      <td className={`${TD} text-fg`}>{l.description}</td>
-                      <td className={`${TD_NUM} text-fg-muted`}>
-                        {l.qty} {l.unit !== 'unidad' ? l.unit : ''}
-                      </td>
-                      <td className={`${TD_NUM} text-fg-muted`}>
-                        {formatCOP(l.unit_price_cents)}
-                      </td>
-                      <td className={`${TD_NUM} text-fg-muted`}>
-                        {l.discount_cents > 0 ? `− ${formatCOP(l.discount_cents)}` : '—'}
-                      </td>
-                      <td className={`${TD_NUM} text-fg-muted`}>
-                        {l.tax_status === 'GRAVADO'
-                          ? `${l.tax_rate}%`
-                          : l.tax_status === 'EXENTO'
-                            ? 'Exento'
-                            : 'Excl.'}
-                      </td>
-                      <td className={`${TD_NUM} text-fg`}>{formatCOP(l.total_cents)}</td>
-                    </tr>
-                  ))}
-                </tbody>
-                <tfoot>
-                  <tr className="border-t border-line text-sm">
-                    <td colSpan={5} className="px-4 py-2 text-right text-fg-muted">
-                      Subtotal
+          {/* Líneas */}
+          <section className="overflow-x-auto rounded-xl border border-line bg-surface">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-line text-left text-xs text-fg-faint">
+                  <th className={TH}>Descripción</th>
+                  <th className={TH_DER}>Cant.</th>
+                  <th className={TH_DER}>Precio</th>
+                  <th className={TH_DER}>Desc.</th>
+                  <th className={TH_DER}>IVA</th>
+                  <th className={TH_DER}>Total</th>
+                </tr>
+              </thead>
+              <tbody>
+                {lines.map((l) => (
+                  <tr key={l.id} className="border-b border-line/60 last:border-0">
+                    <td className={`${TD} text-fg`}>{l.description}</td>
+                    <td className={`${TD_NUM} text-fg-muted`}>
+                      {l.qty} {l.unit !== 'unidad' ? l.unit : ''}
                     </td>
-                    <td className={`${TD_NUM} text-fg`}>
-                      {formatCOP(invoice.subtotal_cents)}
+                    <td className={`${TD_NUM} text-fg-muted`}>
+                      {formatCOP(l.unit_price_cents)}
                     </td>
+                    <td className={`${TD_NUM} text-fg-muted`}>
+                      {l.discount_cents > 0 ? `− ${formatCOP(l.discount_cents)}` : '—'}
+                    </td>
+                    <td className={`${TD_NUM} text-fg-muted`}>
+                      {l.tax_status === 'GRAVADO'
+                        ? `${l.tax_rate}%`
+                        : l.tax_status === 'EXENTO'
+                          ? 'Exento'
+                          : 'Excl.'}
+                    </td>
+                    <td className={`${TD_NUM} text-fg`}>{formatCOP(l.total_cents)}</td>
                   </tr>
-                  {invoice.discount_cents > 0 && (
-                    <tr>
-                      <td colSpan={5} className="px-4 py-1 text-right text-fg-muted">
-                        Descuento
-                      </td>
-                      <td className="px-4 py-1 text-right text-fg-muted">
-                        − {formatCOP(invoice.discount_cents)}
-                      </td>
-                    </tr>
-                  )}
+                ))}
+              </tbody>
+              <tfoot>
+                <tr className="border-t border-line text-sm">
+                  <td colSpan={5} className="px-4 py-2 text-right text-fg-muted">
+                    Subtotal
+                  </td>
+                  <td className={`${TD_NUM} text-fg`}>
+                    {formatCOP(invoice.subtotal_cents)}
+                  </td>
+                </tr>
+                {invoice.discount_cents > 0 && (
                   <tr>
                     <td colSpan={5} className="px-4 py-1 text-right text-fg-muted">
-                      IVA
+                      Descuento
                     </td>
-                    <td className="px-4 py-1 text-right text-fg">{formatCOP(invoice.tax_cents)}</td>
-                  </tr>
-                  <tr className="text-base font-semibold">
-                    <td colSpan={5} className="px-4 py-2 text-right text-fg">
-                      Total
-                    </td>
-                    <td className={`${TD_NUM} text-fg`}>
-                      {formatCOP(invoice.total_cents)}
+                    <td className="px-4 py-1 text-right text-fg-muted">
+                      − {formatCOP(invoice.discount_cents)}
                     </td>
                   </tr>
-                  {invoice.status === 'EMITIDA' && (
-                    <tr className="text-sm">
-                      <td colSpan={5} className="px-4 pb-3 text-right text-fg-muted">
-                        Saldo
-                      </td>
-                      <td className="px-4 pb-3 text-right text-fg">
-                        {formatCOP(invoice.balance_cents)}
-                      </td>
-                    </tr>
-                  )}
-                </tfoot>
-              </table>
-            </section>
+                )}
+                <tr>
+                  <td colSpan={5} className="px-4 py-1 text-right text-fg-muted">
+                    IVA
+                  </td>
+                  <td className="px-4 py-1 text-right text-fg">{formatCOP(invoice.tax_cents)}</td>
+                </tr>
+                <tr className="text-base font-semibold">
+                  <td colSpan={5} className="px-4 py-2 text-right text-fg">
+                    Total
+                  </td>
+                  <td className={`${TD_NUM} text-fg`}>
+                    {formatCOP(invoice.total_cents)}
+                  </td>
+                </tr>
+                {invoice.status === 'EMITIDA' && (
+                  <tr className="text-sm">
+                    <td colSpan={5} className="px-4 pb-3 text-right text-fg-muted">
+                      Saldo
+                    </td>
+                    <td className="px-4 pb-3 text-right text-fg">
+                      {formatCOP(invoice.balance_cents)}
+                    </td>
+                  </tr>
+                )}
+              </tfoot>
+            </table>
+          </section>
 
-            {invoice.notes && (
-              <section className="rounded-xl border border-line bg-surface p-4 text-sm">
-                <h2 className="mb-2 text-xs font-medium uppercase tracking-wide text-fg-faint">
-                  Observaciones
-                </h2>
-                {/* Se respetan los saltos de línea: lo que el vet escribió como lista corta no
-                    debe leerse como un párrafo corrido. Va con el mismo texto que ve el titular en
-                    su factura — no es una nota interna. */}
-                <p className="whitespace-pre-line text-fg-muted">{invoice.notes}</p>
-              </section>
-            )}
-
-            {/* Info fiscal */}
-            {fiscalDoc && (
-              <section className="rounded-xl border border-line bg-surface p-4 text-sm">
-                <h2 className="mb-2 text-xs font-medium uppercase tracking-wide text-fg-faint">
-                  Documento fiscal
-                </h2>
-                <dl className="grid gap-1.5 sm:grid-cols-[110px_1fr]">
-                  <dt className="text-fg-faint">Proveedor</dt>
-                  <dd className="text-fg-muted">
-                    {fiscalDoc.provider}
-                    {isSandbox ? ' (pruebas — sin validez fiscal)' : ''}
-                  </dd>
-                  <dt className="text-fg-faint">Estado</dt>
-                  <dd className="text-fg-muted">{fiscalDoc.status}</dd>
-                  {fiscalDoc.cufe && (
-                    <>
-                      <dt className="text-fg-faint">CUFE</dt>
-                      <dd className="break-all font-mono text-xs text-fg-muted">
-                        {fiscalDoc.cufe}
-                      </dd>
-                    </>
-                  )}
-                  {fiscalDoc.last_error && (
-                    <>
-                      <dt className="text-fg-faint">Último error</dt>
-                      <dd className="text-warn">{fiscalDoc.last_error}</dd>
-                    </>
-                  )}
-                </dl>
-              </section>
-            )}
-
-            {/* Timeline omnicanal: eventos + comunicaciones de cartera */}
-            <section className="rounded-xl border border-line bg-surface p-4">
-              <h2 className="mb-3 text-xs font-medium uppercase tracking-wide text-fg-faint">
-                Historial
-              </h2>
-              <ol className="space-y-2 text-sm" data-testid="invoice-timeline">
-                {timeline.map((t, i) => (
-                  <li key={i} className="flex items-baseline justify-between gap-3">
-                    <span className="text-fg-muted">
-                      {t.label}
-                      {t.detail ? ` · ${t.detail}` : ''}
-                    </span>
-                    <span className="shrink-0 text-xs text-fg-faint">{fmtDateTime(t.at)}</span>
-                  </li>
-                ))}
-              </ol>
-            </section>
-          </div>
-
-          {/* Columna lateral */}
-          <div className="space-y-4">
-            {avisos.length > 0 && (
-              <section className="rounded-xl border border-warn bg-surface-2 p-4 text-sm text-warn">
-                <h2 className="mb-2 flex items-center gap-2 text-xs font-medium uppercase tracking-wide">
-                  <AlertTriangle className="size-3.5 shrink-0" aria-hidden />
-                  Antes de emitir
-                </h2>
-                {/* Avisan, no bloquean: la clínica decidió que una venta no se frena por un atraso
-                    de la contabilidad. Por eso el aviso ES la decisión de producto — sin él, avisar
-                    sin bloquear y no hacer nada son lo mismo. */}
-                <ul className="space-y-1 text-xs">
-                  {avisos.map((a, i) => (
-                    <li key={i}>· {a.message}</li>
-                  ))}
-                </ul>
-              </section>
-            )}
-            <InvoiceActionsPanel
-              invoiceId={invoice.id}
-              status={invoice.status}
-              totalCents={invoice.total_cents}
-              balanceCents={invoice.balance_cents}
-              creditedCents={invoice.credited_cents ?? 0}
-              payerEmail={payer?.email ?? null}
-              payerPhone={payer?.phone ?? null}
-              payerName={payer?.name ?? null}
-              fullNumber={invoice.full_number}
-              shareUrl={shareUrl}
-              deliveryStatus={invoice.delivery_status}
-              defaultTermsDays={settings?.default_payment_terms_days ?? 15}
-              reminderChannel={settings?.reminder_channel ?? 'WHATSAPP'}
-              remindersEnabled={settings?.reminders_enabled ?? false}
-            />
-            {invoice.status === 'EMITIDA' && invoice.balance_cents > 0 && (
-              <FollowupActions
-                invoiceId={invoice.id}
-                remindersPaused={invoice.reminders_paused}
-                inDispute={invoice.collection_status === 'EN_DISPUTA'}
-              />
-            )}
-            <div className="rounded-xl border border-line bg-surface p-4 text-sm">
+          {invoice.notes && (
+            <section className="rounded-xl border border-line bg-surface p-4 text-sm">
               <h2 className="mb-2 text-xs font-medium uppercase tracking-wide text-fg-faint">
-                Datos
+                Observaciones
               </h2>
-              <dl className="space-y-1 text-fg-muted">
-                <div className="flex justify-between">
-                  <dt className="text-fg-faint">Tipo</dt>
-                  <dd>{invoice.doc_kind === 'POS' ? 'POS electrónico' : 'Factura de venta'}</dd>
-                </div>
-                <div className="flex justify-between">
-                  <dt className="text-fg-faint">Creada</dt>
-                  <dd>{fmtDate(invoice.created_at)}</dd>
-                </div>
-                {invoice.issued_at && (
-                  <div className="flex justify-between">
-                    <dt className="text-fg-faint">Emitida</dt>
-                    <dd>{fmtDateTime(invoice.issued_at)}</dd>
-                  </div>
+              {/* Se respetan los saltos de línea: lo que el vet escribió como lista corta no
+                  debe leerse como un párrafo corrido. Va con el mismo texto que ve el titular en
+                  su factura — no es una nota interna. */}
+              <p className="whitespace-pre-line text-fg-muted">{invoice.notes}</p>
+            </section>
+          )}
+
+          {/* Info fiscal */}
+          {fiscalDoc && (
+            <section className="rounded-xl border border-line bg-surface p-4 text-sm">
+              <h2 className="mb-2 text-xs font-medium uppercase tracking-wide text-fg-faint">
+                Documento fiscal
+              </h2>
+              <dl className="grid gap-1.5 sm:grid-cols-[110px_1fr]">
+                <dt className="text-fg-faint">Proveedor</dt>
+                <dd className="text-fg-muted">
+                  {fiscalDoc.provider}
+                  {isSandbox ? ' (pruebas — sin validez fiscal)' : ''}
+                </dd>
+                <dt className="text-fg-faint">Estado</dt>
+                <dd className="text-fg-muted">{fiscalDoc.status}</dd>
+                {fiscalDoc.cufe && (
+                  <>
+                    <dt className="text-fg-faint">CUFE</dt>
+                    <dd className="break-all font-mono text-xs text-fg-muted">
+                      {fiscalDoc.cufe}
+                    </dd>
+                  </>
                 )}
-                {invoice.due_date && (
-                  <div className="flex justify-between">
-                    <dt className="text-fg-faint">Vence</dt>
-                    <dd>{fmtDate(invoice.due_date)}</dd>
-                  </div>
+                {fiscalDoc.last_error && (
+                  <>
+                    <dt className="text-fg-faint">Último error</dt>
+                    <dd className="text-warn">{fiscalDoc.last_error}</dd>
+                  </>
                 )}
-                <div className="flex justify-between">
-                  <dt className="text-fg-faint">Pago</dt>
-                  <dd>{invoice.payment_terms === 'CREDIT' ? 'Crédito' : 'Inmediato'}</dd>
-                </div>
               </dl>
-              {(patient || consultationId) && (
-                <div className="mt-3 flex flex-col gap-1.5 border-t border-line pt-3">
-                  {patient && (
-                    <Link
-                      href={`/dashboard/patients/${patient.id}`}
-                      className="inline-flex items-center gap-1.5 text-sm text-brand underline-offset-2 hover:underline"
-                    >
-                      <PawPrint className="size-3.5" aria-hidden />
-                      Ver ficha de {patient.name}
-                    </Link>
-                  )}
-                  {consultationId && (
-                    <Link
-                      href={`/dashboard/consultas/${consultationId}`}
-                      className="inline-flex items-center gap-1.5 text-sm text-brand underline-offset-2 hover:underline"
-                    >
-                      <Stethoscope className="size-3.5" aria-hidden />
-                      Ver la consulta de origen
-                    </Link>
-                  )}
+            </section>
+          )}
+
+          {/* Timeline omnicanal: eventos + comunicaciones de cartera */}
+          <section className="rounded-xl border border-line bg-surface p-4">
+            <h2 className="mb-3 text-xs font-medium uppercase tracking-wide text-fg-faint">
+              Historial
+            </h2>
+            <ol className="space-y-2 text-sm" data-testid="invoice-timeline">
+              {timeline.map((t, i) => (
+                <li key={i} className="flex items-baseline justify-between gap-3">
+                  <span className="text-fg-muted">
+                    {t.label}
+                    {t.detail ? ` · ${t.detail}` : ''}
+                  </span>
+                  <span className="shrink-0 text-xs text-fg-faint">{fmtDateTime(t.at)}</span>
+                </li>
+              ))}
+            </ol>
+          </section>
+        </div>
+
+        {/* Columna lateral */}
+        <div className="space-y-4">
+          {avisos.length > 0 && (
+            <section className="rounded-xl border border-warn bg-surface-2 p-4 text-sm text-warn">
+              <h2 className="mb-2 flex items-center gap-2 text-xs font-medium uppercase tracking-wide">
+                <AlertTriangle className="size-3.5 shrink-0" aria-hidden />
+                Antes de emitir
+              </h2>
+              {/* Avisan, no bloquean: la clínica decidió que una venta no se frena por un atraso
+                  de la contabilidad. Por eso el aviso ES la decisión de producto — sin él, avisar
+                  sin bloquear y no hacer nada son lo mismo. */}
+              <ul className="space-y-1 text-xs">
+                {avisos.map((a, i) => (
+                  <li key={i}>· {a.message}</li>
+                ))}
+              </ul>
+            </section>
+          )}
+          <InvoiceActionsPanel
+            invoiceId={invoice.id}
+            status={invoice.status}
+            totalCents={invoice.total_cents}
+            balanceCents={invoice.balance_cents}
+            creditedCents={invoice.credited_cents ?? 0}
+            payerEmail={payer?.email ?? null}
+            payerPhone={payer?.phone ?? null}
+            payerName={payer?.name ?? null}
+            fullNumber={invoice.full_number}
+            shareUrl={shareUrl}
+            deliveryStatus={invoice.delivery_status}
+            defaultTermsDays={settings?.default_payment_terms_days ?? 15}
+            reminderChannel={settings?.reminder_channel ?? 'WHATSAPP'}
+            remindersEnabled={settings?.reminders_enabled ?? false}
+          />
+          {invoice.status === 'EMITIDA' && invoice.balance_cents > 0 && (
+            <FollowupActions
+              invoiceId={invoice.id}
+              remindersPaused={invoice.reminders_paused}
+              inDispute={invoice.collection_status === 'EN_DISPUTA'}
+            />
+          )}
+          <div className="rounded-xl border border-line bg-surface p-4 text-sm">
+            <h2 className="mb-2 text-xs font-medium uppercase tracking-wide text-fg-faint">
+              Datos
+            </h2>
+            <dl className="space-y-1 text-fg-muted">
+              <div className="flex justify-between">
+                <dt className="text-fg-faint">Tipo</dt>
+                <dd>{invoice.doc_kind === 'POS' ? 'POS electrónico' : 'Factura de venta'}</dd>
+              </div>
+              <div className="flex justify-between">
+                <dt className="text-fg-faint">Creada</dt>
+                <dd>{fmtDate(invoice.created_at)}</dd>
+              </div>
+              {invoice.issued_at && (
+                <div className="flex justify-between">
+                  <dt className="text-fg-faint">Emitida</dt>
+                  <dd>{fmtDateTime(invoice.issued_at)}</dd>
                 </div>
               )}
-            </div>
+              {invoice.due_date && (
+                <div className="flex justify-between">
+                  <dt className="text-fg-faint">Vence</dt>
+                  <dd>{fmtDate(invoice.due_date)}</dd>
+                </div>
+              )}
+              <div className="flex justify-between">
+                <dt className="text-fg-faint">Pago</dt>
+                <dd>{invoice.payment_terms === 'CREDIT' ? 'Crédito' : 'Inmediato'}</dd>
+              </div>
+            </dl>
+            {(patient || consultationId) && (
+              <div className="mt-3 flex flex-col gap-1.5 border-t border-line pt-3">
+                {patient && (
+                  <Link
+                    href={`/dashboard/patients/${patient.id}`}
+                    className="inline-flex items-center gap-1.5 text-sm text-brand underline-offset-2 hover:underline"
+                  >
+                    <PawPrint className="size-3.5" aria-hidden />
+                    Ver ficha de {patient.name}
+                  </Link>
+                )}
+                {consultationId && (
+                  <Link
+                    href={`/dashboard/consultas/${consultationId}`}
+                    className="inline-flex items-center gap-1.5 text-sm text-brand underline-offset-2 hover:underline"
+                  >
+                    <Stethoscope className="size-3.5" aria-hidden />
+                    Ver la consulta de origen
+                  </Link>
+                )}
+              </div>
+            )}
           </div>
         </div>
       </div>
-    </section>
+    </PageShell>
   );
 }
