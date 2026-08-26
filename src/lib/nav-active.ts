@@ -12,3 +12,21 @@ export function isNavActive(pathname: string, url: string): boolean {
   if (url === "/dashboard") return pathname === url
   return pathname === url || pathname.startsWith(url + "/")
 }
+
+/**
+ * De un conjunto de ítems que coinciden con la ruta, cuál se enciende: EL MÁS ESPECÍFICO.
+ *
+ * Existe porque el 25-ago aparecieron dos anidados en el mismo grupo del pie: «Administración»
+ * (`/dashboard/administracion`) y «Configuración» (`/dashboard/administracion/clinica`). En
+ * `/administracion/clinica` los dos coincidían por prefijo y los dos se encendían — dos ítems
+ * activos a la vez se lee como un glitch, no como una jerarquía.
+ *
+ * La regla del prefijo en `isNavActive` sigue siendo correcta ítem a ítem (es lo que enciende
+ * «Ventas» en sus dieciséis subpantallas); lo que faltaba era el desempate ENTRE ítems, y eso sólo
+ * puede decidirlo quien ve la lista completa.
+ */
+export function urlActivaEntre(pathname: string, urls: string[]): string | null {
+  const coinciden = urls.filter((u) => isNavActive(pathname, u))
+  if (coinciden.length === 0) return null
+  return coinciden.sort((a, b) => b.length - a.length)[0]
+}

@@ -370,7 +370,15 @@ export function AppointmentCalendar({
         </div>
       </div>
 
-      <div className="tuvetia-calendar h-[75vh]">
+      {/* `overflow-x-auto` + ancho mínimo interno: sin esto, en una ventana angosta las siete
+          columnas de la semana se COMPRIMÍAN hasta truncar la hora y el título de cada cita —
+          «que no corte calendarios» (David, 25-ago). Con esto el calendario scrollea DENTRO de su
+          marco, que es la regla de todo contenido ancho en este repo (tablas incluidas). El
+          mínimo son ~90 px por día + la regla horaria: debajo de eso una cita no alcanza a decir
+          ni la hora. `svh` y no `vh`: en móvil, `vh` incluye la barra del navegador y el pie del
+          calendario quedaba debajo de ella. */}
+      <div className="tuvetia-calendar h-[75svh] overflow-x-auto">
+        <div className="h-full min-w-[700px]">
         <DnDCalendar
           localizer={localizer}
           culture="es"
@@ -400,6 +408,7 @@ export function AppointmentCalendar({
           })}
           style={{ height: "100%" }}
         />
+        </div>
       </div>
 
       {initial && (

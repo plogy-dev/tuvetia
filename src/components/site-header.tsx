@@ -53,7 +53,10 @@ export function SiteHeader() {
             Eran dos <h1> visibles a la vez, y en las subpantallas decían cosas distintas: medido en
             producción, `/dashboard/facturacion/cartera` daba `["Ventas", "Cartera"]`. Un lector de
             pantalla anunciaba dos encabezados de nivel 1 para una página con un solo tema. */}
-        <p className="text-base font-medium">{title}</p>
+        {/* `min-w-0 truncate`: el título es el único texto flexible de esta fila — sin esto, un
+            rótulo largo en una ventana angosta empujaba al buscador fuera y la cabecera entera a
+            scroll horizontal. Truncar el rótulo es barato; cortar la página no. */}
+        <p className="min-w-0 truncate text-base font-medium">{title}</p>
 
         {/* Buscador global, igual que el del cliente: un <form> GET, sin estado ni JS. Escribir no
             dispara nada; sólo al enviar se navega. El destino es Pacientes porque su explorador ya
@@ -63,8 +66,11 @@ export function SiteHeader() {
             sitio — con una grabación en curso, eso es el aviso de «¿salir del sitio?» y la consulta
             perdida. Es el camino que hacía ver el fallo como intermitente después de arreglar el
             menú lateral. Ver `lib/busqueda-en-la-url.ts`. */}
-        <FormularioDeFiltros action="/dashboard/patients" className="ml-auto hidden md:block">
-          <div className="relative w-[260px] lg:w-[300px]">
+        <FormularioDeFiltros action="/dashboard/patients" className="ml-auto hidden min-w-0 md:block">
+          {/* Ancho MÁXIMO, no fijo: `w-[260px]` a secas exigía sus píxeles aunque no los hubiera
+              — entre 768 y ~900 px de ventana la cabecera pedía ~510 px donde había ~464, y el
+              sobrante desbordaba la página entera. Con max-w el buscador cede antes que la fila. */}
+          <div className="relative w-full min-w-[140px] max-w-[260px] lg:max-w-[300px]">
             <SearchIcon
               className="pointer-events-none absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground"
               aria-hidden

@@ -311,11 +311,16 @@ function SidebarRail({ className, ...props }: React.ComponentProps<"button">) {
 }
 
 function SidebarInset({ className, ...props }: React.ComponentProps<"main">) {
+  // `min-w-0` NO es decorativo. Este <main> es hijo flex en eje HORIZONTAL, y sin él su ancho
+  // mínimo es el de su contenido: una tabla ancha o un calendario empujaban la página entera a
+  // scroll horizontal — y como la barra lateral es `fixed`, el contenido desplazado pasaba POR
+  // DEBAJO de ella. Eso era «corta letras, encabezados y calendarios» (David, 25-ago). Con esto,
+  // el contenido ancho scrollea DENTRO de su propio `overflow-x-auto`, que es donde debe.
   return (
     <main
       data-slot="sidebar-inset"
       className={cn(
-        "relative flex w-full flex-1 flex-col bg-background md:peer-data-[variant=inset]:m-2 md:peer-data-[variant=inset]:ml-0 md:peer-data-[variant=inset]:rounded-xl md:peer-data-[variant=inset]:shadow-sm md:peer-data-[variant=inset]:peer-data-[state=collapsed]:ml-2",
+        "relative flex w-full min-w-0 flex-1 flex-col bg-background md:peer-data-[variant=inset]:m-2 md:peer-data-[variant=inset]:ml-0 md:peer-data-[variant=inset]:rounded-xl md:peer-data-[variant=inset]:shadow-sm md:peer-data-[variant=inset]:peer-data-[state=collapsed]:ml-2",
         className
       )}
       {...props}
@@ -379,7 +384,11 @@ function SidebarContent({ className, ...props }: React.ComponentProps<"div">) {
       data-slot="sidebar-content"
       data-sidebar="content"
       className={cn(
-        "no-scrollbar flex min-h-0 flex-1 flex-col gap-2 overflow-auto group-data-[collapsible=icon]:overflow-hidden",
+        // `overflow-auto` también en modo icono: antes era `overflow-hidden`, y como el dashboard
+        // ARRANCA colapsado, si el contenido no cabía los ítems de abajo quedaban inalcanzables
+        // sin ninguna barra que delatara que había más. (El `no-scrollbar` que acompañaba no
+        // existía en ningún CSS del repo — letra muerta desde el port.)
+        "flex min-h-0 flex-1 flex-col gap-2 overflow-auto",
         className
       )}
       {...props}

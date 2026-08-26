@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest"
 
-import { isNavActive } from "@/lib/nav-active"
+import { isNavActive, urlActivaEntre } from "@/lib/nav-active"
 
 describe("isNavActive", () => {
   it("enciende el ítem cuando la ruta es exactamente la suya", () => {
@@ -35,5 +35,33 @@ describe("isNavActive", () => {
   it("no enciende nada desde fuera del panel", () => {
     expect(isNavActive("/login", "/dashboard/patients")).toBe(false)
     expect(isNavActive("/", "/dashboard")).toBe(false)
+  })
+})
+
+describe("urlActivaEntre — el desempate entre ítems anidados", () => {
+  // El 25-ago el pie tenía DOS activos a la vez en /administracion/clinica: «Administración» y
+  // «Configuración», porque el prefijo enciende a los dos. El desempate lo decide quien ve la
+  // lista completa: gana el más específico.
+  const URLS = ["/dashboard/conexiones", "/dashboard/administracion", "/dashboard/administracion/clinica", "/dashboard/ayuda"]
+
+  it("en la subpantalla gana el hijo, no el padre", () => {
+    expect(urlActivaEntre("/dashboard/administracion/clinica", URLS)).toBe(
+      "/dashboard/administracion/clinica",
+    )
+    expect(urlActivaEntre("/dashboard/administracion/clinica?tab=equipo".split("?")[0], URLS)).toBe(
+      "/dashboard/administracion/clinica",
+    )
+  })
+
+  it("en el índice del padre gana el padre", () => {
+    expect(urlActivaEntre("/dashboard/administracion", URLS)).toBe("/dashboard/administracion")
+    // Y en otra hija del padre que NO es la de configuración, también.
+    expect(urlActivaEntre("/dashboard/administracion/planes-salud", URLS)).toBe(
+      "/dashboard/administracion",
+    )
+  })
+
+  it("fuera de todos, ninguno", () => {
+    expect(urlActivaEntre("/dashboard/patients", URLS)).toBeNull()
   })
 })
