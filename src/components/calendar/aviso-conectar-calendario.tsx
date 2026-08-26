@@ -124,24 +124,47 @@ export function AvisoConectarCalendario({
           </DialogDescription>
         </DialogHeader>
 
-        <p className="mt-4 text-[13px] leading-relaxed text-fg-muted">
+        {/* La letra chica CON MARCO. Suelta entre la descripción y los botones parecía un
+            segundo párrafo del mismo texto y competía con él; encerrada se lee por lo que es: la
+            aclaración de privacidad que responde «¿y qué va a ver de mi calendario?». */}
+        <p className="mt-4 rounded-lg border border-line bg-surface-2 px-3 py-2 text-[13px] leading-relaxed text-fg-muted">
           Tuvetia sólo <b>escribe</b> sus citas: nunca lee tus eventos ni los trae a la clínica.
         </p>
 
-        <DialogFooter>
-          <Button variant="ghost" onClick={posponer} disabled={conectando !== null}>
-            Ahora no
-          </Button>
+        {/* APILADOS Y NO EN FILA, y es lo que estaba roto. `DialogFooter` alinea a la derecha en
+            una fila, y acá van «Conectar Google Calendar» + «Conectar Outlook Calendar» + «Ahora
+            no» dentro de un diálogo de 448px: no entran, la fila se desbordaba y el «Ahora no»
+            quedaba cortado afuera. O sea que la única salida visible del modal era la X.
+
+            Apilados entran enteros, y además es la forma correcta para lo que esto es: una ELECCIÓN
+            entre dos opciones equivalentes. Uno al lado del otro, dos botones del mismo verde se
+            leen como «acción principal y acción secundaria», y acá ninguno lo es. */}
+        <DialogFooter className="mt-5 flex-col gap-2 sm:flex-col">
           {disponibles.map((p) => (
-            <Button key={p} onClick={() => conectar(p)} disabled={conectando !== null}>
+            <Button
+              key={p}
+              variant="outline"
+              className="w-full justify-start"
+              onClick={() => conectar(p)}
+              disabled={conectando !== null}
+            >
               {conectando === p ? (
-                <Loader2 className="size-4 animate-spin" />
+                <Loader2 className="size-4 animate-spin" aria-hidden />
               ) : (
-                <CalendarPlus className="size-4" aria-hidden />
+                <CalendarPlus className="size-4 text-brand-text" aria-hidden />
               )}
               Conectar {NOMBRE_DEL_CALENDARIO[p]}
             </Button>
           ))}
+          {/* Debajo y en ghost: es la salida, no una tercera opción a la par de las otras dos. */}
+          <Button
+            variant="ghost"
+            className="w-full text-fg-muted"
+            onClick={posponer}
+            disabled={conectando !== null}
+          >
+            Ahora no
+          </Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>

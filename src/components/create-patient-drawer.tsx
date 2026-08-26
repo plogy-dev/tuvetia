@@ -272,7 +272,9 @@ export function CreatePatientDrawer({
         <form
           id="create-patient-form"
           onSubmit={handleSubmit}
-          className="flex flex-col gap-4 overflow-y-auto px-4 text-sm"
+          // `pb-4`: `DrawerFooter` es `p-4 pt-0` —no trae separacion arriba, la espera del area
+          // que scrollea— asi que sin esto el ultimo campo queda apoyado contra «Crear paciente».
+          className="flex flex-col gap-4 overflow-y-auto px-4 pb-4 text-sm"
         >
           <FieldGroup>
             <Field>
@@ -323,7 +325,17 @@ export function CreatePatientDrawer({
                 />
               </Field>
             </div>
-            <div className="grid grid-cols-3 gap-4">
+            {/* DOS COLUMNAS Y NO TRES, y no es gusto: el cajon mide 24rem (384px) y con `px-4`
+                quedan 352 utiles. A tres columnas con `gap-4` cada una cae en ~106px, y un
+                `input[type=date]` tiene un ancho MINIMO INTRINSECO mayor que eso — «dd/mm/aaaa»
+                mas el icono del calendario. Como los items de una grilla son `min-width:auto`, no
+                encogen por debajo de su contenido: la fila se desbordaba y «Peso» quedaba cortado
+                contra el borde. A dos columnas son 168px, que le sobran a la fecha; «Peso» baja a
+                la fila siguiente y conserva el orden de lectura.
+
+                `min-w-0` en los campos es el cinturon: aunque un dia entre un control mas ancho,
+                encoge en vez de empujar la fila fuera del cajon. */}
+            <div className="grid grid-cols-2 gap-4 [&>*]:min-w-0">
               <Field>
                 <FieldLabel htmlFor="patient-sex">Sexo</FieldLabel>
                 <Select
