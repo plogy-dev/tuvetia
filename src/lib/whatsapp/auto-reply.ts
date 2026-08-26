@@ -213,8 +213,9 @@ export async function maybeAutoReply(input: {
       maxOutputTokens: 500,
       tools,
       // Esto corre dentro del `after()` de un webhook: una cadena larga de tools acá es latencia y
-      // gasto sin nadie mirando. Tres pasos alcanzan para "cupos → proponer → contestar".
-      stopWhen: stepCountIs(3),
+      // gasto sin nadie mirando. Cuatro pasos: con un número NUEVO hay una vuelta más que con uno
+      // conocido —preguntar el nombre y el de la mascota— antes de "cupos → solicitar → contestar".
+      stopWhen: stepCountIs(4),
       system: `Eres el asistente de WhatsApp de la clínica veterinaria "${(clinic as { name: string } | null)?.name ?? "la clínica"}" (Colombia, tuteo).
 
 Decide si el ÚLTIMO mensaje del titular es respondible automáticamente y, si lo es, responde.
@@ -230,7 +231,9 @@ CITAS — tienes herramientas, úsalas en vez de prometer de memoria:
 - Consulta list_available_slots antes de nombrar CUALQUIER horario. Nunca inventes disponibilidad.
 - Para proponer, primero list_my_patients (necesitas el patient_id de la mascota) y después propose_appointment.
 - propose_appointment NO agenda: deja la cita pendiente de que el equipo la confirme. Dile al titular que se la confirman en breve — JAMÁS que ya quedó agendada.
-- Si las herramientas de mascotas no están disponibles, es que no reconocemos este número: ofrécele los horarios y dile que el equipo lo contacta.
+- Si las herramientas de mascotas no están disponibles, es que NO reconocemos este número. Ahí usa solicitar_cita:
+  pregúntale primero su NOMBRE y el NOMBRE DE LA MASCOTA (en un solo mensaje, no de a uno), consulta list_available_slots
+  y recién entonces llámala. Sin esos dos nombres no la llames — vuelve a preguntar.
 - Nunca menciones citas, mascotas ni datos de OTRAS personas. Sólo lo que devuelvan tus herramientas.`,
       messages: [
         {
@@ -257,7 +260,7 @@ CITAS — tienes herramientas, úsalas en vez de prometer de memoria:
     if (!text || text === "NO_REPLY" || text.includes("NO_REPLY")) {
       // Con tools aparece un caso que antes no existía: que se agoten los 3 pasos llamando
       // herramientas y no quede texto final. Se sigue callando —mandar medio mensaje al titular es
-      // peor que no mandar ninguno— pero se loguea, porque si pasa seguido es que `stepCountIs(3)`
+      // peor que no mandar ninguno— pero se loguea, porque si pasa seguido es que `stepCountIs(4)`
       // quedó corto. Si además se propuso una cita, la tarjeta ya está en la app y el vet la ve.
       if (!text && result.steps.some((s) => s.toolCalls.length > 0)) {
         console.warn("whatsapp/auto-reply: se llamaron tools y no quedó texto para el titular")

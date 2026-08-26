@@ -41,6 +41,26 @@ const CREATE_APPOINTMENT = z.object({
   notes: textoOpcional,
 })
 
+/**
+ * `solicitar_cita` — el pedido de alguien que NO está registrado.
+ *
+ * SIN `patient_id` NI `owner_id`, y ahí está toda la diferencia con `create_appointment`: esos dos
+ * todavía no existen. Lo que viaja son los NOMBRES tal como los dijo la persona, y al ejecutarla se
+ * crean el titular, el paciente y la cita.
+ *
+ * El teléfono lo pone el servidor desde la conversación, no el modelo — pero se valida igual: entre
+ * la propuesta y la ejecución el payload pasa por el navegador, y es el dato con el que se va a
+ * crear un titular.
+ */
+const SOLICITAR_CITA = z.object({
+  nombre: z.string().min(2).max(80),
+  mascota: z.string().min(1).max(60),
+  telefono: z.string().min(7).max(30),
+  starts_at: z.string().datetime({ offset: true }),
+  ends_at: z.string().datetime({ offset: true }),
+  reason: z.string().min(1),
+})
+
 /** `update_appointment` guarda el id más SÓLO los campos que cambian: todos opcionales. */
 const UPDATE_APPOINTMENT = z.object({
   appointment_id: uuid,
@@ -97,6 +117,7 @@ export const PAYLOAD_SCHEMAS = {
     body: z.string().min(1).max(5000),
   }),
   create_appointment: CREATE_APPOINTMENT,
+  solicitar_cita: SOLICITAR_CITA,
   update_appointment: UPDATE_APPOINTMENT,
   create_owner: OWNER,
   create_patient: PATIENT_SIN_OWNER.extend({ owner_id: uuid }),
