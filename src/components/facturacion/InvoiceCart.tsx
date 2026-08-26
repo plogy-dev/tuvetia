@@ -23,6 +23,7 @@ import {
   roundHalfUp,
 } from '@/lib/facturacion/domain/money';
 import { checkPosThreshold } from '@/lib/facturacion/domain/dian-rules';
+import { SelectorDeCliente } from '@/components/facturacion/SelectorDeCliente';
 import { buscarPorCodigo } from '@/lib/facturacion/buscar-por-codigo';
 import type { DocKind } from '@/lib/facturacion/domain/types';
 import type { CatalogItemRow, PaymentTerms } from '@/lib/supabase/types';
@@ -80,15 +81,15 @@ const FORMAS_DE_PAGO: { value: PaymentTerms; label: string }[] = [
 
 export function InvoiceCart({
   items,
-  ownerId,
-  ownerName,
-  patientId,
-  patientName,
+  ownerId: ownerIdInicial,
+  ownerName: ownerNameInicial,
+  patientId: patientIdInicial,
+  patientName: patientNameInicial,
   consultationId,
   renglonesIniciales,
   defaultDocKind,
   uvtValueCents,
-  cobertura,
+  cobertura: coberturaDelInicial,
   abiertaEn,
 }: {
   items: CatalogItemRow[];
@@ -147,6 +148,27 @@ export function InvoiceCart({
   const draftRef = useRef<{ key: string; url: string } | null>(null);
   const [draftUrl, setDraftUrl] = useState<string | null>(null);
   const [warnings, setWarnings] = useState<string[]>([]);
+  // ── A QUIÉN SE LE VENDE, COMO ESTADO ────────────────────────────────────────────────────────
+  //
+  // Era prop inmutable y «Editar» era un <Link> que NAVEGABA al buscador: el carrito se
+  // desmontaba y todo lo tecleado se perdía — «no está funcionando de forma dinámica» (David,
+  // 25-ago). Ahora el cliente se elige y se cambia EN la cuenta, con el flujo que él describió:
+  // botón → dos papeletas → lupa. La URL no se toca: las líneas también son estado y un refresh
+  // ya perdía la cuenta entera; serializar sólo el cliente sería consistencia a medias.
+  const [cliente, setCliente] = useState({
+    ownerId: ownerIdInicial ?? null,
+    ownerName: ownerNameInicial ?? null,
+    patientId: patientIdInicial ?? null,
+    patientName: patientNameInicial ?? null,
+  });
+  const [eligiendoCliente, setEligiendoCliente] = useState(false);
+  // La cobertura del plan de salud la trajo el SERVIDOR para el paciente con el que se abrió la
+  // cuenta. Si el vet cambia de cliente acá adentro, ese plan ya no es de quien se factura:
+  // anunciarlo sería prometerle el descuento de otro. Se apaga y la cuenta se cobra normal — el
+  // mismo comportamiento de antes de que existieran los planes. (Traer el plan del paciente nuevo
+  // exigiría una consulta desde el navegador; si los planes agarran uso, ese es el siguiente paso.)
+  const cobertura =
+    cliente.patientId === (patientIdInicial ?? null) ? coberturaDelInicial : null;
   const [lines, setLines] = useState<CartLine[]>(() =>
     (renglonesIniciales ?? []).map((r, i) => ({
       key: i,
@@ -328,8 +350,8 @@ export function InvoiceCart({
 
   function buildInput(): CreateDraftInput {
     return {
-      ownerId: ownerId ?? null,
-      patientId: patientId ?? null,
+      ownerId: cliente.ownerId,
+      patientId: cliente.patientId,
       consultationId: consultationId ?? null,
       docKind,
       lines: lines.map((l, i) => ({
@@ -418,26 +440,36 @@ export function InvoiceCart({
           <span className="block text-xs font-medium text-fg-muted">Propietario o Cliente</span>
           <div className="mt-1 flex items-center gap-2">
             <p className="min-w-0 flex-1 truncate py-2 text-sm">
-              {ownerName ? (
-                <span className="font-medium text-fg">{ownerName}</span>
+              {cliente.ownerName ? (
+                <span className="font-medium text-fg">{cliente.ownerName}</span>
               ) : (
                 <span className="italic text-fg-faint">Venta a persona indeterminada</span>
               )}
             </p>
             {/* «Editar», al lado del nombre y no escondido — es el control de OkVet, y acá además
                 es lo que evita que una cuenta se emita a consumidor final sin querer: sin cliente
-                la factura queda fuera de cartera y sin correo a dónde mandarla. */}
-            <Link
-              href="/dashboard/facturacion/nueva"
+                la factura queda fuera de cartera y sin correo a dónde mandarla.
+
+                ES UN BOTÓN, NO UN LINK. El Link navegaba al buscador y DESMONTABA el carrito con
+                todo lo tecleado adentro — «no está funcionando de forma dinámica» (David, 25-ago).
+                El selector (dos papeletas → lupa) cambia el cliente acá mismo, sin salir. */}
+            <button
+              type="button"
+              onClick={() => setEligiendoCliente(true)}
               className="shrink-0 rounded-md border border-line px-2 py-1 text-xs text-fg-muted transition hover:bg-surface-2 hover:text-fg"
             >
               Editar
-            </Link>
+            </button>
+            <SelectorDeCliente
+              open={eligiendoCliente}
+              onOpenChange={setEligiendoCliente}
+              onElegir={setCliente}
+            />
           </div>
-          {(patientName || consultationId) && (
+          {(cliente.patientName || consultationId) && (
             <p className="-mt-1 text-xs text-fg-faint">
-              {patientName ? `Paciente ${patientName}` : ''}
-              {patientName && consultationId ? ' · ' : ''}
+              {cliente.patientName ? `Paciente ${cliente.patientName}` : ''}
+              {cliente.patientName && consultationId ? ' · ' : ''}
               {consultationId ? 'consulta asociada' : ''}
             </p>
           )}
@@ -568,9 +600,48 @@ export function InvoiceCart({
 
 
       {lines.length === 0 ? (
-        <p className="rounded-xl border border-dashed border-line px-4 py-8 text-center text-sm text-fg-faint">
-          Busca un producto/servicio o agrega una línea libre.
-        </p>
+        /* ── EL CATÁLOGO A LA VISTA, NO DETRÁS DE UN CLIC ─────────────────────────────────────
+           David, 25-ago: «debe ser fácil buscar el producto que se está vendiendo, mira que ahí
+           es complejo, no es fácil escoger». El dato que decide el diseño: la clínica más grande
+           del principal tiene OCHO ítems de catálogo (promedio: cinco). Con ese volumen no hay
+           que buscar — hay que mostrarlos. Antes esta área era un cartel que mandaba a la caja de
+           arriba, cuyo popover sólo aparece al enfocarla: los ocho ítems estaban escondidos.
+
+           El tope de 24 no es un límite del catálogo, es de ESTA vitrina: con más, la cuadrícula
+           deja de ser un vistazo y el buscador de arriba vuelve a ser el camino. */
+        <div className="rounded-xl border border-dashed border-line p-4">
+          {items.length === 0 ? (
+            <p className="px-0 py-4 text-center text-sm text-fg-faint">
+              Busca un producto/servicio o agrega una línea libre.
+            </p>
+          ) : (
+            <>
+              <p className="mb-3 text-xs font-medium text-fg-faint">
+                Toca para agregar a la cuenta
+              </p>
+              <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+                {items.slice(0, 24).map((i) => (
+                  <button
+                    key={i.id}
+                    type="button"
+                    onClick={() => addCatalogLine(i.id)}
+                    className="flex items-baseline justify-between gap-2 rounded-lg border border-line bg-surface px-3 py-2 text-left text-sm transition hover:border-brand/40 hover:bg-surface-2"
+                  >
+                    <span className="min-w-0 truncate">{i.name}</span>
+                    <span className="shrink-0 font-mono text-xs tabular-nums text-fg-muted">
+                      {formatCOP(i.price_cents)}
+                    </span>
+                  </button>
+                ))}
+              </div>
+              {items.length > 24 && (
+                <p className="mt-2 text-xs text-fg-faint">
+                  Se muestran 24 de {items.length}: el resto sale por el buscador de arriba.
+                </p>
+              )}
+            </>
+          )}
+        </div>
       ) : (
         /* ── CADA LÍNEA ES UNA TARJETA DE DOS FILAS, como en la referencia ────────────────────
            Arriba lo que se teclea en toda venta —concepto, valor unitario, descuento, cantidad— y
@@ -963,6 +1034,9 @@ function CatalogPicker({
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState('');
   const [typeFilter, setTypeFilter] = useState<string>('');
+  // Índice del resultado resaltado por teclado, sobre la lista PLANA en orden de render. -1 = el
+  // teclado todavía no navegó (Enter entonces elige el primero: lo que un cajero espera).
+  const [activo, setActivo] = useState(-1);
   const rootRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -1005,6 +1079,9 @@ function CatalogPicker({
     return order.filter((t) => map.has(t)).map((t) => [t, map.get(t)!] as const);
   }, [filtered, typeFilter]);
 
+  // La misma lista que se pinta, aplanada: el ↑/↓ recorre lo que el ojo ve, cruzando los grupos.
+  const planos = useMemo(() => grouped.flatMap(([, arr]) => arr), [grouped]);
+
   // Nota del port: en el origen esto era una función `pick(id)` que el onClick llamaba. La regla
   // `react-hooks/refs` del compilador de React no puede probar que ese closure solo corre en el
   // click (la lectura del ref queda a una indirección) y lo marcaba como acceso en render. El
@@ -1012,6 +1089,7 @@ function CatalogPicker({
   function pick(id: string) {
     onPick(id);
     setQuery('');
+    setActivo(-1);
   }
 
   return (
@@ -1027,8 +1105,31 @@ function CatalogPicker({
           onChange={(e) => {
             setQuery(e.target.value);
             setOpen(true);
+            setActivo(-1); // lo resaltado era de la lista anterior
           }}
           onFocus={() => setOpen(true)}
+          onKeyDown={(e) => {
+            // ── EL TECLADO DEL CAJERO ─────────────────────────────────────────────────────────
+            // David, 25-ago: «no es fácil escoger». Antes este buscador no tenía NI UNA tecla —
+            // no existía un solo ArrowDown en todo el repo—: cada ítem exigía soltar el teclado y
+            // agarrar el ratón, en la pantalla donde más se encadena (buscar → agregar → buscar).
+            if (!open && (e.key === 'ArrowDown' || e.key === 'Enter')) setOpen(true);
+            if (e.key === 'ArrowDown') {
+              e.preventDefault();
+              setActivo((a) => Math.min(a + 1, planos.length - 1));
+            } else if (e.key === 'ArrowUp') {
+              e.preventDefault();
+              setActivo((a) => Math.max(a - 1, -1));
+            } else if (e.key === 'Enter') {
+              e.preventDefault();
+              const elegido = planos[activo] ?? planos[0];
+              if (elegido) pick(elegido.id);
+            }
+          }}
+          role="combobox"
+          aria-expanded={open}
+          aria-controls="catalogo-resultados"
+          aria-activedescendant={activo >= 0 ? `catalogo-opcion-${planos[activo]?.id}` : undefined}
           placeholder="Buscar en el catálogo (nombre o SKU)…"
           className="w-full rounded-lg border border-line bg-surface py-2 pl-9 pr-3 text-sm text-fg placeholder:text-fg-faint outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
         />
@@ -1054,7 +1155,7 @@ function CatalogPicker({
             ))}
           </div>
 
-          <div className="max-h-72 overflow-y-auto">
+          <div id="catalogo-resultados" role="listbox" aria-label="Catálogo" className="max-h-72 overflow-y-auto">
             {filtered.length === 0 ? (
               <p className="px-4 py-6 text-center text-sm text-fg-faint">
                 Sin resultados{query ? ` para «${query}»` : ''}.
@@ -1071,11 +1172,16 @@ function CatalogPicker({
                     <button
                       key={i.id}
                       type="button"
+                      id={`catalogo-opcion-${i.id}`}
+                      role="option"
+                      aria-selected={planos[activo]?.id === i.id}
                       onClick={() => {
                         pick(i.id)
                         inputRef.current?.focus() // seguir agregando sin reabrir
                       }}
-                      className="flex w-full items-center justify-between gap-3 px-3 py-2 text-left text-sm hover:bg-surface-2 transition"
+                      className={`flex w-full items-center justify-between gap-3 px-3 py-2 text-left text-sm transition hover:bg-surface-2 ${
+                        planos[activo]?.id === i.id ? 'bg-surface-2' : ''
+                      }`}
                     >
                       <span className="min-w-0 truncate text-fg">{i.name}</span>
                       <span className="shrink-0 text-xs text-fg-muted">

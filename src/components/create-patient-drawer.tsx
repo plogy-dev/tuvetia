@@ -46,11 +46,19 @@ const NEW_OWNER = "__new__"
 export function CreatePatientDrawer({
   trigger,
   label = "Crear paciente",
+  onCreated,
 }: {
   // Trigger alternativo (p.ej. un Button en el header de Pacientes); por defecto,
   // el botón del sidebar de siempre.
   trigger?: React.ReactElement
   label?: string
+  /**
+   * Si viene, el alta NO navega a /dashboard/patients: le entrega el paciente nuevo a quien lo
+   * pidió y se queda donde estaba. Existe para los flujos que crean un paciente EN MEDIO de otra
+   * cosa — «Iniciar consulta» con un paciente que aún no está registrado (David, 25-ago) — donde
+   * sacarte de la pantalla es perder lo que estabas haciendo.
+   */
+  onCreated?: (paciente: { id: string; name: string; species: string }) => void
 } = {}) {
   const isMobile = useIsMobile()
   const router = useRouter()
@@ -225,8 +233,14 @@ export function CreatePatientDrawer({
     toast.success(`${name} se registró correctamente`)
     setOpen(false)
     resetForm()
-    router.push("/dashboard/patients")
-    router.refresh()
+    if (onCreated) {
+      // El flujo anfitrión sigue: el paciente recién creado vuelve a quien abrió este drawer.
+      onCreated({ id: newPatientId as string, name: name.trim(), species: species.trim() })
+      router.refresh()
+    } else {
+      router.push("/dashboard/patients")
+      router.refresh()
+    }
   }
 
   return (

@@ -62,12 +62,26 @@ describe("el buscador dejó de ser un paso", () => {
   })
 })
 
-describe("el buscador sigue existiendo, como selector", () => {
-  it("se llega desde «Editar» del carrito", () => {
+describe("el cliente se elige SIN salir de la cuenta", () => {
+  // La versión anterior de este caso fijaba el mecanismo: «Editar» como <Link> a /nueva. Ese Link
+  // NAVEGABA, el carrito se desmontaba y todo lo tecleado se perdía — «no está funcionando de
+  // forma dinámica» (David, 25-ago). Lo que se protege ahora es la intención: hay salida a elegir
+  // cliente, y NO cuesta la cuenta.
+  it("«Editar» abre el selector en la misma pantalla, sin navegar", () => {
     const carrito = sinComentarios("src/components/facturacion/InvoiceCart.tsx")
-    const i = carrito.indexOf('href="/dashboard/facturacion/nueva"')
-    expect(i, "el «Editar» del carrito tiene que llevar al selector").toBeGreaterThan(-1)
-    expect(carrito.slice(i, i + 400)).toContain("Editar")
+    const i = carrito.indexOf("setEligiendoCliente(true)")
+    expect(i, "el «Editar» del carrito perdió su selector").toBeGreaterThan(-1)
+    expect(carrito).toContain("<SelectorDeCliente")
+    // Y el camino viejo no vuelve: un href a /nueva desde el carrito es el desmonte otra vez.
+    expect(carrito).not.toContain('href="/dashboard/facturacion/nueva"')
+  })
+
+  it("el selector son las dos papeletas de David, y después la lupa", () => {
+    const selector = sinComentarios("src/components/facturacion/SelectorDeCliente.tsx")
+    expect(selector).toContain("Venta a persona indeterminada")
+    expect(selector).toContain("Venta a cliente o paciente")
+    // La lupa busca con el matcher compartido (tildes, ñ, titular), no con un filtro propio.
+    expect(selector).toContain("buscarPacientes")
   })
 
   it("y desde el aviso de consultas sin facturar", () => {
