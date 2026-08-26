@@ -57,6 +57,9 @@ export function Cuestionario({
   const todas = preguntas.every((_, i) => resuelta(respuestas[i]))
 
   const fijar = (i: number, r: Respuesta) => setRespuestas((prev) => ({ ...prev, [i]: r }))
+  const responder = () => {
+    if (todas) onResponder(componerRespuestas(preguntas, respuestas))
+  }
 
   return (
     // La tarjeta usa los tokens del sistema (line/surface/brand): debe leerse como parte de la
@@ -101,6 +104,16 @@ export function Cuestionario({
             <input
               value={r.libre}
               onChange={(e) => fijar(i, { ...r, libre: e.target.value })}
+              // Enter ENVÍA el cuestionario completo cuando ya está resuelto — terminar de teclear
+              // la última respuesta y tener que ir con el mouse hasta «Responder» era la fricción
+              // exacta que este cuestionario existe para quitar. Incompleto, Enter no hace nada:
+              // el contrato de "nada se envía hasta resolver todo" no se negocia por un atajo.
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  e.preventDefault()
+                  responder()
+                }
+              }}
               placeholder="Otro (agrégalo)…"
               aria-label={p.pregunta ? `Otra respuesta para: ${p.pregunta}` : "Otra respuesta"}
               className="h-8 w-full max-w-[340px] rounded-lg border border-line bg-transparent px-2.5 text-[12.5px] outline-none placeholder:text-fg-faint focus-visible:border-brand focus-visible:ring-2 focus-visible:ring-brand-soft"
@@ -117,7 +130,7 @@ export function Cuestionario({
         <Button
           size="sm"
           disabled={!todas}
-          onClick={() => onResponder(componerRespuestas(preguntas, respuestas))}
+          onClick={responder}
           className="h-[30px] shrink-0 rounded-[7px] px-3 text-[12.5px]"
         >
           Responder
