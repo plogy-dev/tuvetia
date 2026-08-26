@@ -57,6 +57,7 @@ export default async function CalendarioPage() {
     { data: pts },
     { data: owns },
     { data: profs },
+    { data: avisos },
     miCalendario,
   ] = await Promise.all([
       // EL PERMISO SE APLICA ACÁ, en la consulta, y no en el navegador. Antes la pantalla se
@@ -76,6 +77,15 @@ export default async function CalendarioPage() {
       supabase.from("owners").select("id, full_name").order("full_name").limit(1000),
       clinicId
         ? supabase.from("profiles").select("id, full_name").eq("clinic_id", clinicId)
+        : Promise.resolve({ data: null }),
+      // Si la clínica tiene encendidos los avisos de cita. El panel lateral lo DICE —no lo cambia—
+      // y va en esta misma ola: encadenarla después le sumaría su latencia a la carga de la agenda.
+      clinicId
+        ? supabase
+            .from("clinics")
+            .select("confirmacion_citas_activo, recordatorio_citas_activo")
+            .eq("id", clinicId)
+            .maybeSingle()
         : Promise.resolve({ data: null }),
       // ¿ESTA PERSONA tiene calendario conectado? (v5) Desde que el evento se crea en el calendario
       // del veterinario asignado, la pregunta dejó de ser sobre el administrador y pasó a ser sobre
@@ -165,6 +175,11 @@ export default async function CalendarioPage() {
         miId={user?.id ?? null}
         veTodo={veTodo}
         acotarA={acotarA}
+        avisosActivos={Boolean(
+          (avisos as { confirmacion_citas_activo?: boolean; recordatorio_citas_activo?: boolean } | null)
+            ?.confirmacion_citas_activo ||
+            (avisos as { recordatorio_citas_activo?: boolean } | null)?.recordatorio_citas_activo,
+        )}
       />
     </div>
   )
