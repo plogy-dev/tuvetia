@@ -148,9 +148,13 @@ export default async function DashboardLayout({
     <SidebarProvider
       className="app-theme"
       defaultOpen={sidebarOpen}
+      // SIN `--sidebar-width`: lo definía en `calc(var(--spacing) * 72)` = 288 px, pisando los
+      // 232 px que `ui/sidebar.tsx` midió del prototipo del cliente — el spread `...style` del
+      // provider va último y el inline ganaba. Eran 56 px robados al área de trabajo en TODAS las
+      // pantallas, y parte de «el ancho corta letras y encabezados» (David, 25-ago). Al no
+      // declararlo, manda el default medido.
       style={
         {
-          "--sidebar-width": "calc(var(--spacing) * 72)",
           "--header-height": "calc(var(--spacing) * 12)",
         } as React.CSSProperties
       }
