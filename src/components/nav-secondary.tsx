@@ -48,7 +48,12 @@ export function NavSecondary({
   return (
     <SidebarGroup {...props}>
       <SidebarGroupContent>
-        <SidebarMenu className="flex-row justify-between group-data-[collapsible=icon]:flex-col">
+        {/* COLAPSADA: columna CENTRADA. Sin `items-center` los iconos se alineaban al borde
+            izquierdo del riel mientras el resto de la barra los centra — cuatro iconos corridos
+            medio centímetro respecto de los diez de arriba, que es la mitad del "mal aspecto".
+            Y `gap-1`: `justify-between` no separa nada en una columna sin alto fijo, así que sin
+            él quedaban pegados de a cuatro. */}
+        <SidebarMenu className="flex-row justify-between group-data-[collapsible=icon]:flex-col group-data-[collapsible=icon]:items-center group-data-[collapsible=icon]:gap-1">
           {items.map((item) => (
             <SidebarMenuItem key={item.title} className="flex-none">
               {/* `<Link>`, no `<a href>`: un ancla cruda a ruta interna recarga el documento y mata

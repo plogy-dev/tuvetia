@@ -470,3 +470,58 @@
     @apply font-sans;
   }
 }
+
+/* ── LA BARRA DE DESPLAZAMIENTO DE LA BARRA LATERAL ──────────────────────────────────────────────
+ *
+ * La del sistema mide ~15px en Windows y se pinta en gris sólido: dentro de una barra de 16rem es
+ * una franja que compite con la navegación, y al colapsar a 3rem se come un tercio del ancho.
+ *
+ * Ésta es la de Claude: 6px, sin flechas, sin canal, y el pulgar sólo aparece al pasar el mouse por
+ * encima de la barra. `scrollbar-width`/`scrollbar-color` cubren Firefox; `::-webkit-scrollbar`,
+ * Chrome y Safari. Se declaran las dos porque ninguna sirve sola.
+ *
+ * VA ESCOPADO A LA BARRA, no a toda la app: en una tabla ancha o en un bloque de código, una barra
+ * de 6px que aparece sólo al pasar por encima es peor que la del sistema — ahí desplazarse es la
+ * acción principal y la barra tiene que verse de entrada. */
+[data-slot="sidebar-content"] {
+  scrollbar-width: thin;
+  scrollbar-color: transparent transparent;
+}
+[data-slot="sidebar-content"]:hover,
+[data-slot="sidebar-content"]:focus-within {
+  scrollbar-color: var(--color-line-strong) transparent;
+}
+
+[data-slot="sidebar-content"]::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+[data-slot="sidebar-content"]::-webkit-scrollbar-track {
+  background: transparent;
+}
+[data-slot="sidebar-content"]::-webkit-scrollbar-thumb {
+  background: transparent;
+  border-radius: 9999px;
+}
+[data-slot="sidebar-content"]:hover::-webkit-scrollbar-thumb,
+[data-slot="sidebar-content"]:focus-within::-webkit-scrollbar-thumb {
+  background: var(--color-line-strong);
+}
+[data-slot="sidebar-content"]::-webkit-scrollbar-thumb:hover {
+  background: var(--color-fg-faint);
+}
+
+/* COLAPSADA NO SCROLLEA, y por eso hay que asegurarse de que todo entre (ver `app-sidebar.tsx`:
+ * el historial y el chip de primeros pasos se ocultan). Una barra de desplazamiento dentro de un
+ * riel de 48px deja los iconos descentrados y recortados — que es exactamente el aspecto que esto
+ * viene a arreglar. */
+[data-state="collapsed"] [data-slot="sidebar-content"] {
+  /* SE OCULTA LA BARRA, NO EL SCROLL. `overflow: hidden` sería más limpio de mirar y peor de usar:
+   * en un portátil de pantalla baja los últimos iconos quedarían inalcanzables, sin nada que
+   * delatara que hay más — que es el defecto que este mismo archivo ya había arreglado una vez.
+   * Con la barra invisible y la rueda funcionando, no se ve nada feo y no se pierde nada. */
+  scrollbar-width: none;
+}
+[data-state="collapsed"] [data-slot="sidebar-content"]::-webkit-scrollbar {
+  display: none;
+}
