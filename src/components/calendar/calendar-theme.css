@@ -135,3 +135,94 @@
   color: var(--muted) !important;
   white-space: nowrap;
 }
+
+/* ── LA ALTURA DE LA FILA, QUE ES DE DONDE SALIA EL DEFECTO ───────────────────────────────────────
+
+   `react-big-calendar` deja el grupo de franja en 40px por hora. Con el paso por defecto (30 min),
+   una cita de media hora media VEINTE PIXELES: no entraba el titulo, y lo que se veia era
+   "Bruno prueb..." cortado a la mitad con la hora tapada debajo.
+
+   72px por hora deja la media hora en 36, que es lo que necesita una linea de texto con su hora al
+   lado. Es tambien la altura con la que trabajan Google Calendar y Cron a este nivel de zoom. */
+.tuvetia-calendar .rbc-timeslot-group {
+  min-height: 72px;
+}
+
+/* Sin borde entre las dos mitades de la hora: la linea de los :30 partia visualmente cada bloque y
+   hacia parecer que habia el doble de filas de las que hay. */
+.tuvetia-calendar .rbc-time-slot {
+  border-top: none;
+}
+
+/* ── EL BLOQUE DE LA CITA ─────────────────────────────────────────────────────────────────────── */
+
+.tuvetia-calendar .rbc-event {
+  /* Una cita nunca puede quedar mas baja que una linea de texto legible. Sin esto, una de 15
+     minutos vuelve al problema original. */
+  min-height: 22px;
+  font-size: 12.5px;
+  line-height: 1.25;
+}
+
+/* Se despega del borde de la columna: pegado al filo se lee como si desbordara. */
+.tuvetia-calendar .rbc-day-slot .rbc-event {
+  left: 2px !important;
+  right: 2px;
+}
+
+/* ── LA VISTA AGENDA ──────────────────────────────────────────────────────────────────────────────
+
+   Salia como una tabla HTML cruda: sin el marco de card del resto de Tuvetia, con la cabecera
+   pegada al borde y las filas sin respiracion. Se le da el mismo tratamiento que a las tablas del
+   resto de la app. */
+.tuvetia-calendar .rbc-agenda-view {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-xl);
+  overflow: hidden;
+  background: var(--card);
+}
+
+.tuvetia-calendar .rbc-agenda-view table.rbc-agenda-table {
+  border: none;
+  border-collapse: collapse;
+}
+
+.tuvetia-calendar .rbc-agenda-view table.rbc-agenda-table thead > tr > th {
+  padding: 10px 16px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted);
+  background: color-mix(in srgb, var(--muted) 8%, transparent);
+  border-bottom: 1px solid var(--border);
+}
+
+.tuvetia-calendar .rbc-agenda-view table.rbc-agenda-table tbody > tr > td {
+  padding: 12px 16px;
+  font-size: 13.5px;
+  vertical-align: middle;
+}
+
+/* La fila entera se resalta al pasar: en una lista de citas, saber en cual estas parado es la mitad
+   de poder leerla. */
+.tuvetia-calendar .rbc-agenda-view table.rbc-agenda-table tbody > tr:hover > td {
+  background: color-mix(in srgb, var(--accent) 5%, transparent) !important;
+}
+
+/* La fecha y la hora, en cifras tabulares para que formen columna. Sin esto las horas bailan y la
+   lista se lee como texto suelto en vez de como una agenda. */
+.tuvetia-calendar .rbc-agenda-date-cell,
+.tuvetia-calendar .rbc-agenda-time-cell {
+  font-variant-numeric: tabular-nums;
+  font-size: 12.5px;
+  white-space: nowrap;
+}
+
+/* El mensaje de "no hay citas" venia sin margenes, pegado al borde superior de la tabla. */
+.tuvetia-calendar .rbc-agenda-empty {
+  padding: 40px 16px;
+  text-align: center;
+  color: var(--muted);
+  font-size: 13.5px;
+}

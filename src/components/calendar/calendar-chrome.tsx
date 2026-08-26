@@ -33,30 +33,41 @@ export function CalendarToolbar({
   onView,
 }: ToolbarProps<CalendarEvent, object>) {
   return (
-    <div className="mb-2 flex flex-wrap items-center justify-between gap-2 px-0.5">
+    // `mb-3` y no `mb-2`: la barra estaba pegada al marco del calendario y se leía como parte de la
+    // grilla en vez de como sus controles.
+    <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
       <div className="flex items-center gap-2">
         <Button variant="outline" size="sm" onClick={() => onNavigate("TODAY")}>
           Hoy
         </Button>
-        <div className="flex items-center">
+        {/* Las flechas agrupadas en un control con borde, no sueltas: son un par y se usan como un
+            par. Antes flotaban entre "Hoy" y la fecha sin pertenecer a ninguno de los dos. */}
+        <div className="flex items-center rounded-lg border border-line">
           <Button
             variant="ghost"
             size="icon-sm"
-            aria-label="Anterior"
+            aria-label="Semana anterior"
+            className="rounded-r-none"
             onClick={() => onNavigate("PREV")}
           >
             <ChevronLeftIcon />
           </Button>
+          <span className="h-5 w-px bg-line" aria-hidden />
           <Button
             variant="ghost"
             size="icon-sm"
-            aria-label="Siguiente"
+            aria-label="Semana siguiente"
+            className="rounded-l-none"
             onClick={() => onNavigate("NEXT")}
           >
             <ChevronRightIcon />
           </Button>
         </div>
-        <span className="text-base font-medium capitalize">{label}</span>
+        {/* En display y con tracking, como los títulos del resto de la app: es la etiqueta del rango
+            que se está mirando, no un texto más de la barra. */}
+        <span className="font-display text-[17px] font-medium tracking-[-0.01em] text-fg capitalize">
+          {label}
+        </span>
       </div>
       <Select value={view} onValueChange={(v) => onView(v as View)}>
         <SelectTrigger size="sm" className="w-28">
@@ -103,28 +114,77 @@ function formatCompactTime(d: Date): string {
   return m === 0 ? `${h12}${period}` : `${h12}:${String(m).padStart(2, "0")}${period}`
 }
 
-// Contenido del bloque de evento en semana/día: título + hora, dos líneas como en Google Calendar.
+/**
+ * Contenido del bloque de una cita, EN UNA O DOS LÍNEAS SEGÚN LO QUE MIDA.
+ *
+ * ── EL DEFECTO QUE ESTO ARREGLA ────────────────────────────────────────────────────────────────
+ *
+ * Antes eran siempre dos líneas —título arriba, rango horario abajo—, y una cita de 30 minutos no
+ * tiene alto para dos: lo que se veía era el título cortado por la mitad, con la hora asomando
+ * debajo. O sea que la información que la agenda existe para dar —de quién es la cita— era
+ * justamente la que no se leía.
+ *
+ * La altura de fila subió a 72px por hora (ver `calendar-theme.css`), pero eso solo no alcanza: una
+ * cita de 15 o 20 minutos sigue sin entrar en dos líneas y siempre las va a haber. Así que el
+ * bloque decide por su duración, que es un dato que ya tiene y no cuesta nada.
+ *
+ * El corte está en 40 minutos: por debajo, el título y la hora comparten renglón —la hora primero,
+ * en pequeño, que es como la lee cualquiera que está barriendo la columna con la vista— y por
+ * encima van en dos líneas, con aire.
+ */
 export function EventContent({ event, title }: EventProps<CalendarEvent>) {
+  const minutos = (event.end.getTime() - event.start.getTime()) / 60000
+  const rango = `${formatCompactTime(event.start)} – ${formatCompactTime(event.end)}`
+
+  if (minutos < 40) {
+    return (
+      <div className="flex h-full items-center gap-1.5 overflow-hidden px-1.5 text-left leading-none text-white">
+        <span className="shrink-0 text-[10.5px] font-medium tabular-nums opacity-90">
+          {formatCompactTime(event.start)}
+        </span>
+        <span className="truncate font-medium">{title}</span>
+      </div>
+    )
+  }
+
   return (
-    <div className="flex h-full flex-col overflow-hidden px-1.5 py-0.5 text-left leading-tight text-white">
+    <div className="flex h-full flex-col overflow-hidden px-2 py-1 text-left leading-tight text-white">
       <span className="truncate font-medium">{title}</span>
-      <span className="truncate text-[11px] opacity-90">
-        {formatCompactTime(event.start)} – {formatCompactTime(event.end)}
-      </span>
+      <span className="truncate text-[11px] tabular-nums opacity-90">{rango}</span>
     </div>
   )
 }
 
-// Contenido de evento en Agenda: punto de color + título, como Google Calendar (nada de fondo sólido
-// — eventPropGetter pinta los bloques de semana, y en la tabla de agenda queda anulado por CSS).
+/**
+ * Contenido de evento en la vista Agenda: punto de estado, título y el estado dicho con palabras.
+ *
+ * El punto de color solo no informa a nadie: hay seis estados y nadie se aprende la paleta. En una
+ * LISTA hay ancho de sobra para escribirlo, que es justo lo que la vista de semana no tiene — ahí
+ * el color es lo único que entra, y acá sobra espacio para decirlo.
+ *
+ * Nada de fondo sólido: `eventPropGetter` pinta los bloques de la semana y en la tabla queda
+ * anulado por CSS, igual que hace Google Calendar en su vista de lista.
+ */
 export function AgendaEventContent({ event, title }: EventProps<CalendarEvent>) {
+  const estado = APPOINTMENT_STATUS[event.resource.status]
   return (
-    <span className="inline-flex items-center gap-2">
+    <span className="flex flex-wrap items-center gap-x-2.5 gap-y-1">
+      <span className="inline-flex min-w-0 items-center gap-2">
+        <span
+          className="inline-block size-2.5 shrink-0 rounded-full"
+          style={{ backgroundColor: estado.color }}
+        />
+        <span className="truncate font-medium text-fg">{title}</span>
+      </span>
       <span
-        className="inline-block size-2.5 shrink-0 rounded-full"
-        style={{ backgroundColor: APPOINTMENT_STATUS[event.resource.status].color }}
-      />
-      {title}
+        className="shrink-0 rounded-md px-1.5 py-0.5 text-[11px] font-medium"
+        style={{
+          backgroundColor: `color-mix(in srgb, ${estado.color} 14%, transparent)`,
+          color: estado.color,
+        }}
+      >
+        {estado.label}
+      </span>
     </span>
   )
 }

@@ -52,7 +52,7 @@ export function DiaDeHoy({ citas, huecos }: { citas: CitaDeHoy[]; huecos: Hueco[
   if (filas.length === 0) return null
 
   return (
-    <section className="overflow-hidden rounded-xl border border-line">
+    <section className="overflow-hidden rounded-xl border border-line bg-card">
       <div className="flex items-center justify-between gap-4 border-b border-line px-5 py-3.5">
         <span className="text-[11px] font-semibold uppercase tracking-[0.08em] text-fg-faint">
           Hoy
