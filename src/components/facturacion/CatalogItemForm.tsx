@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { AlertTriangle } from 'lucide-react';
 import { upsertCatalogItem, type UpsertCatalogItemInput } from '@/lib/facturacion/actions';
 import type { CatalogCategoryRow, CatalogItemRow, SupplierRow } from '@/lib/supabase/types';
+import { InputMonedaForm } from '@/components/ui/input-moneda-form';
 
 const inputCls =
   'mt-1 w-full rounded-lg border border-line bg-surface px-3 py-2 text-sm text-fg placeholder:text-fg-faint outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50';
@@ -138,25 +139,17 @@ export function CatalogItemForm({
       </div>
       <div>
         <label className={labelCls}>Precio de venta (COP)</label>
-        <input
+        <InputMonedaForm
           name="pricePesos"
-          type="number"
-          min={0}
-          step={100}
           required
-          defaultValue={initial ? initial.price_cents / 100 : undefined}
-          className={inputCls}
+          defaultPesos={initial ? initial.price_cents / 100 : null}
         />
       </div>
       <div>
         <label className={labelCls}>Costo (COP, opcional)</label>
-        <input
+        <InputMonedaForm
           name="costPesos"
-          type="number"
-          min={0}
-          step={100}
-          defaultValue={initial?.cost_cents != null ? initial.cost_cents / 100 : undefined}
-          className={inputCls}
+          defaultPesos={initial?.cost_cents != null ? initial.cost_cents / 100 : null}
         />
       </div>
       <div>

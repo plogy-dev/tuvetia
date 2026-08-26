@@ -10,6 +10,7 @@ import {
   type ExpenseCategory,
 } from '@/lib/facturacion/domain/finance';
 import type { SupplierRow } from '@/lib/supabase/types';
+import { InputMonedaForm } from '@/components/ui/input-moneda-form';
 
 const METHODS = ['EFECTIVO', 'TRANSFERENCIA', 'NEQUI', 'DAVIPLATA', 'TARJETA', 'OTRO'] as const;
 
@@ -119,15 +120,7 @@ export function ExpenseForm({
       </div>
       <div>
         <label className={labelCls}>Monto (COP)</label>
-        <input
-          name="amountPesos"
-          type="number"
-          min={1}
-          step="any"
-          required
-          defaultValue={initial?.amountPesos}
-          className={inputCls}
-        />
+        <InputMonedaForm name="amountPesos" required defaultPesos={initial?.amountPesos ?? null} />
       </div>
       <div>
         <label className={labelCls}>Fecha</label>
