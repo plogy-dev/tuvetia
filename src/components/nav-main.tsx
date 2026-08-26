@@ -59,10 +59,14 @@ function PendingProposalsButton() {
   return (
     // `hidden`, no `opacity-0`: con opacidad cero el botón seguía ocupando su hueco y seguía
     // siendo clicable — un enlace invisible a Comunicaciones en la barra angosta.
+    //
+    // `ghost`, no `outline`: David (26-ago) pidió quitarle el fondo gris — la cajita con borde
+    // pesaba al lado de «Nuevo paciente» y parecía un segundo botón primario. El icono queda
+    // solo, con su hover, y la insignia de propuestas encima sigue diciendo cuándo mirar.
     <Button
       size="icon"
-      className="relative size-8 group-data-[collapsible=icon]:hidden"
-      variant="outline"
+      className="relative size-8 text-fg-muted group-data-[collapsible=icon]:hidden"
+      variant="ghost"
       title={count > 0 ? `${count} propuesta(s) de VetGPT pendientes` : "Propuestas de VetGPT"}
       render={<Link href="/dashboard/comunicaciones" />}
     >

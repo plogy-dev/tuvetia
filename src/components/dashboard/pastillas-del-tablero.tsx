@@ -12,12 +12,46 @@
 // llegando calculadas desde el servidor, acá sólo se dibujan.
 
 import { useState } from "react"
+import {
+  Banknote,
+  CalendarClock,
+  CalendarDays,
+  FileClock,
+  HandCoins,
+  PawPrint,
+  Stethoscope,
+  Syringe,
+  TrendingUp,
+  Users,
+} from "lucide-react"
 
 import { StatCard } from "@/components/ui/stat-card"
 import {
   VistaDeLaPastilla,
   type MetricaDelTablero,
 } from "@/components/dashboard/vista-de-la-pastilla"
+
+// El icono y el color de CADA cifra — el toque OkVet que pidió David (26-ago: «dashboard
+// referente de OkVet, darle más vida»). Los tonos salen de la paleta categórica ya validada
+// (`--chart-N`, ver globals.css) y son FIJOS por dominio, no por posición: lo clínico en menta,
+// la agenda en azul, la gente en violeta, lo pendiente en ámbar y la plata en frambuesa —
+// reordenar o apagar pastillas no le cambia el color a ninguna.
+//
+// Vive ACÁ y no en `lib/tablero/metricas.ts` a propósito: aquel módulo es puro y corre en los
+// tests de node; los iconos son componentes de React y lo ensuciarían.
+const ADORNO: Partial<Record<MetricaDelTablero, { icono: React.ReactNode; tono: string }>> = {
+  "consultas-mes": { icono: <Stethoscope />, tono: "var(--chart-1)" },
+  "consultas-hoy": { icono: <Stethoscope />, tono: "var(--chart-1)" },
+  pacientes: { icono: <PawPrint />, tono: "var(--chart-3)" },
+  "pacientes-nuevos-mes": { icono: <TrendingUp />, tono: "var(--chart-3)" },
+  titulares: { icono: <Users />, tono: "var(--chart-3)" },
+  "citas-7d": { icono: <CalendarDays />, tono: "var(--chart-5)" },
+  "citas-hoy": { icono: <CalendarClock />, tono: "var(--chart-5)" },
+  "notas-borrador": { icono: <FileClock />, tono: "var(--chart-2)" },
+  "vacunas-por-vencer": { icono: <Syringe />, tono: "var(--chart-2)" },
+  "facturado-mes": { icono: <Banknote />, tono: "var(--chart-4)" },
+  "por-cobrar": { icono: <HandCoins />, tono: "var(--chart-4)" },
+}
 
 export type Pastilla = {
   metrica: MetricaDelTablero
@@ -55,6 +89,8 @@ export function PastillasDelTablero({
             label={p.label}
             value={p.value}
             sub={p.hint}
+            icono={ADORNO[p.metrica]?.icono}
+            tono={ADORNO[p.metrica]?.tono}
             onVer={() => {
               setMirando(p)
               setAbierta(true)

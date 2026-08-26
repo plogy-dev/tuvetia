@@ -23,7 +23,8 @@ export function NotasPorAprobar({ notas }: { notas: NotaEnBorrador[] }) {
   return (
     <div className="flex h-full flex-col gap-3 rounded-xl border bg-card p-5">
       <p className="flex items-center gap-1.5 text-[13px] font-medium text-fg-muted">
-        <FileClock className="size-3.5 text-fg-faint" aria-hidden />
+        {/* El ámbar de lo pendiente — el mismo de la pastilla «Notas por revisar». */}
+        <FileClock className="size-3.5" style={{ color: "var(--chart-2)" }} aria-hidden />
         Notas por aprobar
       </p>
 

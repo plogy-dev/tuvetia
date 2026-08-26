@@ -1,6 +1,7 @@
 "use client"
 
 import Link from "next/link"
+import { Banknote } from "lucide-react"
 import { Cell, Pie, PieChart, ResponsiveContainer, Tooltip } from "recharts"
 
 import { formatCOP } from "@/lib/facturacion/format"
@@ -28,7 +29,11 @@ export function VentasDelMes({ datos }: { datos: VentaPorTipo[] }) {
   return (
     <div className="flex h-full flex-col rounded-xl border bg-card p-4">
       <div className="mb-3">
-        <div className="text-sm font-semibold">Ventas del mes por tipo</div>
+        <div className="flex items-center gap-1.5 text-sm font-semibold">
+          {/* Mismo tono que las pastillas de plata: la identidad del dominio, panel a panel. */}
+          <Banknote aria-hidden className="size-4" style={{ color: "var(--chart-4)" }} />
+          Ventas del mes por tipo
+        </div>
         <div className="text-xs text-muted-foreground">
           Facturas emitidas este mes, partidas por lo que se vendió.
         </div>

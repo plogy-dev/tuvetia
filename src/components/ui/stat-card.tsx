@@ -14,6 +14,8 @@ export function StatCard({
   label,
   value,
   sub,
+  icono,
+  tono,
   onVer,
   className,
 }: {
@@ -21,6 +23,14 @@ export function StatCard({
   value: React.ReactNode
   /** Pista bajo la cifra: comparación, periodo, unidad. Opcional. */
   sub?: React.ReactNode
+  /** Icono de identidad de la cifra. Con `tono`, se pinta como chip de color arriba a la
+   *  derecha — el toque OkVet que David pidió (26-ago: «darle más vida»). Opcional: las
+   *  pantallas que no lo pasan se ven exactamente como antes. */
+  icono?: React.ReactNode
+  /** El color del chip, como token de la paleta categórica (`var(--chart-N)`). El COLOR VIVE EN
+   *  EL CHIP, NUNCA EN LA LETRA: número y rótulo siguen en tinta — es la regla de todo el
+   *  sistema de datos, y lo que mantiene la fila legible con daltonismo o impresa en gris. */
+  tono?: string
   /**
    * Qué hacer al tocar la cifra. Con `onVer` la tarjeta pasa a ser un BOTÓN y muestra la flecha.
    *
@@ -74,13 +84,31 @@ export function StatCard({
     <Contenedor
       {...(onVer ? { type: "button", onClick: onVer } : {})}
       className={cn(
-        "group flex flex-col gap-2 rounded-xl bg-surface-2 p-6 text-left",
+        "group relative flex flex-col gap-2 rounded-xl bg-surface-2 p-6 text-left",
         onVer &&
           "transition-colors hover:bg-brand-soft focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none",
         className,
       )}
     >
-      <p className="flex items-center gap-1.5 text-[13px] font-medium text-fg-muted">
+      {/* El chip va ABSOLUTO en la esquina para no empujar el número: la tarjeta sigue midiendo lo
+          mismo con chip o sin él, y la fila no baila cuando conviven métricas con y sin adorno.
+          El fondo sale del MISMO token con color-mix, así el chip se adapta solo al modo oscuro —
+          los --chart-N ya traen sus pasos propios validados para esa superficie. */}
+      {icono && tono ? (
+        <span
+          aria-hidden
+          className="absolute right-4 top-4 grid size-9 place-items-center rounded-[10px] [&_svg]:size-[18px]"
+          style={{ background: `color-mix(in oklab, ${tono} 13%, transparent)`, color: tono }}
+        >
+          {icono}
+        </span>
+      ) : null}
+      <p
+        className={cn(
+          "flex items-center gap-1.5 text-[13px] font-medium text-fg-muted",
+          icono && tono && "pr-11",
+        )}
+      >
         {label}
         {/* LA FLECHA ES LA ÚNICA SEÑAL de que la cifra se puede abrir, así que no puede aparecer
             sólo en hover: en touch no hay hover, y con el dedo no existiría. Vive atenuada y se
