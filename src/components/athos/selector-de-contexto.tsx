@@ -22,7 +22,7 @@
 //      Felipe en la reunión, aceptada ahí mismo ("Me gusta, me gusta").
 
 import { useMemo, useState } from "react"
-import { Check, PawPrint, Search, User } from "lucide-react"
+import { Check, ChevronDown, PawPrint, Search, User } from "lucide-react"
 
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -78,6 +78,7 @@ export function SelectorDeContexto({
   onElegir,
   detectado,
   hayConversacion,
+  compacto = false,
 }: {
   pacientes: readonly PacienteDelSelector[]
   /** `null` = consulta general. */
@@ -87,6 +88,17 @@ export function SelectorDeContexto({
   detectado: PacienteDetectado | null
   /** Si hay turnos en el hilo actual. Cambiar de paciente lo cambia por el de ese paciente. */
   hayConversacion: boolean
+  /**
+   * La versión de UNA PASTILLA, para vivir dentro del compositor.
+   *
+   * El control original eran dos piezas —un badge con el contexto y un botón «Cambiar contexto»—
+   * flotando arriba a la derecha de la pantalla, más una franja de ancho completo abajo explicando
+   * qué significa. Tres elementos para decir una cosa.
+   *
+   * Compacto es un solo control que DICE el contexto y lo CAMBIA al tocarlo, en el lugar donde
+   * Claude pone su selector de modo. La explicación no se pierde: pasa al `title`.
+   */
+  compacto?: boolean
 }) {
   const [abierto, setAbierto] = useState(false)
   const [consulta, setConsulta] = useState("")
@@ -99,6 +111,101 @@ export function SelectorDeContexto({
     setAbierto(false)
     setConsulta("")
     if (id !== patientId) onElegir(id)
+  }
+
+  // EL DIÁLOGO ES EL MISMO para las dos variantes: lo único que cambia es qué lo abre.
+  const dialogo = (
+    <Dialog open={abierto} onOpenChange={setAbierto}>
+      <DialogContent className="max-w-xl gap-0 p-0">
+        <DialogHeader className="border-b border-line-soft p-5 pb-4">
+          <DialogTitle>Contexto de la conversación</DialogTitle>
+          <DialogDescription>
+            {hayConversacion
+              ? "Cada paciente tiene su propio hilo: al cambiar, se abre la conversación de ese paciente y ésta queda guardada."
+              : "Elegí con qué paciente querés que VetGPT trabaje."}
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="border-b border-line-soft p-3">
+          <div className="relative">
+            <Search
+              className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-fg-faint"
+              aria-hidden
+            />
+            <Input
+              autoFocus
+              value={consulta}
+              onChange={(e) => setConsulta(e.target.value)}
+              placeholder="Buscar por mascota, especie o titular…"
+              className="pl-9"
+            />
+          </div>
+        </div>
+
+        {/* Alto acotado y scroll propio: con 500 pacientes el diálogo se saldría de la pantalla. */}
+        <div className="flex max-h-[50svh] flex-col gap-0.5 overflow-y-auto p-2">
+          <button
+            type="button"
+            onClick={() => elegir(null)}
+            className={`flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left transition-colors hover:bg-surface-2 focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none ${
+              patientId === null ? "bg-brand-soft" : ""
+            }`}
+          >
+            <span className="grid size-8 shrink-0 place-items-center rounded-full bg-surface-2 text-fg-faint">
+              <User className="size-4" aria-hidden />
+            </span>
+            <span className="min-w-0 flex-1">
+              <span className="block text-sm font-medium text-fg">Consulta general</span>
+              <span className="block text-xs text-fg-muted">Sin paciente ni ficha clínica</span>
+            </span>
+            {patientId === null && <Check className="size-4 shrink-0 text-brand-text" aria-hidden />}
+          </button>
+
+          {resultados.map((p) => (
+            <Fila
+              key={p.id}
+              paciente={p}
+              activo={p.id === patientId}
+              onElegir={() => elegir(p.id)}
+            />
+          ))}
+
+          {consulta.trim() !== "" && resultados.length === 0 && (
+            <p className="px-3 py-6 text-center text-sm text-fg-muted">
+              Ningún paciente coincide con «{consulta.trim()}».
+            </p>
+          )}
+        </div>
+      </DialogContent>
+    </Dialog>
+  )
+
+  // LA PASTILLA. Un solo control: el punto dice que hay contexto activo, el texto dice cuál, y
+  // tocarlo abre el mismo diálogo de siempre. El `title` lleva la frase larga que antes ocupaba una
+  // franja de ancho completo sobre la conversación.
+  if (compacto) {
+    return (
+      <>
+        <button
+          type="button"
+          onClick={() => setAbierto(true)}
+          title={
+            elegido
+              ? `Hilo con memoria — recuerdo el contexto de ${elegido.name} y las respuestas anteriores de esta conversación.`
+              : "Consulta general — respondo dudas médicas con literatura veterinaria citada, sin ficha de un paciente."
+          }
+          className="inline-flex h-7 max-w-[190px] shrink-0 items-center gap-1.5 rounded-full border border-line bg-surface-2 pl-2.5 pr-2 text-[12px] font-medium text-fg-muted transition-colors hover:border-brand hover:text-brand-text focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+        >
+          <span
+            className={`size-1.5 shrink-0 rounded-full ${elegido ? "bg-brand" : "bg-fg-faint"}`}
+            aria-hidden
+          />
+          <span className="truncate">{elegido ? elegido.name : "Consulta general"}</span>
+          <ChevronDown className="size-3.5 shrink-0 opacity-60" aria-hidden />
+        </button>
+        {dialogo}
+      </>
+    )
   }
 
   return (
@@ -143,69 +250,7 @@ export function SelectorDeContexto({
         </div>
       )}
 
-      <Dialog open={abierto} onOpenChange={setAbierto}>
-        <DialogContent className="max-w-xl gap-0 p-0">
-          <DialogHeader className="border-b border-line-soft p-5 pb-4">
-            <DialogTitle>Contexto de la conversación</DialogTitle>
-            <DialogDescription>
-              {hayConversacion
-                ? "Cada paciente tiene su propio hilo: al cambiar, se abre la conversación de ese paciente y ésta queda guardada."
-                : "Elegí con qué paciente querés que VetGPT trabaje."}
-            </DialogDescription>
-          </DialogHeader>
-
-          <div className="border-b border-line-soft p-3">
-            <div className="relative">
-              <Search
-                className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-fg-faint"
-                aria-hidden
-              />
-              <Input
-                autoFocus
-                value={consulta}
-                onChange={(e) => setConsulta(e.target.value)}
-                placeholder="Buscar por mascota, especie o titular…"
-                className="pl-9"
-              />
-            </div>
-          </div>
-
-          {/* Alto acotado y scroll propio: con 500 pacientes el diálogo se saldría de la pantalla. */}
-          <div className="flex max-h-[50svh] flex-col gap-0.5 overflow-y-auto p-2">
-            <button
-              type="button"
-              onClick={() => elegir(null)}
-              className={`flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left transition-colors hover:bg-surface-2 focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none ${
-                patientId === null ? "bg-brand-soft" : ""
-              }`}
-            >
-              <span className="grid size-8 shrink-0 place-items-center rounded-full bg-surface-2 text-fg-faint">
-                <User className="size-4" aria-hidden />
-              </span>
-              <span className="min-w-0 flex-1">
-                <span className="block text-sm font-medium text-fg">Consulta general</span>
-                <span className="block text-xs text-fg-muted">Sin paciente ni ficha clínica</span>
-              </span>
-              {patientId === null && <Check className="size-4 shrink-0 text-brand-text" aria-hidden />}
-            </button>
-
-            {resultados.map((p) => (
-              <Fila
-                key={p.id}
-                paciente={p}
-                activo={p.id === patientId}
-                onElegir={() => elegir(p.id)}
-              />
-            ))}
-
-            {consulta.trim() !== "" && resultados.length === 0 && (
-              <p className="px-3 py-6 text-center text-sm text-fg-muted">
-                Ningún paciente coincide con «{consulta.trim()}».
-              </p>
-            )}
-          </div>
-        </DialogContent>
-      </Dialog>
+      {dialogo}
     </div>
   )
 }

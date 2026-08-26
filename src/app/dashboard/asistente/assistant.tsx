@@ -618,6 +618,21 @@ export function Assistant({
           <Paperclip className="size-4" aria-hidden />
         </Button>
 
+        {/* EL CONTEXTO VIVE ACÁ, en el lugar donde Claude pone su selector de modo: pegado al clip,
+            a la izquierda del campo. Antes eran dos controles flotando arriba a la derecha más una
+            franja de ancho completo explicándolos — tres elementos para decir una cosa. */}
+        <SelectorDeContexto
+          compacto
+          pacientes={patients}
+          patientId={isGeneral ? null : patientId}
+          detectado={detectado}
+          hayConversacion={messages.length > 0}
+          onElegir={(id) => {
+            void stop() // si había un stream en curso, córtalo antes de resetear
+            setPatientId(id ?? GENERAL) // el cambio de id de useChat cambia el hilo
+          }}
+        />
+
         <Textarea
           id="pedir-a-athos"
           aria-label="Pedirle algo a VetGPT"
@@ -684,61 +699,24 @@ export function Assistant({
   return (
     // Llena el ancho en vez de ser una columna de 3xl centrada: al lado va el riel de la clínica, y
     // dos bloques centrados con aire a los costados leerían como dos páginas pegadas.
-    <div className="flex h-[calc(100svh-var(--header-height))] min-w-0 flex-1 flex-col gap-4 p-4 md:p-6">
-      {/* Encabezado: SALUDO CON DATOS, que es lo que el mockup pone acá. No dice "VetGPT" —
-          el sidebar ya lo dice, y repetir el nombre de la sección gasta la línea más visible de la
-          pantalla en información que el vet ya tiene. */}
-      {/* CON EL CHAT VACÍO EL SALUDO NO VA ACÁ, va en el hero del medio: dos encabezados apilados
-          —uno arriba y otro en el centro— son la misma información dicha dos veces, y la de arriba
-          es la que el vet no está mirando. Empezada la conversación vuelve, porque ahí el centro de
-          la pantalla es el hilo. */}
-      <div className="flex flex-wrap items-end justify-between gap-3">
-        <div className="min-w-0">
-          {!vacio && (
-            <>
-              <h1 className="font-display text-[28px] font-medium leading-[1.2] tracking-[-0.01em] text-fg">
-                {saludo ?? "VetGPT"}
-              </h1>
-              <p className="mt-0.5 text-sm text-fg-muted">
-                {contexto ?? "VetGPT propone — tú apruebas. Tu criterio decide."}
-              </p>
-            </>
-          )}
-        </div>
-        {/* El contexto: lo elegido Y lo que VetGPT detectó solo. Ver `selector-de-contexto.tsx`. */}
-        <SelectorDeContexto
-          pacientes={patients}
-          patientId={isGeneral ? null : patientId}
-          detectado={detectado}
-          hayConversacion={messages.length > 0}
-          onElegir={(id) => {
-            void stop() // si había un stream en curso, córtalo antes de resetear
-            setPatientId(id ?? GENERAL) // el cambio de id de useChat cambia el hilo
-          }}
-        />
-      </div>
+    <div className="flex h-[calc(100svh-var(--header-height))] min-w-0 flex-1 flex-col gap-4 overflow-hidden p-4 md:p-6">
+      {/* ── ACÁ VIVÍA EL ENCABEZADO ────────────────────────────────────────────────────────────
+          Tres cosas se fueron de esta zona, y las tres por el mismo motivo: con una conversación en
+          curso, lo único que importa es la conversación.
+
+            · EL SALUDO Y LA LÍNEA DE DATOS. Sólo tienen sentido en un hilo limpio, y ahí ya viven
+              en el hero del medio. Con mensajes arriba eran un encabezado que repetía lo que el
+              hero ya había dicho, ocupando la franja más visible.
+            · EL BADGE DE CONTEXTO Y «CAMBIAR CONTEXTO». Se mudaron ADENTRO del compositor, donde
+              Claude pone su selector de modo: un solo control que dice el contexto y lo cambia.
+            · LA FRANJA de «Consulta general — respondo dudas médicas…». Era una barra de ancho
+              completo sobre el hilo para decir una frase que ahora vive en el `title` de esa
+              pastilla. No se perdió: dejó de ocupar una fila.
+
+          Nada se quitó — todo se movió a donde ya se estaba mirando. */}
 
       {tiraClinica}
 
-
-      {/* Aviso de contexto: memoria del hilo (con paciente) o consulta general.
-          EN LA MISMA COLUMNA que el hilo y el compositor: era uno de los dos bloques que seguían a
-          ancho completo, así que en un monitor ancho quedaba una franja de 1300px sobre una
-          conversación de 780. */}
-      <div className="mx-auto flex w-full max-w-[780px] items-center gap-2 rounded-lg border border-line-soft bg-brand-soft px-3 py-2 text-xs text-fg-muted">
-        <span className="size-1.5 shrink-0 animate-pulse rounded-full bg-brand" />
-        {patient ? (
-          <span>
-            <strong className="font-medium text-fg">Hilo con memoria</strong> — recuerdo el contexto
-            de {patient.name} y las respuestas anteriores de esta conversación.
-          </span>
-        ) : (
-          <span>
-            <strong className="font-medium text-fg">Consulta general</strong> — respondo dudas médicas
-            con literatura veterinaria citada, sin ficha de un paciente.
-          </span>
-        )}
-      </div>
 
       {/* Hilo de conversación. Sin borde ni fondo propios: en el mockup la conversación no vive
           dentro de una card, ocupa la pantalla. El único borde de esta pantalla es el que separa
@@ -758,7 +736,7 @@ export function Assistant({
           no haber hecho nada. */}
       <div
         ref={threadRef}
-        className="flex flex-1 flex-col gap-[18px] overflow-y-auto [&>*]:mx-auto [&>*]:w-full [&>*]:max-w-[780px]"
+        className="flex min-h-0 flex-1 flex-col gap-[18px] overflow-y-auto [&>*]:mx-auto [&>*]:w-full [&>*]:max-w-[780px]"
       >
         {/* EL INICIO DE ATHOS. Era un icono gris con un párrafo de tres renglones explicando de qué
             es capaz — o sea un cartel en el centro de la pantalla, que es justo lo que David pidió
@@ -780,6 +758,40 @@ export function Assistant({
             </p>
 
             <div className="mt-[22px] w-full text-left">{compositor}</div>
+
+            {/* LAS PASTILLAS CUELGAN DEL COMPOSITOR, no del pie de la pantalla.
+                Antes vivían al fondo, pegadas al borde inferior, a media pantalla del campo al que
+                alimentan: se leían como una barra de la aplicación y no como sugerencias de lo que
+                acabás de abrir. Debajo del campo y con aire, son lo que son. */}
+            {/* Ya estamos dentro de `{vacio && …}`: acá sólo hace falta callarlas mientras VetGPT
+                responde. Se quitan con la conversación empezada por pedido del cliente (24-ago,
+                «si ya se hace una pregunta, que se quiten las pastillas»): con una respuesta en
+                pantalla, las genéricas compiten con ella y el vet ya sabe qué pedir. */}
+            {!busy && (
+              <div className="mt-3 flex w-full flex-wrap justify-center gap-[7px]">
+                {(patient
+                  ? [
+                      `Resume la ficha de ${patient.name}`,
+                      `¿Qué debería revisar hoy en ${patient.name}?`,
+                      `Agenda un control para ${patient.name} la próxima semana`,
+                    ]
+                  : [
+                      "¿Qué citas hay hoy?",
+                      "¿Cuáles son los horarios de la clínica?",
+                      "¿Qué dice la literatura sobre otitis por Malassezia?",
+                    ]
+                ).map((s) => (
+                  <button
+                    key={s}
+                    type="button"
+                    onClick={() => setInput(s)}
+                    className="rounded-full border border-line bg-surface px-3 py-1.5 text-[12.5px] font-medium text-fg-muted transition-colors hover:border-brand hover:bg-brand-soft hover:text-brand-text focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+                  >
+                    {s}
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
         )}
 
@@ -852,36 +864,6 @@ export function Assistant({
 
       {/* Compositor. Franja separada por una línea, como en el mockup: la conversación termina y
           acá empieza la entrada. Antes era una card con sombra flotando sobre otra card. */}
-      {/* SUGERENCIAS SOLO CON EL HILO VACÍO. Fueron persistentes una temporada, pero el cliente lo
-          revirtió en la reunión del 24-ago ("si ya se hace una pregunta, que se quiten las
-          pastillas"): con una conversación en curso, las pastillas genéricas compiten con la
-          respuesta y ya no aportan — el vet ya sabe qué pedir. */}
-      {vacio && !busy && (
-        <div className="mx-auto flex w-full max-w-[780px] flex-wrap justify-center gap-[7px]">
-          {(patient
-            ? [
-                `Resume la ficha de ${patient.name}`,
-                `¿Qué debería revisar hoy en ${patient.name}?`,
-                `Agenda un control para ${patient.name} la próxima semana`,
-              ]
-            : [
-                "¿Qué citas hay hoy?",
-                "¿Cuáles son los horarios de la clínica?",
-                "¿Qué dice la literatura sobre otitis por Malassezia?",
-              ]
-          ).map((s) => (
-            <button
-              key={s}
-              type="button"
-              onClick={() => setInput(s)}
-              className="rounded-full border border-line bg-surface px-3 py-1.5 text-[12.5px] font-medium text-fg-muted transition-colors hover:border-brand hover:bg-brand-soft hover:text-brand-text focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
-            >
-              {s}
-            </button>
-          ))}
-        </div>
-      )}
-
       {/* CON MENSAJES el compositor va al pie, separado por una línea. En vacío no se pinta acá:
           ya está en el medio, dentro del hero. */}
       {!vacio && (
