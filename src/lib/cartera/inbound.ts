@@ -196,7 +196,8 @@ export async function executeCarteraInbound(
     await supabase.from('invoice_events').insert({
       invoice_id: input.invoiceId,
       event_type: 'PROMISE_TO_PAY',
-      payload: { until: `${promiseDate}T23:59:59`, source: 'AGENTE_CARTERA', commId },
+      // -05:00 explícito — ver el comentario gemelo en cartera/actions.ts (26-ago).
+      payload: { until: `${promiseDate}T23:59:59-05:00`, source: 'AGENTE_CARTERA', commId },
     });
   } else if (spec.event === 'DISPUTE_OPENED') {
     await supabase.from('invoice_events').insert({

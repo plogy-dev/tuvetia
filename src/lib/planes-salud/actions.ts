@@ -156,9 +156,15 @@ export async function contratarPlan(input: z.input<typeof ContratoSchema>): Prom
     if (!p.active) return { ok: false, error: "Ese plan está archivado: reactivalo antes de venderlo." }
 
     const desde = new Date()
-    const hasta = new Date(desde)
-    hasta.setMonth(hasta.getMonth() + p.months)
+    // SIN `setMonth`: contratado el 31-ago un plan de 6 meses, `setMonth` produce «Feb 31» y JS lo
+    // rueda al 2-3 de marzo — días de cobertura regalados. Es el desborde que suscripcion/periodo
+    // documenta; acá se aplica el mismo criterio con n meses: el día se RECORTA al último del mes
+    // destino, nunca se rueda (revisión del 26-ago).
     const iso = (d: Date) => new Intl.DateTimeFormat("en-CA", { timeZone: "America/Bogota" }).format(d)
+    const [anio0, mes0, dia0] = iso(desde).split("-").map(Number)
+    const mesDestino = mes0 - 1 + p.months
+    const ultimoDiaDelDestino = new Date(Date.UTC(anio0, mesDestino + 1, 0)).getUTCDate()
+    const hasta = new Date(Date.UTC(anio0, mesDestino, Math.min(dia0, ultimoDiaDelDestino)))
 
     const { error } = await supabase.from("patient_health_plans").insert({
       clinic_id: clinicId,
@@ -166,7 +172,9 @@ export async function contratarPlan(input: z.input<typeof ContratoSchema>): Prom
       plan_id: parsed.data.planId,
       price_cents: p.price_cents,
       starts_on: iso(desde),
-      ends_on: iso(hasta),
+      // `hasta` ya ES un día civil (medianoche UTC del día calculado): se serializa directo —
+      // pasarlo por iso() con zona Bogotá lo retrocedería un día.
+      ends_on: hasta.toISOString().slice(0, 10),
       created_by: userId,
     })
     if (error) throw new Error(`No se pudo contratar: ${error.message}`)

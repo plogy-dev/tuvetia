@@ -39,9 +39,15 @@ export async function GET(req: Request) {
   if (!user) return NextResponse.json({ error: "No autenticado." }, { status: 401 })
 
   const ahora = new Date()
-  const inicioDeMes = new Date(ahora.getFullYear(), ahora.getMonth(), 1)
+  // Cortes de BOGOTÁ, como el tablero (26-ago): este endpoint responde las vistas rápidas de las
+  // pastillas, y con el día del proceso (UTC en Vercel) contaba distinto que la pantalla desde
+  // las 19:00 de Colombia. UTC-5 fijo.
+  const enBogota = new Date(ahora.getTime() - 5 * 3_600_000)
+  const inicioDeMes = new Date(Date.UTC(enBogota.getUTCFullYear(), enBogota.getUTCMonth(), 1) + 5 * 3_600_000)
   const enSieteDias = new Date(ahora.getTime() + 7 * 864e5)
-  const inicioDeHoy = new Date(ahora.getFullYear(), ahora.getMonth(), ahora.getDate())
+  const inicioDeHoy = new Date(
+    Date.UTC(enBogota.getUTCFullYear(), enBogota.getUTCMonth(), enBogota.getUTCDate()) + 5 * 3_600_000,
+  )
   const finDeHoy = new Date(inicioDeHoy.getTime() + 864e5 - 1)
   const enTreintaDias = new Date(ahora.getTime() + 30 * 864e5)
 
@@ -212,36 +218,36 @@ export async function GET(req: Request) {
   } else if (metrica === "facturado-mes") {
     const { data, error: e } = await supabase
       .from("invoices")
-      .select("id, number, total_cents, issued_on, payer:billing_payers(name)")
+      .select("id, number, total_cents, issued_at, payer:billing_payers(name)")
       .eq("status", "EMITIDA")
-      .gte("issued_on", inicioDeMes.toISOString().slice(0, 10))
-      .order("issued_on", { ascending: false })
+      .gte("issued_at", inicioDeMes.toISOString().slice(0, 10))
+      .order("issued_at", { ascending: false })
       .limit(TOPE)
     error = e?.message ?? null
-    filas = ((data as unknown as { id: string; number: string | null; total_cents: number; issued_on: string; payer: { name: string } | null }[] | null) ?? []).map(
+    filas = ((data as unknown as { id: string; number: string | null; total_cents: number; issued_at: string; payer: { name: string } | null }[] | null) ?? []).map(
       (f) => ({
         id: f.id,
         titulo: f.payer?.name ?? f.number ?? "Factura",
         detalle: formatCOP(f.total_cents ?? 0),
-        cuando: f.issued_on,
+        cuando: f.issued_at,
       }),
     )
   } else if (metrica === "por-cobrar") {
     // Con SALDO, que no es lo mismo que emitida: una factura pagada sigue siendo emitida.
     const { data, error: e } = await supabase
       .from("invoices")
-      .select("id, number, total_cents, paid_cents, due_date, payer:billing_payers(name)")
+      .select("id, number, total_cents, balance_cents, due_date, payer:billing_payers(name)")
       .eq("status", "EMITIDA")
       .order("due_date", { ascending: true })
       .limit(TOPE * 3)
     error = e?.message ?? null
-    filas = ((data as unknown as { id: string; number: string | null; total_cents: number; paid_cents: number; due_date: string | null; payer: { name: string } | null }[] | null) ?? [])
-      .filter((f) => (f.total_cents ?? 0) - (f.paid_cents ?? 0) > 0)
+    filas = ((data as unknown as { id: string; number: string | null; total_cents: number; balance_cents: number; due_date: string | null; payer: { name: string } | null }[] | null) ?? [])
+      .filter((f) => (f.balance_cents ?? 0) > 0)
       .slice(0, TOPE)
       .map((f) => ({
         id: f.id,
         titulo: f.payer?.name ?? f.number ?? "Factura",
-        detalle: `Saldo ${formatCOP((f.total_cents ?? 0) - (f.paid_cents ?? 0))}`,
+        detalle: `Saldo ${formatCOP(f.balance_cents ?? 0)}`,
         cuando: f.due_date,
       }))
   } else {

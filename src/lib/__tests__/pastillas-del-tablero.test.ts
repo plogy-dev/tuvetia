@@ -116,8 +116,10 @@ describe("las pastillas del tablero y su detalle", () => {
   })
 
   it("las consultas del mes arrancan el mismo día de los dos lados", () => {
-    // `new Date(año, mes, 1)` — el primero del mes en curso, no "hace 30 días".
-    const PRIMERO_DEL_MES = "getMonth(), 1)"
+    // El primero del mes EN BOGOTÁ, no "hace 30 días" ni el mes del proceso: desde el 26-ago los
+    // dos lados anclan a UTC-5 (getUTCMonth sobre la fecha corrida), porque en Vercel el proceso
+    // vive en UTC y el mes saltaba 5 horas antes que el de Colombia.
+    const PRIMERO_DEL_MES = "getUTCMonth(), 1)"
     expect(TABLERO).toContain(PRIMERO_DEL_MES)
     expect(DETALLE).toContain(PRIMERO_DEL_MES)
     expect(ramaDelEndpoint("consultas-mes")).toContain('.gte("started_at"')

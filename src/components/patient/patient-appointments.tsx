@@ -24,12 +24,15 @@ export type PatientAppointment = {
 }
 
 function fmtFecha(iso: string): string {
+  // `timeZone` explícito: este componente es de SERVIDOR y en Vercel el proceso vive en UTC —
+  // sin él, la ficha mostraba cada cita corrida 5 horas (la de las 14:00 salía «19:00»).
   return new Date(iso).toLocaleString("es-CO", {
     day: "2-digit",
     month: "short",
     year: "numeric",
     hour: "2-digit",
     minute: "2-digit",
+    timeZone: "America/Bogota",
   })
 }
 

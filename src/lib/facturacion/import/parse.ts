@@ -299,8 +299,18 @@ export function validateRows(
     const expiresRaw = get(row, 'expiresAt');
     let expiresAt: string | null = null;
     if (expiresRaw) {
-      const d = new Date(expiresRaw);
-      if (Number.isNaN(d.getTime())) {
+      // «05/08/2026» en un CSV colombiano es el 5 DE AGOSTO. `new Date(string)` lo lee al estilo
+      // gringo (8 de mayo): con día ≤ 12 INTERCAMBIABA día y mes sin ningún aviso, y el
+      // vencimiento gobierna la alerta de producto por vencer (revisión del 26-ago). El formato
+      // con barras se interpreta DD/MM explícitamente; lo demás sigue el camino de siempre.
+      const barras = /^(\d{1,2})\/(\d{1,2})\/(\d{4})$/.exec(expiresRaw.trim());
+      const d = barras
+        ? new Date(Date.UTC(Number(barras[3]), Number(barras[2]) - 1, Number(barras[1])))
+        : new Date(expiresRaw);
+      const diaValido = barras
+        ? d.getUTCMonth() === Number(barras[2]) - 1 && d.getUTCDate() === Number(barras[1])
+        : !Number.isNaN(d.getTime());
+      if (!diaValido || Number.isNaN(d.getTime())) {
         if (status === 'OK') status = 'AVISO';
         messages.push(`Fecha de vencimiento no reconocida: "${expiresRaw}" (se ignoró)`);
       } else {

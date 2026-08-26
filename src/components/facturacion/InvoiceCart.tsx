@@ -743,7 +743,7 @@ export function InvoiceCart({
                 {!plegada && (
                   <>
                     {/* Fila 1 — lo que se teclea en toda venta. */}
-                    <div className="grid gap-3 sm:grid-cols-[1fr_130px_110px_100px_auto]">
+                    <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_130px_110px_100px_auto]">
                       <label className="flex flex-col gap-1">
                         <span className="text-[11.5px] font-medium text-fg-faint">Concepto</span>
                         {l.catalogItemId ? (
@@ -753,7 +753,7 @@ export function InvoiceCart({
                             value={l.description}
                             onChange={(e) => updateLine(l.key, { description: e.target.value })}
                             placeholder="Descripción del servicio/producto"
-                            className="rounded-md border border-line bg-surface px-2 py-1.5 text-sm text-fg placeholder:text-fg-faint outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
+                            className="min-w-0 rounded-md border border-line bg-surface px-2 py-1.5 text-sm text-fg placeholder:text-fg-faint outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
                           />
                         )}
                       </label>

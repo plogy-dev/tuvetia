@@ -55,9 +55,18 @@ export default async function DashboardPage() {
   const { supabase, user } = await sesionDelServidor()
 
   const now = new Date()
-  const monthStart = new Date(now.getFullYear(), now.getMonth(), 1)
+  // ── LOS CORTES DE «HOY» Y «MES» SON DE BOGOTÁ, NO DEL PROCESO ─────────────────────────────
+  //
+  // En Vercel el proceso vive en UTC: `new Date(y,m,d)` cortaba el día a las 19:00 de Colombia y
+  // el mes saltaba 5 horas antes — de 19:00 a medianoche, «Citas hoy» del tablero contradecía a
+  // la pantalla de Pacientes, que sí resta las 5 horas (revisión del 26-ago; es el mismo patrón
+  // ya documentado en patients/page.tsx). UTC-5 fijo: Colombia no tiene horario de verano.
+  const enBogota = new Date(now.getTime() - 5 * 3_600_000)
+  const monthStart = new Date(Date.UTC(enBogota.getUTCFullYear(), enBogota.getUTCMonth(), 1) + 5 * 3_600_000)
   const weekAhead = new Date(now.getTime() + 7 * 864e5)
-  const inicioDeHoy = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+  const inicioDeHoy = new Date(
+    Date.UTC(enBogota.getUTCFullYear(), enBogota.getUTCMonth(), enBogota.getUTCDate()) + 5 * 3_600_000,
+  )
   const finDeHoy = new Date(inicioDeHoy.getTime() + 864e5 - 1)
   const enTreintaDias = new Date(now.getTime() + 30 * 864e5)
   const chartStart = startOfWeek(addWeeks(startOfWeek(now, { weekStartsOn: 1 }), -(WEEKS - 1)), {
@@ -214,10 +223,16 @@ export default async function DashboardPage() {
           .lte("next_dose_at", enTreintaDias.toISOString().slice(0, 10))
       : null,
     encendida("facturado-mes")
-      ? supabase.from("invoices").select("total_cents").eq("status", "EMITIDA").gte("issued_on", monthStart.toISOString().slice(0, 10))
+      // `issued_at`, no `issued_on`: esa columna NUNCA existió (verificado contra el principal el
+      // 26-ago) y PostgREST devolvía 42703 → data null → la métrica pintaba $0 desde que nació,
+      // sin error visible porque loadError sólo mira la primera ola.
+      ? supabase.from("invoices").select("total_cents").eq("status", "EMITIDA").gte("issued_at", monthStart.toISOString())
       : null,
     encendida("por-cobrar")
-      ? supabase.from("invoices").select("total_cents, paid_cents").eq("status", "EMITIDA")
+      // `balance_cents` y no total−paid: una nota crédito PARCIAL no cambia el status pero SÍ el
+      // saldo (total − paid − credited, mantenido por refreshInvoiceStatus). Con la resta a mano,
+      // el tablero inflaba la cartera y contradecía a la pantalla de Cartera.
+      ? supabase.from("invoices").select("balance_cents").eq("status", "EMITIDA")
       : null,
   ])
 
@@ -236,7 +251,7 @@ export default async function DashboardPage() {
     "pacientes-nuevos-mes": String(pacientesNuevos?.count ?? 0),
     "vacunas-por-vencer": String(vacunas?.count ?? 0),
     "facturado-mes": formatCOP(sumaDe(facturadoMes, (f) => f.total_cents ?? 0)),
-    "por-cobrar": formatCOP(sumaDe(porCobrar, (f) => (f.total_cents ?? 0) - (f.paid_cents ?? 0))),
+    "por-cobrar": formatCOP(sumaDe(porCobrar, (f) => f.balance_cents ?? 0)),
   }
 
   // CADA CIFRA LLEVA SU CLAVE DE DETALLE. Es lo que la vuelve tocable: al abrirla, la vista pide
@@ -286,9 +301,9 @@ export default async function DashboardPage() {
   const lineasDelMes = donaVisible
     ? await supabase
         .from("invoice_lines")
-        .select("total_cents, item:catalog_items(item_type), invoice:invoices!inner(status, issued_on)")
+        .select("total_cents, item:catalog_items(item_type), invoice:invoices!inner(status, issued_at)")
         .eq("invoice.status", "EMITIDA")
-        .gte("invoice.issued_on", monthStart.toISOString().slice(0, 10))
+        .gte("invoice.issued_at", monthStart.toISOString())
     : { data: null }
   const dona = ventasPorTipo(
     ((lineasDelMes.data as unknown as

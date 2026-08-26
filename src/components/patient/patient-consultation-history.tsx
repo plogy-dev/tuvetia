@@ -151,7 +151,7 @@ export function PatientConsultationHistory({
   }
 
   return (
-    <div className="grid gap-4 lg:grid-cols-[minmax(200px,260px)_1fr] lg:items-start">
+    <div className="grid gap-4 lg:grid-cols-[minmax(200px,260px)_minmax(0,1fr)] lg:items-start">
       {/* Maestro: lista de consultas */}
       <div className="flex max-h-[40vh] flex-col gap-1 overflow-y-auto rounded-xl border bg-card p-1.5 lg:max-h-[70vh]">
         {consultations.map((c) => {

@@ -230,7 +230,9 @@ export function SelectorDeCliente({
                     <UserRound className="size-4 shrink-0 text-muted-foreground" aria-hidden />
                   )}
                   <span className="min-w-0 flex-1 truncate">{c.name}</span>
-                  <span className="shrink-0 text-xs text-muted-foreground">
+                  {/* max-w + truncate: sin tope, un titular largo se comía la fila entera y la
+                      MASCOTA que se busca quedaba truncada a nada — el metadato cede, no el dato. */}
+                  <span className="min-w-0 max-w-[45%] truncate text-xs text-muted-foreground">
                     {c.tipo === "paciente"
                       ? `${c.species}${c.owner ? ` · ${c.owner}` : ""}`
                       : c.species || "titular"}

@@ -232,7 +232,7 @@ export function CreateAppointmentDrawer({
           className="flex flex-col gap-4 overflow-y-auto px-4 text-sm"
         >
           <FieldGroup>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 gap-4">
               <Field>
                 <FieldLabel htmlFor="appt-start">Inicio</FieldLabel>
                 {/* `datetime-local` se pinta vacío como `dd/mm/aaaa --:--`, que no dice si el campo
