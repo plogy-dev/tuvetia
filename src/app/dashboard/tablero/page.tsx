@@ -1,3 +1,4 @@
+import Link from "next/link"
 import { addWeeks, format, startOfWeek } from "date-fns"
 import { es } from "date-fns/locale/es"
 
@@ -20,6 +21,8 @@ import {
 import { BotonDePersonalizar } from "@/components/dashboard/boton-de-personalizar"
 import { NotasPorAprobar, type NotaEnBorrador } from "@/components/dashboard/notas-por-aprobar"
 import { disposicionEfectiva, visibles, type Guardado } from "@/lib/tablero/widgets"
+import { ventasPorTipo } from "@/lib/tablero/ventas-por-tipo"
+import { VentasDelMes } from "@/components/dashboard/ventas-del-mes"
 import {
   metricaDe,
   metricasAPintar,
@@ -272,6 +275,27 @@ export default async function DashboardPage() {
     null
   const disposicion = disposicionEfectiva(guardadoPropio, guardadoDeLaClinica)
 
+  // ── LA DONA DE VENTAS (25-ago) ──────────────────────────────────────────────────────────────
+  //
+  // Sólo si el bloque está visible Y la facturación activa: es la única consulta del tablero que
+  // trae FILAS (las líneas del mes) y no un count, así que no se paga sin razón. El `!inner` en el
+  // embed hace que el filtro por la factura EMITIDA y por el mes recorte las líneas de verdad —
+  // sin él, PostgREST devuelve la línea con `invoice: null` en vez de excluirla.
+  const donaVisible =
+    facturacionActiva && disposicion.some((w) => w.id === "ventas" && w.visible)
+  const lineasDelMes = donaVisible
+    ? await supabase
+        .from("invoice_lines")
+        .select("total_cents, item:catalog_items(item_type), invoice:invoices!inner(status, issued_on)")
+        .eq("invoice.status", "EMITIDA")
+        .gte("invoice.issued_on", monthStart.toISOString().slice(0, 10))
+    : { data: null }
+  const dona = ventasPorTipo(
+    ((lineasDelMes.data as unknown as
+      | { total_cents: number; item: { item_type: string | null } | null }[]
+      | null) ?? []).map((l) => ({ total_cents: l.total_cents, item_type: l.item?.item_type ?? null })),
+  )
+
   // Cada bloque, ya armado. Se arma TODO y se pinta lo elegido: el costo está en las consultas —que
   // ya corrieron arriba— y no en construir el JSX. Armar sólo lo visible obligaría a mover las
   // consultas adentro de cada rama y a repetir la lógica de qué se pide.
@@ -285,6 +309,23 @@ export default async function DashboardPage() {
     metricas: { nodo: <PastillasDelTablero pastillas={metrics} />, ancho: "lg:col-span-5" },
     grafico: { nodo: <ConsultationsChart data={series} />, ancho: "lg:col-span-3" },
     citas: { nodo: <UpcomingAppointments appointments={upcoming} />, ancho: "lg:col-span-2" },
+    ventas: {
+      // Sin facturación activa el bloque igual existe —la personalización lo lista— pero explica
+      // qué falta en vez de pintar una dona vacía que parece un bug.
+      nodo: facturacionActiva ? (
+        <VentasDelMes datos={dona} />
+      ) : (
+        <div className="flex h-full flex-col items-center justify-center gap-2 rounded-xl border bg-card p-4 py-10 text-center">
+          <p className="text-sm text-muted-foreground">
+            La dona de ventas necesita el módulo de facturación activo.
+          </p>
+          <Link href="/dashboard/facturacion/configuracion" className="text-xs text-primary hover:underline">
+            Activarlo en Configuración de facturación
+          </Link>
+        </div>
+      ),
+      ancho: "lg:col-span-3",
+    },
     borradores: {
       nodo: <NotasPorAprobar notas={(borradores.data as unknown as NotaEnBorrador[] | null) ?? []} />,
       ancho: "lg:col-span-2",

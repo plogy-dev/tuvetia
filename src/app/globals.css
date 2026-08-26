@@ -248,11 +248,14 @@
      que es como empieza toda deriva. */
   --input: var(--border-strong);
   --ring: hsl(165 76% 30%);
-  --chart-1: hsl(165 76% 30%); /* menta */
-  --chart-2: hsl(190 50% 36%); /* teal */
-  --chart-3: hsl(39 85% 29%); /* ámbar */
-  --chart-4: hsl(240 39% 58%); /* violeta */
-  --chart-5: hsl(160 22% 45%); /* verde apagado */
+  /* Paleta categórica VALIDADA (25-ago, validate_palette.js): banda de luminosidad, croma,
+     separación con daltonismo (deutan/protan/tritan) y contraste contra blanco — todo en verde.
+     La anterior tenía menta y teal a ΔE 7.6 en visión normal: indistinguibles en una dona. */
+  --chart-1: #12876a; /* menta */
+  --chart-2: #aa5f00; /* ámbar */
+  --chart-3: #6f68cf; /* violeta */
+  --chart-4: #a8425f; /* frambuesa */
+  --chart-5: #256fb4; /* azul */
   /* LA FORMA SUBE DE 8px A 12px, y es una divergencia deliberada del mockup.
 
      El mockup del cliente fija 8px en controles y 12px en cards, y la app lo
@@ -343,11 +346,13 @@
   --ui-border: hsl(160 19% 16%); /* #223129 */
   --input: var(--border-strong);
   --ring: hsl(164 49% 68%);
-  --chart-1: hsl(164 49% 68%);
-  --chart-2: hsl(174 44% 53%);
-  --chart-3: hsl(39 66% 68%);
-  --chart-4: hsl(240 51% 75%);
-  --chart-5: hsl(160 25% 60%);
+  /* La versión oscura NO es la clara invertida: pasos propios validados contra la superficie de
+     card oscura (#14211c), banda L 0.48–0.67. */
+  --chart-1: #2ba57e;
+  --chart-2: #bc8028;
+  --chart-3: #9184ea;
+  --chart-4: #d7688c;
+  --chart-5: #4a8cc7;
   --sidebar: hsl(164 30% 7%);
   --sidebar-foreground: hsl(160 12% 65%);
   --sidebar-primary: hsl(164 49% 68%);
