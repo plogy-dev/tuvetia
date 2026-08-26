@@ -358,7 +358,9 @@ function SidebarFooter({ className, ...props }: React.ComponentProps<"div">) {
     <div
       data-slot="sidebar-footer"
       data-sidebar="footer"
-      className={cn("flex flex-col gap-2 p-2", className)}
+      // El pie está ANCLADO (no scrollea), así que cada píxel que mide se lo quita al contenido:
+      // medido, costaba 120 px. Mismo recorte que los grupos — el aire lateral se queda.
+      className={cn("flex flex-col gap-1.5 px-2 py-1.5", className)}
       {...props}
     />
   )
@@ -388,7 +390,11 @@ function SidebarContent({ className, ...props }: React.ComponentProps<"div">) {
         // ARRANCA colapsado, si el contenido no cabía los ítems de abajo quedaban inalcanzables
         // sin ninguna barra que delatara que había más. (El `no-scrollbar` que acompañaba no
         // existía en ningún CSS del repo — letra muerta desde el port.)
-        "flex min-h-0 flex-1 flex-col gap-2 overflow-auto",
+        //
+        // `gap-1.5` y no `gap-2`: son cuatro bloques, así que cada punto de gap se paga tres
+        // veces en alto. Junto con el resto de los recortes del 26-ago es lo que hace que la
+        // barra ENTRE en un portátil de 768 px en vez de desbordar y esconder los últimos ítems.
+        "flex min-h-0 flex-1 flex-col gap-1.5 overflow-auto",
         className
       )}
       {...props}
@@ -401,7 +407,10 @@ function SidebarGroup({ className, ...props }: React.ComponentProps<"div">) {
     <div
       data-slot="sidebar-group"
       data-sidebar="group"
-      className={cn("relative flex w-full min-w-0 flex-col p-2", className)}
+      // `py-1.5` en vez de `p-2`: el aire lateral se mantiene (es el que alinea los ítems con el
+      // resto de la barra) y se recortan 4 px arriba y abajo de CADA grupo — alto, que es lo que
+      // escasea. Ver el comentario de `SidebarContent`.
+      className={cn("relative flex w-full min-w-0 flex-col px-2 py-1.5", className)}
       {...props}
     />
   )
@@ -417,7 +426,16 @@ function SidebarGroupLabel({
     props: mergeProps<"div">(
       {
         className: cn(
-          "flex h-8 shrink-0 items-center rounded-md px-2 text-xs font-medium text-sidebar-foreground/70 ring-sidebar-ring outline-hidden transition-[margin,opacity] duration-200 ease-linear group-data-[collapsible=icon]:-mt-8 group-data-[collapsible=icon]:opacity-0 focus-visible:ring-2 [&>svg]:size-4 [&>svg]:shrink-0",
+          // `h-6` y no `h-8`: son rótulos de 11 px («CLÍNICA», «CONSULTA») que ocupaban una caja
+          // de 32 — casi el triple que su texto, y el mismo alto que un ítem de navegación
+          // clicable, con lo que la barra le daba a un encabezado el peso de una opción. Los 16 px
+          // que devuelven los dos son la diferencia entre que la barra entre en un portátil de
+          // 768 px o que esconda sus últimos ítems detrás del scroll (medido, 26-ago).
+          //
+          // `-mt-6` acompaña a `h-6`: en modo icono el rótulo se recoge sobre sí mismo, y ese
+          // margen negativo TIENE que valer lo que mide la caja o queda un hueco (o un solape)
+          // en la barra angosta.
+          "flex h-6 shrink-0 items-center rounded-md px-2 text-xs font-medium text-sidebar-foreground/70 ring-sidebar-ring outline-hidden transition-[margin,opacity] duration-200 ease-linear group-data-[collapsible=icon]:-mt-6 group-data-[collapsible=icon]:opacity-0 focus-visible:ring-2 [&>svg]:size-4 [&>svg]:shrink-0",
           className
         ),
       },
