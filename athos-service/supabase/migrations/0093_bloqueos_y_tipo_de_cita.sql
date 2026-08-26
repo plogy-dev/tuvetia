@@ -306,7 +306,21 @@ begin
 end;
 $function$;
 
+-- ── LOS PERMISOS ────────────────────────────────────────────────────────────────────────────────
+--
+-- `revoke ... from public` NO alcanza, y esto se vio al aplicar la migración al principal el
+-- 26-ago: la función quedó con `anon=X`. Es que Supabase tiene `alter default privileges` que le
+-- concede EXECUTE a `anon` sobre toda función nueva de `public`, y esa concesión es EXPLÍCITA para
+-- el rol — quitarle el permiso a `public` no la toca.
+--
+-- No era explotable (sin sesión, `private.my_clinic_id()` devuelve null y la función corta con «No
+-- clinic assigned»), pero dejaba a estas dos RPC de ESCRITURA como las únicas del sistema
+-- alcanzables sin sesión: las otras cuatro —`create_invitation`, `remove_clinic_member`,
+-- `cambiar_rol_de_miembro`, `otorgar_agenda_completa`— no tienen `anon`. Se revoca explícito para
+-- que la superficie sea la misma en todas.
 revoke all on function public.create_appointment(text, timestamptz, timestamptz, uuid, uuid, uuid, text, public.appointment_status, text, boolean, text, boolean) from public;
+revoke execute on function public.create_appointment(text, timestamptz, timestamptz, uuid, uuid, uuid, text, public.appointment_status, text, boolean, text, boolean) from anon;
 grant execute on function public.create_appointment(text, timestamptz, timestamptz, uuid, uuid, uuid, text, public.appointment_status, text, boolean, text, boolean) to authenticated;
 revoke all on function public.update_appointment(uuid, text, timestamptz, timestamptz, uuid, uuid, uuid, text, public.appointment_status, text, boolean, text, boolean) from public;
+revoke execute on function public.update_appointment(uuid, text, timestamptz, timestamptz, uuid, uuid, uuid, text, public.appointment_status, text, boolean, text, boolean) from anon;
 grant execute on function public.update_appointment(uuid, text, timestamptz, timestamptz, uuid, uuid, uuid, text, public.appointment_status, text, boolean, text, boolean) to authenticated;
