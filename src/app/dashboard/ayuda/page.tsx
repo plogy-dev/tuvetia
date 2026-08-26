@@ -81,7 +81,11 @@ const SECTIONS = [
   {
     icon: Settings2,
     title: "Configuración",
+<<<<<<< HEAD
     body: "Los datos de la clínica, tu equipo, los horarios de atención que VetGPT usa para proponer citas, y la descarga de todos tus datos en formato abierto.",
+=======
+    body: "Los datos de la clínica, tu equipo, los horarios de atención que Athos usa para proponer citas, y la descarga de todos tus datos en formato abierto.",
+>>>>>>> origin/master
     href: "/dashboard/administracion/clinica",
   },
 ]
