@@ -1133,8 +1133,10 @@ paralela); el precio se congela al contratar (como `invoice_lines`); el tope de 
 un trigger con `FOR UPDATE` (la carrera de la 0079). El carrito avisa «lo cubre el plan, quedan 2
 de 3» — avisa, NO descuenta solo: quien imputa al plan es el vet.
 
-⚠️ **La 0088 y la 0087 (de Jesús, `duration_ms`) NO están aplicadas al principal** — verificado con
-conteo de tablas/columnas. Las dos tienen verificación SQL.
+**Las tres migraciones de la tanda quedaron aplicadas al principal** — la 0086 y 0087 de Jesús
+durante el 25-ago, y la **0088 el 26-ago con su verificación en verde** (9 casos, todo revertido a
+propósito; confirmado después por lectura: 4 tablas con RLS, trigger del tope, 4 policies, cero
+residuos).
 
 Y cayó una mentira vieja: «vacuna vencida no se puede porque no existe la tabla». Se llama
 `vaccines` (no `vaccinations`) y trae `next_dose_at`. El segmento entró a los avisos, agrupando por
