@@ -1,12 +1,9 @@
 "use client"
 
-import { useEffect, useState } from "react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { Button } from "@/components/ui/button"
 import { CreatePatientDrawer } from "@/components/create-patient-drawer"
 import { NewConsultationDrawer } from "@/components/new-consultation-drawer"
-import { createClient } from "@/lib/supabase/client"
 import { isNavActive } from "@/lib/nav-active"
 import {
   SidebarGroup,
@@ -16,7 +13,6 @@ import {
   SidebarMenuButton,
   SidebarMenuItem,
 } from "@/components/ui/sidebar"
-import { SparklesIcon } from "lucide-react"
 
 import { InsigniaSinLeer } from "@/components/comunicaciones/insignia-sin-leer"
 
@@ -33,52 +29,6 @@ export type NavGroup = {
   /** El rótulo del mockup: CONSULTORIO / CRM. */
   label: string
   items: NavItem[]
-}
-
-// Badge de propuestas de VetGPT pendientes de aprobación (athos_actions status=proposed, RLS).
-function PendingProposalsButton() {
-  const [supabase] = useState(() => createClient())
-  const [count, setCount] = useState(0)
-  useEffect(() => {
-    let alive = true
-    async function load() {
-      const { count: c } = await supabase
-        .from("athos_actions")
-        .select("id", { count: "exact", head: true })
-        .eq("status", "proposed")
-      if (alive) setCount(c ?? 0)
-    }
-    void load()
-    const t = setInterval(load, 60_000)
-    return () => {
-      alive = false
-      clearInterval(t)
-    }
-  }, [supabase])
-
-  return (
-    // `hidden`, no `opacity-0`: con opacidad cero el botón seguía ocupando su hueco y seguía
-    // siendo clicable — un enlace invisible a Comunicaciones en la barra angosta.
-    //
-    // `ghost`, no `outline`: David (26-ago) pidió quitarle el fondo gris — la cajita con borde
-    // pesaba al lado de «Nuevo paciente» y parecía un segundo botón primario. El icono queda
-    // solo, con su hover, y la insignia de propuestas encima sigue diciendo cuándo mirar.
-    <Button
-      size="icon"
-      className="relative size-8 text-fg-muted group-data-[collapsible=icon]:hidden"
-      variant="ghost"
-      title={count > 0 ? `${count} propuesta(s) de VetGPT pendientes` : "Propuestas de VetGPT"}
-      render={<Link href="/dashboard/comunicaciones" />}
-    >
-      <SparklesIcon />
-      {count > 0 && (
-        <span className="absolute -right-1 -top-1 grid size-4 place-items-center rounded-full bg-brand text-[9px] font-bold text-on-brand">
-          {count > 9 ? "9+" : count}
-        </span>
-      )}
-      <span className="sr-only">Propuestas de VetGPT</span>
-    </Button>
-  )
 }
 
 /** El rótulo de grupo, con la forma que pide el mockup: 11px, 600, tracking abierto, versalitas. */
@@ -217,12 +167,16 @@ export function NavMain({ consultorio, crm }: { consultorio: NavItem[]; crm: Nav
         <SidebarGroupContent className="flex flex-col gap-2">
           <Items items={crm} grupo="crm" />
           <SidebarMenu>
-            <SidebarMenuItem className="flex items-center gap-2">
+            {/* «Nuevo paciente» ocupa la fila entero. Al lado vivía un icono de estrella con el
+                contador de propuestas de VetGPT pendientes; se retiró el 26-ago por pedido del
+                cliente. La señal no se pierde: las propuestas siguen apareciendo como tarjetas en
+                el chat de VetGPT y en la bandeja de Comunicaciones, que es donde se aprueban. Lo
+                que se va es el aviso ambiente. */}
+            <SidebarMenuItem>
               <CreatePatientDrawer
                 label="Nuevo paciente"
                 trigger={<SidebarMenuButton variant="outline" tooltip="Nuevo paciente" />}
               />
-              <PendingProposalsButton />
             </SidebarMenuItem>
           </SidebarMenu>
         </SidebarGroupContent>
