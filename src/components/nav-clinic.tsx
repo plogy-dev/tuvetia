@@ -18,21 +18,26 @@ export function NavClinic({ name, logoUrl }: { name: string; logoUrl: string | n
   return (
     <SidebarMenu>
       <SidebarMenuItem>
+        {/* UNA SOLA LÍNEA, y no dos. El rótulo «Veterinaria» encima del nombre costaba 15 px de
+            alto para decir algo que el producto entero ya dice — esto es una app veterinaria y el
+            nombre de abajo empieza por «Clínica de…». Esos 15 px son alto de barra, que es lo
+            escaso: con el rótulo, en un portátil de 768 px el contenido desbordaba y los últimos
+            ítems quedaban escondidos tras el scroll (medido, 26-ago). El nombre completo sigue
+            entero en el `title` para cuando se trunca. */}
         <div
           title={`Veterinaria ${name}`}
-          className="flex items-center gap-2 rounded-lg border bg-card px-2 py-2 group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:border-0 group-data-[collapsible=icon]:bg-transparent group-data-[collapsible=icon]:p-0"
+          className="flex items-center gap-2 rounded-lg border bg-card px-2 py-1.5 group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:border-0 group-data-[collapsible=icon]:bg-transparent group-data-[collapsible=icon]:p-0"
         >
-          <Avatar className="size-8 rounded-lg group-data-[collapsible=icon]:size-7">
+          <Avatar className="size-7 rounded-lg">
             <AvatarImage src={logoUrl ?? undefined} alt={name} />
             <AvatarFallback className="rounded-lg">
               <Building2Icon className="size-4" />
             </AvatarFallback>
           </Avatar>
           {/* El texto se va con la barra angosta; el logo se queda. */}
-          <div className="grid flex-1 text-left text-sm leading-tight group-data-[collapsible=icon]:hidden">
-            <span className="truncate text-xs text-muted-foreground">Veterinaria</span>
-            <span className="truncate font-medium">{name}</span>
-          </div>
+          <span className="min-w-0 flex-1 truncate text-left text-sm font-medium group-data-[collapsible=icon]:hidden">
+            {name}
+          </span>
         </div>
       </SidebarMenuItem>
     </SidebarMenu>

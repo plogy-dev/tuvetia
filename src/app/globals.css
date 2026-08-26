@@ -506,45 +506,31 @@ input[type="datetime-local"] {
  * VA ESCOPADO A LA BARRA, no a toda la app: en una tabla ancha o en un bloque de código, una barra
  * de 6px que aparece sólo al pasar por encima es peor que la del sistema — ahí desplazarse es la
  * acción principal y la barra tiene que verse de entrada. */
+/* ── POR QUÉ LA BARRA SE OCULTA DEL TODO, Y NO SE "ESTILIZA" ──────────────────────────────────
+ *
+ * El intento anterior era `scrollbar-width: thin` + `scrollbar-color: transparent transparent`
+ * con un juego de `::-webkit-scrollbar` debajo. MEDIDO EN PRODUCCIÓN (26-ago) no funcionaba, y
+ * por dos razones que sólo se ven con el inspector abierto:
+ *
+ *   · En Chrome, declarar `scrollbar-width`/`scrollbar-color` DESACTIVA los `::-webkit-scrollbar`
+ *     del mismo elemento. Todo ese bloque era letra muerta: nunca pintó nada.
+ *   · `scrollbar-color: transparent` no se honra igual en todas partes. En Windows, Chrome pintaba
+ *     igual la barra del sistema —gris, con sus flechitas arriba y abajo— que es exactamente lo
+ *     que Felipe reportó: «no pueden aparecer barras grises, estorba demasiado».
+ *
+ * Y encima ROBABA ANCHO: medida, la barra clásica se llevaba 10 px de los 232 de la barra.
+ *
+ * Se oculta la BARRA, no el scroll: la rueda, el trackpad y el teclado siguen funcionando, que es
+ * la lección que este archivo ya tenía escrita para el modo colapsado. Lo que evita que algo
+ * quede escondido no es la barra, es que el contenido QUEPA — ver `nav-clinic.tsx` y el alto de
+ * los grupos, ajustados en el mismo cambio para que en un portátil de 768 px no haya desborde. */
 [data-slot="sidebar-content"] {
-  scrollbar-width: thin;
-  scrollbar-color: transparent transparent;
-}
-[data-slot="sidebar-content"]:hover,
-[data-slot="sidebar-content"]:focus-within {
-  scrollbar-color: var(--color-line-strong) transparent;
-}
-
-[data-slot="sidebar-content"]::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
-}
-[data-slot="sidebar-content"]::-webkit-scrollbar-track {
-  background: transparent;
-}
-[data-slot="sidebar-content"]::-webkit-scrollbar-thumb {
-  background: transparent;
-  border-radius: 9999px;
-}
-[data-slot="sidebar-content"]:hover::-webkit-scrollbar-thumb,
-[data-slot="sidebar-content"]:focus-within::-webkit-scrollbar-thumb {
-  background: var(--color-line-strong);
-}
-[data-slot="sidebar-content"]::-webkit-scrollbar-thumb:hover {
-  background: var(--color-fg-faint);
-}
-
-/* COLAPSADA NO SCROLLEA, y por eso hay que asegurarse de que todo entre (ver `app-sidebar.tsx`:
- * el historial y el chip de primeros pasos se ocultan). Una barra de desplazamiento dentro de un
- * riel de 48px deja los iconos descentrados y recortados — que es exactamente el aspecto que esto
- * viene a arreglar. */
-[data-state="collapsed"] [data-slot="sidebar-content"] {
-  /* SE OCULTA LA BARRA, NO EL SCROLL. `overflow: hidden` sería más limpio de mirar y peor de usar:
-   * en un portátil de pantalla baja los últimos iconos quedarían inalcanzables, sin nada que
-   * delatara que hay más — que es el defecto que este mismo archivo ya había arreglado una vez.
-   * Con la barra invisible y la rueda funcionando, no se ve nada feo y no se pierde nada. */
   scrollbar-width: none;
 }
-[data-state="collapsed"] [data-slot="sidebar-content"]::-webkit-scrollbar {
+[data-slot="sidebar-content"]::-webkit-scrollbar {
   display: none;
 }
+
+/* La regla de arriba ya cubre los dos estados —expandida y colapsada—, así que el bloque aparte
+ * que existía para `[data-state="collapsed"]` se fue: decía lo mismo dos veces. El razonamiento
+ * que lo justificaba sigue valiendo y vive en el comentario de arriba. */
