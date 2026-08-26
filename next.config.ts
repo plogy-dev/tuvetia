@@ -20,7 +20,18 @@ const nextConfig: NextConfig = {
   //
   // La alternativa era Skew Protection de Vercel, que es de los planes pagos; esto vale igual y
   // funciona en Hobby.
-  deploymentId: process.env.VERCEL_GIT_COMMIT_SHA,
+  //
+  // ── RECORTADO A 16, Y ESO TUMBÓ TRES DESPLIEGUES ──────────────────────────────────────────
+  //
+  // **Vercel exige que el `deploymentId` mida 32 caracteres o menos**, y un SHA de git mide 40.
+  // El build entero pasa —compila, typechequea, genera las páginas— y recién al final Vercel lo
+  // rechaza: «The deploymentId "…" must be 32 characters or less». O sea que el error no aparece
+  // en `next build` local, sólo allá, y por eso se subió roto.
+  //
+  // 16 hexadecimales son 64 bits: de sobra para que dos despliegues no colisionen, y bien lejos
+  // del tope. `slice` es determinista, así que el id sigue siendo idéntico en el build y en el
+  // servidor — que es la condición sin la cual esto haría recargar en bucle.
+  deploymentId: process.env.VERCEL_GIT_COMMIT_SHA?.slice(0, 16),
 
   // LOS `.md` DE LA DOCUMENTACIÓN TIENEN QUE VIAJAR AL DESPLIEGUE.
   //
