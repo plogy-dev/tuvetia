@@ -82,7 +82,7 @@ const SECTIONS = [
     icon: Settings2,
     title: "Configuración",
     body: "Los datos de la clínica, tu equipo, los horarios de atención que Athos usa para proponer citas, y la descarga de todos tus datos en formato abierto.",
-    href: "/dashboard/settings",
+    href: "/dashboard/administracion/clinica",
   },
 ]
 

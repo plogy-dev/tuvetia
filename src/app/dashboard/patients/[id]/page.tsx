@@ -23,6 +23,8 @@ import {
   type Vaccine,
 } from "@/components/patient/patient-clinical-summary"
 import { EditarPacienteDrawer } from "@/components/patient/editar-paciente-drawer"
+import { PlanDelPacienteCard } from "@/components/planes-salud/plan-del-paciente"
+import { listarPlanes, planDelPaciente } from "@/lib/planes-salud/consultas"
 import { EditarTitularDrawer } from "@/components/owners/editar-titular-drawer"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
@@ -68,6 +70,9 @@ type Patient = {
 export default async function PatientHistoryPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
   const supabase = await createClient()
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
 
   const { data: p } = await supabase
     .from("patients")
@@ -86,6 +91,9 @@ export default async function PatientHistoryPage({ params }: { params: Promise<{
     { data: consultData },
     { data: attachData },
     { data: apptData, error: apptError },
+    planActual,
+    planesDisponibles,
+    { data: quienMira },
   ] = await Promise.all([
       supabase.from("allergies").select("id, allergen, severity, reaction").eq("patient_id", id),
       supabase
@@ -130,7 +138,13 @@ export default async function PatientHistoryPage({ params }: { params: Promise<{
         .eq("patient_id", id)
         .order("starts_at", { ascending: false })
         .limit(50),
-    ])
+        // El plan del paciente, los planes que la clínica ofrece hoy, y si quien mira puede
+      // contratar. Van en la MISMA ola que el resto: son tres lecturas chicas y encadenarlas
+      // después le sumaría un viaje a una ficha que ya hace seis.
+      planDelPaciente(supabase, patient.clinic_id, id),
+      listarPlanes(supabase, patient.clinic_id),
+      supabase.from("profiles").select("role").eq("id", user?.id ?? "").maybeSingle(),
+  ])
 
   // Un embed ambiguo devuelve `error` y `data: null`, y sin mirarlo el `?? []` de abajo lo convierte
   // en "este paciente no tiene citas". Es indistinguible de la verdad, y así pasó desapercibido.
@@ -259,6 +273,20 @@ export default async function PatientHistoryPage({ params }: { params: Promise<{
         allergies={allergies}
         medications={medications}
         vaccines={vaccines}
+      />
+
+      {/* El plan de salud del paciente: qué cubre y qué le queda. Va junto al resumen clínico
+          porque es lo mismo que el resumen responde —qué tiene este animal— sólo que en plata. */}
+      <PlanDelPacienteCard
+        patientId={patient.id}
+        plan={planActual}
+        planesDisponibles={planesDisponibles.map((pl) => ({
+          id: pl.id,
+          name: pl.name,
+          price_cents: pl.price_cents,
+          months: pl.months,
+        }))}
+        puedeContratar={(quienMira as { role: string | null } | null)?.role === "admin"}
       />
 
       {/* Archivos adjuntos: exámenes médicos, radiografías, laboratorio… */}

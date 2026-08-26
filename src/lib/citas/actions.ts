@@ -66,7 +66,7 @@ export async function guardarRecordatorioDeCitas(
       .eq("id", clinicId)
     if (error) throw new Error(`No se pudo guardar: ${error.message}`)
 
-    revalidatePath("/dashboard/settings")
+    revalidatePath("/dashboard/administracion/clinica")
     return { ok: true }
   } catch (e) {
     return { ok: false, error: e instanceof Error ? e.message : "Error inesperado" }

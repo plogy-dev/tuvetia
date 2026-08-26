@@ -29,6 +29,7 @@ import {
   PlugIcon,
   ReceiptIcon,
   Settings2Icon,
+  ShieldIcon,
   SlidersHorizontalIcon,
   UsersIcon,
 } from "lucide-react"
@@ -96,7 +97,14 @@ const data = {
   // que el vet pueda ver.
   navSecondary: [
     { title: "Integraciones", url: "/dashboard/conexiones", icon: <PlugIcon /> },
-    { title: "Configuración", url: "/dashboard/settings", icon: <Settings2Icon /> },
+    // Administración va ANTES que Configuración porque la contiene: desde el 25-ago los ajustes de
+    // la clínica viven adentro del panel, y Configuración quedó como el atajo directo a su pestaña.
+    { title: "Administración", url: "/dashboard/administracion", icon: <ShieldIcon /> },
+    {
+      title: "Configuración",
+      url: "/dashboard/administracion/clinica",
+      icon: <Settings2Icon />,
+    },
     { title: "Ayuda", url: "/dashboard/ayuda", icon: <CircleHelpIcon /> },
   ],
 }

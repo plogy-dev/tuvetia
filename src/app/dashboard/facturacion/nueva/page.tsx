@@ -11,6 +11,7 @@ import { DEFAULT_UVT_VALUE_CENTS } from '@/lib/facturacion/constants';
 import { fmtDate } from '@/lib/facturacion/format';
 import { InvoiceCart } from '@/components/facturacion/InvoiceCart';
 import { sugerirRenglones } from '@/lib/facturacion/lo-recetado';
+import { planDelPaciente } from '@/lib/planes-salud/consultas';
 import { FormularioDeFiltros } from "@/components/ui/formulario-de-filtros"
 
 export const metadata = { title: "Nueva cuenta · Tuvetia" }
@@ -84,7 +85,7 @@ export default async function NuevaFacturaPage({
 
   // Una sola ola: settings, catálogo y consultas sin facturar no dependen entre
   // sí (los gates `showCart`/`q` salen del searchParams, no de settings).
-  const [settings, items, unbilled, notaDeLaConsulta] = await Promise.all([
+  const [settings, items, unbilled, notaDeLaConsulta, planDelPacienteActual] = await Promise.all([
     getBillingSettings(supabase, clinicId),
     showCart ? listCatalogItems(supabase, clinicId) : Promise.resolve([]),
     !showCart && !q
@@ -101,7 +102,31 @@ export default async function NuevaFacturaPage({
           .eq('status', 'approved')
           .maybeSingle()
       : Promise.resolve({ data: null }),
+    // EL PLAN DE SALUD DEL PACIENTE. Se lee acá y no en el carrito porque el carrito es un
+    // componente de cliente: pedirlo desde el navegador metería una espera justo cuando el vet
+    // empieza a teclear la cuenta.
+    showCart && sp.patientId
+      ? planDelPaciente(supabase, clinicId, sp.patientId)
+      : Promise.resolve(null),
   ]);
+
+  // Sólo si está VIGENTE. Un plan vencido no cubre nada, y anunciarlo en la cuenta sería prometerle
+  // al titular un descuento que no le corresponde.
+  //
+  // Y sólo los servicios que TODAVÍA importan: los que quedan, más los agotados —esos también se
+  // muestran, con su aviso de que ya se usaron todos. Lo que no aparece nunca es un plan vencido.
+  const cobertura =
+    planDelPacienteActual && planDelPacienteActual.vigente
+      ? {
+          planNombre: planDelPacienteActual.planNombre,
+          porItem: Object.fromEntries(
+            planDelPacienteActual.cobertura.map((c) => [
+              c.catalogItemId,
+              { nombre: c.nombre, incluidas: c.incluidas, restantes: c.restantes },
+            ]),
+          ),
+        }
+      : null;
 
   // Lo recetado, cruzado con el catálogo. Sin nota aprobada o sin nada cobrable en el plan queda
   // vacío y el carrito arranca como siempre — el camino de la factura suelta no cambia.
@@ -147,6 +172,7 @@ export default async function NuevaFacturaPage({
             renglonesIniciales={renglonesIniciales}
             defaultDocKind={settings?.default_doc_kind ?? 'POS'}
             uvtValueCents={settings?.uvt_value_cents ?? DEFAULT_UVT_VALUE_CENTS}
+            cobertura={cobertura}
             // La hora se sella acá y no en el componente: en un componente de cliente `new Date()`
             // es impuro y `react-hooks/purity` lo rechaza. La página ya es `force-dynamic`.
             abiertaEn={new Date().toISOString()}
