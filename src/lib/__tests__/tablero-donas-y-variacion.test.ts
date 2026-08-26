@@ -90,4 +90,17 @@ describe("la insignia de variación", () => {
     const { desde } = ventanaDelMesAnterior(ahora, inicioDeEnero)
     expect(desde).toBe("2025-12-01T05:00:00.000Z")
   })
+
+  it("un mes largo detrás de uno corto NO se come los días del mes actual", () => {
+    // 30 de marzo: llevan corridos 29 días. Sumárselos al 1 de febrero cae en el 2 de MARZO, así
+    // que sin tope la ventana «del mes pasado» incluía días del mes ACTUAL — y esos quedaban
+    // contados en las dos puntas de la comparación, achatando la variación.
+    const inicioDeMarzo = new Date("2026-03-01T05:00:00.000Z")
+    const ahora = new Date("2026-03-30T15:00:00.000Z")
+    const { desde, hasta } = ventanaDelMesAnterior(ahora, inicioDeMarzo)
+    expect(desde).toBe("2026-02-01T05:00:00.000Z")
+    // Se topa donde empieza marzo: ni un minuto del mes actual entra en su propia base.
+    expect(hasta).toBe(inicioDeMarzo.toISOString())
+    expect(new Date(hasta).getTime()).toBeLessThanOrEqual(inicioDeMarzo.getTime())
+  })
 })

@@ -61,8 +61,14 @@ export function ventanaDelMesAnterior(
     Date.UTC(enBogota.getUTCFullYear(), enBogota.getUTCMonth() - 1, 1) + 5 * 3_600_000,
   )
   const corrido = ahora.getTime() - inicioDelMesActual.getTime()
+  // TOPADO AL INICIO DEL MES ACTUAL, y no es un detalle: los meses no miden lo mismo. El 30 de
+  // marzo llevan corridos 29 días, y sumárselos al 1 de febrero cae en el 2 de MARZO — así que la
+  // ventana «del mes pasado» se comía los primeros días del actual y esos días quedaban contados
+  // en las dos puntas de la comparación, achatando la variación. Pasa en todo mes largo después de
+  // uno corto: marzo tras febrero, mayo tras abril.
+  const fin = Math.min(inicioAnterior.getTime() + corrido, inicioDelMesActual.getTime())
   return {
     desde: inicioAnterior.toISOString(),
-    hasta: new Date(inicioAnterior.getTime() + corrido).toISOString(),
+    hasta: new Date(fin).toISOString(),
   }
 }

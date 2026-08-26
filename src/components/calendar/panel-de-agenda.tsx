@@ -62,7 +62,10 @@ export function PanelDeAgenda({
   const hoy = isoEnBogota(new Date())
 
   return (
-    <aside className="flex w-full shrink-0 flex-col gap-5 lg:w-64">
+    // `lg:min-h-0 lg:overflow-y-auto`: la agenda ahora acota su alto al viewport (ver
+    // calendario/page.tsx), así que si esta columna no cabe —muchos veterinarios en la lista—
+    // scrollea ella sola en vez de devolverle el scroll a la página entera.
+    <aside className="flex w-full shrink-0 flex-col gap-4 lg:min-h-0 lg:w-64 lg:overflow-y-auto">
       {/* ── AVISOS ─────────────────────────────────────────────────────────────────────────────
           Se DICE el estado y se enlaza a donde se cambia; no se cambia acá. El interruptor real
           vive en Administración porque encenderlo decide que la clínica le escribe sola a sus

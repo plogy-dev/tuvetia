@@ -460,7 +460,12 @@ export function AppointmentCalendar({
     // El panel a la izquierda y la agenda a la derecha, como cualquier agenda profesional. En
     // pantalla angosta se apila: el mini calendario arriba sigue sirviendo para saltar de fecha y
     // la grilla debajo se recorre igual.
-    <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:gap-6">
+    //
+    // `lg:flex-1 lg:min-h-0` — hereda el alto acotado que baja `calendario/page.tsx`, para que la
+    // grilla llene lo que queda de pantalla con scroll interno. SIN `lg:items-start`: las columnas
+    // se estiran al alto de la fila (es lo que le da alto al `flex-1` del calendario); el panel no
+    // cambia a la vista porque su contenido ya vive arriba y su raíz no pinta fondo.
+    <div className="flex flex-col gap-4 lg:min-h-0 lg:flex-1 lg:flex-row lg:gap-5">
       <PanelDeAgenda
         fecha={date}
         onElegirFecha={(d) => {
@@ -487,7 +492,9 @@ export function AppointmentCalendar({
         avisosActivos={avisosActivos}
       />
 
-      <div className="flex min-w-0 flex-1 flex-col gap-3">
+      {/* `lg:min-h-0`: sin él, esta columna no puede encogerse por debajo de su contenido y el
+          alto heredado no llega al calendario de abajo. */}
+      <div className="flex min-w-0 flex-1 flex-col gap-3 lg:min-h-0">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <h1 className="flex items-center gap-1.5 text-lg font-semibold">
           Calendario
@@ -567,8 +574,13 @@ export function AppointmentCalendar({
           marco, que es la regla de todo contenido ancho en este repo (tablas incluidas). El
           mínimo son ~90 px por día + la regla horaria: debajo de eso una cita no alcanza a decir
           ni la hora. `svh` y no `vh`: en móvil, `vh` incluye la barra del navegador y el pie del
-          calendario quedaba debajo de ella. */}
-      <div className="tuvetia-calendar h-[75svh] overflow-x-auto">
+          calendario quedaba debajo de ella.
+
+          EL ALTO: en `lg:` ya no son 75svh fijos —que en un portátil de 768 px sumados a «Hoy»
+          garantizaban scroll de página— sino `flex-1`: lo que quede de la columna acotada que baja
+          la página. El piso de 420 px es para un día con la lista de «Hoy» llena: antes de dejar
+          la grilla inusable, se prefiere devolverle unos px de scroll a la página. */}
+      <div className="tuvetia-calendar h-[75svh] overflow-x-auto lg:h-auto lg:min-h-[420px] lg:flex-1">
         <div className="h-full min-w-[700px]">
         <DnDCalendar
           localizer={localizer}

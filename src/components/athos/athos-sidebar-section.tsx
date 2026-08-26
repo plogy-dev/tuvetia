@@ -32,7 +32,8 @@
 import { useEffect, useMemo, useState, useSyncExternalStore } from "react"
 import Link from "next/link"
 import { usePathname, useRouter, useSearchParams } from "next/navigation"
-import { ChevronDown, MessagesSquare, PlusIcon, SearchIcon, Stethoscope } from "lucide-react"
+import { ChevronDown, MessagesSquare, PlusIcon, SearchIcon, Stethoscope, Trash2 } from "lucide-react"
+import { toast } from "sonner"
 
 import { ESTADO_DE_CONSULTA } from "@/lib/consultas/estado"
 import { createClient } from "@/lib/supabase/client"
@@ -41,6 +42,7 @@ import {
   SidebarGroup,
   SidebarGroupContent,
   SidebarMenu,
+  SidebarMenuAction,
   SidebarMenuButton,
   SidebarMenuItem,
 } from "@/components/ui/sidebar"
@@ -75,6 +77,8 @@ export function AthosSidebarSection() {
   const [q, setQ] = useState("")
   const [consultas, setConsultas] = useState<Item[] | null>(null)
   const [chats, setChats] = useState<Item[] | null>(null)
+  // Sube cuando "Deshacer" restaura un chat: fuerza la recarga de la lista sin navegar.
+  const [refresco, setRefresco] = useState(0)
 
   // La lista se REFRESCA al navegar (cambia la ruta o la query), no solo al montar: sin esto, el
   // chat que acabas de dejar con «Nuevo chat» no aparecía en el historial hasta recargar la página
@@ -101,6 +105,8 @@ export function AthosSidebarSection() {
         supabase
           .from("athos_messages")
           .select("patient_id, thread_key, role, content, created_at")
+          // Sin los chats "eliminados" de la vista (0095) — ver /api/athos/chats/ocultar.
+          .is("hidden_at", null)
           .order("created_at", { ascending: false })
           .limit(TOPE_MENSAJES),
         supabase.from("patients").select("id, name").limit(500),
@@ -170,7 +176,48 @@ export function AthosSidebarSection() {
     return () => {
       vivo = false
     }
-  }, [visible, plegado, rutaKey])
+  }, [visible, plegado, rutaKey, refresco])
+
+  // "Eliminar" un chat = quitarlo de la VISTA (0095): los mensajes quedan en la base y la memoria
+  // del paciente intacta. Optimista: desaparece al clic; si el servidor falla, se recarga y el
+  // toast lo dice. "Deshacer" restaura tal cual.
+  // `claveNueva` la genera el handler inline (Date.now ahí está exento de react-hooks/purity;
+  // acá adentro el compilador lo marca): es la clave del chat fresco al que se navega si el
+  // eliminado era el que estaba abierto.
+  async function ocultarChat(item: Item, claveNueva: number) {
+    const esPaciente = item.href.includes("?patient=")
+    const cuerpo = esPaciente
+      ? { patient_id: item.key }
+      : { thread_key: item.key }
+    setChats((prev) => prev?.filter((c) => c.key !== item.key) ?? prev)
+    const res = await fetch("/api/athos/chats/ocultar", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ accion: "ocultar", ...cuerpo }),
+    }).catch(() => null)
+    if (!res?.ok) {
+      toast.error("No se pudo eliminar el chat del historial.")
+      setRefresco((r) => r + 1) // recarga: el optimista se revierte con la verdad de la base
+      return
+    }
+    toast(`«${item.titulo}» eliminado del historial`, {
+      action: {
+        label: "Deshacer",
+        onClick: () => {
+          void fetch("/api/athos/chats/ocultar", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ accion: "restaurar", ...cuerpo }),
+          }).then(() => setRefresco((r) => r + 1))
+        },
+      },
+    })
+    // Si era el chat ABIERTO, quedarse mirándolo sería seguir chateando en un hilo "eliminado":
+    // se abre uno nuevo.
+    if ((esPaciente && pacienteActivo === item.key) || (!esPaciente && chatActivo === item.key)) {
+      router.push(`/dashboard/asistente?nuevo=${claveNueva}`)
+    }
+  }
 
   const activos = tab === "consultas" ? consultas : chats
   const filtro = q.trim().toLowerCase()
@@ -303,11 +350,23 @@ export function AthosSidebarSection() {
                     className="h-auto flex-col items-start gap-0.5 py-1.5"
                     render={<Link href={i.href} />}
                   >
-                    <span className="w-full truncate text-xs font-medium">{i.titulo}</span>
+                    <span className="w-full truncate pr-5 text-xs font-medium">{i.titulo}</span>
                     <span className="w-full truncate text-[11px] text-muted-foreground">
                       {i.sub}
                     </span>
                   </SidebarMenuButton>
+                  {/* Eliminar DE LA VISTA (0095): los mensajes y la memoria del paciente quedan —
+                      solo desaparece del historial. Solo en Chats: una consulta clínica no se
+                      "elimina" desde una barra lateral. */}
+                  {tab === "chats" && (
+                    <SidebarMenuAction
+                      aria-label={`Eliminar «${i.titulo}» del historial`}
+                      onClick={() => void ocultarChat(i, Date.now())}
+                      className="top-1.5"
+                    >
+                      <Trash2 className="size-3.5" />
+                    </SidebarMenuAction>
+                  )}
                 </SidebarMenuItem>
               )
             })}

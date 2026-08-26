@@ -438,7 +438,7 @@ export default async function DashboardPage() {
       nodo: facturacionActiva ? (
         <VentasDelMes datos={dona} />
       ) : (
-        <div className="flex h-full flex-col items-center justify-center gap-2 rounded-xl border bg-card p-4 py-10 text-center">
+        <div className="flex h-full flex-col items-center justify-center gap-2 rounded-xl border bg-card p-4 py-6 text-center">
           <p className="text-sm text-muted-foreground">
             La dona de ventas necesita el módulo de facturación activo.
           </p>
@@ -488,7 +488,12 @@ export default async function DashboardPage() {
     // Pasa a `PageShell` como el resto del CRM. Antes tenía su propio marco —`py-4` afuera y
     // `px-4 lg:px-6` repetido en CADA hijo—, que es de donde salía que el tablero no se alineara
     // con ninguna otra pantalla.
-    <PageShell>
+    //
+    // `gap-4` en vez del `gap-6` del shell: el tablero apila más bloques que ninguna otra pantalla
+    // y en un portátil de 768 px de alto cada separación de 24 se paga con scroll («toca escrollear
+    // mucho», el cliente). Sólo se aprieta la separación vertical; el padding del marco no se toca
+    // para no desalinear el tablero del resto de las pantallas.
+    <PageShell className="gap-4">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <PageHeader
           title="Dashboard"
@@ -525,8 +530,9 @@ export default async function DashboardPage() {
 
       {/* UNA SOLA GRILLA DE 5 COLUMNAS para todo el tablero, y no una fila por bloque. Es lo que
           permite que el orden sea libre: con contenedores fijos, mover el gráfico debajo de las
-          citas obligaría a rehacer el layout. Acá cada bloque declara cuánto ocupa y se acomoda. */}
-      <div className="grid gap-6 lg:grid-cols-5">
+          citas obligaría a rehacer el layout. Acá cada bloque declara cuánto ocupa y se acomoda.
+          `gap-4` y no `gap-6` por la misma razón que el shell de arriba: densidad para 1366×768. */}
+      <div className="grid gap-4 lg:grid-cols-5">
         {visibles(disposicion).map((p) => {
           const b = BLOQUES[p.id]
           if (!b) return null

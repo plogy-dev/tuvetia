@@ -198,20 +198,24 @@ export async function GET(req: Request) {
   } else if (metrica === "vacunas-por-vencer") {
     // Los MISMOS 30 días que cuenta la cifra, y `next_dose_at` es una columna DATE: se compara con
     // el calendario, no con un instante — comparar contra `toISOString()` completo adelanta un día.
+    // `vaccine_name`, NO `name`: esa columna nunca existió en `vaccines` (verificado contra el
+    // principal el 26-ago; la tabla tiene `vaccine_name`). PostgREST devolvía 42703 → 400 → esta
+    // vista de detalle mostraba el error en vez de la lista, desde que nació. Es el mismo fallo
+    // silencioso que `issued_on` en el tablero, encontrado con la misma auditoría.
     const { data, error: e } = await supabase
       .from("vaccines")
-      .select("id, name, next_dose_at, patient:patients(id, name)")
+      .select("id, vaccine_name, next_dose_at, patient:patients(id, name)")
       .not("next_dose_at", "is", null)
       .lte("next_dose_at", enTreintaDias.toISOString().slice(0, 10))
       .order("next_dose_at", { ascending: true })
       .limit(TOPE)
     error = e?.message ?? null
-    filas = ((data as unknown as { id: string; name: string | null; next_dose_at: string; patient: { id: string; name: string } | null }[] | null) ?? []).map(
+    filas = ((data as unknown as { id: string; vaccine_name: string | null; next_dose_at: string; patient: { id: string; name: string } | null }[] | null) ?? []).map(
       (v) => ({
         // El id que viaja es el del PACIENTE: la fila lleva a su ficha, que es donde se agenda.
         id: v.patient?.id ?? v.id,
         titulo: v.patient?.name ?? "Paciente",
-        detalle: v.name ?? "Refuerzo",
+        detalle: v.vaccine_name ?? "Refuerzo",
         cuando: v.next_dose_at,
       }),
     )
