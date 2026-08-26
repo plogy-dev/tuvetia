@@ -128,13 +128,20 @@ export default async function DashboardLayout({
   // No cambia el renderizado: este layout ya era dinámico porque `createClient()` lee cookies.
   const sidebarOpen = (await cookies()).get("sidebar_state")?.value === "true"
 
-  // Se hoistea del JSX (estaba en línea, más abajo) para poder medirlo. Se awaiteaba igual durante
-  // el render, así que el orden efectivo es el mismo. Adentro hay MÁS de lo que su nombre sugiere:
-  // `requireClinicPage()` rehace `getUser()` y vuelve a consultar `profiles` —el mismo dato que
-  // este layout ya trajo tres líneas arriba— y recién después lanza sus seis conteos en paralelo.
-  const tProgreso = ahora()
-  const progreso = (await progresoDeConfiguracion()).porcentaje
-  marcar("progreso", tProgreso)
+  // ── EL PROGRESO YA NO SE ESPERA ─────────────────────────────────────────────────────────────
+  //
+  // Medido el 23-ago: `progresoDeConfiguracion()` costaba 443 ms —el 43 % del layout— y era una
+  // barra de onboarding que en una clínica configurada dice 100 % y ni se pinta. Pagar casi medio
+  // segundo EN CADA navegación por eso era el hueco más grande del reparto.
+  //
+  // La promesa baja SIN await: el chip de la barra la resuelve con `use()` dentro de su propio
+  // `<Suspense>`, así que el shell pinta ya y el porcentaje aparece cuando llega. El `.catch(0)`
+  // no es cosmético — una promesa rechazada sin dueño tumba el render en el servidor, y 0 es la
+  // MISMA política de fallo que `progresoDeConfiguracion` ya tiene por dentro: hacia "pendiente",
+  // nunca hacia "completo" (ver lib/onboarding/consultar.ts).
+  const progreso = progresoDeConfiguracion()
+    .then((pr) => pr.porcentaje)
+    .catch(() => 0)
   marcar("total", t0)
 
   return (

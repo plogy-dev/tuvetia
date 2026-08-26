@@ -124,7 +124,11 @@ const data = {
  * etiquetas idénticas a la vista, que llevan a sitios distintos: ésta al riel de onboarding en
  * `/dashboard`, la otra a `/dashboard/settings`. Elegir entre las dos era cara o sello.
  */
-function ChipConfiguracion({ porcentaje }: { porcentaje: number }) {
+function ChipConfiguracion({ porcentaje: promesa }: { porcentaje: Promise<number> }) {
+  // `use()` suspende SÓLO este chip: el resto de la barra y la pantalla pintan sin esperar los
+  // ~440 ms de las seis consultas del riel. El fallback del Suspense de afuera es null — un chip
+  // que aparece medio segundo tarde es invisible; una app que tarda medio segundo más, no.
+  const porcentaje = React.use(promesa)
   if (porcentaje >= 100) return null
   return (
     <SidebarMenuButton
@@ -150,8 +154,9 @@ export function AppSidebar({
 }: React.ComponentProps<typeof Sidebar> & {
   user: { name: string; email: string; avatar: string; role: string | null }
   clinic: { name: string; logoUrl: string | null }
-  /** 0–100. Lo calcula `dashboard/layout.tsx`; el sidebar sólo lo muestra. */
-  progresoConfiguracion: number
+  /** 0–100, como PROMESA: el layout la lanza sin esperarla y el chip la resuelve con `use()`.
+   *  Así el riel de onboarding (~440 ms de conteos) no retrasa ni la barra ni la pantalla. */
+  progresoConfiguracion: Promise<number>
 }) {
   return (
     // `app-theme-tokens` es por la variante MÓVIL: ahí el sidebar se pinta dentro de un `SheetContent`
@@ -186,7 +191,9 @@ export function AppSidebar({
         <NavMain consultorio={data.consultorio} crm={data.crm} />
         <SidebarMenu className="px-2">
           <SidebarMenuItem>
-            <ChipConfiguracion porcentaje={progresoConfiguracion} />
+            <React.Suspense fallback={null}>
+              <ChipConfiguracion porcentaje={progresoConfiguracion} />
+            </React.Suspense>
           </SidebarMenuItem>
         </SidebarMenu>
         {/* EL HISTORIAL, ABAJO DEL CONTENIDO. Lo pidió David el 19-ago —"las consultas y los chats,
