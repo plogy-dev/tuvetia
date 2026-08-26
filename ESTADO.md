@@ -1185,3 +1185,23 @@ Lo que la base dijo (25-ago, contra el principal):
   `duration_ms` — aplicarla convierte el próximo diagnóstico en un select.
 - **Santiago**: su 0080 (`metricas`) sigue sin aplicar.
 - **Variables** (los 8 catálogos clínicos): fase propia, vacunas primero.
+
+### Adenda 26-ago (tarde) — las cuatro decisiones de Felipe (PR #242, mergeado)
+
+Felipe cerró cuatro decisiones de una: **(1)** el aviso de primera visita en Conexiones — VetGPT no
+responde solo, dicho ANTES de conectar, con el toggle explicando el default y el riel de onboarding
+alineado; **(2)** el **informe al titular por WhatsApp** (0089) — pedido de David, forma segura: el
+vet edita y el clic es la aprobación; el destino se resuelve en servidor y el envío registra su
+fila de auditoría allá mismo. **David asume la responsabilidad del canal** (quedó escrito en la
+migración y el endpoint); **(3)** la **imputación del plan de salud al emitir** — se imputa lo que
+se cobró en $0, recortado al restante, sin poder tumbar la emisión; **(4)** **Variables arranca por
+vacunas** (0090): catálogo con índice único normalizado, siembra de las comunes, y el alta de la
+ficha lo ofrece por datalist sin romper el texto libre existente.
+
+Además: **VetGPT llegó a la landing** (63 reemplazos) con una excepción con nombre propio —
+`Nosotros.tsx` queda intacto porque ahí Athos es el bulldog del fundador, no el producto. El cerrojo
+protege las dos direcciones (la landing no vuelve a decir Athos-producto; el perro no se renombra).
+Y el punto del «menú de ventas a la barra» se cerró sin código: eran dos menús confundidos — el de
+ventas ya es la réplica de OkVet y ahí se queda.
+
+⚠️ **Pendientes de aplicar: 0089 y 0090** (la 0090 con verificación).
