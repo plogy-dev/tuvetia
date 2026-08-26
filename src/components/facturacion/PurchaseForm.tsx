@@ -7,6 +7,7 @@ import { AlertTriangle, Plus, RefreshCw, Trash2 } from 'lucide-react';
 import { confirmPurchaseAction, savePurchaseDraft } from '@/lib/facturacion/purchases/actions';
 import { formatCOP } from '@/lib/facturacion/domain/money';
 import type { SupplierRow } from '@/lib/supabase/types';
+import { InputMoneda } from '@/components/ui/input-moneda';
 
 export interface PurchaseItemOption {
   id: string;
@@ -276,13 +277,14 @@ export function PurchaseForm({
                     )}
                   </td>
                   <td className="w-36 px-2 py-2">
-                    <input
-                      type="number"
-                      min={0}
-                      step={100}
-                      value={l.costPesos}
-                      onChange={(e) => setLine(l.key, { costPesos: e.target.value })}
-                      className={inputCls}
+                    <InputMoneda
+                      aria-label="Costo por unidad en pesos"
+                      mostrarMoneda={false}
+                      value={l.costPesos === '' ? null : Number(l.costPesos)}
+                      onValueChange={(pesos) =>
+                        setLine(l.key, { costPesos: pesos === null ? '' : String(pesos) })
+                      }
+                      className="mt-1"
                     />
                     {item && <p className="mt-1 text-[11px] text-fg-faint">por {item.purchase_unit}</p>}
                   </td>

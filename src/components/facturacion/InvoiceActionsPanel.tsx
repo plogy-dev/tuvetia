@@ -19,6 +19,8 @@ import {
   validatePlan,
   type PaymentPlan,
 } from './PaymentSection';
+import { InputMoneda } from '@/components/ui/input-moneda';
+import { textoDesdePesos } from '@/lib/moneda';
 
 /**
  * Acciones de la factura según su estado:
@@ -197,14 +199,12 @@ export function InvoiceActionsPanel({
                   <option value="EFECTIVO">Efectivo</option>
                   <option value="TRANSFERENCIA">Transferencia</option>
                 </select>
-                <input
-                  type="number"
-                  min={0}
-                  step={100}
-                  value={payAmount}
-                  onChange={(e) => setPayAmount(e.target.value)}
-                  placeholder={`${(balanceCents / 100).toFixed(0)}`}
-                  className="w-32 rounded-lg border border-line bg-surface px-3 py-2 text-sm text-fg placeholder:text-fg-faint outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
+                <InputMoneda
+                  aria-label="Monto del pago en pesos"
+                  value={payAmount === '' ? null : Number(payAmount)}
+                  onValueChange={(pesos) => setPayAmount(pesos === null ? '' : String(pesos))}
+                  placeholder={textoDesdePesos(Math.trunc(balanceCents / 100))}
+                  className="w-36"
                 />
                 <button
                   type="button"

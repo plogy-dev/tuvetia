@@ -27,6 +27,7 @@ import { SelectorDeCliente } from '@/components/facturacion/SelectorDeCliente';
 import { buscarPorCodigo } from '@/lib/facturacion/buscar-por-codigo';
 import type { DocKind } from '@/lib/facturacion/domain/types';
 import type { CatalogItemRow, PaymentTerms } from '@/lib/supabase/types';
+import { InputMoneda } from '@/components/ui/input-moneda';
 
 /**
  * «Nueva cuenta» — el formulario de venta, copiado de OkVet.
@@ -765,15 +766,15 @@ export function InvoiceCart({
                             {formatCOP(l.unitPriceCents)}
                           </span>
                         ) : (
-                          <input
-                            type="number"
-                            min={0}
-                            step={100}
-                            value={l.unitPriceCents / 100}
-                            onChange={(e) =>
-                              updateLine(l.key, {
-                                unitPriceCents: Math.round(Number(e.target.value) * 100),
-                              })
+                          <InputMoneda
+                            aria-label="Precio unitario en pesos"
+                            /* Sin el rótulo COP: la tarjeta ya lo dice en su etiqueta, y en este
+                               ancho el prefijo se comería el número. Lo que importa acá es el
+                               separador de miles. */
+                            mostrarMoneda={false}
+                            value={l.unitPriceCents === 0 ? null : Math.trunc(l.unitPriceCents / 100)}
+                            onValueChange={(pesos) =>
+                              updateLine(l.key, { unitPriceCents: (pesos ?? 0) * 100 })
                             }
                             className="rounded-md border border-line bg-surface px-2 py-1.5 text-sm text-fg outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
                           />

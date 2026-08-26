@@ -92,7 +92,8 @@ export function CreateAppointmentDrawer({
   patients: PatientOption[]
   owners: SelectOption[]
   vets: SelectOption[]
-  onSaved: (appointmentId: string) => void
+  /** `esEdicion` decide el título de la ventana de aviso: creada o actualizada. */
+  onSaved: (appointmentId: string, esEdicion: boolean) => void
   /** Ya no lleva los ids del evento: el borrado remoto ocurre acá dentro, antes de borrar la fila. */
   onDeleted: () => void
 }) {
@@ -189,7 +190,7 @@ export function CreateAppointmentDrawer({
     const savedId = (data as string | null) ?? initial.id ?? ""
     toast.success(isEdit ? "Cita actualizada" : "Cita creada")
     onOpenChange(false)
-    onSaved(savedId)
+    onSaved(savedId, isEdit)
   }
 
   async function handleDelete() {

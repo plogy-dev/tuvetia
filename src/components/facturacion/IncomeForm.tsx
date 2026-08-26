@@ -4,6 +4,7 @@ import { useRef, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { AlertTriangle, Plus, X } from 'lucide-react';
 import { upsertIncomeAction } from '@/lib/facturacion/payments/actions';
+import { InputMonedaForm } from '@/components/ui/input-moneda-form';
 
 const METHODS = ['EFECTIVO', 'TRANSFERENCIA', 'NEQUI', 'DAVIPLATA', 'TARJETA', 'OTRO'] as const;
 
@@ -88,15 +89,7 @@ export function IncomeForm({
       )}
       <div>
         <label className={labelCls}>Monto (COP)</label>
-        <input
-          name="amountPesos"
-          type="number"
-          min={1}
-          step="any"
-          required
-          defaultValue={initial?.amountPesos}
-          className={inputCls}
-        />
+        <InputMonedaForm name="amountPesos" required defaultPesos={initial?.amountPesos ?? null} />
       </div>
       <div>
         <label className={labelCls}>Fecha</label>

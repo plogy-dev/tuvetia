@@ -1,11 +1,11 @@
 'use client';
 
 import { useState, useTransition } from 'react';
-import { InputPesos } from '@/components/facturacion/InputPesos';
 import { useRouter } from 'next/navigation';
 import { AlertTriangle } from 'lucide-react';
 import { upsertCatalogItem, type UpsertCatalogItemInput } from '@/lib/facturacion/actions';
 import type { CatalogCategoryRow, CatalogItemRow, SupplierRow } from '@/lib/supabase/types';
+import { InputMonedaForm } from '@/components/ui/input-moneda-form';
 
 const inputCls =
   'mt-1 w-full rounded-lg border border-line bg-surface px-3 py-2 text-sm text-fg placeholder:text-fg-faint outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50';
@@ -139,23 +139,17 @@ export function CatalogItemForm({
       </div>
       <div>
         <label className={labelCls}>Precio de venta (COP)</label>
-        {/* Con separador de miles mientras se teclea (David, 26-ago): en el campo donde un cero
-            de más es diez veces el precio, «80.000» se lee y «80000» se cuenta con el dedo. */}
-        <InputPesos
+        <InputMonedaForm
           name="pricePesos"
           required
-          defaultValue={initial ? initial.price_cents / 100 : undefined}
-          className={inputCls}
-          aria-label="Precio de venta en pesos"
+          defaultPesos={initial ? initial.price_cents / 100 : null}
         />
       </div>
       <div>
         <label className={labelCls}>Costo (COP, opcional)</label>
-        <InputPesos
+        <InputMonedaForm
           name="costPesos"
-          defaultValue={initial?.cost_cents != null ? initial.cost_cents / 100 : undefined}
-          className={inputCls}
-          aria-label="Costo en pesos"
+          defaultPesos={initial?.cost_cents != null ? initial.cost_cents / 100 : null}
         />
       </div>
       <div>

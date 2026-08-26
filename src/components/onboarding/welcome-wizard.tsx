@@ -31,6 +31,7 @@ import { createClient } from "@/lib/supabase/client"
 import { Button } from "@/components/ui/button"
 import { Field, FieldDescription, FieldLabel } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
+import { InputMoneda } from "@/components/ui/input-moneda"
 import { WorkspaceSetup } from "@/components/onboarding/workspace-setup"
 import {
   SERVICIOS_SUGERIDOS,
@@ -461,7 +462,7 @@ export function WelcomeWizard({
           <Encabezado
             icono={<Receipt className="size-5" />}
             titulo="¿Qué cobras?"
-            sub="Sin al menos un servicio no se puede facturar una consulta. Pon el precio de los que uses; el resto déjalos vacíos."
+            sub="Sin al menos un servicio no se puede facturar una consulta. Los precios van en pesos colombianos (COP), sin centavos. Pon el de los que uses; el resto déjalos vacíos."
           />
           <div className="flex flex-col gap-2">
             {SERVICIOS_SUGERIDOS.map((s) => (
@@ -470,23 +471,12 @@ export function WelcomeWizard({
                 className="flex items-center gap-3 rounded-lg border border-line px-3 py-2"
               >
                 <span className="min-w-0 flex-1 truncate text-sm">{s.nombre}</span>
-                <div className="flex shrink-0 items-center gap-1.5">
-                  <span className="text-sm text-muted-foreground">$</span>
-                  <Input
-                    type="number"
-                    inputMode="numeric"
-                    min={0}
-                    step={1000}
-                    aria-label={`Precio de ${s.nombre} en pesos`}
-                    placeholder="0"
-                    value={precios[s.id] ?? ""}
-                    onChange={(e) => {
-                      const v = e.target.value
-                      setPrecios((prev) => ({ ...prev, [s.id]: v === "" ? null : Number(v) }))
-                    }}
-                    className="w-32"
-                  />
-                </div>
+                <InputMoneda
+                  aria-label={`Precio de ${s.nombre} en pesos colombianos`}
+                  value={precios[s.id] ?? null}
+                  onValueChange={(pesos) => setPrecios((prev) => ({ ...prev, [s.id]: pesos }))}
+                  className="w-40 shrink-0"
+                />
               </div>
             ))}
           </div>

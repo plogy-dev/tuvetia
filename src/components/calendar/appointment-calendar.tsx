@@ -45,6 +45,7 @@ import {
 import { HelpTip } from "@/components/help-tip"
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 import { citasVisibles, deOtros, sinAsignar, type FiltroDeAgenda } from "@/lib/agenda/filtro"
+import { AvisoDeLaCita, type ResultadoDeAviso } from "./aviso-de-la-cita"
 import {
   AgendaEventContent,
   CalendarToolbar,
@@ -78,6 +79,13 @@ const MESSAGES = {
   agenda: "Agenda",
   noEventsInRange: "No hay citas en este rango.",
   showMore: (total: number) => `+${total} más`,
+}
+
+/** Por qué una cita no llegó a ningún calendario, dicho para el vet y no para el log. */
+const MOTIVO_DEL_CALENDARIO: Record<string, string> = {
+  "sin-administrador": "La cita no tiene veterinario asignado y la clínica no tiene administrador.",
+  "sin-calendario":
+    "Ni el veterinario asignado ni el administrador conectaron su calendario en Integraciones.",
 }
 
 const DEFAULT_DURATION_MIN = 30
@@ -149,6 +157,11 @@ export function AppointmentCalendar({
   const [drawerOpen, setDrawerOpen] = useState(false)
   const [drawerKey, setDrawerKey] = useState(0)
   const [initial, setInitial] = useState<AppointmentFormInitial | null>(null)
+  // `resultados: null` es «se está avisando»: la ventana abre enseguida con el título y el
+  // detalle aparece cuando los canales contestan.
+  const [aviso, setAviso] = useState<{ titulo: string; resultados: ResultadoDeAviso[] | null } | null>(
+    null,
+  )
 
   const loadRange = useCallback(
     async (start: Date, end: Date) => {
@@ -185,7 +198,13 @@ export function AppointmentCalendar({
   // con esos errores. Era falso: el motivo más común —que nadie conectó un calendario— se arregla
   // con un clic, y mientras tanto la cita simplemente no aparecía en ningún lado y no había forma
   // de saber por qué.
-  const pushAlCalendario = useCallback(async (appointmentId: string) => {
+  const pushAlCalendario = useCallback(async (appointmentId: string): Promise<ResultadoDeAviso> => {
+    const fallo = (motivo: string): ResultadoDeAviso => ({
+      canal: "calendario",
+      ok: false,
+      destino: null,
+      motivo,
+    })
     try {
       const res = await fetch("/api/calendario/push", {
         method: "POST",
@@ -197,20 +216,41 @@ export function AppointmentCalendar({
         motivo?: string | null
         error?: string
       }
-      if (!res.ok) {
-        toast.error(`La cita se guardó, pero no se pudo copiar al calendario: ${j.error ?? res.status}`)
-        return
+      if (!res.ok) return fallo(j.error ?? `Error ${res.status} del servidor.`)
+      if (j.event_id) {
+        return { canal: "calendario", ok: true, destino: "Titular y administradores", motivo: null }
       }
-      if (j.event_id) return // llegó al calendario: sin ruido
-      if (j.motivo === "sin-administrador") {
-        toast.info("La cita se guardó. No se copió a ningún calendario porque no tiene veterinario asignado y la clínica no tiene administrador.")
-      } else if (j.motivo === "sin-calendario") {
-        toast.info(
-          "La cita se guardó, pero no se copió a ningún calendario: ni el veterinario asignado ni el administrador conectaron el suyo en Integraciones.",
-        )
+      return fallo(MOTIVO_DEL_CALENDARIO[j.motivo ?? ""] ?? "No se pudo copiar al calendario.")
+    } catch (e) {
+      return fallo((e as Error).message)
+    }
+  }, [])
+
+  /** El WhatsApp al titular. Mismo trato: devuelve qué pasó, no lo grita por un toast. */
+  const confirmarAlTitular = useCallback(async (appointmentId: string): Promise<ResultadoDeAviso> => {
+    try {
+      const res = await fetch("/api/citas/confirmar", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ appointment_id: appointmentId }),
+      })
+      const j = (await res.json().catch(() => ({}))) as {
+        ok?: boolean
+        destino?: string | null
+        motivo?: string | null
+        error?: string
+      }
+      if (!res.ok) {
+        return { canal: "whatsapp", ok: false, destino: null, motivo: j.error ?? `Error ${res.status}.` }
+      }
+      return {
+        canal: "whatsapp",
+        ok: Boolean(j.ok),
+        destino: j.destino ?? null,
+        motivo: j.motivo ?? null,
       }
     } catch (e) {
-      toast.error(`La cita se guardó, pero no se pudo copiar al calendario: ${(e as Error).message}`)
+      return { canal: "whatsapp", ok: false, destino: null, motivo: (e as Error).message }
     }
   }, [])
 
@@ -275,17 +315,40 @@ export function AppointmentCalendar({
         void loadRange(range.start, range.end)
         return
       }
+      // Arrastrar sólo cambió la hora: se re-empuja el evento pero sin ventana — no es un
+      // acto de agendar y frenar al vet con un diálogo por cada arrastre sería insufrible.
       void pushAlCalendario(event.id)
     },
     [supabase, range, loadRange, pushAlCalendario],
   )
 
+  /**
+   * Al guardar: refrescar la grilla, avisar por los dos canales y CONTAR qué pasó.
+   *
+   * Los dos salen EN PARALELO y ninguno espera al otro: son independientes —uno va a Google o a
+   * Outlook, el otro al proveedor de WhatsApp— y encadenarlos le sumaría al vet la latencia de los
+   * dos mirando una ventana que todavía no dice nada.
+   *
+   * La ventana se abre igual cuando los dos fallan. Es justamente cuando más hace falta: la cita
+   * está guardada y el titular no se enteró, y eso hay que decirlo en la cara y no en un toast que
+   * se va solo a los cinco segundos.
+   */
   const handleSaved = useCallback(
-    (appointmentId: string) => {
+    async (appointmentId: string, esEdicion: boolean) => {
       void loadRange(range.start, range.end)
-      if (appointmentId) void pushAlCalendario(appointmentId)
+      if (!appointmentId) return
+
+      const titulo = esEdicion ? "Cita actualizada" : "Cita creada"
+      setAviso({ titulo, resultados: null })
+      const [calendario, whatsapp] = await Promise.all([
+        pushAlCalendario(appointmentId),
+        confirmarAlTitular(appointmentId),
+      ])
+      // WhatsApp primero: es la vía por la que el titular se entera de verdad, así que es el
+      // renglón que el vet tiene que leer antes de cerrar la ventana.
+      setAviso({ titulo, resultados: [whatsapp, calendario] })
     },
-    [loadRange, range, pushAlCalendario],
+    [loadRange, range, pushAlCalendario, confirmarAlTitular],
   )
 
   const handleDeleted = useCallback(() => {
@@ -422,6 +485,15 @@ export function AppointmentCalendar({
           vets={vets}
           onSaved={handleSaved}
           onDeleted={handleDeleted}
+        />
+      )}
+
+      {aviso && (
+        <AvisoDeLaCita
+          abierto
+          onCerrar={() => setAviso(null)}
+          titulo={aviso.titulo}
+          resultados={aviso.resultados}
         />
       )}
     </div>

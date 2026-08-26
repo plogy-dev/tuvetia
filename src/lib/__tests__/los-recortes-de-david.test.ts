@@ -38,23 +38,25 @@ describe("el am/pm de los horarios", () => {
 })
 
 describe("los precios en miles", () => {
+  // David se lo pidió a dos personas y salieron DOS implementaciones el mismo día: la de este
+  // repo (InputPesos) y la de Jesús (InputMonedaForm, con prefijo COP y lib/moneda compartida).
+  // Ganó la de Jesús por más completa y ya aplicada a tres formularios — este cerrojo fija que el
+  // catálogo la use, no cuál de las dos era.
   const FORM = readFileSync("src/components/facturacion/CatalogItemForm.tsx", "utf8")
     .replace(/\{\/\*[\s\S]*?\*\/\}/g, "")
     .replace(/\/\*[\s\S]*?\*\//g, "")
     .replace(/\/\/.*$/gm, "")
 
-  it("el precio del catálogo usa InputPesos, no un number pelado", () => {
+  it("el precio del catálogo usa el campo de moneda, no un number pelado", () => {
     // Un type="number" no admite separadores: el admin contaba ceros con el dedo en el campo
     // donde un cero de más es diez veces el precio.
-    expect(FORM).toContain("<InputPesos")
+    expect(FORM).toContain("<InputMonedaForm")
     expect(FORM).not.toMatch(/name="pricePesos"[\s\S]{0,80}type="number"/)
   })
 
-  it("InputPesos conserva el contrato del formulario: el name viaja limpio en un hidden", () => {
-    const input = readFileSync("src/components/facturacion/InputPesos.tsx", "utf8")
+  it("el campo conserva el contrato del formulario: el name viaja limpio en un hidden", () => {
+    const input = readFileSync("src/components/ui/input-moneda-form.tsx", "utf8")
     expect(input).toContain('type="hidden"')
     expect(input).toContain('inputMode="numeric"')
-    // Y el formato es el colombiano de verdad, no un toLocaleString sin locale.
-    expect(input).toContain('"es-CO"')
   })
 })

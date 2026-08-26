@@ -7,6 +7,7 @@ import { ProfileSettings } from "@/components/settings/profile-settings"
 import { DireccionDeLaClinica } from "@/components/settings/direccion-de-la-clinica"
 import { ClinicHoursSettings, type ClinicHourRow } from "@/components/settings/clinic-hours-settings"
 import { RecordatorioCitasSettings } from "@/components/settings/recordatorio-citas-settings"
+import { ConfirmacionCitasSettings } from "@/components/settings/confirmacion-citas-settings"
 import {
   TeamSettings,
   type PendingInvitation,
@@ -79,7 +80,7 @@ export default async function ConfiguracionDeLaClinicaPage({
         await supabase
           .from("clinics")
           .select(
-            "name, address, city, recordatorio_citas_activo, recordatorio_citas_horas, recordatorio_citas_texto",
+            "name, address, city, recordatorio_citas_activo, recordatorio_citas_horas, recordatorio_citas_texto, confirmacion_citas_activo, confirmacion_citas_texto",
           )
           .eq("id", p.clinic_id)
           .single()
@@ -92,6 +93,8 @@ export default async function ConfiguracionDeLaClinicaPage({
     recordatorio_citas_activo: boolean
     recordatorio_citas_horas: number
     recordatorio_citas_texto: string | null
+    confirmacion_citas_activo: boolean
+    confirmacion_citas_texto: string | null
   } | null
 
   // Cada pestaña pide SÓLO lo suyo. Antes esta pantalla hacía las cinco consultas siempre, porque
@@ -208,11 +211,12 @@ export default async function ConfiguracionDeLaClinicaPage({
 
           <div className="rounded-xl border bg-card p-4">
             <div className="mb-3 flex items-center gap-2 text-sm font-semibold">
-              <CalendarClock className="size-4 text-muted-foreground" /> Recordatorio de citas
+              <CalendarClock className="size-4 text-muted-foreground" /> Avisos de citas
               <HelpTip>
-                Le escribe al titular por WhatsApp antes de su cita. Sale del número de la clínica y
-                necesita WhatsApp conectado. Arranca apagado: encenderlo es decidir que la clínica
-                le habla sola a sus clientes.
+                Le escriben al titular por WhatsApp: uno al agendar la cita y otro antes de que
+                llegue. Salen del número de la clínica y necesitan WhatsApp conectado. Los dos
+                arrancan apagados: encenderlos es decidir que la clínica le habla sola a sus
+                clientes.
               </HelpTip>
             </div>
             <RecordatorioCitasSettings
@@ -221,6 +225,17 @@ export default async function ConfiguracionDeLaClinicaPage({
               textoInicial={c?.recordatorio_citas_texto ?? null}
               puedeEditar={isAdmin}
             />
+
+            {/* LOS DOS AVISOS VAN JUNTOS EN LA MISMA TARJETA y separados por una línea: son la voz
+                de la clínica hacia el mismo titular sobre la misma cita, y tenerlos en dos lugares
+                distintos haría que encender uno y olvidar el otro sea lo normal. */}
+            <div className="mt-4 border-t border-line pt-4">
+              <ConfirmacionCitasSettings
+                activoInicial={c?.confirmacion_citas_activo ?? false}
+                textoInicial={c?.confirmacion_citas_texto ?? null}
+                puedeEditar={isAdmin}
+              />
+            </div>
           </div>
         </>
       )}
