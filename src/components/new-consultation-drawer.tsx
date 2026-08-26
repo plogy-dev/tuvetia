@@ -1,6 +1,5 @@
 "use client"
 
-import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { useState } from "react"
 import { toast } from "sonner"
@@ -17,19 +16,23 @@ import {
   DrawerTrigger,
 } from "@/components/ui/drawer"
 import { Field, FieldDescription, FieldGroup, FieldLabel } from "@/components/ui/field"
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select"
+import { Input } from "@/components/ui/input"
+import { CreatePatientDrawer } from "@/components/create-patient-drawer"
+import { buscarPacientes } from "@/lib/athos-context/buscar-pacientes"
 import { useIsMobile } from "@/hooks/use-mobile"
-import { CirclePlusIcon, Loader2Icon } from "lucide-react"
+import { CirclePlusIcon, Loader2Icon, PawPrint, Search } from "lucide-react"
 import { useCapacidad } from "@/components/planes/plan-provider"
 import { useModalPro } from "@/components/planes/modal-subir-a-pro"
 
-type Patient = { id: string; name: string; species: string; owner_id: string | null }
+type Patient = {
+  id: string
+  name: string
+  species: string
+  /** Para el insert de la consulta. */
+  owner_id: string | null
+  /** Para la lupa: se busca también por el nombre del titular. */
+  owner: string | null
+}
 
 export function NewConsultationDrawer({
   trigger,
@@ -56,9 +59,11 @@ export function NewConsultationDrawer({
   const [patients, setPatients] = useState<Patient[] | null>(null)
   const [patientsLoading, setPatientsLoading] = useState(false)
   const [patientId, setPatientId] = useState<string>("")
+  const [busqueda, setBusqueda] = useState("")
 
   function resetForm() {
     setPatientId("")
+    setBusqueda("")
     setError(null)
   }
 
@@ -83,13 +88,31 @@ export function NewConsultationDrawer({
     if (patients !== null) return
     setPatientsLoading(true)
     const supabase = createClient()
+    // El titular viaja porque la lupa busca por él — «el perro de doña Marta» es como la
+    // recepción recuerda a la mitad de los pacientes.
     const { data } = await supabase
       .from("patients")
-      .select("id, name, species, owner_id")
+      .select("id, name, species, owner_id, owner:owners(full_name)")
       .order("name")
-    const list = (data as Patient[] | null) ?? []
+    const list = ((data as unknown as
+      | {
+          id: string
+          name: string
+          species: string
+          owner_id: string | null
+          owner: { full_name: string | null } | null
+        }[]
+      | null) ?? []).map((p) => ({
+      id: p.id,
+      name: p.name,
+      species: p.species,
+      owner_id: p.owner_id,
+      owner: p.owner?.full_name ?? null,
+    }))
     setPatients(list)
-    if (list.length) setPatientId(list[0].id)
+    // SIN preselección. Antes se marcaba el primero por alfabeto, y un vet apurado que no mirara
+    // el selector arrancaba la consulta —grabación incluida— sobre el animal equivocado. Elegir
+    // al paciente es LA decisión de esta pantalla: tiene que ser explícita.
     setPatientsLoading(false)
   }
 
@@ -181,46 +204,91 @@ export function NewConsultationDrawer({
           className="flex flex-col gap-4 overflow-y-auto px-4 text-sm"
         >
           <FieldGroup>
+            {/* LA LUPA, NO UNA LISTA. David, 25-ago: «cuando se le da a iniciar consulta, debe
+                haber la opción de registrar nuevo paciente o lupa. En lista es poco amigable para
+                el vet». El <Select> plano además PRESELECCIONABA el primer paciente por alfabeto —
+                un descuido y la grabación arrancaba sobre el animal equivocado.
+
+                El filtro es `buscarPacientes` (lib/athos-context), el mismo matcher del selector
+                de contexto de Athos: normaliza tildes y ñ, y busca por nombre, especie Y titular
+                — «el perro de doña Marta» encuentra. */}
             <Field>
               <FieldLabel htmlFor="consultation-patient">Paciente</FieldLabel>
-              <Select
-                value={patientId}
-                onValueChange={(v) => setPatientId(v ?? "")}
-                disabled={patientsLoading || (patients?.length ?? 0) === 0}
-                items={(patients ?? []).map((p) => ({
-                  label: `${p.name} · ${p.species}`,
-                  value: p.id,
-                }))}
+              <div className="relative">
+                <Search
+                  className="pointer-events-none absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground"
+                  aria-hidden
+                />
+                <Input
+                  id="consultation-patient"
+                  value={busqueda}
+                  onChange={(e) => setBusqueda(e.target.value)}
+                  placeholder={
+                    patientsLoading ? "Cargando pacientes…" : "Buscar por mascota, especie o titular…"
+                  }
+                  autoComplete="off"
+                  className="pl-8"
+                />
+              </div>
+
+              <div
+                role="listbox"
+                aria-label="Pacientes"
+                className="max-h-[38svh] overflow-y-auto rounded-lg border"
               >
-                <SelectTrigger id="consultation-patient" className="w-full">
-                  <SelectValue
-                    placeholder={patientsLoading ? "Cargando pacientes..." : "Selecciona"}
-                  />
-                </SelectTrigger>
-                <SelectContent>
-                  {patients?.map((p) => (
-                    <SelectItem key={p.id} value={p.id}>
-                      {p.name} · {p.species}
-                    </SelectItem>
+                {(patients === null || patientsLoading) && (
+                  <p className="px-3 py-4 text-sm text-muted-foreground">Cargando…</p>
+                )}
+                {patients !== null &&
+                  buscarPacientes(patients, busqueda).map((p) => (
+                    <button
+                      key={p.id}
+                      type="button"
+                      role="option"
+                      aria-selected={p.id === patientId}
+                      onClick={() => setPatientId(p.id)}
+                      className={
+                        "flex w-full items-center gap-2 px-3 py-2 text-left text-sm transition-colors hover:bg-accent/50 " +
+                        (p.id === patientId ? "bg-accent/70 font-medium" : "")
+                      }
+                    >
+                      <PawPrint className="size-4 shrink-0 text-muted-foreground" aria-hidden />
+                      <span className="min-w-0 flex-1 truncate">{p.name}</span>
+                      <span className="shrink-0 text-xs text-muted-foreground">
+                        {p.species}
+                        {p.owner ? ` · ${p.owner}` : ""}
+                      </span>
+                    </button>
                   ))}
-                </SelectContent>
-              </Select>
-              {patients?.length === 0 && (
-                <FieldDescription>
-                  No tienes pacientes registrados y una consulta necesita uno.{" "}
-                  {/* Antes esto nombraba “Pacientes” sin enlazarlo, y el drawer no daba salida: el
-                      único camino era cerrarlo y buscar la sección a mano. El onClick cierra el
-                      drawer porque vive en el sidebar y sobrevive a la navegación. */}
-                  <Link
-                    href="/dashboard/patients"
-                    onClick={() => setOpen(false)}
-                    className="font-medium text-foreground underline underline-offset-2"
-                  >
-                    Crea el primero en Pacientes
-                  </Link>
-                  .
-                </FieldDescription>
-              )}
+                {patients !== null && !patientsLoading && patients.length > 0 &&
+                  buscarPacientes(patients, busqueda).length === 0 && (
+                    <p className="px-3 py-4 text-sm text-muted-foreground">
+                      Ningún paciente coincide con «{busqueda}».
+                    </p>
+                  )}
+                {patients?.length === 0 && (
+                  <p className="px-3 py-4 text-sm text-muted-foreground">
+                    Todavía no hay pacientes registrados: crea el primero acá abajo.
+                  </p>
+                )}
+              </div>
+
+              {/* El alta SIN salir del flujo: antes el único camino era un enlace que cerraba el
+                  drawer y te mandaba a Pacientes — para volver a empezar desde cero. `onCreated`
+                  agrega el nuevo a la lista y lo deja ELEGIDO: un clic más y la consulta arranca. */}
+              <CreatePatientDrawer
+                label="Registrar nuevo paciente"
+                trigger={
+                  <Button type="button" variant="outline" className="w-full">
+                    <CirclePlusIcon className="size-4" /> Registrar nuevo paciente
+                  </Button>
+                }
+                onCreated={(nuevo) => {
+                  setPatients((prev) => [...(prev ?? []), { ...nuevo, owner_id: null, owner: null }])
+                  setPatientId(nuevo.id)
+                  setBusqueda("")
+                }}
+              />
             </Field>
             {/* EL MOTIVO SALE DE ACÁ. Decisión del 17-ago: el motivo que el titular declara en la
                 puerta —"viene decaído"— casi nunca es de lo que terminó tratándose, y escribirlo es
