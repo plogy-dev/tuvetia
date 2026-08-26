@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input"
 import { Separator } from "@/components/ui/separator"
 import { SidebarTrigger } from "@/components/ui/sidebar"
 import { ThemeToggle } from "@/components/theme-toggle"
+import { Campanita } from "@/components/comunicaciones/campanita"
 import { FormularioDeFiltros } from "@/components/ui/formulario-de-filtros"
 
 // `/dashboard/facturacion` faltaba acá, así que sus DIECISÉIS páginas se titulaban "Dashboard":
@@ -85,7 +86,10 @@ export function SiteHeader() {
           </div>
         </FormularioDeFiltros>
 
-        <ThemeToggle className="ml-auto size-8 md:ml-0" />
+        {/* La campanita hereda el `ml-auto` móvil que tenía el toggle: es la primera del grupo de
+            la derecha cuando el buscador (md:) no está. */}
+        <Campanita className="ml-auto size-8 md:ml-0" />
+        <ThemeToggle className="size-8" />
       </div>
     </header>
   )

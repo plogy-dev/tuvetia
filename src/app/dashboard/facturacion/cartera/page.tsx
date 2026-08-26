@@ -133,7 +133,7 @@ export default async function CarteraPage() {
           <HumanTasksPanel tasks={taskItems} />
         </section>
 
-        <div className="grid gap-6 lg:grid-cols-[1fr_320px]">
+        <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_320px]">
           {/* Cartera viva */}
           <section>
             <h2 className="mb-2 text-sm font-medium text-fg">Facturas por cobrar</h2>

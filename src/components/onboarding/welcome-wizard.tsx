@@ -420,7 +420,7 @@ export function WelcomeWizard({
                     value={d.opens_at}
                     disabled={!activo}
                     onChange={(e) => cambiarHora(d.weekday, "opens_at", e.target.value)}
-                    className="w-28 shrink-0"
+                    className="w-36 shrink-0"
                   />
                   <Input
                     type="time"
@@ -428,7 +428,7 @@ export function WelcomeWizard({
                     value={d.closes_at}
                     disabled={!activo}
                     onChange={(e) => cambiarHora(d.weekday, "closes_at", e.target.value)}
-                    className="w-28 shrink-0"
+                    className="w-36 shrink-0"
                   />
                 </div>
               )

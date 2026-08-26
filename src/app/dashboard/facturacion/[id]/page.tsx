@@ -144,7 +144,7 @@ export default async function FacturaDetallePage({
           </div>
         </header>
 
-        <div className="grid gap-5 lg:grid-cols-[1fr_300px]">
+        <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_300px]">
           <div className="space-y-5">
             {/* Cliente */}
             <section className="rounded-xl border border-line bg-surface p-4 text-sm">

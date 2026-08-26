@@ -285,7 +285,12 @@ export function buildAthosTools(supabase: SB, ctx: AgentContext) {
             .from("medications")
             .select("drug_name, dose, frequency, is_chronic, end_date")
             .eq("patient_id", patient_id)
-            .or(`end_date.is.null,end_date.gte.${new Date().toISOString().slice(0, 10)}`),
+            // El día de BOGOTÁ, no el del proceso: `end_date` es DATE (calendario del negocio) y
+            // con el día UTC, de 19:00 a medianoche un tratamiento que termina HOY —aún activo—
+            // desaparecía del resumen que el agente usa para responder (revisión del 26-ago).
+            .or(
+              `end_date.is.null,end_date.gte.${new Date(Date.now() - 5 * 3_600_000).toISOString().slice(0, 10)}`,
+            ),
         ])
         if (patient.error) return { error: patient.error.message }
         if (!patient.data) return { error: "No se encontró el paciente." }

@@ -254,7 +254,7 @@ export function NewConsultationDrawer({
                     >
                       <PawPrint className="size-4 shrink-0 text-muted-foreground" aria-hidden />
                       <span className="min-w-0 flex-1 truncate">{p.name}</span>
-                      <span className="shrink-0 text-xs text-muted-foreground">
+                      <span className="min-w-0 max-w-[45%] truncate text-xs text-muted-foreground">
                         {p.species}
                         {p.owner ? ` · ${p.owner}` : ""}
                       </span>

@@ -89,7 +89,11 @@ export async function registerPromiseToPayAction(
     const { supabase, clinicId } = await requireClinic();
     const d = PromiseSchema.parse(input);
     await appendEventAndRefresh(supabase, clinicId, d.invoiceId, 'PROMISE_TO_PAY', {
-      until: `${d.until}T23:59:59`,
+      // Con el `-05:00` explícito: sin offset, `new Date()` lo parsea en la hora LOCAL de la
+      // lambda — en las de UTC la promesa expiraba a las 18:59 de Bogotá del último día y un
+      // refresh desde la UI la marcaba VENCIDA 5 horas antes (revisión del 26-ago). Es el mismo
+      // sufijo que scheduler.ts ya pone en su lado.
+      until: `${d.until}T23:59:59-05:00`,
     });
     revalidatePath(`/dashboard/facturacion/${d.invoiceId}`);
     revalidatePath('/dashboard/facturacion/cartera');

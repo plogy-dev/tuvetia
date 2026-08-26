@@ -52,6 +52,15 @@ function toISODate(v: unknown): string | null {
   if (!v) return null
   if (v instanceof Date && !isNaN(v.getTime())) return v.toISOString().slice(0, 10)
   const s = String(v).trim()
+  // «05/08/2020» acá es 5 de agosto: DD/MM, como se escribe en Colombia. Sin esta rama,
+  // `new Date(string)` lo leía MM/DD y con día ≤ 12 el nacimiento quedaba con día y mes
+  // intercambiados EN SILENCIO — y la edad gobierna el plan vacunal (revisión del 26-ago).
+  const barras = /^(\d{1,2})\/(\d{1,2})\/(\d{4})$/.exec(s)
+  if (barras) {
+    const d = new Date(Date.UTC(Number(barras[3]), Number(barras[2]) - 1, Number(barras[1])))
+    const valida = d.getUTCMonth() === Number(barras[2]) - 1 && d.getUTCDate() === Number(barras[1])
+    return valida ? d.toISOString().slice(0, 10) : null
+  }
   const d = new Date(s)
   if (!isNaN(d.getTime()) && /\d{4}/.test(s)) return d.toISOString().slice(0, 10)
   return null

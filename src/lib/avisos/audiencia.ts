@@ -238,12 +238,27 @@ export async function armarAudiencia(
 
   if (!ids || ids.length === 0) return { destinatarios: [], deBaja: 0, sinCorreo: 0 }
 
-  const { data: filas } = await admin
-    .from("owners")
-    .select("id, full_name, email, unsubscribe_token")
-    .eq("clinic_id", clinicId)
-    .in("id", ids.slice(0, 5000))
-    .order("full_name")
+  // ── EL .in() VIAJA EN LA URL, Y LA URL TIENE TECHO (revisión de escala, 26-ago) ───────────
+  //
+  // PostgREST manda el filtro como query-string: 5.000 UUIDs son ~180 KB de URL y el edge la
+  // rechaza con 4xx mucho antes (los límites reales rondan los 8-32 KB, unos 200-800 ids). A
+  // 3.000 titulares el segmento «todos» no truncaba: FALLABA el request entero. Se trocea en
+  // lotes de 200 — el mismo aviso vale para cualquier .in() grande del repo.
+  const LOTE = 200
+  const filas: unknown[] = []
+  for (let i = 0; i < Math.min(ids.length, 5000); i += LOTE) {
+    const { data: parte } = await admin
+      .from("owners")
+      .select("id, full_name, email, unsubscribe_token")
+      .eq("clinic_id", clinicId)
+      .in("id", ids.slice(i, i + LOTE))
+    if (parte) filas.push(...parte)
+  }
+  // El orden alfabético que antes ponía la base: decide QUIÉNES entran al TOPE de 500, así que no
+  // es cosmético — sin él, el corte dependería del orden de llegada de los lotes.
+  ;(filas as { full_name: string | null }[]).sort((a, b) =>
+    (a.full_name ?? "").localeCompare(b.full_name ?? "", "es"),
+  )
 
   const owners = ((filas ?? []) as {
     id: string

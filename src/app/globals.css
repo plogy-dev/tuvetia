@@ -471,6 +471,29 @@
   }
 }
 
+/* ── LAS FECHAS Y HORAS NO SE CORTAN ─────────────────────────────────────────────────────────
+   David, 26-ago: «para poner fechas se cortan números» y «en el horario no se ve el am o pm».
+   La causa no era UN input: es que los <input type="date|time"> tienen segmentos internos
+   (dd/mm/aaaa, hh:mm a. m.) que el navegador RECORTA en silencio cuando un flex los aprieta —
+   no hay overflow visible, solo dígitos que desaparecen. El mínimo va acá, global y escopado a
+   la app, porque el próximo formulario que alguien escriba va a tener el mismo bug si el arreglo
+   vive en los ocho formularios de hoy. es-CO usa reloj de 12 horas: el sufijo «a. m.» necesita
+   sus ~2.5em además de los dígitos. */
+/* SIN el prefijo .app-theme, a propósito: los Drawer y Dialog de Base UI se PORTALEAN a <body>,
+   fuera del div que lleva .app-theme — y justo ahí viven los formularios donde David lo vio
+   (cita nueva, alta de paciente). Escopada, la regla no llegaba a ninguno. Global no rompe nada:
+   la landing no tiene inputs de fecha. Y datetime-local también: «dd/mm/aaaa, hh:mm a. m.»
+   necesita aún más que los otros dos. */
+input[type="date"] {
+  min-width: 8.75rem;
+}
+input[type="time"] {
+  min-width: 7.5rem;
+}
+input[type="datetime-local"] {
+  min-width: 11rem;
+}
+
 /* ── LA BARRA DE DESPLAZAMIENTO DE LA BARRA LATERAL ──────────────────────────────────────────────
  *
  * La del sistema mide ~15px en Windows y se pinta en gris sólido: dentro de una barra de 16rem es
