@@ -29,6 +29,7 @@ export type IdDeWidget =
   | "metricas"
   | "grafico"
   | "ventas"
+  | "cumplimiento"
   | "especies"
   | "citas"
   | "borradores"
@@ -83,6 +84,13 @@ export const CATALOGO: Widget[] = [
     titulo: "Pacientes por especie",
     descripcion:
       "La dona de qué atiende la clínica: cuántos perros, cuántos gatos, cuántos de lo demás.",
+    ancho: "dos",
+  },
+  {
+    id: "cumplimiento",
+    titulo: "Cumplimiento de ventas",
+    descripcion:
+      "El anillo de cuánto se lleva de la meta del mes, y si eso va en ritmo para el día en que estamos.",
     ancho: "dos",
   },
   {

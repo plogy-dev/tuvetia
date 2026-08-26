@@ -25,6 +25,7 @@ import { ventasPorTipo } from "@/lib/tablero/ventas-por-tipo"
 import { VentasDelMes } from "@/components/dashboard/ventas-del-mes"
 import { pacientesPorEspecie } from "@/lib/tablero/pacientes-por-especie"
 import { PacientesPorEspecie } from "@/components/dashboard/pacientes-por-especie"
+import { CumplimientoDeVentas } from "@/components/dashboard/cumplimiento-de-ventas"
 import {
   metricaDe,
   metricasAPintar,
@@ -381,6 +382,43 @@ export default async function DashboardPage() {
     ((filasDeEspecie.data as { species: string | null }[] | null) ?? []),
   )
 
+  // ── EL ANILLO DE CUMPLIMIENTO (26-ago) ──────────────────────────────────────────────────────
+  //
+  // La meta vive en `clinics` (0094) y sólo se pide si el bloque está a la vista: es una fila, pero
+  // la regla del tablero es que ningún bloque apagado cueste una consulta.
+  //
+  // LO VENDIDO SE REUSA CUANDO YA SE PIDIÓ. La pastilla «facturado-mes» trae exactamente las mismas
+  // filas, así que con las dos cosas encendidas se pediría dos veces lo mismo. Cuando la pastilla
+  // está apagada el anillo tiene que traérselas igual — el bloque no puede depender de que otra
+  // cifra distinta esté encendida, o se apagaría solo sin decir por qué.
+  const cumplimientoVisible =
+    facturacionActiva && disposicion.some((w) => w.id === "cumplimiento" && w.visible)
+  const [metaDeVentas, ventasParaElAnillo] = await Promise.all([
+    cumplimientoVisible && clinicId
+      ? supabase
+          .from("clinics")
+          .select("meta_ventas_mensual_cents")
+          .eq("id", clinicId)
+          .maybeSingle()
+      : Promise.resolve({ data: null }),
+    cumplimientoVisible && !facturadoMes
+      ? supabase
+          .from("invoices")
+          .select("total_cents")
+          .eq("status", "EMITIDA")
+          .gte("issued_at", monthStart.toISOString())
+      : Promise.resolve(null),
+  ])
+  const vendidoEsteMesCents = sumaDe(facturadoMes ?? ventasParaElAnillo, (f) => f.total_cents ?? 0)
+
+  // El día del mes EN BOGOTÁ, que es contra lo que se juzga el ritmo. Con la fecha del servidor en
+  // UTC, entre las 19:00 y la medianoche de Bogotá el anillo saltaría al día siguiente y diría que
+  // se va por debajo del ritmo antes de tiempo — el último día del mes, a un día entero de más.
+  const diaDelMes = {
+    dia: enBogota.getUTCDate(),
+    dias: new Date(Date.UTC(enBogota.getUTCFullYear(), enBogota.getUTCMonth() + 1, 0)).getUTCDate(),
+  }
+
   // Cada bloque, ya armado. Se arma TODO y se pinta lo elegido: el costo está en las consultas —que
   // ya corrieron arriba— y no en construir el JSX. Armar sólo lo visible obligaría a mover las
   // consultas adentro de cada rama y a repetir la lógica de qué se pide.
@@ -413,6 +451,31 @@ export default async function DashboardPage() {
     },
     especies: {
       nodo: <PacientesPorEspecie datos={especies} />,
+      ancho: "lg:col-span-2",
+    },
+    cumplimiento: {
+      // Mismo trato que la dona de ventas: sin facturación activa el bloque existe —la
+      // personalización lo lista— pero explica qué falta en vez de pintar un anillo vacío.
+      nodo: facturacionActiva ? (
+        <CumplimientoDeVentas
+          vendidoCents={vendidoEsteMesCents}
+          metaCents={
+            (metaDeVentas.data as { meta_ventas_mensual_cents: number | null } | null)
+              ?.meta_ventas_mensual_cents ?? null
+          }
+          hoy={diaDelMes}
+          puedeEditar={(perfil as { role: string | null } | null)?.role === "admin"}
+        />
+      ) : (
+        <div className="flex h-full flex-col items-center justify-center gap-2 rounded-xl border bg-card p-4 text-center">
+          <p className="text-sm text-muted-foreground">
+            El anillo de cumplimiento necesita el módulo de facturación activo.
+          </p>
+          <Link href="/dashboard/facturacion/configuracion" className="text-xs text-primary hover:underline">
+            Activarlo en Configuración de facturación
+          </Link>
+        </div>
+      ),
       ancho: "lg:col-span-2",
     },
     borradores: {

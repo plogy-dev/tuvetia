@@ -4,6 +4,7 @@ import { requireClinicPage } from '@/lib/facturacion/page-auth';
 import { getBillingSettings, getActiveRange } from '@/lib/facturacion/queries';
 import { SettingsForm } from '@/components/facturacion/SettingsForm';
 import { PlantillasDeRecordatorio } from '@/components/cartera/PlantillasDeRecordatorio';
+import { MetaDeVentas } from '@/components/facturacion/MetaDeVentas';
 
 export const metadata = { title: "Configuración de ventas · Tuvetia" }
 
@@ -13,9 +14,15 @@ export const dynamic = 'force-dynamic';
 export default async function ConfiguracionFacturacionPage() {
   const ctx = await requireClinicPage();
   if (!ctx) return null;
-  const { supabase, clinicId } = ctx;
+  const { supabase, clinicId, userId } = ctx;
 
   const settings = await getBillingSettings(supabase, clinicId);
+  // La meta del mes y quién puede tocarla. Van en la misma ola: son dos filas por id, y
+  // encadenarlas le sumaría dos viajes a una pantalla que ya hace varios.
+  const [metaDeVentas, quienMira] = await Promise.all([
+    supabase.from('clinics').select('meta_ventas_mensual_cents').eq('id', clinicId).maybeSingle(),
+    supabase.from('profiles').select('role').eq('id', userId).maybeSingle(),
+  ]);
   const activeRange = settings
     ? await getActiveRange(supabase, clinicId, settings.default_doc_kind)
     : null;
@@ -54,6 +61,17 @@ export default async function ConfiguracionFacturacionPage() {
         )}
 
         <SettingsForm settings={settings} />
+
+        {/* La meta va acá y no en el tablero: el tablero muestra, y lo que se configura vive donde
+            ya se configura el resto del módulo. */}
+        <MetaDeVentas
+          clinicId={clinicId}
+          initialMetaCents={
+            (metaDeVentas.data as { meta_ventas_mensual_cents: number | null } | null)
+              ?.meta_ventas_mensual_cents ?? null
+          }
+          isAdmin={(quienMira.data as { role: string | null } | null)?.role === 'admin'}
+        />
 
         {/* El texto de la cobranza vive acá, junto al interruptor que la enciende. El documento del
             cliente dejaba abierto si iba en el onboarding o en un flujo aparte al integrar
