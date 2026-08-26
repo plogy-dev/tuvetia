@@ -14,14 +14,14 @@ export default function Criterio() {
             <span>Los otros guardan el</span>
           </span>
           <span className="ln" style={v({ i: 2 })}>
-            <span>caso. Athos lo piensa</span>
+            <span>caso. VetGPT lo piensa</span>
           </span>
           <span className="ln" style={v({ i: 3 })}>
             <span>contigo.</span>
           </span>
         </h2>
         <p className="st" style={v({ i: 6, y: "28px", d: "1s" })}>
-          Todo software veterinario archiva. Ninguno te acompaña cuando el caso no cuadra. Athos responde sobre
+          Todo software veterinario archiva. Ninguno te acompaña cuando el caso no cuadra. VetGPT responde sobre
           literatura veterinaria revisada por pares y te muestra de dónde salió cada cosa.
         </p>
         <ul className="bul">
@@ -29,7 +29,7 @@ export default function Criterio() {
             Cada respuesta llega con su fuente citada y enlazada
           </li>
           <li className="st" style={v({ i: 9, y: "16px", d: ".8s" })}>
-            Athos conoce la ficha del paciente que tienes abierto
+            VetGPT conoce la ficha del paciente que tienes abierto
           </li>
           <li className="st" style={v({ i: 10, y: "16px", d: ".8s" })}>
             Te da la evidencia. La decisión clínica sigue siendo tuya
@@ -45,7 +45,7 @@ export default function Criterio() {
         <div className="mk">
           <div className="mkh st" style={v({ i: 4, y: "12px" })}>
             <div className="mkd" />
-            <div className="mkn">Athos</div>
+            <div className="mkn">VetGPT</div>
             <div className="mkt">sobre Rocky</div>
           </div>
           <div className="msg me st" style={v({ i: 6, y: "14px" })}>
@@ -67,7 +67,7 @@ export default function Criterio() {
               </div>
             </div>
             <div className="red st" style={v({ i: 14, y: "8px", d: ".7s" })}>
-              Athos sugiere, no decide. El criterio y la firma son tuyos.
+              VetGPT sugiere, no decide. El criterio y la firma son tuyos.
             </div>
           </div>
         </div>

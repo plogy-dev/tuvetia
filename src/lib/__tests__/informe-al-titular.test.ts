@@ -303,3 +303,43 @@ describe("las guardas del lado del servidor", () => {
     expect(leer("app/dashboard/consultas/[id]/page.tsx")).toMatch(/disabled=\{!approved\}/)
   })
 })
+
+describe("el canal de WhatsApp (0089, decisión de Felipe del 26-ago)", () => {
+  const RUTA_WA = readFileSync("src/app/api/informe-al-titular/whatsapp/route.ts", "utf8")
+    .replace(/\/\*[\s\S]*?\*\//g, "")
+    .replace(/\/\/.*$/gm, "")
+
+  it("el teléfono se resuelve en el servidor — el body NO trae destino", () => {
+    // Aceptar un número del navegador convertiría el endpoint en «mandale cualquier texto a
+    // cualquier número desde el WhatsApp de la clínica». El destino sale de la consulta → paciente
+    // → titular, siempre.
+    // Contra el TIPO del body, no contra todo el archivo: un patrón laxo con «to» se comía a
+    // «texto?» y el cerrojo nacía en rojo. Lo que se prohíbe es un CAMPO de destino declarado.
+    const tipoBody = RUTA_WA.slice(RUTA_WA.indexOf("type Body"), RUTA_WA.indexOf("export async function POST"))
+    expect(tipoBody.length).toBeGreaterThan(50)
+    // «to» quedó fuera de la lista: colisiona con «texto» y no aporta — el campo peligroso real
+    // se llamaría phone/telefono/numero/destino.
+    expect(tipoBody).not.toMatch(/(phone|telefono|numero|destino)[?]?\s*:/)
+    expect(RUTA_WA).toContain("owner:owners(full_name, phone)")
+  })
+
+  it("sin nota aprobada no sale nada — el mismo gate que el borrador", () => {
+    expect(RUTA_WA).toContain("sePuedeInformar(")
+  })
+
+  it("el envío registra la entrega en el servidor, no la delega al navegador", () => {
+    // Un WhatsApp mandado sin fila de auditoría es exactamente lo que client_reports existe para
+    // impedir: si el tab se cierra entre el envío y un insert del cliente, la entrega se pierde.
+    expect(RUTA_WA).toContain('from("client_reports")')
+    expect(RUTA_WA).toContain('channel: "whatsapp"')
+  })
+
+  it("la 0089 ensancha el check de canal", () => {
+    const sql = readFileSync(
+      "athos-service/supabase/migrations/0089_informe_por_whatsapp.sql",
+      "utf8",
+    )
+    expect(sql).toContain("'whatsapp'")
+    expect(sql).toContain("client_reports_channel_check")
+  })
+})

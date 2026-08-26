@@ -21,7 +21,7 @@ function ApSide({ active }: { active: "athos" | "pacientes" | "comunicaciones" }
       </div>
       <div className={`ap-nav athos${active === "athos" ? " on" : ""}`}>
         <s />
-        Athos
+        VetGPT
       </div>
       <div className={`ap-nav${active === "pacientes" ? " on" : ""}`}>
         <s />
@@ -69,7 +69,7 @@ export default function ProductoPage() {
               </span>
             </h1>
             <p className="lede st" style={v({ i: 6, y: "20px", d: ".9s" })}>
-              Athos oye tu consulta, escribe la ficha y contesta el WhatsApp. Tú firmas. Una sola inteligencia, tres
+              VetGPT oye tu consulta, escribe la ficha y contesta el WhatsApp. Tú firmas. Una sola inteligencia, tres
               caras — conectada a todo tu día.
             </p>
             <div className="cta-row st" style={v({ i: 8, y: "16px" })}>
@@ -110,7 +110,7 @@ export default function ProductoPage() {
                   Cara 01 · Oye
                 </div>
                 <h3>Escucha la consulta</h3>
-                <p>Le das al botón y atiendes. Athos oye, toma notas, no interrumpe. El audio se borra a los 4 días.</p>
+                <p>Le das al botón y atiendes. VetGPT oye, toma notas, no interrumpe. El audio se borra a los 4 días.</p>
               </div>
               <div className="face st" style={v({ i: 2, y: "24px", gap: "120ms" })}>
                 <div className="cn">
@@ -148,7 +148,7 @@ export default function ProductoPage() {
                   Pones el micrófono <b>y atiendes</b>.
                 </h2>
                 <p className="st" style={v({ i: 3, y: "18px" })}>
-                  Athos escucha desde una barra flotante que te sigue por toda la app. Abres la ficha, miras el
+                  VetGPT escucha desde una barra flotante que te sigue por toda la app. Abres la ficha, miras el
                   calendario, contestas un chat: sigue grabando. No hay ventana que cuidar.
                 </p>
                 <ul className="bul">
@@ -159,7 +159,7 @@ export default function ProductoPage() {
                     El audio se borra a los 4 días. No entrenamos con él
                   </li>
                   <li className="st" style={v({ i: 7, y: "12px" })}>
-                    Al minimizar corre como «Athos en silencio»
+                    Al minimizar corre como «VetGPT en silencio»
                   </li>
                 </ul>
               </div>
@@ -181,7 +181,7 @@ export default function ProductoPage() {
                       </div>
                       <div className="ap-sunk">
                         <div className="ap-mono" style={{ marginBottom: 7 }}>
-                          Athos está oyendo · transcripción en vivo
+                          VetGPT está oyendo · transcripción en vivo
                         </div>
                         <div className="ap-wave" style={{ marginBottom: 8 }}>
                           {WAVE.map((h, k) => (
@@ -243,7 +243,7 @@ export default function ProductoPage() {
                     <i />
                     <i />
                     <i />
-                    <div className="ap-url">tuvetia.co/app/athos/consulta-rocky</div>
+                    <div className="ap-url">tuvetia.co/app/vetgpt/consulta-rocky</div>
                   </div>
                   <div className="ap-body">
                     <ApSide active="athos" />
@@ -295,10 +295,10 @@ export default function ProductoPage() {
                   Cara 03 · Contesta
                 </div>
                 <h2 className="st" style={v({ i: 1, y: "16px", d: ".9s" })}>
-                  Los otros mandan recordatorios. <b>Athos contesta.</b>
+                  Los otros mandan recordatorios. <b>VetGPT contesta.</b>
                 </h2>
                 <p className="st" style={v({ i: 3, y: "18px" })}>
-                  Un buzón con los chats de tus titulares. Athos sostiene la conversación de ida y vuelta — agenda,
+                  Un buzón con los chats de tus titulares. VetGPT sostiene la conversación de ida y vuelta — agenda,
                   confirma, reprograma. Y frena en seco todo lo clínico: te deja el borrador y espera.
                 </p>
                 <ul className="bul">
@@ -342,13 +342,13 @@ export default function ProductoPage() {
                             className="ap-mono"
                             style={{ marginTop: 3, color: "rgba(255,255,255,.55)", letterSpacing: ".06em" }}
                           >
-                            10:06 · Athos
+                            10:06 · VetGPT
                           </div>
                         </div>
                       </div>
                       <div className="ap-gate">
                         <div className="ap-mono" style={{ color: "var(--athos)", marginBottom: 6 }}>
-                          ⏸ Athos se detuvo · requiere tu aprobación
+                          ⏸ VetGPT se detuvo · requiere tu aprobación
                         </div>
                         <div style={{ fontSize: 12, lineHeight: 1.55, marginBottom: 9 }}>
                           Borrador: «Salió la citología: Malassezia. Te dejo el limpiador ótico y nos vemos en 8
@@ -375,7 +375,7 @@ export default function ProductoPage() {
                   Te dice <b>de dónde lo sacó</b>.
                 </h2>
                 <p className="st" style={v({ i: 3, y: "18px" })}>
-                  Cuando Athos sugiere algo, muestra la fuente: revista, año, DOI. Ábrelo tú mismo. Es evidencia
+                  Cuando VetGPT sugiere algo, muestra la fuente: revista, año, DOI. Ábrelo tú mismo. Es evidencia
                   veterinaria revisada por pares, conociendo la ficha del paciente que tienes abierto.
                 </p>
                 <ul className="bul">
@@ -386,7 +386,7 @@ export default function ProductoPage() {
                     Las dosis, con el registro ICA del producto que existe acá
                   </li>
                   <li className="st" style={v({ i: 7, y: "12px" })}>
-                    Athos sugiere. No diagnostica, no firma, no decide
+                    VetGPT sugiere. No diagnostica, no firma, no decide
                   </li>
                 </ul>
               </div>
@@ -396,14 +396,14 @@ export default function ProductoPage() {
                     <i />
                     <i />
                     <i />
-                    <div className="ap-url">tuvetia.co/app/athos/chat</div>
+                    <div className="ap-url">tuvetia.co/app/vetgpt/chat</div>
                   </div>
                   <div className="ap-body">
                     <ApSide active="athos" />
                     <div className="ap-main">
                       <div className="ap-h">
                         <span className="ap-dot" />
-                        <b>Athos</b>
+                        <b>VetGPT</b>
                         <span style={{ fontSize: 11.5, color: "var(--a-soft)" }}>sobre Rocky</span>
                         <span className="ap-tag">Ficha abierta</span>
                       </div>
@@ -438,7 +438,7 @@ export default function ProductoPage() {
                           </div>
                           <div className="ap-gate" style={{ marginTop: 10 }}>
                             <div className="ap-mono" style={{ color: "var(--athos)" }}>
-                              ⏸ Athos sugiere · tú decides · tú firmas
+                              ⏸ VetGPT sugiere · tú decides · tú firmas
                             </div>
                           </div>
                         </div>

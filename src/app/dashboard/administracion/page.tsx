@@ -96,20 +96,22 @@ export default function AdministracionPage() {
         ))}
       </div>
 
-      {/* Variables: los 8 catálogos clínicos de OkVet (tipos de consulta, vacunas, cirugías…). No se
-          promete acá una entrada muerta — de cinco de esos catálogos no existe ni la tabla, y
-          construirlos es levantar cinco subsistemas clínicos. Va en su propia fase, priorizando por
-          lo que las clínicas usen de verdad. */}
-      <div className="flex items-start gap-3 rounded-xl border border-dashed bg-muted/30 p-4">
-        <Sliders className="mt-0.5 size-5 shrink-0 text-muted-foreground" />
+      {/* Variables: el primero de los 8 catálogos de OkVet ya existe (vacunas, 26-ago). Los otros
+          siete siguen SIN prometerse — de cinco no existe ni la tabla, y un menú que promete lo
+          que no hay es peor que no tener menú. Cada uno entra cuando alguien lo necesite. */}
+      <Link
+        href="/dashboard/administracion/variables/vacunas"
+        className="group flex items-start gap-3 rounded-xl border bg-card p-4 transition-colors hover:border-brand/40 hover:bg-accent/40"
+      >
+        <Sliders className="mt-0.5 size-5 shrink-0 text-muted-foreground transition-colors group-hover:text-fg" />
         <div className="min-w-0">
-          <div className="text-sm font-semibold text-muted-foreground">Variables</div>
+          <div className="text-sm font-semibold">Variables · Catálogo de vacunas</div>
           <p className="mt-0.5 text-sm text-muted-foreground">
-            Los catálogos clínicos de la veterinaria — tipos de consulta, vacunas, cirugías,
-            laboratorio. Se define en la próxima fase, empezando por vacunas.
+            Las vacunas que aplica la clínica, para elegir en vez de teclear. Los demás catálogos
+            (consultas, cirugías, laboratorio) llegan por fases.
           </p>
         </div>
-      </div>
+      </Link>
     </PageShell>
   )
 }

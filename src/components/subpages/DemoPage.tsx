@@ -100,7 +100,7 @@ export default function DemoPage() {
                   Agenda una demo
                 </div>
                 <h1 className="st" style={v({ i: 1, d: ".9s" })}>
-                  Que Athos escriba <b>una consulta tuya</b>.
+                  Que VetGPT escriba <b>una consulta tuya</b>.
                 </h1>
                 <p className="st" style={v({ i: 2 })}>
                   <b>20 minutos</b>, un caso real, y ves la ficha escribirse sola.

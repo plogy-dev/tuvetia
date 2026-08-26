@@ -12,7 +12,7 @@ export default function Salida() {
             <span>Los otros te cobran por entrar.</span>
           </span>
           <span className="ln" style={v({ i: 2 })}>
-            <span>Athos te saca de donde estás.</span>
+            <span>VetGPT te saca de donde estás.</span>
           </span>
         </h2>
         <p className="lede st" style={v({ i: 5, y: "24px", d: "1s" })}>

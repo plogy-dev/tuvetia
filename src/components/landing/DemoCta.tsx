@@ -34,7 +34,7 @@ export default function DemoCta() {
         </div>
         <h2 style={{ fontSize: "clamp(28px,3.4vw,42px)" }}>
           <span className="ln" style={v({ i: 1 })}>
-            <span>Que Athos escriba</span>
+            <span>Que VetGPT escriba</span>
           </span>
           <span className="ln" style={v({ i: 2 })}>
             <span>una consulta tuya.</span>

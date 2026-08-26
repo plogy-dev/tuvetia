@@ -45,7 +45,7 @@ export default function DemoStage() {
               <svg className="g" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                 <path d="m12 3-1.9 5.8-5.8 1.9 5.8 1.9L12 18l1.9-5.4 5.8-1.9-5.8-1.9z" />
               </svg>
-              Athos
+              VetGPT
             </div>
             <div className="navlink on" data-page="pacientes" id="nav-pac">
               <svg className="g" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -166,7 +166,7 @@ export default function DemoStage() {
                   <div className="slt">10:00</div>
                   <div>
                     <div className="sln">Rocky · consulta dermatológica</div>
-                    <div className="sls">Carlos Restrepo · en curso — Athos está oyendo</div>
+                    <div className="sls">Carlos Restrepo · en curso — VetGPT está oyendo</div>
                   </div>
                 </div>
                 <div className="slot">
@@ -206,7 +206,7 @@ export default function DemoStage() {
                     </div>
                     <div className="thm">«Doctora, ¿le dejo a Rocky o me lo llevo y vuelvo?»</div>
                     <div className="thd">
-                      <div className="thdh">⏸ Athos se detuvo · requiere tu aprobación</div>
+                      <div className="thdh">⏸ VetGPT se detuvo · requiere tu aprobación</div>
                       <div className="thdp">
                         Borrador: «La doctora está con Rocky ahora. Te escribimos apenas termine — no te vayas
                         lejos.»
@@ -226,7 +226,7 @@ export default function DemoStage() {
                       Ana Gómez <span className="tag">WhatsApp · 09:41</span>
                     </div>
                     <div className="thm">
-                      «¿Mishi puede comer antes de la vacuna?» — Athos respondió y confirmó la cita de las 11:30.
+                      «¿Mishi puede comer antes de la vacuna?» — VetGPT respondió y confirmó la cita de las 11:30.
                     </div>
                   </div>
                 </div>
@@ -236,7 +236,7 @@ export default function DemoStage() {
             <div className="notch" id="notch">
               <div className="nrow">
                 <span className="lite" id="lite" />
-                <span className="nn">Athos</span>
+                <span className="nn">VetGPT</span>
                 <span className="nd">·</span>
                 <span>Rocky</span>
                 <span style={{ opacity: 0.5, fontSize: 11 }}>bulldog francés</span>
@@ -268,7 +268,7 @@ export default function DemoStage() {
             <div className="ck" id="ck">
               <div className="ckbar">
                 <span className="lite" id="lite2" />
-                <span className="nn">Athos</span>
+                <span className="nn">VetGPT</span>
                 <span className="nd">·</span>
                 <span style={{ fontWeight: 500 }}>Rocky</span>
                 <span style={{ opacity: 0.5, fontSize: 11.5 }}>bulldog francés</span>
@@ -291,7 +291,7 @@ export default function DemoStage() {
                   <div className="paneh">
                     <div>
                       <h4>Notas en vivo</h4>
-                      <p>Athos lo arma solo a medida que escucha</p>
+                      <p>VetGPT lo arma solo a medida que escucha</p>
                     </div>
                     <div className="upd">
                       <span className="spin" />
@@ -320,7 +320,7 @@ export default function DemoStage() {
             <div className="veil" id="veil">
               <div>
                 <div className="orb" id="orb" />
-                <h3 id="vh">Athos está organizando tus notas…</h3>
+                <h3 id="vh">VetGPT está organizando tus notas…</h3>
                 <p id="vp">No cierres la ventana.</p>
               </div>
             </div>
