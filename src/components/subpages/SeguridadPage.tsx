@@ -18,9 +18,9 @@ const QA = [
     q: "¿Escuchan mis consultas?",
     a: (
       <>
-        No. Athos transcribe la consulta de forma automatizada para escribir la ficha; ninguna persona de Tuvetia
-        escucha tus grabaciones. Y el audio se borra a los 4 días. Athos oye para escribir, no para vigilar — cuando
-        lo minimizas, corre como <b>«Athos en silencio»</b>: sigue tomando notas de la consulta en curso, nada más.
+        No. VetGPT transcribe la consulta de forma automatizada para escribir la ficha; ninguna persona de Tuvetia
+        escucha tus grabaciones. Y el audio se borra a los 4 días. VetGPT oye para escribir, no para vigilar — cuando
+        lo minimizas, corre como <b>«VetGPT en silencio»</b>: sigue tomando notas de la consulta en curso, nada más.
       </>
     ),
   },
@@ -28,17 +28,17 @@ const QA = [
     q: "¿Usan mis fichas para entrenar la IA?",
     a: (
       <>
-        No. Athos se entrena con literatura veterinaria publicada y revisada por pares, no con tus pacientes. Si
+        No. VetGPT se entrena con literatura veterinaria publicada y revisada por pares, no con tus pacientes. Si
         alguna vez quisiéramos aprender de datos clínicos reales, sería con tu permiso explícito y pagándote por
         ello — jamás por defecto ni en silencio.
       </>
     ),
   },
   {
-    q: "¿Puede Athos mandarle algo a un cliente sin que yo lo vea?",
+    q: "¿Puede VetGPT mandarle algo a un cliente sin que yo lo vea?",
     a: (
       <>
-        No. Todo lo clínico se detiene y espera tu aprobación. Athos puede agendar y confirmar citas, pero cualquier
+        No. Todo lo clínico se detiene y espera tu aprobación. VetGPT puede agendar y confirmar citas, pero cualquier
         mensaje con contenido clínico te lo deja como borrador — tú lo apruebas, editas o lo respondes tú mismo.
       </>
     ),
@@ -88,7 +88,7 @@ export default function SeguridadPage() {
               </span>
             </h1>
             <p className="lede st" style={v({ i: 6, y: "22px", d: "1s" })}>
-              La mayoría del software guarda todo para siempre, «por si acaso». Nosotros hacemos lo contrario: Athos
+              La mayoría del software guarda todo para siempre, «por si acaso». Nosotros hacemos lo contrario: VetGPT
               escucha, escribe la ficha, y el audio se destruye solo.{" "}
               <b>Lo que queda es la historia clínica que tú firmaste — nada más.</b>
             </p>
@@ -105,10 +105,10 @@ export default function SeguridadPage() {
                 La línea que no cruzamos
               </div>
               <h2 className="st" style={v({ i: 1, y: "16px", d: ".9s" })}>
-                Athos no diagnostica. <b>Y no es por precaución.</b>
+                VetGPT no diagnostica. <b>Y no es por precaución.</b>
               </h2>
               <p className="st" style={v({ i: 3, y: "20px" })}>
-                Es una decisión de fondo: el diagnóstico, el criterio y la firma son tuyos, siempre. Athos escucha,
+                Es una decisión de fondo: el diagnóstico, el criterio y la firma son tuyos, siempre. VetGPT escucha,
                 escribe, sugiere y te muestra de dónde salió cada cosa — revista, año, DOI, para que lo abras tú
                 mismo. Pero no decide por ti, y no manda nada clínico a un cliente sin que tú lo apruebes.
               </p>
@@ -119,7 +119,7 @@ export default function SeguridadPage() {
               </p>
               <div className="redline-mark st" style={v({ i: 5, y: "14px" })}>
                 <i />
-                Athos sugiere · tú decides · tú firmas
+                VetGPT sugiere · tú decides · tú firmas
               </div>
             </div>
           </section>
@@ -134,12 +134,12 @@ export default function SeguridadPage() {
                   Guardamos lo <b>mínimo</b>, el <b>menor tiempo</b> posible.
                 </h2>
                 <p className="st" style={v({ i: 3, y: "20px" })}>
-                  El audio de la consulta existe solo para que Athos escriba la ficha. Cumplida esa tarea, deja de
+                  El audio de la consulta existe solo para que VetGPT escriba la ficha. Cumplida esa tarea, deja de
                   tener razón de ser — así que se borra. Cuatro días es el margen para que puedas comparar la nota
                   con lo que se dijo, si quieres. Después, no.
                 </p>
                 <p className="st" style={v({ i: 4, y: "20px" })}>
-                  <b>No lo usamos para entrenar modelos.</b> Ni el audio, ni las fichas, ni las conversaciones. Athos
+                  <b>No lo usamos para entrenar modelos.</b> Ni el audio, ni las fichas, ni las conversaciones. VetGPT
                   aprende de literatura veterinaria publicada, no de tus pacientes.
                 </p>
               </div>
@@ -214,7 +214,7 @@ export default function SeguridadPage() {
                 <div className="vow-n">03</div>
                 <h3>Nada clínico sale sin tu firma</h3>
                 <p>
-                  Athos escribe y sugiere. Tú revisas y firmas. Ni la ficha ni una respuesta al cliente salen sin que
+                  VetGPT escribe y sugiere. Tú revisas y firmas. Ni la ficha ni una respuesta al cliente salen sin que
                   las apruebes.
                 </p>
                 <span className="law">Ley 576 · Art. 61</span>

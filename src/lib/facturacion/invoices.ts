@@ -14,6 +14,8 @@
 //      correcto según DIAN: el número ya está consumido.
 
 import type { SupabaseClient } from '@supabase/supabase-js';
+
+import { imputarConsumosDelPlan } from '@/lib/planes-salud/imputar';
 import {
   buildLineSnapshot,
   validateDraftInvoice,
@@ -1019,6 +1021,27 @@ export async function issueInvoice(
   // tiene la propiedad que sí tenía el pago, que era la de perderse para siempre.
   const derived = await refreshInvoiceStatus(supabase, clinicId, invoice.id, now);
 
+  // ── El plan de salud del paciente, imputado (26-ago) ───────────────────────
+  //
+  // Las líneas cubiertas que el vet dejó en $0 consumen sus usos del plan — la señal de «va por
+  // el plan» es el precio en cero, que es exactamente lo que el aviso del carrito le sugirió.
+  // NUNCA lanza: la factura ya está EMITIDA con su consecutivo, y un contador de plan sin
+  // registrar se corrige a mano (el trigger de la 0088 impide sobreconsumir de todos modos).
+  // Los avisos van al resultado, junto a los de inventario.
+  const avisosDelPlan = invoice.patient_id
+    ? await imputarConsumosDelPlan(supabase, clinicId, {
+        patientId: invoice.patient_id,
+        invoiceId: invoice.id,
+        issuedOn: bogotaNow.toISOString().slice(0, 10),
+        createdBy: req.createdBy ?? null,
+        lineas: lines.map((l) => ({
+          catalog_item_id: l.catalog_item_id,
+          qty: l.qty,
+          total_cents: l.total_cents,
+        })),
+      })
+    : [];
+
   // (La agenda de recordatorios local fue reemplazada por el motor de cartera:
   // el scheduler del cron programa el seguimiento a partir de los eventos de la
   // factura — acá ya no se inserta nada.)
@@ -1028,7 +1051,14 @@ export async function issueInvoice(
     fullNumber,
     fiscalStatus: derived.fiscal as IssueResult['fiscalStatus'],
     cufe: fiscalResult?.cufe ?? null,
-    warnings: validation.warnings,
+    warnings: [
+      ...validation.warnings,
+      ...avisosDelPlan.map((message) => ({
+        level: 'WARNING' as const,
+        code: 'PLAN_SALUD' as const,
+        message,
+      })),
+    ],
     posThreshold,
     providerMessage: fiscalResult?.providerMessage ?? `Proveedor no disponible: ${providerError}`,
     dueDate,

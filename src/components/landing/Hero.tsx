@@ -16,7 +16,7 @@ export default function Hero() {
         </span>
       </h1>
       <p className="sub st" style={v({ i: 5, y: "24px", d: "1s" })}>
-        Athos escucha tu consulta y escribe la historia clínica mientras atiendes. Tú revisas y firmas.
+        VetGPT escucha tu consulta y escribe la historia clínica mientras atiendes. Tú revisas y firmas.
       </p>
       <div className="ctas st" style={v({ i: 6, y: "18px" })}>
         <a className="cta" href="#criterio">

@@ -17,12 +17,12 @@ export default function Conversacion() {
             <span>recordatorios.</span>
           </span>
           <span className="ln" style={v({ i: 3 })}>
-            <span>Athos contesta.</span>
+            <span>VetGPT contesta.</span>
           </span>
         </h2>
         <p className="st" style={v({ i: 6, y: "28px", d: "1s" })}>
           Tus clientes no te escriben por correo. Te escriben por WhatsApp, y a la hora que sea. Los demás te dejan
-          disparar plantillas. Athos sostiene la conversación de ida y vuelta — y frena todo lo clínico hasta que tú
+          disparar plantillas. VetGPT sostiene la conversación de ida y vuelta — y frena todo lo clínico hasta que tú
           lo apruebes.
         </p>
         <ul className="bul">
@@ -48,13 +48,13 @@ export default function Conversacion() {
             Doctora, ¿le dejo a Rocky o me lo llevo y vuelvo?<span className="bt">10:06</span>
           </div>
           <div className="bub us st" style={v({ i: 8, y: "14px" })}>
-            La doctora está con Rocky ahora. Te escribimos apenas termine.<span className="bt">10:06 · Athos</span>
+            La doctora está con Rocky ahora. Te escribimos apenas termine.<span className="bt">10:06 · VetGPT</span>
           </div>
           <div className="bub them st" style={v({ i: 10, y: "14px" })}>
             Listo, gracias 🙏<span className="bt">10:07</span>
           </div>
           <div className="gate st" style={v({ i: 12, y: "22px", d: "1s" })}>
-            <div className="gh">⏸ Athos se detuvo · requiere tu aprobación</div>
+            <div className="gh">⏸ VetGPT se detuvo · requiere tu aprobación</div>
             <div className="gp">
               Borrador: «Salió la citología: Malassezia. Te dejo el limpiador ótico y nos vemos en 8 días.»
             </div>

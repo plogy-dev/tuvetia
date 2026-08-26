@@ -313,8 +313,9 @@ export function WhatsappSettings({
           <div className="flex flex-col">
             <span className="text-sm font-medium">Respuestas automáticas de VetGPT</span>
             <span className="text-xs text-muted-foreground">
-              Solo mensajes no clínicos: horarios, ubicación, solicitudes de cita. Todo lo demás queda
-              para ti. Cada respuesta queda registrada y auditada.
+              {agentMode === "auto"
+                ? "Encendidas: VetGPT responde solo lo básico — horarios, ubicación, pedidos de cita. Lo clínico nunca. Cada respuesta queda registrada."
+                : "Apagadas (así arranca): VetGPT no le escribe solo a nadie — sugiere la respuesta y sale únicamente cuando vos la apruebes."}
             </span>
           </div>
           <Button

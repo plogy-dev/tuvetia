@@ -10,7 +10,7 @@ export default function Producto() {
           Adentro
         </div>
         <h3 className="st" style={v({ i: 1, y: "16px", d: ".8s" })}>
-          Athos no es tres cosas. Es una, con tres caras.
+          VetGPT no es tres cosas. Es una, con tres caras.
         </h3>
         <p className="st" style={v({ i: 3, y: "20px", d: ".9s" })}>
           El que oye tu consulta es el mismo que contesta el WhatsApp. Una sola memoria, indexada por paciente. Por
@@ -21,7 +21,7 @@ export default function Producto() {
         <div className="pr-card st" style={v({ i: 0, y: "24px", gap: "130ms" })}>
           <div className="pr-n">Cara 01 · Oye</div>
           <h4>Escucha la consulta</h4>
-          <p>Pones el micrófono y atiendes. Athos oye, no interrumpe. El audio se borra a los 4 días.</p>
+          <p>Pones el micrófono y atiendes. VetGPT oye, no interrumpe. El audio se borra a los 4 días.</p>
           <div className="pr-scr">
             <div className="pr-row">
               <div className="pr-dot" />

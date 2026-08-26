@@ -5,7 +5,7 @@ const CELLS = [
     hi: 0,
     pi: 1,
     h: "Ley 1581",
-    p: "El dueño da consentimiento explícito antes de que Athos grabe. Se captura una vez y cubre todas sus mascotas.",
+    p: "El dueño da consentimiento explícito antes de que VetGPT grabe. Se captura una vez y cubre todas sus mascotas.",
   },
   {
     hi: 1,
@@ -23,7 +23,7 @@ const CELLS = [
     hi: 3,
     pi: 4,
     h: "Sugiere, no decide",
-    p: "Athos propone; el criterio y la firma son tuyos. Ninguna nota entra al historial sin que tú la apruebes.",
+    p: "VetGPT propone; el criterio y la firma son tuyos. Ninguna nota entra al historial sin que tú la apruebes.",
   },
 ];
 
@@ -36,7 +36,7 @@ export default function Seguridad() {
         </div>
         <h2>
           <span className="ln" style={v({ i: 1 })}>
-            <span>Athos oye consultas</span>
+            <span>VetGPT oye consultas</span>
           </span>
           <span className="ln" style={v({ i: 2 })}>
             <span>privadas. Eso obliga.</span>

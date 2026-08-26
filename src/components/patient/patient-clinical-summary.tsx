@@ -126,6 +126,10 @@ export function PatientClinicalSummary({
   // Vacuna. La fecha por defecto es "hoy en Bogotá", no `new Date()`: este componente corre en el
   // navegador del vet, pero la fecha que se guarda tiene que ser la del negocio.
   const [vacuna, setVacuna] = useState("")
+  // El catálogo de vacunas de la clínica (0090), para ELEGIR en vez de teclear. Se carga al
+  // abrir el formulario y una sola vez; si no hay catálogo (o falla), el campo sigue siendo texto
+  // libre — el catálogo ayuda, no bloquea, y los meses de datos ya escritos son texto igual.
+  const [catalogoVacunas, setCatalogoVacunas] = useState<string[] | null>(null)
   const [aplicada, setAplicada] = useState(() => bogotaTodayISO())
   const [proxima, setProxima] = useState("")
   const [lote, setLote] = useState("")
@@ -170,6 +174,16 @@ export function PatientClinicalSummary({
     toast.success(`"${farmaco.trim()}" agregado a la medicación`)
     cerrar()
     router.refresh()
+  }
+
+  async function cargarCatalogoVacunas() {
+    if (catalogoVacunas !== null) return
+    const { data } = await supabase
+      .from("vaccine_types")
+      .select("name")
+      .eq("active", true)
+      .order("name")
+    setCatalogoVacunas(((data as { name: string }[] | null) ?? []).map((v) => v.name))
   }
 
   async function guardarVacuna(e: React.FormEvent) {
@@ -316,13 +330,22 @@ export function PatientClinicalSummary({
         {formAbierto === "vac" && (
           <form onSubmit={guardarVacuna} className="mb-3 flex flex-col gap-2 rounded-lg border bg-background p-3">
             <Campo etiqueta="Vacuna *">
+              {/* datalist y no <select>: ofrece el catálogo de la clínica pero no encierra — una
+                  vacuna nueva se teclea igual, y una clínica sin catálogo no ve diferencia. */}
               <Input
                 value={vacuna}
                 onChange={(e) => setVacuna(e.target.value)}
+                onFocus={cargarCatalogoVacunas}
                 placeholder="ej. Triple felina"
+                list="catalogo-de-vacunas"
                 autoFocus
                 required
               />
+              <datalist id="catalogo-de-vacunas">
+                {(catalogoVacunas ?? []).map((n) => (
+                  <option key={n} value={n} />
+                ))}
+              </datalist>
             </Campo>
             <Campo etiqueta="Fecha de aplicación *">
               <Input type="date" value={aplicada} onChange={(e) => setAplicada(e.target.value)} required />

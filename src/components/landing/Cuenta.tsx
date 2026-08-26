@@ -17,7 +17,7 @@ export default function Cuenta() {
         </h2>
         <p className="lede st" style={v({ i: 5, y: "24px", d: "1s" })}>
           Mueve los números. Son los tuyos — nosotros solo hacemos la multiplicación. Mira cuántas horas te devuelve
-          Athos al mes… y qué puedes hacer con ellas.
+          VetGPT al mes… y qué puedes hacer con ellas.
         </p>
       </div>
       <div className="calc-cta-wrap">
