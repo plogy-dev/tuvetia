@@ -16,19 +16,21 @@ import { Button } from "@/components/ui/button"
 
 export type PreguntaDeContexto = { pregunta: string; opciones: string[] }
 
-// Una respuesta es la opción elegida O el texto libre — mutuamente excluyentes: elegir un chip
-// descarta lo tecleado y teclear deselecciona el chip, para que nunca viajen las dos.
-type Respuesta = { opcion: string | null; libre: string }
+// Una respuesta puede llevar VARIAS opciones (pedido del cliente 26-ago: un cuadro clínico rara
+// vez es una sola cosa — "cojera aguda" Y "con fiebre" conviven) más el texto libre como respuesta
+// ADICIONAL para lo no contemplado. Todo se acumula; nada se excluye.
+type Respuesta = { opciones: string[]; libre: string }
 
-const VACIA: Respuesta = { opcion: null, libre: "" }
+const VACIA: Respuesta = { opciones: [], libre: "" }
 
 function resuelta(r: Respuesta | undefined): boolean {
-  return Boolean(r && (r.opcion !== null || r.libre.trim()))
+  return Boolean(r && (r.opciones.length > 0 || r.libre.trim()))
 }
 
 /**
- * Compone el mensaje que viaja al agente: una línea "Pregunta: respuesta" por pregunta.
- * Exportada para fijar el formato en tests — el system prompt le promete al modelo esta forma.
+ * Compone el mensaje que viaja al agente: una línea "Pregunta: respuesta[, respuesta…]" por
+ * pregunta. Exportada para fijar el formato en tests — el system prompt le promete al modelo
+ * esta forma (y le avisa que pueden venir varias respuestas separadas por coma).
  */
 export function componerRespuestas(
   preguntas: PreguntaDeContexto[],
@@ -37,8 +39,8 @@ export function componerRespuestas(
   return preguntas
     .map((p, i) => {
       const r = respuestas[i] ?? VACIA
-      const valor = r.opcion ?? r.libre.trim()
-      return p.pregunta ? `${p.pregunta}: ${valor}` : valor
+      const valores = [...r.opciones, ...(r.libre.trim() ? [r.libre.trim()] : [])].join(", ")
+      return p.pregunta ? `${p.pregunta}: ${valores}` : valores
     })
     .join("\n")
 }
@@ -69,13 +71,20 @@ export function Cuestionario({
             )}
             <div className="flex flex-wrap gap-[7px]">
               {p.opciones.map((o) => {
-                const activa = r.opcion === o
+                const activa = r.opciones.includes(o)
                 return (
                   <button
                     key={o}
                     type="button"
                     aria-pressed={activa}
-                    onClick={() => fijar(i, { opcion: activa ? null : o, libre: "" })}
+                    onClick={() =>
+                      fijar(i, {
+                        ...r,
+                        opciones: activa
+                          ? r.opciones.filter((x) => x !== o)
+                          : [...r.opciones, o],
+                      })
+                    }
                     className={
                       activa
                         ? "rounded-full border border-brand bg-brand-soft px-3 py-1.5 text-[12.5px] font-semibold text-brand-text focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
@@ -87,11 +96,12 @@ export function Cuestionario({
                 )
               })}
             </div>
-            {/* "Otro": siempre visible, chico. Escribir deselecciona el chip — la respuesta es una. */}
+            {/* "Otro": siempre visible, chico. Se SUMA a los chips elegidos, no los reemplaza —
+                el detalle que no está contemplado suele acompañar a una opción, no excluirla. */}
             <input
               value={r.libre}
-              onChange={(e) => fijar(i, { opcion: null, libre: e.target.value })}
-              placeholder="Otro (escríbelo)…"
+              onChange={(e) => fijar(i, { ...r, libre: e.target.value })}
+              placeholder="Otro (agrégalo)…"
               aria-label={p.pregunta ? `Otra respuesta para: ${p.pregunta}` : "Otra respuesta"}
               className="h-8 w-full max-w-[340px] rounded-lg border border-line bg-transparent px-2.5 text-[12.5px] outline-none placeholder:text-fg-faint focus-visible:border-brand focus-visible:ring-2 focus-visible:ring-brand-soft"
             />

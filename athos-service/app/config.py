@@ -173,6 +173,13 @@ class Settings(BaseSettings):
     # STT — Modo Fantasma (ADR-0016: Deepgram Nova, batch + diarización)
     deepgram_api_key: str = ""
     stt_model: str = "nova-2"
+    # Proveedor del BATCH de transcripción (decisión del cliente 2026-08-26: migrar a Grok/xAI,
+    # que lanzó STT en abril-2026 a mitad de precio). `grok` transcribe con xAI y cae SOLO a
+    # Deepgram si falla (una consulta no se puede perder por un proveedor caído). El streaming EN
+    # VIVO sigue en Deepgram por ahora: Grok live exige Opus crudo/PCM y el front graba WebM —
+    # cambiarlo es la fase 2 (demux o captura PCM), no una variable.
+    stt_provider: str = "deepgram"
+    xai_api_key: str = ""
 
     # App
     cors_origins: str = "http://localhost:3000"

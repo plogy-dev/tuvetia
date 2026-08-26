@@ -31,7 +31,7 @@
 
 import { useEffect, useMemo, useState, useSyncExternalStore } from "react"
 import Link from "next/link"
-import { usePathname, useSearchParams } from "next/navigation"
+import { usePathname, useRouter, useSearchParams } from "next/navigation"
 import { ChevronDown, MessagesSquare, PlusIcon, SearchIcon, Stethoscope } from "lucide-react"
 
 import { ESTADO_DE_CONSULTA } from "@/lib/consultas/estado"
@@ -61,6 +61,7 @@ type Item = { key: string; href: string; titulo: string; sub: string }
 
 export function AthosSidebarSection() {
   const pathname = usePathname()
+  const router = useRouter()
   const searchParams = useSearchParams()
   const visible =
     pathname.startsWith("/dashboard/asistente") || pathname.startsWith("/dashboard/consultas")
@@ -171,10 +172,14 @@ export function AthosSidebarSection() {
         <div id="athos-historial" className="flex flex-col gap-2">
         <SidebarMenu>
           <SidebarMenuItem>
+            {/* BOTÓN, no Link a /dashboard/asistente: estando ya en esa pantalla, navegar a la
+                misma URL no hace NADA — el botón "no funcionaba" (reporte 26-ago). `?nuevo=` con
+                timestamp cambia en cada clic, así la navegación siempre ocurre y el asistente
+                estrena un hilo general vacío (ver `claveNueva` en assistant.tsx). */}
             <SidebarMenuButton
               variant="outline"
               tooltip="Nuevo chat con VetGPT"
-              render={<Link href="/dashboard/asistente" />}
+              onClick={() => router.push(`/dashboard/asistente?nuevo=${Date.now()}`)}
             >
               <PlusIcon />
               <span>Nuevo chat con VetGPT</span>

@@ -86,8 +86,11 @@ export function Cockpit({
     return () => window.removeEventListener("keydown", alTeclado)
   }, [alMinimizar])
 
+  // EL ALTO SE HEREDA, NO SE CALCULA — mismo defecto que tenía el chat: `100svh - header` ignora
+  // el `m-2` que `variant="inset"` le pone al `SidebarInset`, y esos 16 px de más hacen que el
+  // navegador pinte la barra de la ventana entera. `flex-1 min-h-0` toma lo que quede, sin números.
   return (
-    <div className="flex h-[calc(100svh-var(--header-height))] min-w-0 flex-col gap-4 p-4 md:p-6">
+    <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-4 p-4 md:p-6">
       <header className="flex flex-wrap items-start justify-between gap-3">
         <div className="min-w-0">
           <p className="text-[12.5px] text-fg-muted">

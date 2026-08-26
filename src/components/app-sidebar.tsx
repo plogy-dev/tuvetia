@@ -184,12 +184,20 @@ export function AppSidebar({
           </SidebarMenuItem>
         </SidebarMenu>
       </SidebarHeader>
-      <SidebarContent>
+      {/* `pb-2` — EL PIE ESTÁ ANCLADO Y EL CONTENIDO SCROLLEA DEBAJO DE ÉL. Sin ese respiro, la
+          última fila del contenido —que es «Iniciar consulta»— quedaba pegada al borde del pie y,
+          con el pie encima, tapada a medias. */}
+      <SidebarContent className="pb-2">
         <NavClinic name={clinic.name} logoUrl={clinic.logoUrl} />
         {/* Cada grupo trae su rótulo, sus secciones y su acción: "Iniciar consulta" en Consultorio,
             "Nuevo paciente" en CRM. */}
         <NavMain consultorio={data.consultorio} crm={data.crm} />
-        <SidebarMenu className="px-2">
+        {/* FUERA DEL RIEL ANGOSTO. Colapsada, la barra mide 48px y NO scrollea (ver `globals.css`),
+            así que todo lo que entra tiene que caber: cada fila que sobra empuja «Iniciar consulta»
+            fuera de la vista. Este chip es un recordatorio de puesta a punto, no navegación — sin su
+            porcentaje al lado es un icono más que no dice nada, y su destino (`/dashboard`) ya está
+            arriba en la lista. */}
+        <SidebarMenu className="px-2 group-data-[collapsible=icon]:hidden">
           <SidebarMenuItem>
             <React.Suspense fallback={null}>
               <ChipConfiguracion porcentaje={progresoConfiguracion} />

@@ -23,7 +23,8 @@ import logging
 log = logging.getLogger(__name__)
 
 #: Proveedores cuya key propia se comprueba aparte de la general (`LLM_API_KEY`).
-KEYS = ("llm_api_key", "anthropic_api_key", "gemini_api_key", "embedding_api_key", "deepgram_api_key")
+KEYS = ("llm_api_key", "anthropic_api_key", "gemini_api_key", "embedding_api_key", "deepgram_api_key",
+        "xai_api_key")
 
 
 def _si_no(v: object) -> str:

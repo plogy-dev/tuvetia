@@ -72,6 +72,77 @@ def _download_audio(storage_path: str) -> bytes:
     return resp.content
 
 
+XAI_STT_URL = "https://api.x.ai/v1/stt"
+
+
+def _grok_a_payload_comun(grok: dict[str, Any]) -> dict[str, Any]:
+    """Adapta la respuesta de Grok STT a la FORMA de Deepgram que ya habla todo el módulo.
+
+    Grok devuelve {text, language, duration, words:[{text,start,end,speaker?}]}; Deepgram anida en
+    results.channels[].alternatives[]. Adaptar acá — y no reescribir build_segments/render_full_text
+    y sus tests — mantiene UNA sola ruta de armado de segmentos e inferencia de roles para los dos
+    proveedores: lo que está probado sigue probado.
+    """
+    words = [
+        {
+            "word": w.get("text", ""),
+            "punctuated_word": w.get("text", ""),
+            "start": w.get("start", 0.0),
+            "end": w.get("end", 0.0),
+            "speaker": w.get("speaker", 0),
+        }
+        for w in (grok.get("words") or [])
+    ]
+    return {
+        "results": {
+            "channels": [{"alternatives": [{"transcript": grok.get("text", ""), "words": words}]}]
+        }
+    }
+
+
+def _call_grok(audio: bytes, mime: str = "audio/webm") -> dict[str, Any]:
+    """Transcribe con Grok STT (xAI): español, diarización. Devuelve el payload YA adaptado.
+
+    El multipart exige `file` AL FINAL (regla documentada de su API). Sin parámetro de modelo:
+    xAI expone un único endpoint /v1/stt.
+    """
+    api_key = _settings_value("xai_api_key", "XAI_API_KEY")
+    if not api_key:
+        log.error("falta XAI_API_KEY con STT_PROVIDER=grok: la transcripción no puede correr")
+        raise HTTPException(status_code=500, detail="la transcripción no está configurada en el servidor")
+    ext = (mime.split("/") + ["webm"])[1].split(";")[0]
+    data = {"language": "es", "diarize": "true", "format": "true"}
+    files = {"file": (f"audio.{ext}", audio, mime)}  # httpx serializa los campos data antes del file
+    headers = {"Authorization": f"Bearer {api_key}"}
+    with httpx.Client(timeout=300) as client:
+        resp = client.post(XAI_STT_URL, data=data, files=files, headers=headers)
+    if resp.status_code != 200:
+        # Igual que con Deepgram: el detail llega al toast del vet — el cuerpo crudo, al log.
+        log.error("Grok STT respondió %s: %s", resp.status_code, resp.text[:500])
+        raise HTTPException(status_code=502, detail=f"no se pudo transcribir el audio ({resp.status_code})")
+    return _grok_a_payload_comun(resp.json())
+
+
+def _transcribir_con_proveedor(audio: bytes, mime: str = "audio/webm") -> tuple[dict[str, Any], str, str]:
+    """Despacha al proveedor configurado. Devuelve (payload_forma_deepgram, provider, model).
+
+    Con `STT_PROVIDER=grok`, Grok es el primario y Deepgram el RESPALDO automático: una consulta
+    grabada no se puede perder porque el proveedor nuevo esté caído o sin créditos — ese es el
+    mismo principio de toda cascada de proveedores del servicio. Sin key de Deepgram, el fallo de
+    Grok se propaga tal cual (no hay red de seguridad que fingir).
+    """
+    proveedor = _settings_value("stt_provider", "STT_PROVIDER", "deepgram").lower()
+    if proveedor == "grok":
+        try:
+            return _call_grok(audio, mime), "grok", "grok-stt"
+        except Exception as e:  # noqa: BLE001 — el respaldo existe justo para el fallo imprevisto
+            if not _settings_value("deepgram_api_key", "DEEPGRAM_API_KEY"):
+                raise
+            log.warning("Grok STT falló (%s); transcribiendo con el respaldo Deepgram", e)
+    model = _settings_value("stt_model", "STT_MODEL", "nova-2")
+    return _call_deepgram(audio, mime), "deepgram", model
+
+
 def _call_deepgram(audio: bytes, mime: str = "audio/webm") -> dict[str, Any]:
     """Transcribe con Deepgram Nova: español, diarización, puntuación."""
     api_key = _settings_value("deepgram_api_key", "DEEPGRAM_API_KEY")
@@ -152,13 +223,14 @@ def render_full_text(segments: list[dict[str, Any]], fallback: str = "") -> str:
     return "\n".join(f"{s['label']}: {s['text'].strip()}" for s in segments if s["text"].strip())
 
 
-def _insert_transcript(clinic_id, consultation_id, audio_id, full_text, segments, model) -> str:
+def _insert_transcript(clinic_id, consultation_id, audio_id, full_text, segments, model,
+                       provider: str = "deepgram") -> str:
     with get_conn() as conn, conn.cursor() as cur:
         cur.execute(
             "insert into public.transcripts "
             "(clinic_id, consultation_id, audio_id, full_text, segments, stt_provider, stt_model, language) "
-            "values (%s,%s,%s,%s,%s,'deepgram',%s,'es') returning id",
-            (clinic_id, consultation_id, audio_id, full_text, Json(segments), model),
+            "values (%s,%s,%s,%s,%s,%s,%s,'es') returning id",
+            (clinic_id, consultation_id, audio_id, full_text, Json(segments), provider, model),
         )
         transcript_id = cur.fetchone()["id"]
         conn.commit()
@@ -187,13 +259,12 @@ def transcribe(consultation_id: str, clinic_id: str) -> dict[str, Any]:
     _set_consultation_status(clinic_id, consultation_id, "transcribing")
     try:
         raw = _download_audio(audio["storage_path"])
-        payload = _call_deepgram(raw)
+        payload, provider, model = _transcribir_con_proveedor(raw)
         segments = build_segments(payload)
         alt = payload.get("results", {}).get("channels", [{}])[0].get("alternatives", [{}])[0]
         full_text = render_full_text(segments, fallback=alt.get("transcript", ""))
-        model = _settings_value("stt_model", "STT_MODEL", "nova-2")
         transcript_id = _insert_transcript(
-            clinic_id, consultation_id, audio["id"], full_text, segments, model
+            clinic_id, consultation_id, audio["id"], full_text, segments, model, provider
         )
     except Exception:
         _set_consultation_status(clinic_id, consultation_id, "open")
