@@ -297,15 +297,26 @@ export function TeamSettings({
                   <span className="hidden sm:inline">Agenda completa</span>
                 </label>
               )}
-              {isAdmin && (
+              {/* QUITAR SE VE SIEMPRE, NO SÓLO AL PASAR EL MOUSE.
+                  Estaba en `opacity-0 group-hover:opacity-100`, y una función que sólo existe
+                  mientras el puntero está encima es una función que no existe: no se descubre
+                  mirando, y en una tablet —donde no hay hover— no aparece nunca. Felipe preguntó
+                  el 26-ago por qué no veía «sacar vets o cambiarles el rango» estando los dos ya
+                  construidos; el rol no se le mostraba por ser él el único miembro (ver abajo) y
+                  esto, además, estaba escondido.
+
+                  Y se RENDERIZA sólo cuando hay a quién quitar, en vez de pintarse deshabilitado
+                  e invisible sobre uno mismo: un botón que existe en el DOM pero no se ve ni se
+                  puede usar sólo sirve para confundir a un lector de pantalla. */}
+              {isAdmin && !isSelf && (
                 <Button
                   size="sm"
                   variant="ghost"
-                  className="shrink-0 text-muted-foreground opacity-0 group-hover:opacity-100 hover:text-destructive focus-visible:opacity-100 disabled:opacity-0"
+                  className="shrink-0 text-muted-foreground hover:text-destructive"
                   onClick={() => removeMember(m)}
-                  disabled={isSelf || removingId === m.id}
-                  aria-label={isSelf ? "No podés quitarte a vos mismo" : `Quitar a ${m.full_name ?? m.email} de la clínica`}
-                  title={isSelf ? "No podés quitarte a vos mismo" : "Quitar de la clínica"}
+                  disabled={removingId === m.id}
+                  aria-label={`Quitar a ${m.full_name ?? m.email} de la clínica`}
+                  title="Quitar de la clínica"
                 >
                   {removingId === m.id ? (
                     <Loader2 className="size-3.5 animate-spin" />
@@ -318,6 +329,20 @@ export function TeamSettings({
           )
         })}
       </ul>
+
+      {/* POR QUÉ ACÁ NO SE VE NADA CUANDO ESTÁS SOLO.
+          Ni el selector de rol ni el botón de quitar se ofrecen sobre uno mismo —degradarte te
+          deja sin el control con el que te lo devolverías, y quitarte te saca de tu propia
+          clínica—, así que en una clínica de una persona la lista es una fila sin ningún control
+          y parece que las funciones no existen. Es exactamente lo que preguntó Felipe el 26-ago.
+          Decirlo cuesta una línea y ahorra la pregunta. */}
+      {isAdmin && members.length === 1 && (
+        <p className="rounded-lg border border-line-soft bg-surface-2 px-3 py-2 text-xs text-muted-foreground">
+          Sos la única persona en esta clínica. Cuando invites a un colega vas a poder{" "}
+          <b className="font-medium text-fg">cambiarle el rol</b> o{" "}
+          <b className="font-medium text-fg">quitarlo de la clínica</b> desde esta misma lista.
+        </p>
+      )}
 
       {isAdmin && (
         <>
