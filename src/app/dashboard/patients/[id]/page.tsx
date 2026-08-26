@@ -3,7 +3,7 @@ import { notFound } from "next/navigation"
 import { AlertTriangle, ArrowLeft, CalendarDays, PawPrint, Stethoscope } from "lucide-react"
 
 import { fmtAgeLong } from "@/lib/age"
-import { createClient } from "@/lib/supabase/server"
+import { sesionDelServidor } from "@/lib/supabase/sesion"
 import {
   PatientAttachments,
   type PatientAttachment,
@@ -69,10 +69,9 @@ type Patient = {
 
 export default async function PatientHistoryPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
-  const supabase = await createClient()
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
+  // La sesión memoizada del request: el layout ya pagó el getUser() (265 ms de red, medido), y
+  // repetirlo acá era un segundo viaje por el mismo dato.
+  const { supabase, user } = await sesionDelServidor()
 
   const { data: p } = await supabase
     .from("patients")
