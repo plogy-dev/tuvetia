@@ -79,7 +79,7 @@ export default async function CarteraPage() {
     <PageShell>
       <Link
         href="/dashboard/facturacion"
-        className="mb-3 inline-flex items-center gap-1 text-xs text-fg-faint hover:text-fg"
+        className="inline-flex items-center gap-1 text-xs text-fg-faint hover:text-fg"
       >
         <ArrowLeft className="size-3.5" aria-hidden />
         Facturación
@@ -101,7 +101,7 @@ export default async function CarteraPage() {
       </header>
 
       {/* KPIs */}
-      <div className="mb-6 grid grid-cols-2 gap-3 sm:grid-cols-4">
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
         <Kpi label="Saldo pendiente" value={formatCOP(outstanding)} />
         <Kpi label="Cartera vencida" value={formatCOP(overdue)} tone="warn" />
         <Kpi label="Facturas por cobrar" value={String(receivables.length)} />
@@ -110,7 +110,7 @@ export default async function CarteraPage() {
 
       {/* Antigüedad de cartera (aging) */}
       {aging.totalCents > 0 && (
-        <section className="mb-8">
+        <section>
           <h2 className="mb-2 text-sm font-medium text-fg">Antigüedad de cartera</h2>
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-5">
             <AgingCell label="Corriente" bucket={aging.corriente} />
@@ -123,7 +123,7 @@ export default async function CarteraPage() {
       )}
 
       {/* Requiere atención humana */}
-      <section className="mb-8">
+      <section>
         <h2 className="mb-2 flex items-center gap-2 text-sm font-medium text-fg">
           <Inbox className="size-4" aria-hidden />
           Requiere tu atención

@@ -211,7 +211,7 @@ export default async function FinanzasPage({
       </header>
 
       {/* Filtros (GET) */}
-      <FormularioDeFiltros action="/dashboard/facturacion/finanzas" className="mb-5 flex flex-wrap items-end gap-3">
+      <FormularioDeFiltros action="/dashboard/facturacion/finanzas" className="flex flex-wrap items-end gap-3">
         <label className="text-xs text-fg-muted">
           Desde
           <input type="date" name="from" defaultValue={from} className={`${inputCls} mt-1 block`} />
@@ -240,7 +240,7 @@ export default async function FinanzasPage({
       </FormularioDeFiltros>
 
       {/* KPIs del período */}
-      <div className="mb-6 grid gap-3 sm:grid-cols-3">
+      <div className="grid gap-3 sm:grid-cols-3">
         <div className="rounded-xl border border-line bg-surface px-4 py-3">
           <p className="text-[11.5px] font-medium text-fg-faint">
             Ingresos del período
@@ -269,10 +269,9 @@ export default async function FinanzasPage({
         </div>
       </div>
 
-      {/* Barras últimos 6 meses */}
-      <div className="mb-6">
-        <FinanceBars data={bars} />
-      </div>
+      {/* Barras últimos 6 meses. Sin envoltorio: existía sólo para el `mb-6`, y esa separación la
+          da ahora el `gap-6` de PageShell. */}
+      <FinanceBars data={bars} />
 
       {/* Alta/edición de movimientos. El key por registro es OBLIGATORIO: los campos son no
           controlados (defaultValue), y sin key React reconcilia el formulario al pasar de editar

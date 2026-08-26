@@ -150,7 +150,7 @@ export default async function MovimientosPage({
       </header>
 
       {/* Dirección */}
-      <div className="mb-3 flex flex-wrap gap-2">
+      <div className="flex flex-wrap gap-2">
         <Link href={dirHref(undefined)} className={chipCls(!dir)}>
           Todos
         </Link>
@@ -163,7 +163,7 @@ export default async function MovimientosPage({
       </div>
 
       {/* Filtros (GET) */}
-      <FormularioDeFiltros action="/dashboard/facturacion/inventario/movimientos" className="mb-5 flex flex-wrap items-end gap-3">
+      <FormularioDeFiltros action="/dashboard/facturacion/inventario/movimientos" className="flex flex-wrap items-end gap-3">
         {dir && <input type="hidden" name="dir" value={dir} />}
         <label className="text-xs text-fg-muted">
           Tipo
@@ -205,7 +205,7 @@ export default async function MovimientosPage({
         </button>
       </FormularioDeFiltros>
 
-      <div className="mb-3 flex items-center justify-between">
+      <div className="flex items-center justify-between">
         <p className="text-sm text-fg-muted">
           {total === 1 ? '1 movimiento' : `${total} movimientos`}
           {pages > 1 && ` · página ${page} de ${pages}`}
@@ -295,8 +295,10 @@ export default async function MovimientosPage({
         </div>
       )}
 
-      {/* Registrar salida/ajuste manual */}
-      <div className="mt-8">
+      {/* Registrar salida/ajuste manual. `mt-2` y no `mt-8`: acá se quería MÁS aire que entre dos
+          bloques normales porque empieza otra cosa, y esos 32px los daba el margen solo. Ahora el
+          `gap-6` de PageShell ya pone 24, así que 8 más devuelven la misma separación de antes. */}
+      <div className="mt-2">
         <h2 className="mb-2 text-sm font-medium text-fg">Registrar movimiento manual</h2>
         <MovementForm items={items} />
       </div>

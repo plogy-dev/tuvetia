@@ -69,7 +69,7 @@ export default async function CompraDetallePage({
         </p>
       </header>
 
-      <div className="mb-6 overflow-x-auto rounded-xl border border-line bg-surface">
+      <div className="overflow-x-auto rounded-xl border border-line bg-surface">
         <table className="w-full text-sm">
           <thead>
             <tr className="border-b border-line text-left text-xs text-fg-faint">

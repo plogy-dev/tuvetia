@@ -224,7 +224,7 @@ export default async function InventarioPage({
       </header>
 
       {/* KPIs */}
-      <div className="mb-6 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
         <Kpi label="Ítems activos" value={String(summary.activeItems)} />
         <Kpi label="Valor a costo" value={formatCOP(summary.valueAtCostCents)} />
         <Kpi label="Bajo mínimo" value={String(summary.lowStock)} tone={summary.lowStock ? 'warn' : undefined} />
@@ -233,7 +233,7 @@ export default async function InventarioPage({
       </div>
 
       {/* Navegación por categorías */}
-      <div className="mb-3 flex flex-wrap gap-2">
+      <div className="flex flex-wrap gap-2">
         <Link href={chipHref(null)} className={chipCls(!sp.cat)}>
           Todas <span className="opacity-60">{items.length}</span>
         </Link>
@@ -244,10 +244,9 @@ export default async function InventarioPage({
         ))}
       </div>
 
-      {/* Buscador + tipo */}
-      <div className="mb-4">
-        <InventorySearch />
-      </div>
+      {/* Buscador + tipo. Sin envoltorio: existía sólo para el `mb-4`, y esa separación la da
+          ahora el `gap-6` de PageShell. */}
+      <InventorySearch />
 
       {summary.lowStock > 0 && (
         <div className="mb-4 flex items-start gap-2 rounded-xl border border-warn bg-surface-2 px-4 py-3 text-sm text-warn">
