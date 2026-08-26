@@ -88,9 +88,29 @@ $$;
 
 -- ── La RPC de creación ──────────────────────────────────────────────────────────────────────────
 --
--- Se redeclara entera y no se parchea: los dos parámetros nuevos van al final CON DEFAULT, así que
+-- Se redeclara entera y no se parchea: los tres parámetros nuevos van al final CON DEFAULT, así que
 -- todas las llamadas que ya existen —el drawer, el agente, el ejecutor de acciones— siguen andando
--- sin tocarse. Es la misma forma en que la 0048 reemplazó a la 0006.
+-- sin tocarse.
+--
+-- ── HAY QUE BORRAR LA FIRMA VIEJA, Y ESTO NO ES LIMPIEZA ────────────────────────────────────────
+--
+-- `create or replace function` reemplaza SÓLO si la firma coincide exacta. Al agregar parámetros se
+-- crea una SOBRECARGA: quedan las dos, la de 9 y la de 12. Medido al aplicar esta migración al
+-- principal el 26-ago — `pg_proc` devolvía las dos.
+--
+-- Y no es cosmético: una llamada con los 9 argumentos viejos (el agente de VetGPT, el ejecutor de
+-- acciones) encaja en LAS DOS —la nueva tiene defaults para las que faltan— y PostgREST no puede
+-- elegir: responde PGRST203, «could not choose the best candidate function». O sea que dejar la
+-- vieja rompe justo el camino que esta nota decía proteger.
+--
+-- El `drop` va ANTES de crear la nueva y con la firma completa y explícita, que es la única forma
+-- de nombrar una sobrecarga. `if exists` para que la migración se pueda correr dos veces.
+drop function if exists public.create_appointment(
+  text, timestamptz, timestamptz, uuid, uuid, uuid, text, public.appointment_status, text
+);
+drop function if exists public.update_appointment(
+  uuid, text, timestamptz, timestamptz, uuid, uuid, uuid, text, public.appointment_status, text
+);
 
 create or replace function public.create_appointment(
   p_title      text,
