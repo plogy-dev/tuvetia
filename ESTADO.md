@@ -1113,3 +1113,73 @@ Vale anotarlo porque ya van tres días seguidos en que esto paga:
   además tolera una ventana de deploy desfasado cayendo a `sufficient` si el campo no viniera.
 - **Site URL de Supabase**: ahora que `/` es la landing y el login vive en `/login`, hay que revisar
   la config del dashboard de Auth — si el fallback aterriza en la raíz, no hay intercambio de código.
+
+## Sesión 2026-08-25/26 — el panel de administración, y la tanda grande de observaciones de David
+
+Ocho PRs (#235–#241 más el merge de la renumeración) sobre dos frentes: el panel que David pidió con
+«sin este módulo no hay nada», y sus ~15 observaciones de la tarde, **medidas contra la base antes
+de ordenarlas** — medir cambió la prioridad de la lista.
+
+### El panel de administración (#235, mergeado)
+
+Cuatro de las seis entradas de OkVet YA existían repartidas en tres sitios: lo que faltaba era la
+puerta. `/dashboard/administracion` las reúne; la configuración quedó en pestañas con URL propia
+(`?tab=`) reusando los mismos componentes; `/dashboard/settings` redirige conservando la query (el
+callback de WhatsApp vuelve ahí).
+
+**Planes de salud** — la función nueva: 4 tablas (migración **0088**, renumerada porque Jesús ocupó
+0086/0087 en master el mismo día). Lo que incluye un plan sale de `catalog_items` (no lista
+paralela); el precio se congela al contratar (como `invoice_lines`); el tope de consumo lo sostiene
+un trigger con `FOR UPDATE` (la carrera de la 0079). El carrito avisa «lo cubre el plan, quedan 2
+de 3» — avisa, NO descuenta solo: quien imputa al plan es el vet.
+
+⚠️ **La 0088 y la 0087 (de Jesús, `duration_ms`) NO están aplicadas al principal** — verificado con
+conteo de tablas/columnas. Las dos tienen verificación SQL.
+
+Y cayó una mentira vieja: «vacuna vencida no se puede porque no existe la tabla». Se llama
+`vaccines` (no `vaccinations`) y trae `next_dose_at`. El segmento entró a los avisos, agrupando por
+paciente+vacuna con la fecha MÁS NUEVA — filtrar `next_dose_at <= hoy` a secas le escribiría a
+media clínica por vacunas ya puestas.
+
+### La tanda de David, medida primero
+
+Lo que la base dijo (25-ago, contra el principal):
+
+- **6 de 94 consultas colgadas en `generating_note`** — TODAS con transcript, NINGUNA con nota, y
+  **tres posteriores al arreglo de etiqueta del 22-ago**. La lección: un paso que sólo avanza a
+  mano se queda quieto se llame como se llame. → la nota se pide SOLA al abrir la consulta
+  (`lib/consultas/nota-sola.ts`); el borrador sigue necesitando aprobación humana.
+- **11 de 122 preguntas de Athos sin respuesta** (4 de David en 2 días). Jesús ya había subido los
+  4 fixes de backend (maxDuration 300, recorte de historial a 16 turnos, el bloque `opciones`
+  malformado que ocultaba TODO, `duration_ms`); faltaba el front: el error era una línea de 12 px.
+  Ahora es tarjeta en el hilo con Reintentar (`regenerate`).
+- **«Ir a los chats existentes está fallando»** eran dos bugs tapándose: `threads` sólo se sembraba
+  con `?patient=`, y `useState` ignoraba el prop en navegación suave — el clic del historial no
+  hacía NADA estando ya en la pantalla.
+- **El catálogo tiene 8 ítems máximo por clínica** (promedio 5): «no es fácil escoger» no era un
+  problema de búsqueda sino de que estaban ESCONDIDOS tras un clic. → vitrina visible + teclado
+  completo (no existía un solo ArrowDown en el repo).
+- **La velocidad estaba medida desde el 23-ago y sin ejecutar**: `requireClinicPage` memoizado
+  (−265 ms×2), `progresoDeConfiguracion` a `<Suspense>` (−443 ms, el 43 % del layout). Falta MEDIR
+  contra el despliegue con `x-perf: 1` — no estimar: la vez pasada la estimación erró por tres.
+- **El shell cortaba por cinco causas juntas**: `--sidebar-width` pisado a 288 px (los 232 del
+  prototipo ganan al quitar el inline), `SidebarInset` sin `min-w-0`, buscador de cabecera fijo,
+  calendario sin `overflow-x`, y el pie apilado (~232 px) que dejaba a «Consulta» bajo el pliegue
+  en 1366×768 — los dos pedidos de David del mismo día chocaban; la fila de iconos los reconcilia.
+- **VetGPT**: 239 reemplazos, SOLO superficie visible de la app (decidido). Landing sigue Athos;
+  nada interno se tocó (`\bAthos\b` con mayúscula no coincide con identificadores, por
+  construcción). El avatar estrella → `BrandGlyph`.
+- **El tablero**: dona de ventas por tipo (dato real: `invoice_lines`×`item_type`; el
+  «cumplimiento de meta» de OkVet NO se copió — no hay meta que medir). Los tokens `--chart-*`
+  existían sin usuarios y el validador de paletas los REPROBÓ (menta/teal ΔE 7.6): retuneados
+  hasta pasar los seis chequeos en claro y oscuro.
+
+### Reparto de lo que sigue
+
+- **Felipe**: aplicar 0087 y 0088 + verificaciones; **la región de Vercel/Supabase** (un getUser
+  cuesta 265 ms con Postgres en microsegundos: eso es distancia — es el arreglo de más retorno y
+  son dos dashboards); `PLATFORM_ADMIN_EMAILS`.
+- **Jesús**: la latencia del RAG (1 m 30 s reportado). Dato que le sirve: su 0087 ya registra
+  `duration_ms` — aplicarla convierte el próximo diagnóstico en un select.
+- **Santiago**: su 0080 (`metricas`) sigue sin aplicar.
+- **Variables** (los 8 catálogos clínicos): fase propia, vacunas primero.
