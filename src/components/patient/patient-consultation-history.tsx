@@ -26,7 +26,7 @@ type NoteH = {
   objective: string | null
   assessment: string | null
   plan: string | null
-  // El id del modelo (`ai_model`) no se trae: la nota la firma Athos, no el motor. Ver el comentario
+  // El id del modelo (`ai_model`) no se trae: la nota la firma VetGPT, no el motor. Ver el comentario
   // largo en `dashboard/consultas/[id]/page.tsx`.
   ai_generated_at: string | null
   allergy_gate_triggered: boolean
@@ -324,7 +324,7 @@ export function PatientConsultationHistory({
                   })}
                   {note.ai_generated_at && (
                     <p className="flex items-center gap-1 text-xs text-muted-foreground">
-                      <Sparkles className="size-3" /> Redactada por Athos
+                      <Sparkles className="size-3" /> Redactada por VetGPT
                     </p>
                   )}
                 </>

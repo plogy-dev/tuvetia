@@ -116,7 +116,7 @@ export function GestionDelPlan({
 
       {/* ── La prueba, con los días que quedan ───────────────────────────────────────────────
           Va arriba y dice el número: una prueba que no se ve es una clínica que un jueves se
-          encuentra con que Athos dejó de responder y no sabe por qué. El vencimiento lo aplica el
+          encuentra con que VetGPT dejó de responder y no sabe por qué. El vencimiento lo aplica el
           barrido (`lib/suscripcion/barrido.ts`), acá sólo se cuenta. */}
       {enPrueba(estado, plan) && (
         <div className="mb-4 flex items-start gap-3 rounded-xl border border-primary/30 bg-primary/5 p-4">
@@ -134,7 +134,7 @@ export function GestionDelPlan({
                   : `Te quedan ${diasDePrueba} días de prueba.`}
             </p>
             <p className="mt-1 text-fg-muted">
-              Estás usando Pro completo —Athos, el Modo Fantasma y todo lo que necesita IA— sin haber
+              Estás usando Pro completo —VetGPT, el Modo Fantasma y todo lo que necesita IA— sin haber
               puesto una tarjeta. Cuando termine, tu clínica pasa al plan gratis y no se borra nada
               de lo que ya tenés.
             </p>
@@ -224,7 +224,7 @@ export function GestionDelPlan({
             <DialogTitle>¿Cancelar la suscripción?</DialogTitle>
             <DialogDescription>
               Seguís con Pro hasta {renuevaEn ? fmtDate(renuevaEn) : "el final del período pagado"}.
-              Después tu clínica pasa al plan gratis: Athos y el Modo Fantasma se apagan, pero tus
+              Después tu clínica pasa al plan gratis: VetGPT y el Modo Fantasma se apagan, pero tus
               pacientes, consultas, notas y facturas quedan intactos y accesibles.
             </DialogDescription>
           </DialogHeader>

@@ -1,7 +1,7 @@
 "use client"
 
 // Hilo de la consulta (mockup-nota-athos, columna derecha): el copiloto embebido en la pantalla
-// del Phantom. Mismo backend que /dashboard/asistente (memoria por paciente en Athos), en formato
+// del Phantom. Mismo backend que /dashboard/asistente (memoria por paciente en VetGPT), en formato
 // compacto y sticky junto a la nota.
 
 import { useEffect, useRef, useState } from "react"
@@ -68,10 +68,10 @@ export function ConsultationThread({
         onError: (e) => {
           patchLast((m) => ({
             ...m,
-            content: m.content || "No se pudo consultar a Athos.",
+            content: m.content || "No se pudo consultar a VetGPT.",
             streaming: false,
           }))
-          toast.error(`No se pudo consultar a Athos: ${(e as Error)?.message ?? e}`)
+          toast.error(`No se pudo consultar a VetGPT: ${(e as Error)?.message ?? e}`)
           setLoading(false)
         },
       },
@@ -103,7 +103,7 @@ export function ConsultationThread({
       <div ref={msgsRef} className="flex min-h-40 flex-1 flex-col gap-3.5 overflow-y-auto p-4">
         {messages.length === 0 && (
           <p className="m-auto max-w-[26ch] text-center text-xs text-muted-foreground">
-            Pregúntale a Athos sobre este caso — responde con literatura citada, nunca un
+            Pregúntale a VetGPT sobre este caso — responde con literatura citada, nunca un
             diagnóstico cerrado.
           </p>
         )}
@@ -120,7 +120,7 @@ export function ConsultationThread({
           ) : (
             <div key={i} className="flex flex-col items-start gap-1">
               <span className="px-1 text-[10px] font-bold uppercase tracking-wide text-muted-foreground">
-                Athos
+                VetGPT
               </span>
               {msg.warning && (
                 <div className="mb-1 flex w-full items-start gap-2 rounded-lg border border-warn-soft bg-warn-soft px-2.5 py-2 text-xs text-warn">
@@ -157,7 +157,7 @@ export function ConsultationThread({
           value={question}
           onChange={(e) => setQuestion(e.target.value)}
           placeholder={`Pregunta sobre ${patientName ?? "el caso"}…`}
-          aria-label="Pregunta para Athos"
+          aria-label="Pregunta para VetGPT"
           className="h-10 min-w-0 flex-1 rounded-lg border border-input bg-background px-3 text-sm outline-none placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/50"
         />
         <Button size="icon" type="submit" disabled={loading} aria-label="Enviar">

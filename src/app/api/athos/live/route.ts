@@ -38,7 +38,7 @@ type Cuerpo = {
 
 export async function POST(req: Request) {
   if (!ATHOS_URL) {
-    return NextResponse.json({ error: "El servicio de Athos no está configurado." }, { status: 503 })
+    return NextResponse.json({ error: "El servicio de VetGPT no está configurado." }, { status: 503 })
   }
 
   const supabase = await createClient()
@@ -51,7 +51,7 @@ export async function POST(req: Request) {
   if (!sesion.ok) return NextResponse.json({ error: sesion.mensaje }, { status: sesion.status })
   const { clinicId } = sesion
 
-  // El plan, antes que el tope: el Modo Fantasma en vivo es de Pro, igual que el resto de Athos.
+  // El plan, antes que el tope: el Modo Fantasma en vivo es de Pro, igual que el resto de VetGPT.
   const conPlan = requiereCapacidad(sesion.plan, "athos")
   if (!conPlan.ok) {
     return NextResponse.json({ error: conPlan.mensaje }, {
@@ -96,11 +96,11 @@ export async function POST(req: Request) {
       signal: AbortSignal.timeout(25_000),
     })
   } catch {
-    return NextResponse.json({ error: "El servicio de Athos no respondió." }, { status: 504 })
+    return NextResponse.json({ error: "El servicio de VetGPT no respondió." }, { status: 504 })
   }
 
   if (!res.ok) {
-    return NextResponse.json({ error: `Athos respondió ${res.status}` }, { status: res.status })
+    return NextResponse.json({ error: `VetGPT respondió ${res.status}` }, { status: res.status })
   }
 
   const salida = (await res.json()) as {

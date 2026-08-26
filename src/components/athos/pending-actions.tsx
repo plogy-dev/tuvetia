@@ -1,8 +1,8 @@
 "use client"
 
-// Propuestas de Athos que siguen esperando aprobación, mostradas SIEMPRE en el chat.
+// Propuestas de VetGPT que siguen esperando aprobación, mostradas SIEMPRE en el chat.
 //
-// POR QUÉ EXISTE. Las tarjetas que aparecen mientras Athos responde viven solo en ese streaming:
+// POR QUÉ EXISTE. Las tarjetas que aparecen mientras VetGPT responde viven solo en ese streaming:
 // `turnoAGuardar` (lib/athos-agent/conversacion.ts) persiste únicamente el TEXTO del turno, no las
 // tool parts. Al recargar el hilo quedaba la frase "aprobálo en la tarjeta" y ninguna tarjeta —
 // la propuesta seguía viva en `athos_actions`, pero era invisible. El vet no tenía forma de saber

@@ -14,7 +14,7 @@ import { FormularioDeFiltros } from "@/components/ui/formulario-de-filtros"
 // entrada, y las rutas anidadas se resuelven por prefijo más largo.
 const TITLES: Record<string, string> = {
   "/dashboard/tablero": "Dashboard",
-  "/dashboard/asistente": "Athos",
+  "/dashboard/asistente": "VetGPT",
   "/dashboard/consultas": "Modo Fantasma",
   "/dashboard/patients": "Pacientes",
   "/dashboard/owners": "Titulares",

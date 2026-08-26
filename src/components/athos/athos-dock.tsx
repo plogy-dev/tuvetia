@@ -1,9 +1,9 @@
 "use client"
 
-// El contenedor fijo donde vive la burbuja de Athos en todas las pantallas.
+// El contenedor fijo donde vive la burbuja de VetGPT en todas las pantallas.
 //
 // z-40, DEBAJO de los modales. El mapa del repo es: sidebar en z-10, Drawer/Sheet/Toaster en z-50.
-// Que un drawer modal tape a Athos es lo correcto — durante un flujo modal el vet no debería poder
+// Que un drawer modal tape a VetGPT es lo correcto — durante un flujo modal el vet no debería poder
 // tocarlo. Y por encima de z-10 para que el sidebar no lo tape a él.
 //
 // `pointer-events-none` en el contenedor y `pointer-events-auto` en el hijo: la zona vacía del dock
@@ -18,7 +18,7 @@
 // EL NOTCH DE LA CONSULTA YA NO VIVE ACÁ. Se mudó a `notch-de-consulta.tsx`, montado dentro del
 // `SidebarInset`: va arriba y al centro DEL CONTENIDO, y este contenedor está anclado abajo a la
 // derecha. Un hijo peleándole la posición al padre es lo que se rompe en el primer ancho que nadie
-// probó — y además son dos cosas distintas: acá Athos espera a que lo llamen, allá hay una consulta
+// probó — y además son dos cosas distintas: acá VetGPT espera a que lo llamen, allá hay una consulta
 // pasando.
 
 import { useEffect } from "react"
@@ -44,14 +44,14 @@ export function AthosDock() {
     })
   }, [])
 
-  // La burbuja no se ve en `/dashboard/asistente`: ahí la pantalla ES Athos, y una burbuja encima
-  // sería un segundo Athos con otro hilo.
+  // La burbuja no se ve en `/dashboard/asistente`: ahí la pantalla ES VetGPT, y una burbuja encima
+  // sería un segundo VetGPT con otro hilo.
   if (pathname.startsWith("/dashboard/asistente")) return null
 
   return (
     <div
       role="region"
-      aria-label="Athos"
+      aria-label="VetGPT"
       // En móvil sube por encima del tab bar (`tab-bar-movil.tsx`): sin este despeje la burbuja
       // quedaba DEBAJO de la barra, o sea invisible y sin poder tocarse. El `5rem` cubre la altura
       // de la barra (48px de ítem + padding) más el área segura del sistema.

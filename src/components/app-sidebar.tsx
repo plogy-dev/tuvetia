@@ -37,7 +37,7 @@ import {
 // La navegación partida en dos, como pidió el cliente para la v2: "en el consultorio tiene el athos
 // y el phantom, es decir todo lo necesario para la consulta y en el CRM tiene lo demás".
 //
-// Antes era una sola lista plana de nueve ítems con Athos a la cabeza y sin rótulos. El corte
+// Antes era una sola lista plana de nueve ítems con VetGPT a la cabeza y sin rótulos. El corte
 // separa dos modos de trabajo distintos: lo que se usa CON UN PACIENTE DELANTE y lo que se usa
 // entre consultas.
 //
@@ -57,7 +57,7 @@ import {
 // la misma cosa.
 const data = {
   consultorio: [
-    { title: "Athos", url: "/dashboard/asistente", icon: <BotIcon /> },
+    { title: "VetGPT", url: "/dashboard/asistente", icon: <BotIcon /> },
     { title: "Modo Fantasma", url: "/dashboard/consultas", icon: <GhostIcon /> },
   ],
   // EL ORDEN LO DICTÓ LUCIANO EL 19-AGO, y es el de la JORNADA: «como en el orden en el que tú
@@ -163,7 +163,7 @@ export function AppSidebar({
     // que se portalea a <body>, o sea fuera del `.app-theme` que `dashboard/layout.tsx` pone en el
     // `SidebarProvider`. Sin esto `--accent` caía al `:root` y los tres puntos de marca de esta barra
     // —el glifo, el badge `bg-brand` de propuestas y la pestaña activa `border-brand` del panel de
-    // Athos— salían en el brasa de la landing en vez del azul de la app. En escritorio es una
+    // VetGPT— salían en el brasa de la landing en vez del azul de la app. En escritorio es una
     // redeclaración de los mismos valores, inofensiva.
     <Sidebar collapsible="icon" className={cn("app-theme-tokens", className)} {...props}>
       <SidebarHeader>
@@ -197,7 +197,7 @@ export function AppSidebar({
           </SidebarMenuItem>
         </SidebarMenu>
         {/* EL HISTORIAL, ABAJO DEL CONTENIDO. Lo pidió David el 19-ago —"las consultas y los chats,
-            abajo y plegables"—. Sigue apareciendo SÓLO dentro de Athos y del Modo Fantasma, así que
+            abajo y plegables"—. Sigue apareciendo SÓLO dentro de VetGPT y del Modo Fantasma, así que
             en el resto de la app este lugar queda vacío y la barra se ve igual que siempre. */}
         <AthosSidebarSection />
       </SidebarContent>

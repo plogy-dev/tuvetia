@@ -5,7 +5,7 @@
 //
 //   · "Qué mirar" y "Casos parecidos"  →  `text-sm font-semibold`, o sea 14px, el mismo tamaño que
 //     el texto del bloque que encabezan.
-//   · "Athos en vivo" (bloques) y "Mi cuaderno"  →  versalita de 11px.
+//   · "VetGPT en vivo" (bloques) y "Mi cuaderno"  →  versalita de 11px.
 //
 // Un rótulo del mismo tamaño que su contenido no es un rótulo: es otra línea de texto. Eso es lo
 // que `docs/entrega/4-EL-REPO-DE-LUCIANO.md` llamó "escala mucho más plana" que la del prototipo —

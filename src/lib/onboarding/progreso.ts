@@ -3,7 +3,7 @@
 // POR QUÉ ESTO Y NO EL CHECKLIST QUE YA HABÍA. `dashboard/onboarding-checklist.tsx` medía tres
 // cosas —primer paciente, una grabación, una nota aprobada— y las tres son de USO, no de
 // CONFIGURACIÓN. Una clínica podía tenerlas las tres y seguir sin horarios de atención, sin
-// servicios en el catálogo y sin WhatsApp: o sea, con Athos incapaz de proponer una cita, de
+// servicios en el catálogo y sin WhatsApp: o sea, con VetGPT incapaz de proponer una cita, de
 // cobrar nada y de avisarle a nadie. El checklist decía "listo" sobre una plataforma vacía.
 //
 // El cliente lo pidió así: "un flujo para que los veterinarios puedan ir llenando la plataforma
@@ -30,7 +30,7 @@ export type Paso = {
 /**
  * Los hechos crudos de la clínica. Todos booleanos y todos de NIVEL CLÍNICA.
  *
- * Lo que NO está acá, y es deliberado: el correo de Athos. Desde que el correo pasó a Composio
+ * Lo que NO está acá, y es deliberado: el correo de VetGPT. Desde que el correo pasó a Composio
  * (`lib/composio/correo.ts`) la conexión es POR PERSONA, no por clínica —`email_integrations` es
  * una tabla retirada, era la cuenta SMTP institucional—. Meterlo haría que el porcentaje de la
  * clínica cambiara según QUIÉN mira, que es lo contrario de un riel de configuración. Comunicaciones
@@ -72,7 +72,7 @@ const DEFINICIONES: ReadonlyArray<Omit<Paso, "hecho">> = [
   {
     id: "horarios",
     titulo: "Horarios de atención",
-    porQue: "Sin ellos Athos no puede ofrecer un espacio libre ni agendar nada.",
+    porQue: "Sin ellos VetGPT no puede ofrecer un espacio libre ni agendar nada.",
     href: "/dashboard/administracion/clinica?tab=agenda",
   },
   {

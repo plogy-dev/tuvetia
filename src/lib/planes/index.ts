@@ -12,8 +12,8 @@
 //
 // ── EL CORTE ES POR GASTO, NO POR PANTALLA ─────────────────────────────────────────────────────
 //
-// La forma corta de decirlo es "gratis todo menos Athos y el Modo Fantasma", y para el vet eso es
-// exactamente lo que se ve. Pero Athos no vive sólo en su pantalla: hay IA corriendo DENTRO de
+// La forma corta de decirlo es "gratis todo menos VetGPT y el Modo Fantasma", y para el vet eso es
+// exactamente lo que se ve. Pero VetGPT no vive sólo en su pantalla: hay IA corriendo DENTRO de
 // secciones que son gratis —la sugerencia de respuesta de la bandeja, el modo automático de
 // WhatsApp, la clasificación de cartera, la lectura de recetas por foto, el briefing— y todas
 // gastan del mismo bolsillo.
@@ -30,16 +30,16 @@ export type Plan = "free" | "pro"
  * Cada superficie que llama a un modelo de IA. Si mañana nace una, va acá —y sólo acá.
  *
  * La regla para saber si algo pertenece a esta lista: **¿gasta plata cada vez que se usa?** No es
- * "¿es una función avanzada?" ni "¿está en la pantalla de Athos?".
+ * "¿es una función avanzada?" ni "¿está en la pantalla de VetGPT?".
  */
 export type Capacidad =
   /** El chat clínico con literatura citada, y el widget flotante. */
   | "athos"
   /** Grabar la consulta, transcribirla y redactar la nota. El más caro de todos. */
   | "modo-fantasma"
-  /** "Athos sugiere la respuesta" en la bandeja de WhatsApp. */
+  /** "VetGPT sugiere la respuesta" en la bandeja de WhatsApp. */
   | "sugerencia-whatsapp"
-  /** El modo automático: Athos contesta solo las preguntas operativas. */
+  /** El modo automático: VetGPT contesta solo las preguntas operativas. */
   | "whatsapp-automatico"
   /** Cartera leyendo las respuestas del cliente y clasificando la intención. */
   | "cartera-ia"
@@ -90,9 +90,9 @@ export function tieneAcceso(plan: Plan, capacidad: Capacidad): boolean {
  * capacidad, porque "tu plan no incluye esto" sin decir qué es no le sirve a nadie.
  */
 export const MENSAJE_REQUIERE_PRO: Record<Capacidad, string> = {
-  athos: "Athos es parte del plan Pro.",
+  athos: "VetGPT es parte del plan Pro.",
   "modo-fantasma": "El Modo Fantasma es parte del plan Pro.",
-  "sugerencia-whatsapp": "Las respuestas sugeridas por Athos son parte del plan Pro.",
+  "sugerencia-whatsapp": "Las respuestas sugeridas por VetGPT son parte del plan Pro.",
   "whatsapp-automatico": "El modo automático de WhatsApp es parte del plan Pro.",
   "cartera-ia": "La lectura automática de respuestas de cartera es parte del plan Pro.",
   "receta-por-foto": "Cargar recetas por foto es parte del plan Pro.",
@@ -124,9 +124,9 @@ export const INCLUYE_FREE: Bullet[] = [
 
 /** Lo que agrega Pro. El orden es el de valor percibido, no el del código. */
 export const INCLUYE_PRO: Bullet[] = [
-  { texto: "Athos, el copiloto clínico con literatura citada", icono: "Bot" },
+  { texto: "VetGPT, el copiloto clínico con literatura citada", icono: "Bot" },
   { texto: "Modo Fantasma: la consulta se transcribe y se vuelve nota", icono: "Ghost" },
-  { texto: "Athos te sugiere la respuesta en WhatsApp", icono: "Sparkles" },
+  { texto: "VetGPT te sugiere la respuesta en WhatsApp", icono: "Sparkles" },
   { texto: "WhatsApp responde solo las preguntas operativas", icono: "MessagesSquare" },
   { texto: "Cartera lee y clasifica las respuestas de tus clientes", icono: "Wallet" },
   { texto: "Cargá recetas con una foto", icono: "Camera" },

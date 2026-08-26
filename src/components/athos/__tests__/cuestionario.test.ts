@@ -44,7 +44,7 @@ import { fraseDeEspera } from "@/components/athos/pensando"
 
 describe("fraseDeEspera — la frase evoluciona con la espera", () => {
   it("arranca pensando y termina agradeciendo la paciencia", () => {
-    expect(fraseDeEspera(0)).toBe("Athos está pensando…")
+    expect(fraseDeEspera(0)).toBe("VetGPT está pensando…")
     expect(fraseDeEspera(10)).toBe("Armando la respuesta…")
     expect(fraseDeEspera(25)).toContain("respuesta completa")
     expect(fraseDeEspera(60)).toContain("paciencia")

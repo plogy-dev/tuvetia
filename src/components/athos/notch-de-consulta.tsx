@@ -5,7 +5,7 @@
 // POR QUÉ NO VIVE EN EL DOCK. El dock es un `fixed` anclado abajo a la derecha con
 // `flex-col items-end`, y el notch va arriba y al centro: un hijo que le pelea la posición a su
 // padre es el tipo de cosa que se rompe en el primer ancho que nadie probó. Además son dos cosas
-// distintas — el dock es donde Athos ESPERA a que lo llamen; esto es una consulta EN CURSO, que es
+// distintas — el dock es donde VetGPT ESPERA a que lo llamen; esto es una consulta EN CURSO, que es
 // estado del sistema.
 //
 // ── DÓNDE SE MONTA, Y POR QUÉ IMPORTA ───────────────────────────────────────────────────────────

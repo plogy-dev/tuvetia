@@ -1,11 +1,11 @@
 "use client"
 
-// El notch: "Athos · Canela · 12:43", arriba y al centro, visible en TODA la app.
+// El notch: "VetGPT · Canela · 12:43", arriba y al centro, visible en TODA la app.
 //
 // LA FORMA VIENE DEL PROTOTIPO DEL CLIENTE, que es lo que se acordó el 17-ago. Cuatro cosas cambian
 // respecto de lo que teníamos, y ninguna es cosmética:
 //
-//   1. **Arriba y al centro, no abajo a la derecha.** Abajo competía con el widget de Athos y con la
+//   1. **Arriba y al centro, no abajo a la derecha.** Abajo competía con el widget de VetGPT y con la
 //      barra de pestañas del móvil, y quedaba en la esquina donde uno no mira. Arriba al centro es
 //      donde el sistema pone lo que está en curso, y es donde el vet ya lo busca.
 //
@@ -203,7 +203,7 @@ export function GrabacionPastilla({
         className="hidden size-[13.5px] shrink-0 text-fg-faint sm:block"
         aria-hidden
       />
-      <span className="shrink-0 text-[13px] font-semibold tracking-[0.01em]">Athos</span>
+      <span className="shrink-0 text-[13px] font-semibold tracking-[0.01em]">VetGPT</span>
 
       {estado.pacienteNombre && (
         <>

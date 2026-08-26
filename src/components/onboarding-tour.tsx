@@ -98,7 +98,7 @@ export function OnboardingTour({ onboarded }: { onboarded: boolean }) {
           popover: {
             title: "Modo Fantasma",
             description:
-              "Grabás la consulta (con consentimiento del titular) y Athos redacta la nota SOAP con literatura veterinaria citada. Vos revisás y aprobás.",
+              "Grabás la consulta (con consentimiento del titular) y VetGPT redacta la nota SOAP con literatura veterinaria citada. Vos revisás y aprobás.",
           },
         },
         {
@@ -106,7 +106,7 @@ export function OnboardingTour({ onboarded }: { onboarded: boolean }) {
           popover: {
             title: "Copiloto",
             description:
-              "Preguntale a Athos lo que quieras: responde con literatura citada y verificable, nunca inventa fuentes.",
+              "Preguntale a VetGPT lo que quieras: responde con literatura citada y verificable, nunca inventa fuentes.",
           },
         },
         {

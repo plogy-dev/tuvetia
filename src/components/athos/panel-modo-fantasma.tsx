@@ -10,7 +10,7 @@
 // Ahora son 540px colgando del notch. Cabe al lado de la agenda, de una ficha o de una factura, y el
 // velo sólo atenúa: se sigue viendo qué hay debajo.
 //
-// EN PESTAÑAS Y NO EN TRES COLUMNAS. A lo ancho de la pantalla entraban transcripción, Athos y
+// EN PESTAÑAS Y NO EN TRES COLUMNAS. A lo ancho de la pantalla entraban transcripción, VetGPT y
 // cuaderno a la vez; en 540px no. Y mirándolo de cerca tampoco hacía falta: son tres cosas que se
 // consultan de a una, y la que importa queda primero.
 //
@@ -36,17 +36,17 @@ import type { InteligenciaViva } from "@/lib/consulta-viva/usar-inteligencia-viv
 /**
  * Las cinco pestañas del prototipo, en su orden.
  *
- * Eran tres —Athos, Mis notas, Transcripción— y el cliente pidió las suyas: "sugerencias, casos
+ * Eran tres —VetGPT, Mis notas, Transcripción— y el cliente pidió las suyas: "sugerencias, casos
  * parecidos, etc., eso también debe estar". No es una lista más larga por gusto; separa cosas que
  * estaban amontonadas:
  *
  *   · TRANSCRIPCIÓN — lo que se está diciendo, crudo.
- *   · NOTAS EN VIVO — lo que Athos va ordenando de eso.
+ *   · NOTAS EN VIVO — lo que VetGPT va ordenando de eso.
  *   · CASOS PARECIDOS — la memoria de la propia clínica: "esto ya lo viste en marzo".
  *   · SUGERENCIAS   — qué preguntar y qué no dejar pasar, con literatura detrás.
  *   · MIS NOTAS     — la hoja en blanco del vet.
  *
- * Antes "Athos" mezclaba live notes y sugerencias en una sola pestaña, que son dos cosas con
+ * Antes "VetGPT" mezclaba live notes y sugerencias en una sola pestaña, que son dos cosas con
  * cadencias, costos y grados de certeza distintos.
  */
 const PESTANAS = [

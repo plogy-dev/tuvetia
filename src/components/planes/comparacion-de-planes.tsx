@@ -118,7 +118,7 @@ export function ComparacionDePlanes({
           Con inteligencia artificial
         </h2>
         <p className="mt-2 text-[13px] leading-relaxed text-fg-muted">
-          Athos y el Modo Fantasma, más todo lo que trabaja solo por vos.
+          VetGPT y el Modo Fantasma, más todo lo que trabaja solo por vos.
         </p>
         <p className="mt-5 flex items-baseline gap-1">
           <span className="font-display text-4xl font-medium tracking-[-0.02em] text-fg">

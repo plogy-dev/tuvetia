@@ -8,7 +8,7 @@
 //
 // EL FLUJO, y el orden importa:
 //
-//   1. Se abre → Athos redacta un borrador a partir de la nota APROBADA.
+//   1. Se abre → VetGPT redacta un borrador a partir de la nota APROBADA.
 //   2. **El vet lo lee y lo edita.** Todas las secciones son campos de texto, no un preview.
 //   3. Elige cómo entregarlo: PDF (se abre la vista de impresión) o copiar al portapapeles.
 //
@@ -173,7 +173,7 @@ export function InformeAlTitular({
           <DialogTitle>Informe para el titular</DialogTitle>
           <DialogDescription>
             La consulta de {paciente} contada en el idioma de {titular ?? "quien se lo lleva"}.
-            Revisalo y editá lo que haga falta: lo que se entrega es esto, no lo que redactó Athos.
+            Revisalo y editá lo que haga falta: lo que se entrega es esto, no lo que redactó VetGPT.
           </DialogDescription>
         </DialogHeader>
 
@@ -181,7 +181,7 @@ export function InformeAlTitular({
           {!informe && !error && (
             <p className="flex items-center gap-2 py-8 text-sm text-fg-muted">
               <Sparkles className="size-4 animate-pulse" aria-hidden />
-              Athos está redactando el informe a partir de la nota aprobada…
+              VetGPT está redactando el informe a partir de la nota aprobada…
             </p>
           )}
 

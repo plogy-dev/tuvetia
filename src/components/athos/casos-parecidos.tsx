@@ -4,7 +4,7 @@
 //
 // ES LA MEMORIA DEL CONSULTORIO, no literatura. La pestaña de sugerencias trae papers; ésta trae
 // "esto ya lo viste en marzo, con Nala". Para un veterinario que lleva años en la misma clínica, su
-// propio historial suele valer más que un estudio — y hasta ahora era la única fuente que Athos no
+// propio historial suele valer más que un estudio — y hasta ahora era la única fuente que VetGPT no
 // miraba durante la consulta.
 //
 // NO GASTA CUPO DE IA: la búsqueda es determinística (ver `api/athos/casos-parecidos`). Por eso se
@@ -157,7 +157,7 @@ export function CasosParecidos({
               ? "Buscando en las consultas de la clínica…"
               : transcripcion.trim()
                 ? "Todavía no encontré una consulta parecida en la clínica. Seguí hablando del cuadro y volvé a buscar."
-                : "Cuando Athos escuche lo suficiente, acá aparecen consultas anteriores parecidas a ésta."}
+                : "Cuando VetGPT escuche lo suficiente, acá aparecen consultas anteriores parecidas a ésta."}
         </p>
       )}
     </div>

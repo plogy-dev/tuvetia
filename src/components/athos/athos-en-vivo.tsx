@@ -1,6 +1,6 @@
 "use client"
 
-// Lo que Athos aporta MIENTRAS la consulta pasa: notas de lo que se dijo y qué mirar.
+// Lo que VetGPT aporta MIENTRAS la consulta pasa: notas de lo que se dijo y qué mirar.
 //
 // El pedido, del 17-ago: "que me dé notas, me dé sugerencias de qué decir, me busque la literatura
 // en tiempo real". Notas cada ~15 s, sugerencias cada ~45 s — y sólo cuando hay material nuevo, que
@@ -96,14 +96,14 @@ export function AthosEnVivo({
         {vivo.llamadas > 0 && (
           <span
             className="ml-auto font-mono text-[11px] tabular-nums text-fg-faint"
-            title={`Athos miró la consulta ${vivo.llamadas} veces. El máximo por consulta es ${vivo.techo}.`}
+            title={`VetGPT miró la consulta ${vivo.llamadas} veces. El máximo por consulta es ${vivo.techo}.`}
           >
             {vivo.llamadas}/{vivo.techo}
           </span>
         )}
         </>}
       >
-        {soloSugerencias ? "Qué mirar" : soloNotas ? "Lo que se dijo" : "Athos en vivo"}
+        {soloSugerencias ? "Qué mirar" : soloNotas ? "Lo que se dijo" : "VetGPT en vivo"}
       </RotuloDeSeccion>
 
       {/* LAS ALERGIAS SEVERAS, ARRIBA DE TODO. Es la regla 3 del producto: el gate va ANTES de
@@ -129,7 +129,7 @@ export function AthosEnVivo({
         <p className="text-[13px] leading-snug text-fg-muted">
           {vivo.pensando
             ? "Escuchando la consulta…"
-            : "Cuando haya material suficiente, Athos deja acá lo que se dijo y qué conviene revisar."}
+            : "Cuando haya material suficiente, VetGPT deja acá lo que se dijo y qué conviene revisar."}
         </p>
       )}
 

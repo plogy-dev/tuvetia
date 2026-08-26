@@ -69,7 +69,7 @@ export function Cuaderno({
         className="resize-y text-sm leading-relaxed"
       />
       <p className="text-[11px] text-fg-muted">
-        Es material de trabajo, no la nota clínica: se guarda con la consulta y Athos lo tiene en
+        Es material de trabajo, no la nota clínica: se guarda con la consulta y VetGPT lo tiene en
         cuenta al redactar el SOAP, que igual revisas y apruebas.
       </p>
     </div>

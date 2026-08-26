@@ -87,15 +87,15 @@ export function DiaDeHoy({ citas, huecos }: { citas: CitaDeHoy[]; huecos: Hueco[
             <span className="min-w-0 flex-1 truncate text-fg-muted">
               {f.hueco.minutos} minutos libres
             </span>
-            {/* Deja la petición ESCRITA en el compositor de Athos, no la envía: el vet ve qué se va
-                a pedir antes de que salga. Misma regla que "Resolverlo con Athos" del riel. */}
+            {/* Deja la petición ESCRITA en el compositor de VetGPT, no la envía: el vet ve qué se va
+                a pedir antes de que salga. Misma regla que "Resolverlo con VetGPT" del riel. */}
             <Button
               size="sm"
               variant="ghost"
               className="h-8 shrink-0 px-2 text-xs"
               render={<Link href={`/dashboard/asistente?pedir=hueco&desde=${f.hueco.desde}&minutos=${f.hueco.minutos}`} />}
             >
-              Ofrecerlo con Athos
+              Ofrecerlo con VetGPT
             </Button>
           </Fila>
         ),

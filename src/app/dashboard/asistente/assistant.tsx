@@ -10,6 +10,8 @@ import {
   type UIMessage,
 } from "ai"
 import { Loader2, Mic, Paperclip, Send, Sparkles, X } from "lucide-react"
+
+import { BrandGlyph } from "@/components/brand-glyph"
 import { toast } from "sonner"
 
 import { athosIndexarDocumento } from "@/lib/athos"
@@ -46,7 +48,7 @@ export type AssistantPatient = { id: string; name: string; species: string; owne
 
 const GENERAL = "__general__" // valor del selector para "Consulta general (sin paciente)"
 
-// Transport único hacia el agente Athos (/api/athos/agent, Vercel AI SDK). El patientId NO va
+// Transport único hacia el agente VetGPT (/api/athos/agent, Vercel AI SDK). El patientId NO va
 // aquí: cambia con el selector, así que viaja en el body de cada sendMessage.
 const transport = new DefaultChatTransport({ api: "/api/athos/agent" })
 
@@ -132,7 +134,7 @@ function extraerOpciones(
     // Sin cierre de fence: DURANTE el streaming el bloque todavía está llegando y se oculta la
     // cola para que el vet no vea JSON crudo escribiéndose. Pero en un mensaje TERMINADO, un
     // bloque sin cierre es un bloque malformado — y ocultarlo dejaba la respuesta EN BLANCO si el
-    // modelo lo abría temprano (reportado 25-ago: "Athos se quedó en blanco"). Feo gana a
+    // modelo lo abría temprano (reportado 25-ago: "VetGPT se quedó en blanco"). Feo gana a
     // invisible: terminado y malformado, se muestra tal cual.
     if (streaming) return { limpio: texto.replace(/```opciones[\s\S]*$/, "").trimEnd(), preguntas: [] }
     return { limpio: texto, preguntas: [] }
@@ -207,7 +209,7 @@ function TextBlocks({
           <div key={j}>{renderInline(blk.text, [], `${kp}p${j}`)}</div>
         ),
       )}
-      {/* El cuestionario se pinta SOLO cuando hay quien lo reciba (el último turno, con Athos
+      {/* El cuestionario se pinta SOLO cuando hay quien lo reciba (el último turno, con VetGPT
           quieto): en turnos viejos el bloque se recorta del texto pero no se ofrece — responder
           una pregunta de hace tres turnos ya no tiene destinatario. */}
       {preguntas.length > 0 && onOpcion && (
@@ -308,14 +310,19 @@ function AssistantMessage({
 
           El menta va en RELLENO SUAVE y no sólido: el menta pleno es el color de acción del sistema
           —lo usan los botones primarios— y gastarlo en un avatar que aparece en cada turno lo
-          devalúa. */}
+          devalúa.
+
+          EL GLIFO DE LA MARCA, NO LA CHISPA. David, 25-ago: «en vez de una estrella debe ser el
+          logo de tuvetia». La burbuja flotante ya lo tenía; éste era el que faltaba — el avatar
+          que se ve en CADA respuesta. `currentColor` para heredar el text-brand-text del
+          contenedor, igual que en la burbuja. */}
       <div className="mt-0.5 grid size-[26px] shrink-0 place-items-center rounded-[8px] bg-brand-soft text-brand-text">
-        <Sparkles className="size-3.5" aria-hidden />
+        <BrandGlyph className="size-3.5" fill="currentColor" />
       </div>
       <div className="flex min-w-0 max-w-[70ch] flex-1 flex-col gap-1.5">
         {/* La línea de autoría que el mockup pone SOBRE la burbuja. Sin ella, con dos o tres turnos
             seguidos el hilo se vuelve un muro sin puntos de referencia. */}
-        <span className="text-xs font-medium text-fg-muted">Athos</span>
+        <span className="text-xs font-medium text-fg-muted">VetGPT</span>
         {message.parts.map((part, i) => {
           if (part.type === "text") {
             return part.text ? (
@@ -438,7 +445,7 @@ export function Assistant({
     id: `athos-${patientId}`,
     messages: threads[patientId] ?? [],
     transport,
-    onError: (e) => toast.error(`No se pudo consultar a Athos: ${e.message}`),
+    onError: (e) => toast.error(`No se pudo consultar a VetGPT: ${e.message}`),
   })
 
   const busy = status === "submitted" || status === "streaming"
@@ -457,7 +464,7 @@ export function Assistant({
 
   // QUÉ PACIENTE RESOLVIÓ ATHOS POR SU CUENTA. Sale de sus propias llamadas a herramientas
   // (`search_patients`, `get_patient_summary`), que ya viajan en los `parts` de cada mensaje: no
-  // cuesta ni un canal nuevo ni una query. Es el punto que abrió la reunión del 17-ago — Athos
+  // cuesta ni un canal nuevo ni una query. Es el punto que abrió la reunión del 17-ago — VetGPT
   // detectaba el contexto desde hacía rato y el veterinario no tenía forma de verlo.
   const detectado = useMemo(() => pacienteDetectado(messages), [messages])
 
@@ -551,7 +558,7 @@ export function Assistant({
     <div className="rounded-2xl border border-line bg-surface text-left shadow-popover transition focus-within:border-brand focus-within:ring-[3px] focus-within:ring-brand-soft">
       <Textarea
         id="pedir-a-athos"
-        aria-label="Pedirle algo a Athos"
+        aria-label="Pedirle algo a VetGPT"
         value={input}
         onChange={(e) => setInput(e.target.value)}
         onKeyDown={(e) => {
@@ -566,8 +573,8 @@ export function Assistant({
         rows={vacio ? 2 : 1}
         placeholder={
           vacio
-            ? "Pregúntale a Athos… (p. ej. «resúmeme el historial de Luna antes de su cita»)"
-            : "Responder a Athos…"
+            ? "Pregúntale a VetGPT… (p. ej. «resúmeme el historial de Luna antes de su cita»)"
+            : "Responder a VetGPT…"
         }
         className="max-h-48 w-full resize-none border-0 bg-transparent px-4 pb-1 pt-3.5 text-[13.5px] shadow-none focus-visible:ring-0 dark:bg-transparent"
       />
@@ -659,7 +666,7 @@ export function Assistant({
     // Llena el ancho en vez de ser una columna de 3xl centrada: al lado va el riel de la clínica, y
     // dos bloques centrados con aire a los costados leerían como dos páginas pegadas.
     <div className="flex h-[calc(100svh-var(--header-height))] min-w-0 flex-1 flex-col gap-4 p-4 md:p-6">
-      {/* Encabezado: SALUDO CON DATOS, que es lo que el mockup pone acá. No dice "Athos" —
+      {/* Encabezado: SALUDO CON DATOS, que es lo que el mockup pone acá. No dice "VetGPT" —
           el sidebar ya lo dice, y repetir el nombre de la sección gasta la línea más visible de la
           pantalla en información que el vet ya tiene. */}
       {/* CON EL CHAT VACÍO EL SALUDO NO VA ACÁ, va en el hero del medio: dos encabezados apilados
@@ -671,15 +678,15 @@ export function Assistant({
           {!vacio && (
             <>
               <h1 className="font-display text-[28px] font-medium leading-[1.2] tracking-[-0.01em] text-fg">
-                {saludo ?? "Athos"}
+                {saludo ?? "VetGPT"}
               </h1>
               <p className="mt-0.5 text-sm text-fg-muted">
-                {contexto ?? "Athos propone — tú apruebas. Tu criterio decide."}
+                {contexto ?? "VetGPT propone — tú apruebas. Tu criterio decide."}
               </p>
             </>
           )}
         </div>
-        {/* El contexto: lo elegido Y lo que Athos detectó solo. Ver `selector-de-contexto.tsx`. */}
+        {/* El contexto: lo elegido Y lo que VetGPT detectó solo. Ver `selector-de-contexto.tsx`. */}
         <SelectorDeContexto
           pacientes={patients}
           patientId={isGeneral ? null : patientId}
@@ -738,13 +745,13 @@ export function Assistant({
             es capaz — o sea un cartel en el centro de la pantalla, que es justo lo que David pidió
             sacar: «prefiero dejarlo solo en blanco o poner solo el loguito».
             El hero del prototipo lo resuelve mejor que dejarlo en blanco: en vez de explicar lo que
-            Athos puede hacer, lo INVITA a pedirlo — el campo está en el centro, con cuatro atajos
+            VetGPT puede hacer, lo INVITA a pedirlo — el campo está en el centro, con cuatro atajos
             debajo, y se aprende usándolo. */}
         {vacio && (
           <div className="m-auto flex w-full max-w-[640px] flex-col items-center text-center">
             <span className="inline-flex items-center gap-1.5 rounded-full border border-brand/25 bg-brand-soft px-[11px] py-1 text-[11.5px] font-semibold tracking-[0.04em] text-brand-text">
               <Sparkles className="size-[13px]" aria-hidden />
-              Athos · copiloto clínico
+              VetGPT · copiloto clínico
             </span>
             <h1 className="mt-4 font-display text-[30px] font-semibold leading-[1.12] tracking-[-0.025em] text-fg">
               {saludo ? `${saludo}, ¿en qué trabajamos?` : "¿En qué trabajamos hoy?"}
@@ -761,7 +768,7 @@ export function Assistant({
           msg.role === "user" ? (
             <div key={msg.id} className="flex justify-end">
               {/* La única burbuja del hilo: rellena y sin borde, que es lo que la separa del fondo
-                  ahora que la respuesta de Athos no tiene caja.
+                  ahora que la respuesta de VetGPT no tiene caja.
                   LA ESQUINA DE ABAJO-DERECHA VA RECTA (4px contra 14px). Es el detalle del prototipo
                   que hace que la burbuja APUNTE a quien la escribió, sin necesidad de un avatar del
                   lado del vet — que es lo que deja el hilo con un solo avatar y sin simetría falsa. */}
@@ -795,7 +802,7 @@ export function Assistant({
               aria-hidden
               className="grid size-[26px] shrink-0 place-items-center rounded-[8px] bg-brand-soft text-brand-text"
             >
-              <Sparkles className="size-3.5" />
+              <BrandGlyph className="size-3.5" fill="currentColor" />
             </span>
             <Pensando />
           </div>
@@ -868,17 +875,17 @@ export function Assistant({
             que sirve: cuando el vet está por mandar algo y conviene que sepa qué va a pasar antes
             de apretar Enter, en vez de descubrirlo con una ventana en la cara.
 
-            Ocupa el lugar de la nota de "Athos propone — tú apruebas" en vez de sumarse: dos líneas
+            Ocupa el lugar de la nota de "VetGPT propone — tú apruebas" en vez de sumarse: dos líneas
             de letra chica bajo el compositor no las lee nadie, y con el plan en free la que importa
             es ésta. */}
         {!puedeUsarAthos && input.trim() ? (
           <p className="mt-2 flex items-center gap-1.5 text-[11px] text-brand-text">
             <Sparkles className="size-3 shrink-0" aria-hidden />
-            Athos es parte del plan Pro. Al enviar te vamos a mostrar cómo activarlo.
+            VetGPT es parte del plan Pro. Al enviar te vamos a mostrar cómo activarlo.
           </p>
         ) : (
           <p className="mt-2 text-[11px] text-fg-faint">
-            Athos propone — tú apruebas. Ninguna acción se ejecuta sin tu confirmación.
+            VetGPT propone — tú apruebas. Ninguna acción se ejecuta sin tu confirmación.
           </p>
         )}
        </div>
