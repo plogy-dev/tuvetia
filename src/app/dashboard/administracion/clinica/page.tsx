@@ -194,11 +194,7 @@ export default async function ConfiguracionDeLaClinicaPage({
             <div className="mb-3 flex items-center gap-2 text-sm font-semibold">
               <Clock className="size-4 text-muted-foreground" /> Horarios de atención
               <HelpTip>
-<<<<<<< HEAD
                 VetGPT usa estos horarios para proponer citas con cupos reales y para responder
-=======
-                VetGPT usa estos horarios para proponer citas con cupos reales y para responder
->>>>>>> origin/master
                 &quot;¿a qué hora abren?&quot; por WhatsApp. Sin horarios, no propone ni responde
                 eso. Si tu horario no es el de la clínica, cargá el tuyo en <b>El mío</b>: reemplaza
                 al de la clínica sólo en los días que definas, y sólo para vos.
@@ -244,11 +240,7 @@ export default async function ConfiguracionDeLaClinicaPage({
               <Plug className="size-4 text-muted-foreground" /> Integraciones
             </div>
             <p className="mb-3 text-sm text-muted-foreground">
-<<<<<<< HEAD
               WhatsApp {waConnected ? "conectado" : "sin conectar"} · Correo de VetGPT{" "}
-=======
-              WhatsApp {waConnected ? "conectado" : "sin conectar"} · Correo de VetGPT{" "}
->>>>>>> origin/master
               {correoAthos.conectado ? "conectado" : "sin conectar"}.
             </p>
             <Button variant="outline" render={<Link href="/dashboard/conexiones" />}>
