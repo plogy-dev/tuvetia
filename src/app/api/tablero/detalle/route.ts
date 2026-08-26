@@ -220,7 +220,9 @@ export async function GET(req: Request) {
       .from("invoices")
       .select("id, number, total_cents, issued_at, payer:billing_payers(name)")
       .eq("status", "EMITIDA")
-      .gte("issued_at", inicioDeMes.toISOString().slice(0, 10))
+      // ISO COMPLETO, como las demás métricas: `issued_at` es timestamp, y recortar a `YYYY-MM-01`
+      // se compara como medianoche UTC — 5 horas de Bogotá que la pastilla excluye y esto contaba.
+      .gte("issued_at", inicioDeMes.toISOString())
       .order("issued_at", { ascending: false })
       .limit(TOPE)
     error = e?.message ?? null
