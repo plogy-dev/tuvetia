@@ -17,22 +17,31 @@ const PREGUNTAS = [
 describe("componerRespuestas", () => {
   it("una línea 'Pregunta: respuesta' por pregunta, en orden", () => {
     const texto = componerRespuestas(PREGUNTAS, {
-      0: { opcion: "Aguda (menos de 48 h)", libre: "" },
-      1: { opcion: null, libre: "come solo si le doy en la mano" },
+      0: { opciones: ["Aguda (menos de 48 h)"], libre: "" },
+      1: { opciones: [], libre: "come solo si le doy en la mano" },
     })
     expect(texto).toBe(
       "¿Cómo empezó la cojera?: Aguda (menos de 48 h)\n¿Cómo está el apetito?: come solo si le doy en la mano",
     )
   })
 
+  it("VARIAS opciones por pregunta viajan separadas por coma, y el libre se SUMA al final", () => {
+    const texto = componerRespuestas([PREGUNTAS[0]], {
+      0: { opciones: ["Aguda (menos de 48 h)", "Progresiva"], libre: "empeora de noche" },
+    })
+    expect(texto).toBe(
+      "¿Cómo empezó la cojera?: Aguda (menos de 48 h), Progresiva, empeora de noche",
+    )
+  })
+
   it("el texto libre viaja recortado de espacios", () => {
-    const texto = componerRespuestas([PREGUNTAS[0]], { 0: { opcion: null, libre: "  ayer  " } })
+    const texto = componerRespuestas([PREGUNTAS[0]], { 0: { opciones: [], libre: "  ayer  " } })
     expect(texto).toBe("¿Cómo empezó la cojera?: ayer")
   })
 
   it("formato viejo (pregunta vacía = tanda de un solo grupo): viaja la respuesta sola", () => {
     const texto = componerRespuestas([{ pregunta: "", opciones: ["Sí", "No"] }], {
-      0: { opcion: "Sí", libre: "" },
+      0: { opciones: ["Sí"], libre: "" },
     })
     expect(texto).toBe("Sí")
   })

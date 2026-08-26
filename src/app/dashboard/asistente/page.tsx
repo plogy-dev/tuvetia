@@ -62,9 +62,11 @@ export default async function AsistentePage({
 }: {
   // `?patient=` lo pone el historial del sidebar al abrir un chat ya existente.
   // `?pedir=` lo pone "Resolverlo con VetGPT" del riel: deja la petición escrita y lista para enviar.
-  searchParams: Promise<{ patient?: string; pedir?: string; desde?: string; minutos?: string }>
+  // `?nuevo=` lo pone «Nuevo chat con VetGPT»: un valor SIEMPRE distinto (timestamp) que fuerza una
+  // conversación general fresca — sin él, el botón navegaba a la misma URL y no pasaba nada.
+  searchParams: Promise<{ patient?: string; pedir?: string; desde?: string; minutos?: string; nuevo?: string }>
 }) {
-  const { patient: patientParam, pedir, desde, minutos } = await searchParams
+  const { patient: patientParam, pedir, desde, minutos, nuevo } = await searchParams
   const { supabase, user } = await sesionDelServidor()
 
   let clinicId = ""
@@ -255,6 +257,7 @@ export default async function AsistentePage({
         patients={patients}
         threads={threads}
         initialPatientId={initialPatientId}
+        claveNueva={nuevo}
         saludo={saludoCompleto(horaBogota, nombreVet)}
         contexto={resumenDelDia({ citas: citas.length, consultasHoy, pendientes })}
         // Por debajo de `xl` el riel de la derecha no se pinta. Sin esto, en un teléfono la app

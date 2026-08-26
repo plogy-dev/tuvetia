@@ -356,6 +356,7 @@ export function Assistant({
   contexto,
   tiraClinica,
   textoInicial,
+  claveNueva,
 }: {
   clinicId: string
   patients: AssistantPatient[]
@@ -374,6 +375,10 @@ export function Assistant({
   tiraClinica?: React.ReactNode
   /** Petición ya redactada que otra pantalla dejó lista (`?pedir=`). Se escribe, no se envía. */
   textoInicial?: string
+  /** `?nuevo=` de «Nuevo chat con VetGPT»: un valor siempre distinto (timestamp) que abre una
+   *  conversación GENERAL fresca. Entra al id del hilo, así el hook crea un chat vacío en vez de
+   *  volver al hilo general que quedó en memoria. */
+  claveNueva?: string
 }) {
   // CONSULTA GENERAL POR DEFECTO, no el primer paciente (decisión de la reunión del 24-ago: el
   // vet abre el chat para preguntar lo que sea; encontrarse con un paciente pre-seleccionado que
@@ -401,6 +406,14 @@ export function Assistant({
   if (initialPatientId !== patientDeLaUrl) {
     setPatientDeLaUrl(initialPatientId)
     if (initialPatientId) setPatientId(initialPatientId)
+  }
+  // «Nuevo chat» = mismo patrón que arriba, para `?nuevo=`: al cambiar la clave se vuelve a la
+  // consulta general (el chat fresco arranca sin paciente; elegirlo es del selector). El hilo
+  // vacío lo garantiza el id del useChat de abajo, que incorpora la clave.
+  const [claveVista, setClaveVista] = useState(claveNueva)
+  if (claveNueva !== claveVista) {
+    setClaveVista(claveNueva)
+    if (claveNueva) setPatientId(GENERAL)
   }
   const threadRef = useRef<HTMLDivElement>(null)
 
@@ -441,8 +454,15 @@ export function Assistant({
   // `messages` lo siembra con la conversación YA guardada de ese paciente. Antes se montaba vacío,
   // así que al recargar la página el veterinario perdía de vista el hilo aunque siguiera en la base.
   // La consulta general no tiene historial a propósito: el backend la trata como sin estado.
+  //
+  // La clave de «Nuevo chat» entra al id SOLO en modo general: cada clic estrena un id → un hilo
+  // vacío de verdad. Los hilos de paciente no la llevan — un paciente tiene UNA conversación
+  // continua por diseño, y "nuevo chat" significa "quiero empezar de cero en general".
   const { messages, sendMessage, status, error, stop, regenerate } = useChat({
-    id: `athos-${patientId}`,
+    id:
+      patientId === GENERAL && claveNueva
+        ? `athos-general-${claveNueva}`
+        : `athos-${patientId}`,
     messages: threads[patientId] ?? [],
     transport,
     onError: (e) => toast.error(`No se pudo consultar a VetGPT: ${e.message}`),
