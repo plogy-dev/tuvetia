@@ -27,6 +27,14 @@ import { useConsultaViva } from "@/lib/consulta-viva/usar"
 import { createClient } from "@/lib/supabase/client"
 import { HelpTip } from "@/components/help-tip"
 import { Button } from "@/components/ui/button"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
 
 // Versión del texto mostrado al titular. Si cambia el texto, sube la versión:
 // queda registrada en consents.text_version como evidencia de QUÉ se aceptó.
@@ -159,30 +167,40 @@ export function ConsultationRecorder({
   }, [insertConsent, grabar])
 
   // ---------- UI ----------
-  if (pidiendoConsentimiento) {
-    return (
-      <div className="rounded-xl border bg-card p-4">
-        <div className="mb-2 flex items-center gap-2 text-sm font-semibold">
-          <ShieldCheck className="size-4 text-muted-foreground" /> Consentimiento del titular
-        </div>
-        <p className="mb-3 text-sm text-muted-foreground">
-          Vamos a grabar el audio de esta consulta{patientName ? ` de ${patientName}` : ""} para
-          transcribirla y redactar la nota clínica. El audio se conserva 4 días y luego se elimina;
-          la transcripción queda en la historia. La autorización del titular <b>cubre también las
-          próximas consultas de sus mascotas</b> (no se le volverá a preguntar) y puede revocarla en
-          cualquier momento (Ley 1581 de 2012).
-        </p>
-        <div className="flex flex-wrap gap-2">
-          <Button onClick={aceptarConsentimiento}>
-            <Mic className="size-4" /> El titular autoriza — empezar a grabar
-          </Button>
+  // EL CONSENTIMIENTO ES UN DIÁLOGO CENTRADO, no una tarjeta en el flujo de la página (David,
+  // 26-ago: «falta que salga el pop up de alerta de que el cliente autoriza»). La tarjeta inline
+  // existía y cumplía, pero vivía donde la pantalla la dejara caer: llegando desde «Iniciar
+  // consulta» con la página a medio cargar, quedaba fuera de la vista y el vet creía que el gate
+  // no estaba. Un modal no depende de dónde esté el scroll — y sigue siendo la pantalla del vet,
+  // que el titular puede leer en su monitor: el argumento legal de no pedirlo desde la burbuja
+  // flotante se mantiene intacto. El TEXTO no cambia, así que CONSENT_TEXT_VERSION tampoco.
+  const dialogoDeConsentimiento = (
+    <Dialog open={pidiendoConsentimiento} onOpenChange={(v) => !v && setPidiendoConsentimiento(false)}>
+      <DialogContent className="max-w-md">
+        <DialogHeader>
+          <div className="mb-3 flex size-10 items-center justify-center rounded-full bg-brand-soft">
+            <ShieldCheck className="size-5 text-brand-text" aria-hidden />
+          </div>
+          <DialogTitle>Consentimiento del titular</DialogTitle>
+          <DialogDescription>
+            Vamos a grabar el audio de esta consulta{patientName ? ` de ${patientName}` : ""} para
+            transcribirla y redactar la nota clínica. El audio se conserva 4 días y luego se
+            elimina; la transcripción queda en la historia. La autorización del titular{" "}
+            <b>cubre también las próximas consultas de sus mascotas</b> (no se le volverá a
+            preguntar) y puede revocarla en cualquier momento (Ley 1581 de 2012).
+          </DialogDescription>
+        </DialogHeader>
+        <DialogFooter>
           <Button variant="outline" onClick={() => setPidiendoConsentimiento(false)}>
             Cancelar
           </Button>
-        </div>
-      </div>
-    )
-  }
+          <Button onClick={aceptarConsentimiento}>
+            <Mic className="size-4" /> El titular autoriza — empezar a grabar
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  )
 
   if (grabando) {
     return (
@@ -239,24 +257,27 @@ export function ConsultationRecorder({
   }
 
   return (
-    <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border bg-card p-4">
-      <div className="flex items-center gap-2 text-sm">
-        <AudioLines className="size-4 text-muted-foreground" />
-        <span>
-          {lista
-            ? "Consulta grabada y transcrita."
-            : otraEnCurso
-              ? `Hay otra consulta grabando${sesion.pacienteNombre ? ` (${sesion.pacienteNombre})` : ""}. Detenela antes de empezar ésta.`
-              : "Graba la consulta para que VetGPT redacte la nota."}
-        </span>
-        <HelpTip>
-          Antes de grabar se pide el <b>consentimiento del titular</b> (Ley 1581). El audio se
-          transcribe y VetGPT redacta la nota SOAP; el audio se elimina a los 4 días.
-        </HelpTip>
+    <>
+      {dialogoDeConsentimiento}
+      <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border bg-card p-4">
+        <div className="flex items-center gap-2 text-sm">
+          <AudioLines className="size-4 text-muted-foreground" />
+          <span>
+            {lista
+              ? "Consulta grabada y transcrita."
+              : otraEnCurso
+                ? `Hay otra consulta grabando${sesion.pacienteNombre ? ` (${sesion.pacienteNombre})` : ""}. Detenela antes de empezar ésta.`
+                : "Graba la consulta para que VetGPT redacte la nota."}
+          </span>
+          <HelpTip>
+            Antes de grabar se pide el <b>consentimiento del titular</b> (Ley 1581). El audio se
+            transcribe y VetGPT redacta la nota SOAP; el audio se elimina a los 4 días.
+          </HelpTip>
+        </div>
+        <Button onClick={iniciar} disabled={otraEnCurso} variant={lista ? "outline" : "default"}>
+          <Mic className="size-4" /> {lista ? "Grabar otra vez" : "Iniciar grabación"}
+        </Button>
       </div>
-      <Button onClick={iniciar} disabled={otraEnCurso} variant={lista ? "outline" : "default"}>
-        <Mic className="size-4" /> {lista ? "Grabar otra vez" : "Iniciar grabación"}
-      </Button>
-    </div>
+    </>
   )
 }
