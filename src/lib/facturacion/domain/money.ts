@@ -22,6 +22,29 @@ export function lineSubtotalCents(qty: number, unitPriceCents: number): number {
   return roundHalfUp(qty * unitPriceCents);
 }
 
+/**
+ * El precio a PESOS ENTEROS (múltiplo de 100 centavos).
+ *
+ * ── POR QUÉ EXISTE ────────────────────────────────────────────────────────────────────────────
+ *
+ * Todo el producto ya decidió que en COP no se muestran centavos: `formatCOP` los descarta y el
+ * campo de plata (`ui/input-moneda.tsx`) sólo escribe pesos. Pero `catalog_items.price_cents`
+ * admite cualquier entero, y por la importación de catálogo pueden entrar precios con centavos.
+ *
+ * Cuando eso pasaba, el carrito MENTÍA sin que nadie tocara nada: la casilla mostraba el precio
+ * truncado a pesos y la cuenta seguía usando los centavos exactos, así que el vet veía «123» y un
+ * monto de línea que no daba 123 × cantidad. Normalizar al entrar hace que el número que se ve y
+ * el que se factura sean el mismo, que es lo único que no se puede negociar en una factura.
+ *
+ * SE REDONDEA, NO SE TRUNCA. Truncar regala hasta 99 centavos por línea siempre en contra de la
+ * clínica; redondear reparte el error y es lo que hace el resto del módulo (`roundHalfUp`). En COP
+ * la diferencia es menos de un peso — inmaterial para el cobro, decisiva para que la cuenta cuadre.
+ */
+export function aPesosEnteros(cents: number): number {
+  assertMoneyInt(cents, "cents");
+  return roundHalfUp(cents / 100) * 100;
+}
+
 /** Base gravable = subtotal - descuento (el descuento no puede exceder el subtotal). */
 export function taxableBaseCents(subtotalCents: number, discountCents: number): number {
   assertMoneyInt(subtotalCents, "subtotalCents");

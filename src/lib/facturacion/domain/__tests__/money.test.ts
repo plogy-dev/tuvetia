@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  aPesosEnteros,
   computeInvoiceTotals,
   computeLineAmounts,
   formatCOP,
@@ -155,5 +156,32 @@ describe("money: prorrateo del descuento global", () => {
     expect(totales.subtotalCents - totales.discountCents + totales.taxCents).toBe(
       totales.totalCents,
     );
+  });
+});
+
+describe("aPesosEnteros", () => {
+  it("redondea al peso, no trunca", () => {
+    // Truncar regalaría hasta 99 centavos por línea SIEMPRE en contra de la clínica.
+    expect(aPesosEnteros(12_345)).toBe(12_300); // $123,45 -> $123
+    expect(aPesosEnteros(12_355)).toBe(12_400); // $123,55 -> $124
+    expect(aPesosEnteros(12_350)).toBe(12_400); // el medio sube, como roundHalfUp
+  });
+
+  it("deja intacto lo que ya es un peso entero", () => {
+    expect(aPesosEnteros(0)).toBe(0);
+    expect(aPesosEnteros(100)).toBe(100);
+    expect(aPesosEnteros(5_000_000)).toBe(5_000_000);
+  });
+
+  it("lo que devuelve SIEMPRE es múltiplo de 100 — es toda la garantía", () => {
+    // Es lo que hace que el campo de plata (que sólo escribe pesos) muestre exactamente el número
+    // con el que se calcula la línea. Sin esto la casilla decía «123» y el monto usaba 123,45.
+    for (const c of [1, 49, 50, 99, 101, 999, 123_456, 7_777_777]) {
+      expect(aPesosEnteros(c) % 100).toBe(0);
+    }
+  });
+
+  it("rechaza lo que no es un entero de centavos", () => {
+    expect(() => aPesosEnteros(1.5)).toThrow();
   });
 });

@@ -15,6 +15,7 @@ import {
 } from 'lucide-react';
 import { createInvoiceDraft, type CreateDraftInput } from '@/lib/facturacion/actions';
 import {
+  aPesosEnteros,
   computeLineAmounts,
   computeInvoiceTotals,
   formatCOP,
@@ -170,13 +171,17 @@ export function InvoiceCart({
   // exigiría una consulta desde el navegador; si los planes agarran uso, ese es el siguiente paso.)
   const cobertura =
     cliente.patientId === (patientIdInicial ?? null) ? coberturaDelInicial : null;
+  // `aPesosEnteros` EN TODA LÍNEA QUE ENTRA. El precio puede venir del catálogo con centavos —los
+  // admite la columna y los trae la importación— y el campo de plata sólo sabe escribir pesos: sin
+  // normalizar acá, la casilla mostraba el precio truncado mientras la cuenta usaba los centavos
+  // exactos, y el monto de la línea no daba «lo que se ve × cantidad». Ver `money.ts`.
   const [lines, setLines] = useState<CartLine[]>(() =>
     (renglonesIniciales ?? []).map((r, i) => ({
       key: i,
       catalogItemId: r.catalogItemId,
       description: r.descripcion,
       qty: 1,
-      unitPriceCents: r.unitPriceCents,
+      unitPriceCents: aPesosEnteros(r.unitPriceCents),
       taxRate: r.taxRate,
       discountPct: 0,
     })),
@@ -267,7 +272,9 @@ export function InvoiceCart({
           catalogItemId: item.id,
           description: item.name,
           qty: 1,
-          unitPriceCents: item.price_cents,
+          // Mismo motivo que al sembrar: lo que se ve y lo que se factura tienen que ser el mismo
+          // número, y el catálogo puede traer centavos.
+          unitPriceCents: aPesosEnteros(item.price_cents),
           taxRate: item.tax_rate,
           discountPct: 0,
         },
@@ -772,7 +779,13 @@ export function InvoiceCart({
                                ancho el prefijo se comería el número. Lo que importa acá es el
                                separador de miles. */
                             mostrarMoneda={false}
-                            value={l.unitPriceCents === 0 ? null : Math.trunc(l.unitPriceCents / 100)}
+                            /* `roundHalfUp` y no `Math.trunc`: con la normalización de arriba el
+                               valor ya es múltiplo de 100 y las dos dan lo mismo, pero truncar
+                               volvería a mostrar de menos el día que una línea entre por un camino
+                               que todavía no normaliza. */
+                            value={
+                              l.unitPriceCents === 0 ? null : roundHalfUp(l.unitPriceCents / 100)
+                            }
                             onValueChange={(pesos) =>
                               updateLine(l.key, { unitPriceCents: (pesos ?? 0) * 100 })
                             }
