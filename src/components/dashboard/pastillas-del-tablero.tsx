@@ -58,6 +58,9 @@ export type Pastilla = {
   label: string
   value: string
   hint: string
+  /** La variación contra el periodo anterior. Sólo la traen las cifras del MES: comparar
+   *  «Pacientes» (un total acumulado) contra el mes pasado no querría decir nada. */
+  variacion?: { pct: number; sube: boolean; titulo: string } | null
 }
 
 export function PastillasDelTablero({
@@ -91,6 +94,7 @@ export function PastillasDelTablero({
             sub={p.hint}
             icono={ADORNO[p.metrica]?.icono}
             tono={ADORNO[p.metrica]?.tono}
+            variacion={p.variacion}
             onVer={() => {
               setMirando(p)
               setAbierta(true)

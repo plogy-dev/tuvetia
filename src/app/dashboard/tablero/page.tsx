@@ -23,6 +23,8 @@ import { NotasPorAprobar, type NotaEnBorrador } from "@/components/dashboard/not
 import { disposicionEfectiva, visibles, type Guardado } from "@/lib/tablero/widgets"
 import { ventasPorTipo } from "@/lib/tablero/ventas-por-tipo"
 import { VentasDelMes } from "@/components/dashboard/ventas-del-mes"
+import { pacientesPorEspecie } from "@/lib/tablero/pacientes-por-especie"
+import { PacientesPorEspecie } from "@/components/dashboard/pacientes-por-especie"
 import {
   metricaDe,
   metricasAPintar,
@@ -31,6 +33,7 @@ import {
   type MetricasGuardadas,
 } from "@/lib/tablero/metricas"
 import { formatCOP } from "@/lib/facturacion/format"
+import { variacion, ventanaDelMesAnterior } from "@/lib/tablero/comparacion"
 
 export const metadata = { title: "Dashboard · Tuvetia" }
 
@@ -239,6 +242,50 @@ export default async function DashboardPage() {
   const sumaDe = (r: { data: unknown } | null, campo: (f: Record<string, number>) => number) =>
     ((r?.data as Record<string, number>[] | null) ?? []).reduce((s, f) => s + campo(f), 0)
 
+  // ── CONTRA LA MISMA ALTURA DEL MES PASADO (26-ago) ──────────────────────────────────────────
+  //
+  // La insignia con la flecha que pidió David. La ventana la calcula `comparacion.ts` y no esta
+  // pantalla: es la parte que se equivoca en silencio —comparar contra el mes anterior COMPLETO
+  // daría una caída garantizada del 1 al 28— y por eso vive en un módulo puro y con test.
+  //
+  // Sólo para las cifras del MES, y sólo si están encendidas: son dos consultas y no se pagan para
+  // pintar nada. «Pacientes» no lleva insignia a propósito — es un acumulado, y su variación
+  // mensual sería siempre positiva y siempre irrelevante.
+  const ventanaAnterior = ventanaDelMesAnterior(now, monthStart)
+  const [consultasMesAnterior, facturadoMesAnterior] = await Promise.all([
+    encendida("consultas-mes")
+      ? supabase
+          .from("consultations")
+          .select("*", { count: "exact", head: true })
+          .gte("started_at", ventanaAnterior.desde)
+          .lte("started_at", ventanaAnterior.hasta)
+      : null,
+    encendida("facturado-mes")
+      ? supabase
+          .from("invoices")
+          .select("total_cents")
+          .eq("status", "EMITIDA")
+          .gte("issued_at", ventanaAnterior.desde)
+          .lte("issued_at", ventanaAnterior.hasta)
+      : null,
+  ])
+
+  const TITULO_COMPARACION = "frente a la misma altura del mes pasado"
+  /** La variación ya lista para la pastilla, o `null` si no se puede calcular honestamente. */
+  const VARIACIONES: Partial<Record<IdDeMetrica, { pct: number; sube: boolean; titulo: string } | null>> = {
+    "consultas-mes": (() => {
+      const v = variacion(consultasMes.count ?? 0, consultasMesAnterior?.count ?? 0)
+      return v ? { ...v, titulo: TITULO_COMPARACION } : null
+    })(),
+    "facturado-mes": (() => {
+      const v = variacion(
+        sumaDe(facturadoMes, (f) => f.total_cents ?? 0),
+        sumaDe(facturadoMesAnterior, (f) => f.total_cents ?? 0),
+      )
+      return v ? { ...v, titulo: TITULO_COMPARACION } : null
+    })(),
+  }
+
   /** El valor ya formateado de cada cifra. Las apagadas ni se calculan. */
   const VALORES: Record<IdDeMetrica, string> = {
     "consultas-mes": String(consultasMes.count ?? 0),
@@ -262,7 +309,15 @@ export default async function DashboardPage() {
   const metrics: Pastilla[] = metricasElegidas.flatMap((p) => {
     const m = metricaDe(p.id)
     if (!m) return []
-    return [{ metrica: p.id, label: m.label, value: VALORES[p.id], hint: m.hint }]
+    return [
+      {
+        metrica: p.id,
+        label: m.label,
+        value: VALORES[p.id],
+        hint: m.hint,
+        variacion: VARIACIONES[p.id] ?? null,
+      },
+    ]
   })
 
   const series = weeklySeries(
@@ -311,6 +366,21 @@ export default async function DashboardPage() {
       | null) ?? []).map((l) => ({ total_cents: l.total_cents, item_type: l.item?.item_type ?? null })),
   )
 
+  // ── LA DONA DE ESPECIES (26-ago) ────────────────────────────────────────────────────────────
+  //
+  // Sólo si el bloque está visible, igual que la de ventas: trae FILAS y no un `count`, así que no
+  // se paga cuando nadie la mira. Se piden nada más las especies —ni nombres ni ids—: es lo único
+  // que el agrupador necesita, y el tope de 2.000 cubre con holgura a la clínica más grande del
+  // principal (76 pacientes hoy). Si alguna llega a rozarlo, esto pasa a ser un `group by` en una
+  // vista; contar a mano miles de filas por carga no se sostendría.
+  const especiesVisible = disposicion.some((w) => w.id === "especies" && w.visible)
+  const filasDeEspecie = especiesVisible
+    ? await supabase.from("patients").select("species").limit(2000)
+    : { data: null }
+  const especies = pacientesPorEspecie(
+    ((filasDeEspecie.data as { species: string | null }[] | null) ?? []),
+  )
+
   // Cada bloque, ya armado. Se arma TODO y se pinta lo elegido: el costo está en las consultas —que
   // ya corrieron arriba— y no en construir el JSX. Armar sólo lo visible obligaría a mover las
   // consultas adentro de cada rama y a repetir la lógica de qué se pide.
@@ -340,6 +410,10 @@ export default async function DashboardPage() {
         </div>
       ),
       ancho: "lg:col-span-3",
+    },
+    especies: {
+      nodo: <PacientesPorEspecie datos={especies} />,
+      ancho: "lg:col-span-2",
     },
     borradores: {
       nodo: <NotasPorAprobar notas={(borradores.data as unknown as NotaEnBorrador[] | null) ?? []} />,

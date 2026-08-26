@@ -88,23 +88,42 @@ export function VentasDelMes({ datos }: { datos: VentaPorTipo[] }) {
             </div>
           </div>
 
-          <ul className="min-w-0 flex-1 space-y-1.5 text-sm">
-            {datos.map((d) => (
-              <li key={d.tipo} className="flex items-center gap-2">
-                <span
-                  aria-hidden
-                  className="size-2.5 shrink-0 rounded-full"
-                  style={{ background: d.color }}
-                />
-                <span className="min-w-0 flex-1 truncate text-muted-foreground">{d.etiqueta}</span>
-                <span className="shrink-0 font-mono text-xs tabular-nums">
-                  {formatCOP(d.totalCents)}
-                </span>
-                <span className="w-10 shrink-0 text-right text-xs text-muted-foreground">
-                  {Math.round((d.totalCents / total) * 100)}%
-                </span>
-              </li>
-            ))}
+          {/* LA BARRA DE PROPORCIÓN EN CADA FILA, como «Totales por servicio» de OkVet (David,
+              26-ago). No repite lo que dice la dona: sirve justo para lo que la dona hace mal —
+              comparar dos gajos parecidos, que en un anillo hay que medir con el ojo. La barra los
+              apoya en una misma línea de base y la diferencia se ve sin pensar. */}
+          <ul className="min-w-0 flex-1 space-y-2 text-sm">
+            {datos.map((d) => {
+              const pct = Math.round((d.totalCents / total) * 100)
+              return (
+                <li key={d.tipo}>
+                  <div className="flex items-center gap-2">
+                    <span
+                      aria-hidden
+                      className="size-2.5 shrink-0 rounded-full"
+                      style={{ background: d.color }}
+                    />
+                    <span className="min-w-0 flex-1 truncate text-muted-foreground">
+                      {d.etiqueta}
+                    </span>
+                    <span className="shrink-0 font-mono text-xs tabular-nums">
+                      {formatCOP(d.totalCents)}
+                    </span>
+                    <span className="w-10 shrink-0 text-right text-xs text-muted-foreground">
+                      {pct}%
+                    </span>
+                  </div>
+                  {/* `aria-hidden`: el monto y el porcentaje de arriba ya lo dicen: para un lector
+                      de pantalla esto sería la misma información una tercera vez. */}
+                  <div aria-hidden className="mt-1 h-1.5 overflow-hidden rounded-full bg-surface-2">
+                    <div
+                      className="h-full rounded-full"
+                      style={{ width: `${pct}%`, background: d.color }}
+                    />
+                  </div>
+                </li>
+              )
+            })}
           </ul>
         </div>
       )}

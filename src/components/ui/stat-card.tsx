@@ -1,5 +1,5 @@
 import * as React from "react"
-import { ArrowUpRight } from "lucide-react"
+import { ArrowUpRight, TrendingDown, TrendingUp } from "lucide-react"
 
 import { cn } from "@/lib/utils"
 
@@ -16,6 +16,7 @@ export function StatCard({
   sub,
   icono,
   tono,
+  variacion,
   onVer,
   className,
 }: {
@@ -31,6 +32,17 @@ export function StatCard({
    *  EL CHIP, NUNCA EN LA LETRA: número y rótulo siguen en tinta — es la regla de todo el
    *  sistema de datos, y lo que mantiene la fila legible con daltonismo o impresa en gris. */
   tono?: string
+  /**
+   * La variación contra el periodo anterior, como la insignia de OkVet.
+   *
+   * Va con FLECHA además del color: verde y rojo son la peor pareja posible para un daltónico, y
+   * ésta es una señal que se lee de un vistazo o no se lee. El `titulo` dice contra qué se compara
+   * — un porcentaje sin periodo es un número sin sentido.
+   *
+   * `null`/ausente = no se pinta nada. Ver `lib/tablero/comparacion.ts`: cuando el periodo
+   * anterior fue cero no hay porcentaje honesto, y no decir nada es mejor que inventarlo.
+   */
+  variacion?: { pct: number; sube: boolean; titulo: string } | null
   /**
    * Qué hacer al tocar la cifra. Con `onVer` la tarjeta pasa a ser un BOTÓN y muestra la flecha.
    *
@@ -120,8 +132,30 @@ export function StatCard({
           />
         )}
       </p>
-      <p className="font-mono text-[28px] font-medium leading-[1.1] tracking-[-0.02em] tabular-nums text-fg">
-        {value}
+      {/* La cifra y su variación en la MISMA línea, con la insignia apoyada en la base del número:
+          es una propiedad de esa cifra, no un dato aparte. */}
+      <p className="flex flex-wrap items-baseline gap-2">
+        <span className="font-mono text-[28px] font-medium leading-[1.1] tracking-[-0.02em] tabular-nums text-fg">
+          {value}
+        </span>
+        {variacion && (
+          <span
+            title={variacion.titulo}
+            className={cn(
+              "inline-flex items-center gap-0.5 rounded-full px-1.5 py-0.5 text-[11px] font-semibold tabular-nums",
+              variacion.sube ? "bg-ok-soft text-ok" : "bg-danger-soft text-destructive",
+            )}
+          >
+            {variacion.sube ? (
+              <TrendingUp className="size-3" aria-hidden />
+            ) : (
+              <TrendingDown className="size-3" aria-hidden />
+            )}
+            {variacion.pct > 0 ? "+" : ""}
+            {variacion.pct}%
+            <span className="sr-only"> {variacion.titulo}</span>
+          </span>
+        )}
       </p>
       {sub ? (
         <p className="flex items-center gap-1.5 text-[13px] text-fg-muted">{sub}</p>
