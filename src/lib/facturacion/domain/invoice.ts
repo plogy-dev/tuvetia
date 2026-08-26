@@ -64,7 +64,11 @@ export interface ValidationIssue {
     | "PRECIO_BAJO_COSTO"
     | "IMPUESTO_INVALIDO"
     | "DATOS_FISCALES_INCOMPLETOS"
-    | "DESCUENTO_EXCEDE_ROL";
+    | "DESCUENTO_EXCEDE_ROL"
+    // No sale de la validación del borrador sino de la emisión: el aviso de qué se imputó (o no
+    // se pudo imputar) al plan de salud del paciente. Viaja por el mismo canal porque la pantalla
+    // de resultado ya pinta estos avisos y un segundo canal para un solo código sería más código.
+    | "PLAN_SALUD";
   message: string;
   lineIndex?: number;
 }

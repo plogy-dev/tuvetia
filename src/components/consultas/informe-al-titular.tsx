@@ -20,7 +20,7 @@
 // texto, son dos entregas: la auditoría tiene que poder decir qué se entregó y por dónde.
 
 import { useEffect, useState } from "react"
-import { ClipboardCopy, Loader2, Printer, Sparkles } from "lucide-react"
+import { ClipboardCopy, Loader2, MessageCircle, Printer, Sparkles } from "lucide-react"
 import { toast } from "sonner"
 
 import { createClient } from "@/lib/supabase/client"
@@ -164,6 +164,34 @@ export function InformeAlTitular({
     }
   }
 
+  async function enviarPorWhatsApp() {
+    if (!informe) return
+    setEntregando(true)
+    try {
+      // El servidor manda Y registra (una sola transacción de responsabilidad): mandar desde acá y
+      // registrar aparte dejaría un WhatsApp salido sin fila si el tab se cierra en el medio. El
+      // destino NO viaja: el teléfono lo resuelve el servidor desde la ficha del titular.
+      const res = await fetch("/api/informe-al-titular/whatsapp", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          consultation_id: consultaId,
+          texto: comoTextoPlano(informe),
+          informe,
+          generated_at: generadoEn ?? undefined,
+        }),
+      })
+      const json = (await res.json().catch(() => ({}))) as { error?: string; titular?: string | null }
+      if (!res.ok) throw new Error(json.error ?? `HTTP ${res.status}`)
+      toast.success(`Informe enviado por WhatsApp${json.titular ? ` a ${json.titular}` : ""}`)
+      alCerrar()
+    } catch (e) {
+      toast.error(`No se pudo enviar: ${(e as Error).message}`)
+    } finally {
+      setEntregando(false)
+    }
+  }
+
   const vacio = !informe?.body.trim()
 
   return (
@@ -206,6 +234,12 @@ export function InformeAlTitular({
           <Button onClick={entregarPdf} disabled={!informe || vacio || entregando}>
             {entregando ? <Loader2 className="size-4 animate-spin" /> : <Printer className="size-4" />}
             Entregar en PDF
+          </Button>
+          {/* El envío directo que pidió David (26-ago, decisión de Felipe): el clic del vet ES la
+              aprobación — este diálogo existe justamente para que lo lea y lo edite antes. */}
+          <Button variant="outline" onClick={enviarPorWhatsApp} disabled={!informe || vacio || entregando}>
+            <MessageCircle className="size-4" />
+            Enviar por WhatsApp
           </Button>
           <Button variant="outline" onClick={copiar} disabled={!informe || vacio || entregando}>
             <ClipboardCopy className="size-4" />

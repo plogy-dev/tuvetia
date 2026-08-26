@@ -3,15 +3,15 @@ import { v } from "@/lib/landing/vars";
 const QA = [
   {
     q: "¿Es legal grabar la consulta?",
-    a: "Sí, con el consentimiento del titular. Athos te lo pide antes de la primera grabación, se captura una vez y cubre todas las mascotas de esa persona. Marco legal: Ley 1581 de 2012. El audio se borra a los 4 días.",
+    a: "Sí, con el consentimiento del titular. VetGPT te lo pide antes de la primera grabación, se captura una vez y cubre todas las mascotas de esa persona. Marco legal: Ley 1581 de 2012. El audio se borra a los 4 días.",
   },
   {
     q: "¿Y si el dueño no quiere que grabes?",
-    a: "No se graba y ya. Athos no arranca sin consentimiento, y tú sigues usando el resto del software normal: pacientes, agenda, comunicaciones. La consulta la escribes tú, como siempre.",
+    a: "No se graba y ya. VetGPT no arranca sin consentimiento, y tú sigues usando el resto del software normal: pacientes, agenda, comunicaciones. La consulta la escribes tú, como siempre.",
   },
   {
-    q: "¿Athos diagnostica?",
-    a: "No. Athos sugiere, muestra evidencia y te avisa si algo contradice la ficha. El diagnóstico, el plan y la firma son tuyos. Ninguna nota entra al historial ni ningún mensaje clínico sale sin que tú lo apruebes.",
+    q: "¿VetGPT diagnostica?",
+    a: "No. VetGPT sugiere, muestra evidencia y te avisa si algo contradice la ficha. El diagnóstico, el plan y la firma son tuyos. Ninguna nota entra al historial ni ningún mensaje clínico sale sin que tú lo apruebes.",
   },
   {
     q: "¿Sirve si trabajo solo, sin clínica?",

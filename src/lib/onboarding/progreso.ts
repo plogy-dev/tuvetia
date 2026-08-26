@@ -90,7 +90,8 @@ const DEFINICIONES: ReadonlyArray<Omit<Paso, "hecho">> = [
   {
     id: "whatsapp",
     titulo: "WhatsApp conectado",
-    porQue: "Es por donde salen los recordatorios de cita y de cobro.",
+    porQue:
+      "Es por donde salen los recordatorios de cita y de cobro. VetGPT nunca responde solo: sugiere y tú apruebas.",
     href: "/dashboard/conexiones",
   },
   {

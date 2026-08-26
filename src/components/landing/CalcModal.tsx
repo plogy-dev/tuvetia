@@ -125,7 +125,7 @@ export default function CalcModal() {
                     <div className="tv-grid">
                       <div className="tv-f" style={{ gridColumn: "1/-1" }}>
                         <div className="tv-lab">
-                          <span className="tv-lt">Minutos que Athos te devuelve por consulta</span>
+                          <span className="tv-lt">Minutos que VetGPT te devuelve por consulta</span>
                           <span className="tv-lv" id="tv-vmin">
                             5<small>min</small>
                           </span>
@@ -210,7 +210,7 @@ export default function CalcModal() {
                           </div>
                           <div className="tv-f">
                             <div className="tv-lab">
-                              <span className="tv-lt">Consultas en las que usarías Athos</span>
+                              <span className="tv-lt">Consultas en las que usarías VetGPT</span>
                               <span className="tv-lv" id="tv-vad">
                                 70<small>%</small>
                               </span>
@@ -311,7 +311,7 @@ export default function CalcModal() {
                         </div>
                       </div>
                       <div className="tv-col on">
-                        <div className="tv-colh">Con Athos</div>
+                        <div className="tv-colh">Con VetGPT</div>
                         <div className="tv-li">
                           <i>·</i>
                           <span>

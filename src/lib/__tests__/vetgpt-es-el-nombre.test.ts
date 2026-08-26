@@ -3,12 +3,16 @@
  *
  * ── LA DECISIÓN (25-ago, David) ───────────────────────────────────────────────────────────────
  *
- * «cambiemosle el nombre del athos a VetGPT». Alcance acordado: SÓLO la app — los textos del
- * dashboard, el prompt del sistema (cómo se presenta el modelo) y los mensajes de error que el
- * usuario lee. La landing pública sigue diciendo Athos hasta que se decida la marca de cara al
- * mercado, y NADA interno se toca: rutas (`/api/athos`), tablas (`athos_messages`), carpetas,
- * componentes (`AthosWidget`) y variables de entorno — renombrarlas es riesgo puro sin nada que
- * el usuario vea.
+ * «cambiemosle el nombre del athos a VetGPT». Alcance: primero la app (25-ago) y desde el 26-ago
+ * TAMBIÉN la landing («vetgpt también en landing sí» — Felipe). NADA interno se toca: rutas
+ * (`/api/athos`), tablas (`athos_messages`), carpetas, componentes (`AthosWidget`) y variables de
+ * entorno — renombrarlas es riesgo puro sin nada que el usuario vea.
+ *
+ * ── LA EXCEPCIÓN CON NOMBRE PROPIO ────────────────────────────────────────────────────────────
+ *
+ * `landing/Nosotros.tsx` queda FUERA a propósito: ahí «Athos» no es el producto — es el bulldog
+ * francés del fundador, la historia de origen de la empresa («Athos existe»). Renombrar al perro
+ * en su propia historia sería reescribir el pasado de la marca.
  *
  * ── POR QUÉ EL CERROJO ────────────────────────────────────────────────────────────────────────
  *
@@ -45,7 +49,13 @@ const SUPERFICIES = [
   "src/components/app-sidebar.tsx",
   "src/components/tab-bar-movil.tsx",
   "src/components/nav-main.tsx",
+  // La landing (26-ago). Nosotros.tsx NO está: es la historia del perro, ver el encabezado.
+  "src/components/subpages",
+  "src/app/(marketing)",
 ]
+
+/** El único archivo donde «Athos» es un nombre propio y se queda. */
+const LA_HISTORIA_DEL_PERRO = "src/components/landing/Nosotros.tsx"
 
 function archivos(ruta: string): string[] {
   const st = statSync(ruta)
@@ -65,8 +75,9 @@ const sinComentarios = (s: string) =>
 describe("el nombre de cara al usuario", () => {
   it("ninguna superficie visible vuelve a decir «Athos»", () => {
     const culpables: string[] = []
-    for (const raiz of SUPERFICIES) {
+    for (const raiz of [...SUPERFICIES, "src/components/landing"]) {
       for (const f of archivos(raiz)) {
+        if (f.split(sep).join("/").endsWith(LA_HISTORIA_DEL_PERRO)) continue
         const codigo = sinComentarios(readFileSync(f, "utf8"))
         if (/\bAthos\b/.test(codigo)) culpables.push(f.split(sep).join("/"))
       }
@@ -88,6 +99,14 @@ describe("el nombre de cara al usuario", () => {
     const asistente = readFileSync("src/app/dashboard/asistente/assistant.tsx", "utf8")
     const glifos = asistente.match(/<BrandGlyph className="size-3\.5" fill="currentColor" \/>/g)
     expect(glifos?.length ?? 0, "el avatar del hilo perdió el glifo de marca").toBeGreaterThanOrEqual(2)
+  })
+
+  it("el perro se llama Athos y así se queda", () => {
+    // La historia de origen no se reescribe: si un renombre masivo pisa Nosotros.tsx, esto lo
+    // delata antes de que la landing cuente la vida de un perro que no existió.
+    const nosotros = readFileSync(LA_HISTORIA_DEL_PERRO, "utf8")
+    expect(nosotros).toContain("Athos")
+    expect(nosotros).not.toContain("VetGPT, mi Bulldog")
   })
 
   it("lo interno NO se renombró — eso era riesgo sin nada que ver", () => {

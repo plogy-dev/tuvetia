@@ -12,7 +12,7 @@ import { LandingBodyClass } from '@/components/landing/LandingBodyClass';
  */
 const TITULO = 'Tuvetia · software clínico para veterinarios';
 const DESCRIPCION =
-  'Athos escucha tu consulta y escribe la historia clínica mientras atiendes. Tú revisas y firmas.';
+  'VetGPT escucha tu consulta y escribe la historia clínica mientras atiendes. Tú revisas y firmas.';
 
 export const metadata: Metadata = {
   title: TITULO,

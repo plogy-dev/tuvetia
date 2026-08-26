@@ -2,6 +2,7 @@ import { CalendarDays, Mail, MessageCircle } from "lucide-react"
 
 import { sesionDelServidor } from "@/lib/supabase/sesion"
 import { WhatsappSettings } from "@/components/settings/whatsapp-settings"
+import { VetgptNoRespondeSolo } from "@/components/conexiones/vetgpt-no-responde-solo"
 import { CalendarSettings, type CalendarProvider } from "@/components/settings/calendar-settings"
 import { AthosEmailSettings } from "@/components/settings/athos-email-settings"
 import {
@@ -104,6 +105,10 @@ export default async function ConexionesPage() {
 
   return (
     <PageShell width="narrow">
+      {/* Primera visita: VetGPT no responde solo. La respuesta a la pregunta más importante de
+          esta pantalla, ANTES de la decisión de conectar — pedido de Felipe del 26-ago: «un
+          veterinario no es técnico». */}
+      <VetgptNoRespondeSolo />
       <PageHeader
         title="Integraciones"
         description="Los canales por los que Tuvetia habla con tus titulares y con tu agenda."
