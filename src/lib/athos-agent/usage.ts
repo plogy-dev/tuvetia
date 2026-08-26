@@ -104,28 +104,35 @@ export async function registrarUso(entrada: {
     // la tabla sin migrar se tragan enteros: el `await` pasa limpio, el catch no se entera y no
     // queda ni una línea de log. Es exactamente el fallo silencioso que este registro existe para
     // eliminar, y lo tenía adentro.
-    const { error } = await createAdminClient()
-      .from("athos_agent_usage")
-      .insert({
-        clinic_id: clinicId,
-        user_id: userId ?? null,
-        surface,
-        provider: elegido.provider,
-        model: elegido.modelId,
-        fell_back_from: cayoAlRespaldo ? elegido.modeloPrimario : null,
-        // El SDK devuelve `undefined` cuando el proveedor no reporta tokens (algunos streams
-        // cortados). Se guarda null antes que un 0 que se sumaría como si no hubiera costado nada.
-        tokens_in: usage?.inputTokens ?? null,
-        tokens_out: usage?.outputTokens ?? null,
-        // El desglose de caché. Sin esto no se puede saber si el prefijo se está cacheando, y un
-        // ahorro que no se mide es indistinguible de uno que no ocurre. Leer y escribir el caché
-        // tienen precios distintos, por eso van separados (ver migración 0065).
-        tokens_cache_read: usage?.inputTokenDetails?.cacheReadTokens ?? null,
-        tokens_cache_write: usage?.inputTokenDetails?.cacheWriteTokens ?? null,
-        // Latencia del turno (0087): la cifra que convierte "Athos tarda un minuto" de anécdota
-        // en dato. Redondeada — nadie decide nada con el decimal de un milisegundo.
-        duration_ms: duracionMs != null ? Math.round(duracionMs) : null,
-      })
+    const fila: Record<string, unknown> = {
+      clinic_id: clinicId,
+      user_id: userId ?? null,
+      surface,
+      provider: elegido.provider,
+      model: elegido.modelId,
+      fell_back_from: cayoAlRespaldo ? elegido.modeloPrimario : null,
+      // El SDK devuelve `undefined` cuando el proveedor no reporta tokens (algunos streams
+      // cortados). Se guarda null antes que un 0 que se sumaría como si no hubiera costado nada.
+      tokens_in: usage?.inputTokens ?? null,
+      tokens_out: usage?.outputTokens ?? null,
+      // El desglose de caché. Sin esto no se puede saber si el prefijo se está cacheando, y un
+      // ahorro que no se mide es indistinguible de uno que no ocurre. Leer y escribir el caché
+      // tienen precios distintos, por eso van separados (ver migración 0065).
+      tokens_cache_read: usage?.inputTokenDetails?.cacheReadTokens ?? null,
+      tokens_cache_write: usage?.inputTokenDetails?.cacheWriteTokens ?? null,
+      // Latencia del turno (0087): la cifra que convierte "Athos tarda un minuto" de anécdota
+      // en dato. Redondeada — nadie decide nada con el decimal de un milisegundo.
+      duration_ms: duracionMs != null ? Math.round(duracionMs) : null,
+    }
+    const admin = createAdminClient()
+    let { error } = await admin.from("athos_agent_usage").insert(fila)
+    if (error && /duration_ms/.test(error.message)) {
+      // La 0087 todavía no está aplicada en este entorno: PostgREST rechaza la columna entera y
+      // sin este reintento el consumo COMPLETO del turno se perdería (y el tope mensual contaría
+      // de menos). Se registra sin la latencia — dato incompleto gana a dato perdido.
+      delete fila.duration_ms
+      ;({ error } = await admin.from("athos_agent_usage").insert(fila))
+    }
     if (error) {
       console.error(`[athos/usage] la base rechazó el consumo de ${surface}:`, error.message)
     }
