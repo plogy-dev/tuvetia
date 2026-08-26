@@ -125,12 +125,14 @@ describe("plegable", () => {
 
   it("plegado NO pide nada a la base", () => {
     // Son tres consultas para pintar algo que está cerrado. Que se sigan haciendo no rompe nada
-    // visible: sólo cuesta, y por eso nadie lo notaría.
-    expect(SECCION).toMatch(/if \(!visible \|\| plegado \|\| consultas !== null\) return/)
+    // visible: sólo cuesta, y por eso nadie lo notaría. (El `consultas !== null` que acompañaba a
+    // esta guarda se quitó a propósito el 26-ago: cacheaba la lista para siempre y el chat recién
+    // dejado no aparecía en el historial hasta recargar — ahora se refresca al navegar.)
+    expect(SECCION).toMatch(/if \(!visible \|\| plegado\) return/)
     // Y `plegado` tiene que estar en las DEPENDENCIAS, o el efecto no vuelve a correr al desplegar
     // y el panel abriría vacío para siempre. La guarda sin la dependencia es media solución, y se
     // ve peor que ninguna.
-    expect(SECCION).toMatch(/\}, \[visible, plegado, consultas\]\)/)
+    expect(SECCION).toMatch(/\}, \[visible, plegado, rutaKey\]\)/)
   })
 
   it("la lista tiene techo y scroll propio", () => {
