@@ -76,10 +76,15 @@ export function AthosSidebarSection() {
   const [consultas, setConsultas] = useState<Item[] | null>(null)
   const [chats, setChats] = useState<Item[] | null>(null)
 
+  // La lista se REFRESCA al navegar (cambia la ruta o la query), no solo al montar: sin esto, el
+  // chat que acabas de dejar con «Nuevo chat» no aparecía en el historial hasta recargar la página
+  // — que es exactamente cuando lo estás buscando (reporte 26-ago: "no me carga los chats").
+  // Los datos viejos se quedan pintados mientras llegan los nuevos: refrescar no parpadea.
+  const rutaKey = `${pathname}?${searchParams.toString()}`
   useEffect(() => {
     // NI UNA CONSULTA CON EL PANEL PLEGADO. Son tres —consultas, mensajes y pacientes— y ninguna
     // sirve para pintar algo que está cerrado. Al desplegarlo se cargan, y ahí sí valen la pena.
-    if (!visible || plegado || consultas !== null) return
+    if (!visible || plegado) return
     let vivo = true
     void (async () => {
       const supabase = createClient()
@@ -165,7 +170,7 @@ export function AthosSidebarSection() {
     return () => {
       vivo = false
     }
-  }, [visible, plegado, consultas])
+  }, [visible, plegado, rutaKey])
 
   const activos = tab === "consultas" ? consultas : chats
   const filtro = q.trim().toLowerCase()
