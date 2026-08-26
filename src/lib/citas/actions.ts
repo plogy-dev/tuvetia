@@ -72,3 +72,64 @@ export async function guardarRecordatorioDeCitas(
     return { ok: false, error: e instanceof Error ? e.message : "Error inesperado" }
   }
 }
+
+// ── La confirmación al agendar (0089) ───────────────────────────────────────────────────────────
+//
+// Va aparte de `guardarRecordatorioDeCitas` y no como un campo más suyo, por el mismo motivo por el
+// que la 0089 abrió columnas nuevas: son dos mensajes con dos interruptores y dos textos. Una
+// clínica puede querer confirmar al agendar y no recordar, o al revés.
+//
+// Comparte la revisión de plantilla, que es lo único que de verdad es común.
+
+const AjustesDeConfirmacion = z.object({
+  activo: z.boolean(),
+  texto: z.string().trim().max(LARGO_MAXIMO).nullish(),
+})
+
+export async function guardarConfirmacionDeCitas(
+  input: z.input<typeof AjustesDeConfirmacion>,
+): Promise<Result> {
+  try {
+    const supabase = await createClient()
+    const {
+      data: { user },
+    } = await supabase.auth.getUser()
+    if (!user) return { ok: false, error: "No autenticado" }
+    await requireClinicAdmin()
+
+    const parsed = AjustesDeConfirmacion.safeParse(input)
+    if (!parsed.success) {
+      return { ok: false, error: parsed.error.issues[0]?.message ?? "Datos inválidos" }
+    }
+    const d = parsed.data
+
+    const texto = d.texto?.trim() || null
+    if (texto) {
+      const problema = revisarTexto(texto)
+      if (problema) return { ok: false, error: problema }
+    }
+
+    const { data: prof } = await supabase
+      .from("profiles")
+      .select("clinic_id")
+      .eq("id", user.id)
+      .maybeSingle()
+    const clinicId = (prof as { clinic_id: string | null } | null)?.clinic_id
+    if (!clinicId) return { ok: false, error: "El usuario no tiene clínica" }
+
+    const { error } = await supabase
+      .from("clinics")
+      .update({
+        confirmacion_citas_activo: d.activo,
+        // Vacío = volver al texto por defecto, no guardar una cadena vacía.
+        confirmacion_citas_texto: texto,
+      })
+      .eq("id", clinicId)
+    if (error) throw new Error(`No se pudo guardar: ${error.message}`)
+
+    revalidatePath("/dashboard/administracion/clinica")
+    return { ok: true }
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : "Error inesperado" }
+  }
+}
