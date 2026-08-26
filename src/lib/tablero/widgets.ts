@@ -48,7 +48,7 @@ export const CATALOGO: Widget[] = [
   {
     id: "riel",
     titulo: "Configurá tu clínica",
-    descripcion: "Los pasos que faltan para que Athos funcione completo. Desaparece solo al terminarlos.",
+    descripcion: "Los pasos que faltan para que VetGPT funcione completo. Desaparece solo al terminarlos.",
     ancho: "completo",
   },
   {

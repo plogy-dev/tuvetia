@@ -67,7 +67,7 @@ type Note = {
   evidence_level: string | null
   citations: Citation[] | null
   // `ai_model` (el id crudo del modelo) NO se trae a propósito: hacia el vet la nota la redacta
-  // Athos, sin nombrar el motor. La columna se sigue escribiendo — es rastro de auditoría — pero
+  // VetGPT, sin nombrar el motor. La columna se sigue escribiendo — es rastro de auditoría — pero
   // sólo la lee /admin con service_role. Dejarla fuera del tipo hace que volver a pintarla no
   // compile, que es más fiable que acordarse de la regla.
   ai_generated_at: string | null
@@ -448,7 +448,7 @@ export default function NotaConsultaPage({ params }: { params: Promise<{ id: str
       {/* UNA SOLA COLUMNA, y es lo que pidió el cliente el 12-ago: «la distribución de paneles
           centralizarla del lado izquierdo, es una vaina mucho más tranquila».
 
-          Antes eran dos: la consulta a la izquierda y el hilo de Athos ocupando un tercio fijo a la
+          Antes eran dos: la consulta a la izquierda y el hilo de VetGPT ocupando un tercio fijo a la
           derecha, sticky, siempre visible. Ese tercio es justo donde David quiere el transcripto —
           «aquí me suelta el transcripto en esta parte de acá hasta acá». El hilo baja al final,
           plegado: sigue estando, deja de competir. */}
@@ -472,7 +472,7 @@ export default function NotaConsultaPage({ params }: { params: Promise<{ id: str
             <div className="flex items-center gap-2">
               <Stethoscope className="size-3.5 shrink-0 text-fg-muted" aria-hidden />
               <span className="text-[10px] font-semibold uppercase tracking-[0.18em] text-fg-faint">
-                Consulta con Athos
+                Consulta con VetGPT
               </span>
             </div>
             <h1 className="mt-1 text-xl font-semibold tracking-tight md:text-2xl">
@@ -519,7 +519,7 @@ export default function NotaConsultaPage({ params }: { params: Promise<{ id: str
           </span>
           {note?.ai_generated_at && (
             <span className="inline-flex h-[21px] items-center gap-[5px] rounded-full bg-secondary px-2 text-[11.5px] text-fg-muted">
-              Redactada por <span className="text-fg">Athos</span>
+              Redactada por <span className="text-fg">VetGPT</span>
             </span>
           )}
           {/* EL RÓTULO SALE DEL VEREDICTO DEL JUEZ, NO DE CONTAR CITAS.
@@ -731,14 +731,14 @@ export default function NotaConsultaPage({ params }: { params: Promise<{ id: str
           <div className="flex items-center gap-2 text-sm font-semibold">
             <FileText className="size-4 text-muted-foreground" /> Nota clínica
             <HelpTip>
-              Athos redacta la nota SOAP a partir de la transcripción, con literatura veterinaria
+              VetGPT redacta la nota SOAP a partir de la transcripción, con literatura veterinaria
               citada y verificable. Es un <b>borrador</b>: revisala, editala y aprobala — nada entra
               a la historia sin tu aprobación.
             </HelpTip>
           </div>
           {note && (
             <Badge variant="secondary" className="gap-1 text-xs">
-              <Sparkles className="size-3" /> {approved ? "Aprobada" : "Athos redacta · borrador"}
+              <Sparkles className="size-3" /> {approved ? "Aprobada" : "VetGPT redacta · borrador"}
             </Badge>
           )}
         </div>
@@ -878,7 +878,7 @@ export default function NotaConsultaPage({ params }: { params: Promise<{ id: str
                 <FileText className="size-4" />
                 Informe para el titular
               </Button>
-              {/* LA FACTURA, DESDE ACÁ. Lo pidió Luciano el 19-ago: que Athos avise "tenés esta
+              {/* LA FACTURA, DESDE ACÁ. Lo pidió Luciano el 19-ago: que VetGPT avise "tenés esta
                   factura por emitir de esta consulta".
 
                   La lista de consultas sin facturar YA EXISTÍA —en Ventas → Nueva factura— y ahí
@@ -903,7 +903,7 @@ export default function NotaConsultaPage({ params }: { params: Promise<{ id: str
                 </Button>
               )}
               {note.ai_generated_at && (
-                <span className="ml-auto text-xs text-muted-foreground">Redactada por Athos</span>
+                <span className="ml-auto text-xs text-muted-foreground">Redactada por VetGPT</span>
               )}
             </div>
           </div>

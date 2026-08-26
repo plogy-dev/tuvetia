@@ -1,7 +1,7 @@
 "use client"
 
-// Segundo nivel del sidebar para Athos: el historial a mano mientras trabajas con él, como en el
-// recorrido del cliente. Se auto-oculta fuera de Athos y del Modo Fantasma, así que en el resto de
+// Segundo nivel del sidebar para VetGPT: el historial a mano mientras trabajas con él, como en el
+// recorrido del cliente. Se auto-oculta fuera de VetGPT y del Modo Fantasma, así que en el resto de
 // la app no cuesta ni una consulta.
 //
 // SIN CAMBIOS DE ESQUEMA, a propósito:
@@ -173,11 +173,11 @@ export function AthosSidebarSection() {
           <SidebarMenuItem>
             <SidebarMenuButton
               variant="outline"
-              tooltip="Nuevo chat con Athos"
+              tooltip="Nuevo chat con VetGPT"
               render={<Link href="/dashboard/asistente" />}
             >
               <PlusIcon />
-              <span>Nuevo chat con Athos</span>
+              <span>Nuevo chat con VetGPT</span>
             </SidebarMenuButton>
           </SidebarMenuItem>
         </SidebarMenu>
@@ -191,7 +191,7 @@ export function AthosSidebarSection() {
             value={q}
             onChange={(e) => setQ(e.target.value)}
             placeholder="Buscar por paciente…"
-            aria-label="Buscar en el historial de Athos"
+            aria-label="Buscar en el historial de VetGPT"
             className="h-8 pl-8 text-xs"
           />
         </div>
@@ -242,7 +242,7 @@ export function AthosSidebarSection() {
               ? "Ningún paciente con ese nombre."
               : tab === "consultas"
                 ? "Todavía no hay consultas. Empieza una con «Iniciar consulta», aquí arriba."
-                : "Todavía no has hablado con Athos sobre un paciente. Abre «Nuevo chat con Athos» y elige uno."}
+                : "Todavía no has hablado con VetGPT sobre un paciente. Abre «Nuevo chat con VetGPT» y elige uno."}
           </p>
         ) : (
           // TECHO Y SCROLL PROPIO. Sin esto, plegar arregla el caso cerrado y deja el abierto

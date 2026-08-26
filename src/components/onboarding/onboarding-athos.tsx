@@ -1,6 +1,6 @@
 "use client"
 
-// Athos acompañando el onboarding. Panel al lado del wizard: explica lo que el vet está viendo,
+// VetGPT acompañando el onboarding. Panel al lado del wizard: explica lo que el vet está viendo,
 // responde dudas ("¿qué es el Modo Fantasma?") y puede cargar el primer paciente por él.
 //
 // POR QUÉ NO REUSA `asistente/assistant.tsx`. Ese componente es una PANTALLA: fija su propia altura
@@ -12,13 +12,15 @@
 // (que ya vive también dentro de la bandeja de WhatsApp). El render del hilo se mudó a
 // `athos/athos-mensajes.tsx` cuando el widget global lo necesitó — era la tercera copia.
 //
-// El agente propone y el vet aprueba, igual que en el resto del producto: nada de lo que Athos
+// El agente propone y el vet aprueba, igual que en el resto del producto: nada de lo que VetGPT
 // sugiera acá se ejecuta solo.
 
 import { useEffect, useRef, useState, useSyncExternalStore } from "react"
 import { useChat } from "@ai-sdk/react"
 import { DefaultChatTransport } from "ai"
-import { Bot, Loader2, SendHorizontal, Sparkles } from "lucide-react"
+import { Loader2, SendHorizontal, Sparkles } from "lucide-react"
+
+import { BrandGlyph } from "@/components/brand-glyph"
 import { toast } from "sonner"
 
 import { AthosMensajes } from "@/components/athos/athos-mensajes"
@@ -36,7 +38,7 @@ const SUGERENCIAS = [
 ]
 
 // TARJETA CONTEXTUAL: un texto FIJO por paso del wizard (pedido de la reunión del 24-ago: "que ese
-// Athos que acompaña acompañe de verdad"). Acompaña porque habla de lo que el vet tiene DELANTE en
+// VetGPT que acompaña acompañe de verdad"). Acompaña porque habla de lo que el vet tiene DELANTE en
 // cada paso — pero sin IA: texto quemado, cero llamadas de red, cero tokens. Cada texto dice para
 // qué sirve el paso y qué desbloquea, que es lo que el wizard no tiene espacio para contar.
 //
@@ -74,7 +76,7 @@ export function OnboardingAthos({
   const { messages, sendMessage, status } = useChat({
     id: "athos-onboarding",
     transport,
-    onError: (e) => toast.error(`Athos no pudo responder: ${e.message}`),
+    onError: (e) => toast.error(`VetGPT no pudo responder: ${e.message}`),
   })
   const busy = status === "submitted" || status === "streaming"
 
@@ -87,9 +89,9 @@ export function OnboardingAthos({
     if (!t || busy) return
 
     // EL GATE, y acá pesa más que en ninguna otra pantalla: toda clínica nace en `free`
-    // (`clinics.plan` default), así que ÉSTA es la primera vez que alguien le habla a Athos. Sin
+    // (`clinics.plan` default), así que ÉSTA es la primera vez que alguien le habla a VetGPT. Sin
     // esto, las tres sugerencias de arriba invitan a un clic que devuelve el toast de `onError`
-    // —«Athos no pudo responder»— como primera impresión del producto.
+    // —«VetGPT no pudo responder»— como primera impresión del producto.
     //
     // Cubre también los chips: los tres caminos —chip, Enter y botón— pasan por acá.
     if (!puedeUsarAthos) {
@@ -110,10 +112,11 @@ export function OnboardingAthos({
     <aside className="flex h-full min-h-0 w-full flex-col rounded-2xl border bg-card">
       <header className="flex items-center gap-2 border-b px-4 py-3">
         <div className="flex size-8 items-center justify-center rounded-lg bg-primary text-primary-foreground">
-          <Bot className="size-4" />
+          {/* El glifo de la marca, como en todas las caras del asistente (25-ago). */}
+          <BrandGlyph className="size-4" fill="currentColor" />
         </div>
         <div className="min-w-0">
-          <p className="text-sm font-semibold leading-tight">Athos</p>
+          <p className="text-sm font-semibold leading-tight">VetGPT</p>
           <p className="truncate text-xs text-muted-foreground">
             Te acompaña mientras configuras {clinicName || "tu clínica"}
           </p>
@@ -150,7 +153,7 @@ export function OnboardingAthos({
 
         {busy && (
           <div className="flex items-center gap-[9px] text-[13px] text-fg-faint">
-            <Loader2 className="size-3.5 animate-spin" /> Athos está escribiendo…
+            <Loader2 className="size-3.5 animate-spin" /> VetGPT está escribiendo…
           </div>
         )}
       </div>
@@ -158,7 +161,7 @@ export function OnboardingAthos({
       {!puedeUsarAthos && input.trim() ? (
         <p className="flex items-center gap-1.5 border-t px-3 pt-2 text-[11px] text-brand-text">
           <Sparkles className="size-3 shrink-0" aria-hidden />
-          Athos es parte del plan Pro. Al enviar te mostramos cómo activarlo.
+          VetGPT es parte del plan Pro. Al enviar te mostramos cómo activarlo.
         </p>
       ) : null}
 
@@ -172,7 +175,7 @@ export function OnboardingAthos({
               enviar(input)
             }
           }}
-          placeholder="Pregúntale a Athos…"
+          placeholder="Pregúntale a VetGPT…"
           rows={1}
           className="max-h-28 min-h-9 resize-none text-sm"
         />
@@ -200,7 +203,7 @@ function suscribirQuieto(avisar: () => void) {
  * La tarjeta contextual con su teatrito de "escribiendo".
  *
  * Al cambiar de paso muestra ~600 ms de tres punticos y recién entonces el texto — hace sentir que
- * Athos reacciona a lo que el vet acaba de hacer, sin gastar un token: es CSS y un timeout, cero
+ * VetGPT reacciona a lo que el vet acaba de hacer, sin gastar un token: es CSS y un timeout, cero
  * red. Con `prefers-reduced-motion` no hay teatro y el texto aparece directo.
  */
 function TarjetaDePaso({ paso }: { paso: number }) {

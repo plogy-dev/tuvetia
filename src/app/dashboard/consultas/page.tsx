@@ -140,7 +140,7 @@ export default async function ConsultasPage({
             Modo Fantasma
           </span>
         }
-        description="Al cerrar una consulta, Athos redacta una nota SOAP con citas verificables de literatura veterinaria. Revísala, edítala y apruébala: ninguna nota entra a la historia clínica sin tu aprobación."
+        description="Al cerrar una consulta, VetGPT redacta una nota SOAP con citas verificables de literatura veterinaria. Revísala, edítala y apruébala: ninguna nota entra a la historia clínica sin tu aprobación."
         actions={<NewConsultationDrawer />}
       />
 

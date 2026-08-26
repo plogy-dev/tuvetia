@@ -1,6 +1,6 @@
 "use client"
 
-// Tarjeta que aparece EN EL CHAT cuando Athos necesita el correo del veterinario y todavía no está
+// Tarjeta que aparece EN EL CHAT cuando VetGPT necesita el correo del veterinario y todavía no está
 // conectado.
 //
 // Antes ese caso salía como una línea gris de error debajo de la respuesta. Es el peor lugar donde

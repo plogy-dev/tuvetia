@@ -2,7 +2,7 @@ import { ExternalLink } from "lucide-react"
 
 import type { Citation } from "@/lib/athos"
 
-// Tarjeta de fuente verificable enlazada al artículo. url/title/year vienen del corpus (Athos).
+// Tarjeta de fuente verificable enlazada al artículo. url/title/year vienen del corpus (VetGPT).
 // Compartida entre el copiloto (chat) y la nota del Phantom para que citen igual.
 export function SourceCard({ c }: { c: Citation }) {
   const meta = (

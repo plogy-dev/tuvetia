@@ -35,7 +35,7 @@ async function desdeDonde(userId: string): Promise<{ remitente: string | null; a
   return { remitente: email, ...(aviso ? { aviso } : {}) }
 }
 
-// Ejecuta una acción propuesta por Athos, BAJO LA SESIÓN DEL VET que aprueba: las RPCs
+// Ejecuta una acción propuesta por VetGPT, BAJO LA SESIÓN DEL VET que aprueba: las RPCs
 // SECURITY DEFINER ven auth.uid() real y la RLS aplica — sin impersonación. El vet puede editar
 // el payload antes de aprobar (payload_override). Toda transición queda en audit_logs.
 
@@ -110,7 +110,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
   if (new Date(action.expires_at).getTime() < Date.now()) {
     // Condicional también: si alguien la ejecutó justo ahora, no la pisamos con "expired".
     await claimAction(action.id, { status: "expired" })
-    return NextResponse.json({ error: "La propuesta expiró — pídele a Athos una nueva" }, { status: 410 })
+    return NextResponse.json({ error: "La propuesta expiró — pídele a VetGPT una nueva" }, { status: 410 })
   }
 
   const body = (await req.json().catch(() => ({}))) as { payload_override?: Record<string, unknown> }
@@ -214,7 +214,7 @@ async function dispatch(
 
     case "send_email": {
       // Sale de la cuenta del vet que APRUEBA: el correo lo firma una persona y el titular tiene
-      // que poder responderle a ella. Athos nunca escribe desde la cuenta de otro.
+      // que poder responderle a ella. VetGPT nunca escribe desde la cuenta de otro.
       const r = await enviarCorreo(userId, {
         a: String(p.to_email ?? ""),
         asunto: String(p.subject ?? ""),
@@ -264,7 +264,7 @@ const threadId = String(p.thread_id ?? "")
       if (error) throw new Error(`No se pudo crear la cita: ${error.message}`)
       const appointmentId = data as unknown
       // Empuja la cita a Google Calendar, igual que hace la pantalla de agenda al crearla a mano.
-      // Sin esto, una cita hecha por el veterinario llegaba a Google y una hecha por Athos no —
+      // Sin esto, una cita hecha por el veterinario llegaba a Google y una hecha por VetGPT no —
       // el vet veía su agenda incompleta en el teléfono y no tenía forma de saber por qué.
       //
       // NO bloquea: si el veterinario no conectó Google, o la API falla, la cita YA está creada en la

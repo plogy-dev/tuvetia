@@ -286,8 +286,8 @@ export function WhatsappSettings({
       setAgentMode(next)
       toast.success(
         next === "auto"
-          ? "Athos responderá solo mensajes NO clínicos (horarios, ubicación, citas)"
-          : "Athos vuelve a solo sugerir — nada sale sin tu aprobación",
+          ? "VetGPT responderá solo mensajes NO clínicos (horarios, ubicación, citas)"
+          : "VetGPT vuelve a solo sugerir — nada sale sin tu aprobación",
       )
     } catch (e) {
       toast.error(`No se pudo cambiar el modo: ${(e as Error).message}`)
@@ -311,7 +311,7 @@ export function WhatsappSettings({
         </div>
         <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border px-3 py-2">
           <div className="flex flex-col">
-            <span className="text-sm font-medium">Respuestas automáticas de Athos</span>
+            <span className="text-sm font-medium">Respuestas automáticas de VetGPT</span>
             <span className="text-xs text-muted-foreground">
               Solo mensajes no clínicos: horarios, ubicación, solicitudes de cita. Todo lo demás queda
               para ti. Cada respuesta queda registrada y auditada.

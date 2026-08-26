@@ -1,12 +1,12 @@
 "use client"
 
-// El contexto de Athos: qué paciente está mirando, y cómo cambiarlo.
+// El contexto de VetGPT: qué paciente está mirando, y cómo cambiarlo.
 //
 // LO QUE REEMPLAZA. Un `<Select>` que pintaba hasta 500 pacientes de corrido y un `<Badge>` que
 // mostraba sólo lo que el vet había elegido a mano. Las dos cosas salieron en la reunión del 17-ago:
 //
 //     Luciano: "en el momento en que yo tenga 200 pacientes, ¿cómo carajo le voy a decir al man qué
-//               contexto tiene? Imposible… Athos debería reconocer el contexto y traerlo dependiendo
+//               contexto tiene? Imposible… VetGPT debería reconocer el contexto y traerlo dependiendo
 //               de la conversación"
 //     Jesús:   "si tú tienes 7 perros que tienen leucemia… la característica específica se te llega
 //               a escapar conversacionalmente, y llegas a dar un mal diagnóstico"
@@ -14,7 +14,7 @@
 // El acuerdo no le dio la razón a ninguno de los dos, y esta pantalla lo implementa tal cual:
 //
 //   1. **El selector se queda.** Textual: "esta opción no se tiene que quitar".
-//   2. **Se ve qué detectó Athos**, aunque el vet no haya elegido nada — "como tipo Claude, cuando
+//   2. **Se ve qué detectó VetGPT**, aunque el vet no haya elegido nada — "como tipo Claude, cuando
 //      el man está pensando… ya tengo el contexto completo de Manchita".
 //   3. **Se puede corregir**, que es lo que responde a la objeción clínica: una detección que no se
 //      puede ver ni contradecir es justamente la que termina en un mal diagnóstico.
@@ -83,7 +83,7 @@ export function SelectorDeContexto({
   /** `null` = consulta general. */
   patientId: string | null
   onElegir: (id: string | null) => void
-  /** Lo que Athos resolvió por su cuenta, leído de sus llamadas a herramientas. */
+  /** Lo que VetGPT resolvió por su cuenta, leído de sus llamadas a herramientas. */
   detectado: PacienteDetectado | null
   /** Si hay turnos en el hilo actual. Cambiar de paciente lo cambia por el de ese paciente. */
   hayConversacion: boolean
@@ -117,13 +117,13 @@ export function SelectorDeContexto({
         </Button>
       </div>
 
-      {/* LA DETECCIÓN, VISIBLE. Sólo se dice cuando NO coincide con lo elegido: repetir "Athos está
+      {/* LA DETECCIÓN, VISIBLE. Sólo se dice cuando NO coincide con lo elegido: repetir "VetGPT está
           usando Manchita" debajo de un chip que ya dice Manchita es ruido. Lo que hay que sacar a la
-          luz es la discrepancia — el caso en el que el vet cree una cosa y Athos está haciendo otra. */}
+          luz es la discrepancia — el caso en el que el vet cree una cosa y VetGPT está haciendo otra. */}
       {hayQueAvisar && detectado && (
         <div className="flex flex-wrap items-center justify-end gap-x-2 gap-y-1 text-xs text-fg-muted">
           <span>
-            Athos está trabajando con{" "}
+            VetGPT está trabajando con{" "}
             <span className="font-medium text-fg">{detectado.nombre}</span>
             {detectado.especie ? ` · ${detectado.especie}` : ""}
             {/* De dónde lo sacó, porque no es lo mismo haber abierto la ficha que haber acertado
@@ -150,7 +150,7 @@ export function SelectorDeContexto({
             <DialogDescription>
               {hayConversacion
                 ? "Cada paciente tiene su propio hilo: al cambiar, se abre la conversación de ese paciente y ésta queda guardada."
-                : "Elegí con qué paciente querés que Athos trabaje."}
+                : "Elegí con qué paciente querés que VetGPT trabaje."}
             </DialogDescription>
           </DialogHeader>
 

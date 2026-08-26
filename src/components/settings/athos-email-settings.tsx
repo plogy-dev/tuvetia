@@ -1,13 +1,13 @@
 "use client"
 
-// Conectar el correo que usa Athos — la cuenta de CADA MIEMBRO, vía Composio. Gmail u Outlook, uno
+// Conectar el correo que usa VetGPT — la cuenta de CADA MIEMBRO, vía Composio. Gmail u Outlook, uno
 // de los dos.
 //
 // Es un clic: no hay contraseña de aplicación que generar ni 2FA que activar. El token vive del
 // lado de Composio; Tuvetia nunca lo ve.
 //
 // Si el miembro no conectó nada, acá aparece la explicación de qué se gana conectándolo — no un
-// botón mudo. Es la pantalla a la que lo manda Athos cuando le pide algo de correo sin tener cuenta.
+// botón mudo. Es la pantalla a la que lo manda VetGPT cuando le pide algo de correo sin tener cuenta.
 
 import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
@@ -126,7 +126,7 @@ export function AthosEmailSettings({
   return (
     <div className="flex flex-col gap-3">
       <p className="text-sm text-fg-muted">
-        Conectá tu cuenta para que Athos pueda <b>leer y responder</b> tus correos cuando se lo pidas
+        Conectá tu cuenta para que VetGPT pueda <b>leer y responder</b> tus correos cuando se lo pidas
         — por ejemplo &ldquo;¿qué me escribió la dueña de Luna?&rdquo; o &ldquo;respondele que la
         esperamos el martes&rdquo;. Es un clic: no hace falta contraseña de aplicación.
       </p>

@@ -35,7 +35,7 @@ export type NavGroup = {
   items: NavItem[]
 }
 
-// Badge de propuestas de Athos pendientes de aprobación (athos_actions status=proposed, RLS).
+// Badge de propuestas de VetGPT pendientes de aprobación (athos_actions status=proposed, RLS).
 function PendingProposalsButton() {
   const [supabase] = useState(() => createClient())
   const [count, setCount] = useState(0)
@@ -63,7 +63,7 @@ function PendingProposalsButton() {
       size="icon"
       className="relative size-8 group-data-[collapsible=icon]:hidden"
       variant="outline"
-      title={count > 0 ? `${count} propuesta(s) de Athos pendientes` : "Propuestas de Athos"}
+      title={count > 0 ? `${count} propuesta(s) de VetGPT pendientes` : "Propuestas de VetGPT"}
       render={<Link href="/dashboard/comunicaciones" />}
     >
       <SparklesIcon />
@@ -72,7 +72,7 @@ function PendingProposalsButton() {
           {count > 9 ? "9+" : count}
         </span>
       )}
-      <span className="sr-only">Propuestas de Athos</span>
+      <span className="sr-only">Propuestas de VetGPT</span>
     </Button>
   )
 }
@@ -164,7 +164,7 @@ function Items({ items, grupo }: { items: NavItem[]; grupo: "consulta" | "crm" }
  * división de consultorio y crm. En el consultorio tiene el athos y el phantom, es decir todo lo
  * necesario para la consulta y en el CRM tiene lo demás."
  *
- * Antes era una sola lista plana de nueve ítems donde Athos encabezaba sin ningún rótulo. La
+ * Antes era una sola lista plana de nueve ítems donde VetGPT encabezaba sin ningún rótulo. La
  * división no es cosmética: separa lo que se usa CON UN PACIENTE DELANTE de lo que se usa entre
  * consultas, que son dos modos de trabajo distintos y con urgencias distintas.
  *

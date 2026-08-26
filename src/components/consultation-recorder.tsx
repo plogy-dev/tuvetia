@@ -93,7 +93,7 @@ export function ConsultationRecorder({
       await consultaViva.iniciar({
         consultaId: consultationId,
         clinicId,
-        // Con el paciente en la sesión, Athos puede leer su ficha mientras la consulta pasa: es lo
+        // Con el paciente en la sesión, VetGPT puede leer su ficha mientras la consulta pasa: es lo
         // que gobierna el guard de dosis y el aviso de alergias severas en las sugerencias en vivo.
         pacienteId: patientId,
         pacienteNombre: patientName ?? null,
@@ -247,11 +247,11 @@ export function ConsultationRecorder({
             ? "Consulta grabada y transcrita."
             : otraEnCurso
               ? `Hay otra consulta grabando${sesion.pacienteNombre ? ` (${sesion.pacienteNombre})` : ""}. Detenela antes de empezar ésta.`
-              : "Graba la consulta para que Athos redacte la nota."}
+              : "Graba la consulta para que VetGPT redacte la nota."}
         </span>
         <HelpTip>
           Antes de grabar se pide el <b>consentimiento del titular</b> (Ley 1581). El audio se
-          transcribe y Athos redacta la nota SOAP; el audio se elimina a los 4 días.
+          transcribe y VetGPT redacta la nota SOAP; el audio se elimina a los 4 días.
         </HelpTip>
       </div>
       <Button onClick={iniciar} disabled={otraEnCurso} variant={lista ? "outline" : "default"}>

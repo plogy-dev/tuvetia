@@ -26,7 +26,7 @@ import { useSidebar } from "@/components/ui/sidebar"
 import { isNavActive } from "@/lib/nav-active"
 
 const DESTINOS = [
-  { titulo: "Athos", url: "/dashboard/asistente", icono: BotIcon },
+  { titulo: "VetGPT", url: "/dashboard/asistente", icono: BotIcon },
   { titulo: "Pacientes", url: "/dashboard/patients", icono: UsersIcon },
 ] as const
 

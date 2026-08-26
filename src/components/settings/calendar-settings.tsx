@@ -37,7 +37,7 @@ export type { CalendarProvider }
 
 export function CalendarSettings({
   connected,
-  /** Si desconectar también le saca el correo a Athos: con Microsoft es la misma cuenta. */
+  /** Si desconectar también le saca el correo a VetGPT: con Microsoft es la misma cuenta. */
   compartidoConElCorreo = false,
 }: {
   connected: CalendarProvider | null
@@ -93,7 +93,7 @@ export function CalendarSettings({
             <TriangleAlert className="mt-0.5 size-4 shrink-0 text-warn" aria-hidden />
             <span>
               El calendario y el correo de Microsoft son <b>la misma cuenta</b>: desconectar acá
-              también le saca a Athos el acceso a tu correo.
+              también le saca a VetGPT el acceso a tu correo.
             </span>
           </p>
         )}

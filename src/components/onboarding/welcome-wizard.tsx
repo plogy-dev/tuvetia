@@ -47,7 +47,7 @@ import {
 // HORARIOS Y SERVICIOS ENTRARON ACÁ EL 2026-08-16, y son la mitad del wizard que faltaba.
 //
 // La auditoría midió las 15 clínicas del principal: 1 de 15 tenía horarios y **0 de 15 tenían un
-// servicio**. O sea que ninguna podía facturar y 14 no podían agendar con Athos — las dos
+// servicio**. O sea que ninguna podía facturar y 14 no podían agendar con VetGPT — las dos
 // capacidades insignia, apagadas. La causa no era un fallo: los tres pasos que las habilitan estaban
 // FUERA de este wizard, en el riel plegable del dashboard. Lo que el wizard acompaña se hace (de 9
 // que lo vieron, 8 lo terminaron); lo que queda en el riel, no.
@@ -93,7 +93,7 @@ export function WelcomeWizard({
   yaHecho?: YaHecho
   /**
    * Avisa hacia arriba en qué paso va el wizard (también una vez al montar). Existe para que el
-   * panel de Athos acompañe con texto atado al paso ACTUAL (pedido de la reunión del 24-ago).
+   * panel de VetGPT acompañe con texto atado al paso ACTUAL (pedido de la reunión del 24-ago).
    * Opcional a propósito: el wizard funciona idéntico sin nadie escuchando.
    */
   onPasoChange?: (paso: number) => void
@@ -182,7 +182,7 @@ export function WelcomeWizard({
       toast.error(`No se pudieron guardar los horarios: ${error.message}`)
       return
     }
-    toast.success(`Horarios guardados — Athos ya puede ofrecer citas`)
+    toast.success(`Horarios guardados — VetGPT ya puede ofrecer citas`)
     setPaso(P_SERVICIOS)
   }
 
@@ -382,7 +382,7 @@ export function WelcomeWizard({
         <YaEstaListo
           icono={<Clock className="size-5" />}
           titulo="Tus horarios ya están cargados"
-          sub="Athos ya puede ofrecer espacios libres y agendar con ellos."
+          sub="VetGPT ya puede ofrecer espacios libres y agendar con ellos."
           onSeguir={() => setPaso(P_SERVICIOS)}
         />
       )}
@@ -392,7 +392,7 @@ export function WelcomeWizard({
           <Encabezado
             icono={<Clock className="size-5" />}
             titulo="¿Cuándo atiendes?"
-            sub="Es lo que le permite a Athos ofrecer un espacio libre y agendar. Ya está lleno con lo habitual: ajusta lo que no cuadre."
+            sub="Es lo que le permite a VetGPT ofrecer un espacio libre y agendar. Ya está lleno con lo habitual: ajusta lo que no cuadre."
           />
           <div className="flex flex-col gap-2">
             {dias.map((d) => {

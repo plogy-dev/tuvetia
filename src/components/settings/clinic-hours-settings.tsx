@@ -1,7 +1,7 @@
 "use client"
 
 // Horarios de atención (tabla clinic_hours, RLS por clínica — CRUD directo desde el cliente).
-// Athos los usa para proponer citas con cupos reales y para el modo auto de WhatsApp.
+// VetGPT los usa para proponer citas con cupos reales y para el modo auto de WhatsApp.
 //
 // DOS HORARIOS Y NO UNO, desde la migración 0069. El de la CLÍNICA —el de siempre, el que se le
 // responde a un titular que pregunta a qué hora abren— y el de cada PERSONA, que reemplaza al de la
@@ -159,7 +159,7 @@ export function ClinicHoursSettings({
         <p className="text-sm text-muted-foreground">
           {deQuien === "mio"
             ? "No tenés horario propio. Mientras no cargues ninguno, atendés en el horario de la clínica."
-            : "Sin horarios configurados. Agrégalos para que Athos pueda proponer citas y responder por los horarios."}
+            : "Sin horarios configurados. Agrégalos para que VetGPT pueda proponer citas y responder por los horarios."}
         </p>
       ) : (
         <ul className="flex flex-col gap-1 text-sm">

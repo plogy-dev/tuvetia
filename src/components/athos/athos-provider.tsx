@@ -1,6 +1,6 @@
 "use client"
 
-// El contexto que hace que Athos sepa qué estás mirando, en cualquier pantalla.
+// El contexto que hace que VetGPT sepa qué estás mirando, en cualquier pantalla.
 //
 // TRES DECISIONES QUE SON EL DISEÑO, no detalles:
 //
@@ -11,7 +11,7 @@
 //
 // 2. EL ESTADO ABIERTO/CERRADO DEL WIDGET **NO** VIVE ACÁ. Vive en `AthosDock`, que es HERMANO de
 //    `{children}`, no ancestro. Abrir el widget no re-renderiza ninguna pantalla. Por eso `abrir()`
-//    es un emisor de módulo y no un `useState`: cualquier parte de la app puede pedir "abrí Athos"
+//    es un emisor de módulo y no un `useState`: cualquier parte de la app puede pedir "abrí VetGPT"
 //    sin que este provider tenga que guardar ese estado.
 //
 // 3. EL CRONÓMETRO DE LA GRABACIÓN TAMPOCO. Tick de 1/segundo dentro de esto sería el dashboard

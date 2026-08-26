@@ -15,7 +15,7 @@
 //
 // DOS PANELES Y NO TRES. El prototipo pone las notas en vivo y Mi cuaderno lado a lado, y la transcripción
 // en su propia pestaña. Es correcto: la transcripción corre sola y no se lee mientras se atiende —
-// se consulta cuando hay una duda. Lo que se mira todo el tiempo es lo que Athos va armando y lo
+// se consulta cuando hay una duda. Lo que se mira todo el tiempo es lo que VetGPT va armando y lo
 // que uno escribe.
 
 import { useEffect } from "react"
@@ -111,7 +111,7 @@ export function Cockpit({
             </span>
           </h1>
           <p className="mt-1 text-[13px] text-fg-muted">
-            Athos escucha en modo fantasma — el titular no interactúa con él.{" "}
+            VetGPT escucha en modo fantasma — el titular no interactúa con él.{" "}
             <kbd className="rounded border border-line bg-surface-2 px-1 font-mono text-[11px]">
               Esc
             </kbd>{" "}
@@ -138,7 +138,7 @@ export function Cockpit({
               y queda debajo la pantalla de la consulta con el material ya tomado. */}
           <Button size="sm" onClick={() => void consultaViva.detener()}>
             <Sparkles className="size-3.5" aria-hidden />
-            Acabar y organizar con Athos
+            Acabar y organizar con VetGPT
           </Button>
           <Button variant="ghost" size="sm" onClick={alMinimizar}>
             <Minimize2 className="size-3.5" aria-hidden />
@@ -175,14 +175,14 @@ export function Cockpit({
 
       {pestana === "consulta" && (
         // DOS PANELES, apilados en pantalla angosta. El cuaderno va PRIMERO al apilarse: es lo
-        // único con lo que se interactúa, y leer lo que Athos armó se puede hacer después.
+        // único con lo que se interactúa, y leer lo que VetGPT armó se puede hacer después.
         <div className="flex min-h-0 flex-1 flex-col-reverse gap-4 lg:flex-row">
-          <Panel titulo="Notas en vivo" bajada="Athos lo arma solo a medida que escucha">
+          <Panel titulo="Notas en vivo" bajada="VetGPT lo arma solo a medida que escucha">
             <AthosEnVivo vivo={vivo} soloNotas />
           </Panel>
           <Panel
             titulo="Mi cuaderno"
-            bajada="Hoja en blanco — escribí libre; Athos lo organiza al acabar"
+            bajada="Hoja en blanco — escribí libre; VetGPT lo organiza al acabar"
           >
             <Cuaderno consultaId={estado.consultaId} filas={14} />
           </Panel>

@@ -32,14 +32,14 @@ const SOPORTE = buildWaLink(
 const SECTIONS = [
   {
     icon: Bot,
-    title: "Athos, el copiloto",
+    title: "VetGPT, el copiloto",
     body: "Pregúntale cualquier duda clínica. Responde con literatura citada y verificable, con lenguaje de posibilidad, y se abstiene antes que inventar una fuente. Cuando propone una acción —una cita, un mensaje— la deja para que tú la apruebes.",
     href: "/dashboard/asistente",
   },
   {
     icon: AudioLines,
     title: "Modo Fantasma",
-    body: "Grabas la consulta (pidiendo el consentimiento del titular) y Athos la transcribe y redacta la nota clínica SOAP con literatura veterinaria citada. Tú revisas, editas y apruebas: nada entra a la historia sin tu aprobación.",
+    body: "Grabas la consulta (pidiendo el consentimiento del titular) y VetGPT la transcribe y redacta la nota clínica SOAP con literatura veterinaria citada. Tú revisas, editas y apruebas: nada entra a la historia sin tu aprobación.",
     href: "/dashboard/consultas",
   },
   {
@@ -69,7 +69,7 @@ const SECTIONS = [
   {
     icon: MessageCircle,
     title: "Comunicaciones",
-    body: "Las conversaciones de WhatsApp de la clínica y las propuestas de respuesta que Athos deja esperando tu aprobación.",
+    body: "Las conversaciones de WhatsApp de la clínica y las propuestas de respuesta que VetGPT deja esperando tu aprobación.",
     href: "/dashboard/comunicaciones",
   },
   {
@@ -81,7 +81,7 @@ const SECTIONS = [
   {
     icon: Settings2,
     title: "Configuración",
-    body: "Los datos de la clínica, tu equipo, los horarios de atención que Athos usa para proponer citas, y la descarga de todos tus datos en formato abierto.",
+    body: "Los datos de la clínica, tu equipo, los horarios de atención que VetGPT usa para proponer citas, y la descarga de todos tus datos en formato abierto.",
     href: "/dashboard/administracion/clinica",
   },
 ]

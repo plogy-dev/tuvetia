@@ -144,7 +144,7 @@ export function FormularioDePago({
             <DialogHeader>
               <DialogTitle>Estamos confirmando tu pago</DialogTitle>
               <DialogDescription>
-                Tu banco está procesando el cobro. Puede tardar un momento; apenas se apruebe, Athos
+                Tu banco está procesando el cobro. Puede tardar un momento; apenas se apruebe, VetGPT
                 y el Modo Fantasma quedan activos y te va a aparecer acá.
               </DialogDescription>
             </DialogHeader>

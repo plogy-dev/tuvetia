@@ -1,7 +1,7 @@
 "use client"
 
-// La espera de Athos, viva (pedido del cliente, 26-ago): con turnos que legítimamente pueden
-// tardar, un "Athos está pensando…" ESTÁTICO durante 40 segundos se lee como un bug — el vet no
+// La espera de VetGPT, viva (pedido del cliente, 26-ago): con turnos que legítimamente pueden
+// tardar, un "VetGPT está pensando…" ESTÁTICO durante 40 segundos se lee como un bug — el vet no
 // distingue "está trabajando" de "se colgó". Dos señales lo resuelven:
 //
 //  1. TRES PUNTOS QUE LATEN (el lenguaje universal de "alguien está escribiendo"): movimiento
@@ -21,7 +21,7 @@ import { useEffect, useState } from "react"
  * el orden y los umbrales son producto, no decoración.
  */
 export function fraseDeEspera(segundos: number): string {
-  if (segundos < 7) return "Athos está pensando…"
+  if (segundos < 7) return "VetGPT está pensando…"
   if (segundos < 18) return "Armando la respuesta…"
   if (segundos < 40) return "El caso pide una respuesta completa — unos segundos más…"
   return "Sigo en ello. Gracias por la paciencia…"

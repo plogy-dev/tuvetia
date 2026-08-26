@@ -8,11 +8,11 @@ import { preferenciaPlegada } from "@/lib/ui/preferencia-plegada"
 /** Si el vet dejó el riel plegado. Ver `lib/ui/preferencia-plegada`. */
 const PLEGADO = preferenciaPlegada("tuvetia:riel-clinica-plegado")
 
-// "La clínica hoy" — el riel de 320px que acompaña a la conversación de Athos.
+// "La clínica hoy" — el riel de 320px que acompaña a la conversación de VetGPT.
 //
 // Es el tablero, reducido a lo que se puede leer sin dejar de conversar. El mockup lo dibuja así a
 // propósito: no son cards con sombra sino FILAS DENSAS separadas por una línea, porque compite por
-// atención con el hilo de Athos y tiene que perder esa competencia. Quien quiera el tablero de
+// atención con el hilo de VetGPT y tiene que perder esa competencia. Quien quiera el tablero de
 // verdad tiene el enlace arriba.
 //
 // Server component: los datos los pasa la página, ya resueltos.
@@ -187,7 +187,7 @@ export function TiraClinica({
   else if (estado === "escaso") partes.push(`quedan ${presupuesto?.restantes} consultas con IA`)
 
   return (
-    // Misma columna que el hilo y el compositor de Athos. Es la pieza que se pinta por debajo de
+    // Misma columna que el hilo y el compositor de VetGPT. Es la pieza que se pinta por debajo de
     // `xl`, o sea justo donde el ancho ya escasea.
     //
     // SE PLIEGA, Y ARRANCA PLEGADA. Lo pidieron los dos el 19-ago:
@@ -256,7 +256,7 @@ export function RielClinica({
   citas: CitaDelRiel[]
   pendientes: PendienteDelRiel[]
   /**
-   * El resumen del día redactado por Athos. `null` cuando el cron todavía no corrió, cuando la
+   * El resumen del día redactado por VetGPT. `null` cuando el cron todavía no corrió, cuando la
    * clínica lo tiene apagado, o cuando no había nada que contar.
    *
    * Es lo ÚNICO del riel que gasta IA, y por eso es lo único que puede faltar sin que falte nada:
@@ -282,7 +282,7 @@ export function RielClinica({
   )
 
   // PLEGADO NO ES DESMONTADO. La columna se queda con el ancho de la solapa en vez de desaparecer:
-  // si el riel se fuera del todo, el hilo de Athos se ensancharía de golpe y volver a abrirlo
+  // si el riel se fuera del todo, el hilo de VetGPT se ensancharía de golpe y volver a abrirlo
   // reflowearía la conversación entera. Además el botón tiene que seguir en algún lado.
   if (plegado) {
     return (
@@ -385,7 +385,7 @@ export function RielClinica({
               informa y uno desde el que se trabaja.
 
               ADÓNDE LLEVA DEPENDE DEL PRIMER PENDIENTE. Con el canal caído arriba, "Resolverlo con
-              Athos" sería una promesa falsa: Athos no puede reconectar WhatsApp — de hecho es lo
+              VetGPT" sería una promesa falsa: VetGPT no puede reconectar WhatsApp — de hecho es lo
               que MENOS puede hacer, porque sin canal su propia herramienta de mensajes falla. Un
               botón que ofrece un arreglo que no existe es peor que no tener botón. */}
           {(() => {
@@ -399,7 +399,7 @@ export function RielClinica({
                   <Link href={canalCaido ? "/dashboard/conexiones" : "/dashboard/asistente?pedir=cobros"} />
                 }
               >
-                {canalCaido ? "Reconectar WhatsApp" : "Resolverlo con Athos"}
+                {canalCaido ? "Reconectar WhatsApp" : "Resolverlo con VetGPT"}
               </Button>
             )
           })()}

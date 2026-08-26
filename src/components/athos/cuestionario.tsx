@@ -1,6 +1,6 @@
 "use client"
 
-// Cuestionario de contexto de Athos — la versión Tuvetia del patrón de preguntas de Claude
+// Cuestionario de contexto de VetGPT — la versión Tuvetia del patrón de preguntas de Claude
 // (pedido del cliente, 25-ago: "opciones múltiples para cada pregunta, poder escribir algo no
 // contemplado, y que nada se envíe hasta resolver todo el cuestionario").
 //
@@ -58,7 +58,7 @@ export function Cuestionario({
 
   return (
     // La tarjeta usa los tokens del sistema (line/surface/brand): debe leerse como parte de la
-    // respuesta de Athos, no como un modal ajeno.
+    // respuesta de VetGPT, no como un modal ajeno.
     <div className="mt-1 flex flex-col gap-3 rounded-2xl border border-line bg-surface p-3.5">
       {preguntas.map((p, i) => {
         const r = respuestas[i] ?? VACIA

@@ -52,7 +52,7 @@ export default async function ConexionesPage() {
   const [{ data: wa }, correoAthos, { data: clinica }, { data: adminDeRespaldo }, miCalendario] =
     await Promise.all([
     supabase.from("whatsapp_integrations").select("status, phone_number, agent_mode").maybeSingle(),
-    // La cuenta de correo que este miembro conectó por Composio: la que usa Athos por él.
+    // La cuenta de correo que este miembro conectó por Composio: la que usa VetGPT por él.
     user && composioListo
       ? estadoConexion(user.id)
       : Promise.resolve({ conectado: false, proveedor: null, email: null }),
@@ -139,17 +139,17 @@ export default async function ConexionesPage() {
           <p className="text-sm text-fg-muted">
             No hay nada que conectar. Las facturas y los recordatorios de pago salen por el correo de
             Tuvetia, <b>a nombre de tu clínica</b>, y si el titular responde, la respuesta le llega al
-            administrador. Lo de abajo es distinto: es tu cuenta personal, para que Athos escriba
+            administrador. Lo de abajo es distinto: es tu cuenta personal, para que VetGPT escriba
             <i> por vos</i>.
           </p>
         </section>
 
         <section className="rounded-lg border border-line-soft bg-card p-4">
           <div className="mb-3 flex items-center gap-2 text-sm font-semibold text-fg">
-            <Mail className="size-4 text-fg-faint" aria-hidden /> Correo de Athos
+            <Mail className="size-4 text-fg-faint" aria-hidden /> Correo de VetGPT
             <HelpTip>
               Es <b>tu</b> cuenta, no la de la clínica: cada miembro conecta la suya —<b>Gmail</b> u{" "}
-              <b>Outlook</b>— y Athos usa la de quien le está pidiendo algo. Nunca escribe desde la
+              <b>Outlook</b>— y VetGPT usa la de quien le está pidiendo algo. Nunca escribe desde la
               cuenta de otro. Tuvetia no ve tu contraseña: la autorización la maneja el proveedor.
             </HelpTip>
           </div>

@@ -12,7 +12,7 @@
 // el backend. Con la ruta abierta el razonamiento se invierte: estas dos tarjetas ahora se pintan
 // SIEMPRE, porque una tarjeta vacía con un botón "Agregar" ya no es un callejón sin salida.
 //
-// ALERGIAS SIGUEN DE SÓLO LECTURA, y no por olvido: las escribe Athos cuando el vet le aprueba una
+// ALERGIAS SIGUEN DE SÓLO LECTURA, y no por olvido: las escribe VetGPT cuando el vet le aprueba una
 // propuesta durante la consulta. Ese flujo existe y tiene su auditoría; duplicarlo con un alta
 // suelta acá crearía dos caminos para el dato que dispara el gate de alergia severa, que es la
 // regla clínica más delicada del producto. Por eso esa tarjeta conserva el comportamiento anterior.
@@ -211,11 +211,11 @@ export function PatientClinicalSummary({
 
   return (
     <div className="grid gap-4 md:grid-cols-3">
-      {/* ── Alergias: sólo lectura (las escribe Athos al aprobar una propuesta) ─────────────── */}
+      {/* ── Alergias: sólo lectura (las escribe VetGPT al aprobar una propuesta) ─────────────── */}
       <Tarjeta icono={<AlertTriangle className="size-4 text-muted-foreground" />} titulo="Alergias">
         {allergies.length === 0 ? (
           <p className="text-sm text-muted-foreground">
-            Sin alergias registradas. Entran cuando apruebas una propuesta de Athos durante una
+            Sin alergias registradas. Entran cuando apruebas una propuesta de VetGPT durante una
             consulta.
           </p>
         ) : (

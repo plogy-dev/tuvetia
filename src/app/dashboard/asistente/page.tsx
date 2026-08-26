@@ -17,11 +17,11 @@ import { consultarPresupuesto, type Presupuesto } from "@/lib/athos-agent/presup
 import { senalesDeLaClinica } from "@/lib/senales/consultar"
 import { Assistant, type AssistantPatient } from "./assistant"
 
-export const metadata = { title: "Athos · Tuvetia" }
+export const metadata = { title: "VetGPT · Tuvetia" }
 
-// LA PANTALLA DE INICIO. `/dashboard` redirige acá: el mockup v2 se llama "Tuvetia · Athos primero"
+// LA PANTALLA DE INICIO. `/dashboard` redirige acá: el mockup v2 se llama "Tuvetia · VetGPT primero"
 // y su idea es que la app abra en la conversación, con el estado de la clínica como riel al lado —
-// no en un tablero de métricas con Athos escondido en una subpágina.
+// no en un tablero de métricas con VetGPT escondido en una subpágina.
 //
 // Server component: resuelve clínica, pacientes, historial Y los datos del riel antes del primer
 // paint. Todo en paralelo, porque son independientes entre sí.
@@ -61,7 +61,7 @@ export default async function AsistentePage({
   searchParams,
 }: {
   // `?patient=` lo pone el historial del sidebar al abrir un chat ya existente.
-  // `?pedir=` lo pone "Resolverlo con Athos" del riel: deja la petición escrita y lista para enviar.
+  // `?pedir=` lo pone "Resolverlo con VetGPT" del riel: deja la petición escrita y lista para enviar.
   searchParams: Promise<{ patient?: string; pedir?: string; desde?: string; minutos?: string }>
 }) {
   const { patient: patientParam, pedir, desde, minutos } = await searchParams
@@ -215,7 +215,7 @@ export default async function AsistentePage({
       // LAS SEÑALES DE LA CLÍNICA, no sólo cartera. Acá había una lista armada a mano con un único
       // pendiente —los cobros vencidos— y el propio `TiraClinica` lo admitía en un comentario:
       // «hoy `pendientes` trae como mucho cartera». Ahora vienen de `lib/senales/`, que es la MISMA
-      // fuente que alimenta el prompt de Athos: si el riel dice "3 notas sin aprobar", Athos dice lo
+      // fuente que alimenta el prompt de VetGPT: si el riel dice "3 notas sin aprobar", VetGPT dice lo
       // mismo, porque leen del mismo lugar.
       //
       // Los cobros vencidos siguen calculándose acá arriba para `carteraVencidaCents`, que el riel

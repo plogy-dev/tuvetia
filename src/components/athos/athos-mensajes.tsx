@@ -1,6 +1,6 @@
 "use client"
 
-// El hilo de mensajes de Athos: burbujas, bloques de texto y tarjetas de propuesta.
+// El hilo de mensajes de VetGPT: burbujas, bloques de texto y tarjetas de propuesta.
 //
 // Salió TAL CUAL de `onboarding/onboarding-athos.tsx` cuando apareció el widget global y hubo tres
 // copias del mismo render. Se extrajo de ahí y no de `asistente/assistant.tsx` a propósito: el
@@ -13,7 +13,7 @@
 // ── LAS DOS COPIAS YA ESTÁN A LA MISMA ESCALA (22-ago) ──────────────────────────────────────────
 //
 // `assistant.tsx` bajó a la densidad del prototipo en el #131 y ésta se quedó atrás: burbujas de
-// 16px de radio, texto de 14px y la respuesta de Athos dentro de un recuadro con borde. O sea que
+// 16px de radio, texto de 14px y la respuesta de VetGPT dentro de un recuadro con borde. O sea que
 // el mismo hilo se veía de dos maneras según si estabas en la pantalla completa o en el widget.
 //
 // Ahora comparten geometría y escala —14px de radio con la esquina asimétrica, 13,5px de texto, la
@@ -57,14 +57,14 @@ export function AthosMensajes({ messages }: { messages: UIMessage[] }) {
                 if (p.type === "text") {
                   return (
                     // LA RESPUESTA NO VA EN BURBUJA. En el prototipo —y ya en `assistant.tsx`— lo
-                    // que dice Athos fluye sobre el fondo: la burbuja es del que pregunta. Acá
+                    // que dice VetGPT fluye sobre el fondo: la burbuja es del que pregunta. Acá
                     // además se paga: en un panel de 368px el borde y el padding se comían ~32px
                     // de ancho de lectura en la superficie donde menos sobra.
                     //
                     // SIN AVATAR, a diferencia de la pantalla completa. Ahí el avatar de 26px
                     // separa los turnos en una columna de 780px; acá costaría 37px con el gap para
                     // decir algo que la alineación ya dice — la del vet va a la derecha, la de
-                    // Athos a la izquierda, y no hay un tercer interlocutor posible.
+                    // VetGPT a la izquierda, y no hay un tercer interlocutor posible.
                     <div key={i} className="text-[13.5px] leading-[1.55] text-fg">
                       {splitBlocks(p.text).map((blk, j) => (
                         <div

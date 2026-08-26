@@ -1,6 +1,6 @@
 "use client"
 
-// Athos, alcanzable desde cualquier pantalla.
+// VetGPT, alcanzable desde cualquier pantalla.
 //
 // EL HILO ES UNO SOLO (`id: "athos-widget"`), a diferencia de `asistente/assistant.tsx` que usa
 // `athos-${patientId}` y resetea la conversación al cambiar de paciente. Acá es deliberado: el
@@ -43,16 +43,16 @@ export function AthosWidget() {
   const { messages, sendMessage, status } = useChat({
     id: "athos-widget",
     transport,
-    onError: (e) => toast.error(`Athos no pudo responder: ${e.message}`),
+    onError: (e) => toast.error(`VetGPT no pudo responder: ${e.message}`),
   })
   const busy = status === "submitted" || status === "streaming"
 
   // EL PLAN, IGUAL QUE EN LAS OTRAS DOS SUPERFICIES DE ATHOS.
   //
   // Este widget nació sin esto y era el único que no preguntaba. En una clínica `free` abría
-  // entero, invitaba a escribir, y lo que devolvía el Enter era el toast de `onError`: «Athos no
+  // entero, invitaba a escribir, y lo que devolvía el Enter era el toast de `onError`: «VetGPT no
   // pudo responder», que se lee como una falla del producto y no como lo que es —una función de
-  // Pro—. La pantalla de Athos y el cajón de consulta ya mostraban la invitación; acá se descubría
+  // Pro—. La pantalla de VetGPT y el cajón de consulta ya mostraban la invitación; acá se descubría
   // chocando. Y es la superficie que está en TODAS las pantallas, así que era la más fácil de
   // encontrar por accidente.
   const { puede: puedeUsarAthos } = useCapacidad("athos")
@@ -99,7 +99,7 @@ export function AthosWidget() {
     // El CONTEXTO ENTERO, no sólo el paciente. `derivarContexto` distingue ocho pantallas y el
     // widget ya las conoce —las pinta abajo, en "Estás en {ctx.descripcion}"— pero al agente le
     // mandaba nada más el `patientId`, que es `null` en cinco de las ocho. Parado en la agenda o en
-    // una factura, Athos no sabía dónde estaba.
+    // una factura, VetGPT no sabía dónde estaba.
     void sendMessage(
       { text: t },
       { body: { patientId: ctx!.patientId, contexto: ctx!.contexto, source: "widget" } },
@@ -114,7 +114,7 @@ export function AthosWidget() {
           ref={burbujaRef}
           type="button"
           onClick={() => setAbierto(true)}
-          aria-label="Abrir Athos"
+          aria-label="Abrir VetGPT"
           aria-expanded={false}
           className="pointer-events-auto grid size-12 place-items-center rounded-full bg-primary text-primary-foreground shadow-popover transition hover:brightness-110 focus-visible:outline-2 focus-visible:outline-offset-2"
         >
@@ -134,7 +134,7 @@ export function AthosWidget() {
     <div
       role="dialog"
       aria-modal="false"
-      aria-label="Athos"
+      aria-label="VetGPT"
       className="pointer-events-auto flex h-[min(32rem,calc(100svh-6rem))] w-[min(23rem,calc(100vw-1.5rem))] flex-col rounded-2xl border bg-card shadow-popover"
     >
       <header className="flex items-center gap-2 border-b px-3 py-2">
@@ -143,8 +143,8 @@ export function AthosWidget() {
         <div className="grid size-7 shrink-0 place-items-center rounded-lg bg-primary text-primary-foreground">
           <BrandGlyph className="size-4" fill="currentColor" />
         </div>
-        <p className="min-w-0 flex-1 text-sm font-semibold">Athos</p>
-        <Button size="icon" variant="ghost" onClick={() => setAbierto(false)} aria-label="Cerrar Athos">
+        <p className="min-w-0 flex-1 text-sm font-semibold">VetGPT</p>
+        <Button size="icon" variant="ghost" onClick={() => setAbierto(false)} aria-label="Cerrar VetGPT">
           <X className="size-4" />
         </Button>
       </header>
@@ -173,7 +173,7 @@ export function AthosWidget() {
       {!puedeUsarAthos && input.trim() ? (
         <p className="flex items-center gap-1.5 border-t px-3 pt-2 text-[11px] text-brand-text">
           <Sparkles className="size-3 shrink-0" aria-hidden />
-          Athos es parte del plan Pro. Al enviar te mostramos cómo activarlo.
+          VetGPT es parte del plan Pro. Al enviar te mostramos cómo activarlo.
         </p>
       ) : (
         <p className="truncate border-t px-3 pt-2 text-[11px] text-muted-foreground">
@@ -192,7 +192,7 @@ export function AthosWidget() {
               enviar(input)
             }
           }}
-          placeholder="Preguntale a Athos…"
+          placeholder="Preguntale a VetGPT…"
           rows={1}
           className="max-h-28 min-h-9 resize-none text-sm"
         />

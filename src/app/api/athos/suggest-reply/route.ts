@@ -43,7 +43,7 @@ export async function POST(req: Request) {
   if (!sesion.ok) return NextResponse.json({ error: sesion.mensaje }, { status: sesion.status })
   const { clinicId } = sesion
 
-  // La sugerencia de respuesta ES Athos, aunque viva dentro de Comunicaciones. Va a Pro por lo
+  // La sugerencia de respuesta ES VetGPT, aunque viva dentro de Comunicaciones. Va a Pro por lo
   // mismo que el chat: cuesta una llamada al modelo cada vez que alguien la pide.
   //
   // `requierePlan` en el cuerpo es lo que le permite a la bandeja abrir la ventana de invitación en
@@ -75,7 +75,7 @@ export async function POST(req: Request) {
   // no hay envíos masivos ni en frío") es una de las protecciones anti-baneo del número.
   //
   // Se corta ACÁ y no en el modelo por dos razones: el modelo ya declinaba (correcto), pero el
-  // error resultante —"Athos no pudo proponer una respuesta"— se lee como una falla del sistema
+  // error resultante —"VetGPT no pudo proponer una respuesta"— se lee como una falla del sistema
   // cuando es la respuesta correcta; y además se ahorra la llamada al LLM.
   // Mismo criterio de búsqueda que `search_whatsapp_conversation`: los últimos 10 dígitos, que
   // vienen ya normalizados (solo dígitos), y RLS acota a la clínica.
@@ -88,7 +88,7 @@ export async function POST(req: Request) {
     return NextResponse.json(
       {
         error:
-          "Esta conversación todavía no tiene mensajes. Athos redacta a partir de lo que escribió el titular, así que no propone el primer contacto: escríbele tú y podrás pedirle un borrador desde el segundo mensaje.",
+          "Esta conversación todavía no tiene mensajes. VetGPT redacta a partir de lo que escribió el titular, así que no propone el primer contacto: escríbele tú y podrás pedirle un borrador desde el segundo mensaje.",
       },
       { status: 422 },
     )
@@ -172,7 +172,7 @@ export async function POST(req: Request) {
       return NextResponse.json(
         {
           error:
-            "Athos no propuso una respuesta para esta conversación. Suele pasar cuando el último mensaje no pide nada concreto; escribe tú el borrador o dale más contexto.",
+            "VetGPT no propuso una respuesta para esta conversación. Suele pasar cuando el último mensaje no pide nada concreto; escribe tú el borrador o dale más contexto.",
         },
         { status: 502 },
       )

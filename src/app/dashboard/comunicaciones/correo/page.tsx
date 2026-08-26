@@ -32,7 +32,7 @@ export default async function CorreoPage() {
         <h1 className="text-lg font-semibold">No conectaste tu correo</h1>
         <p className="text-sm text-muted-foreground">
           Conectá <b>tu</b> cuenta de correo —Gmail u Outlook— para leer y responder desde acá, y
-          para que Athos pueda escribirles a los titulares por vos. Es un clic.
+          para que VetGPT pueda escribirles a los titulares por vos. Es un clic.
         </p>
         <Button render={<Link href="/dashboard/conexiones" />}>Conectar en Integraciones</Button>
       </div>

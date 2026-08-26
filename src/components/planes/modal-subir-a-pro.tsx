@@ -32,7 +32,7 @@ import { formatCOP } from "@/lib/facturacion/format"
 //
 // ── POR QUÉ NOMBRA LA CAPACIDAD ────────────────────────────────────────────────────────────────
 //
-// El título dice "Athos es parte del plan Pro" y no "Subí de plan". La diferencia importa: el vet
+// El título dice "VetGPT es parte del plan Pro" y no "Subí de plan". La diferencia importa: el vet
 // acaba de hacer algo concreto —escribir un mensaje, apretar iniciar consulta— y la ventana tiene
 // que conectar con eso. Una ventana genérica se lee como publicidad; una que nombra lo que acabás
 // de intentar se lee como una respuesta.

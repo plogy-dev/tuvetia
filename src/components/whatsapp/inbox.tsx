@@ -194,7 +194,7 @@ export function WhatsappInbox({
   const [sending, setSending] = useState(false)
   const [suggesting, setSuggesting] = useState(false)
   const [showNew, setShowNew] = useState(false)
-  // Sugerencia de Athos = acción 'proposed' persistida: enviar el borrador es APROBARLA.
+  // Sugerencia de VetGPT = acción 'proposed' persistida: enviar el borrador es APROBARLA.
   const [pendingActionId, setPendingActionId] = useState<string | null>(null)
   const [proposals, setProposals] = useState<ProposedAction[]>([])
   const endRef = useRef<HTMLDivElement | null>(null)
@@ -351,7 +351,7 @@ export function WhatsappInbox({
     }
   }, [supabase, applyFresh])
 
-  // Al abrir una conversación: marcar leídos los entrantes + cargar propuestas de Athos pendientes
+  // Al abrir una conversación: marcar leídos los entrantes + cargar propuestas de VetGPT pendientes
   // (sobreviven recargas: son filas 'proposed' de athos_actions, RLS por clínica).
   const openConversation = useCallback(
     (phone: string) => {
@@ -388,7 +388,7 @@ export function WhatsappInbox({
     endRef.current?.scrollIntoView({ behavior: "instant", block: "end" })
   }, [thread.length, selected])
 
-  // Sugerencia de Athos (agent_mode=review): el agente lee la conversación y PROPONE una respuesta
+  // Sugerencia de VetGPT (agent_mode=review): el agente lee la conversación y PROPONE una respuesta
   // — persistida en athos_actions (sobrevive recargas, auditada). El composer queda EDITABLE y
   // "Enviar" es la aprobación de esa acción.
   async function suggestReply() {
@@ -405,7 +405,7 @@ export function WhatsappInbox({
       if (!res.ok || !j.draft || !j.action_id) throw new Error(j.error ?? `HTTP ${res.status}`)
       setDraft(j.draft)
       setPendingActionId(j.action_id)
-      toast.success("Borrador de Athos listo — revisalo y editalo; enviar = aprobar")
+      toast.success("Borrador de VetGPT listo — revisalo y editalo; enviar = aprobar")
     } catch (e) {
       toast.error(`No se pudo generar la sugerencia: ${(e as Error).message}`)
     } finally {
@@ -419,7 +419,7 @@ export function WhatsappInbox({
     setSending(true)
     try {
       const owner = ownerByPhone.get(selected.slice(-10))
-      // Si el borrador viene de una propuesta de Athos, enviarlo ES aprobar esa acción (con el
+      // Si el borrador viene de una propuesta de VetGPT, enviarlo ES aprobar esa acción (con el
       // texto final como override si el vet lo editó). Si no, envío directo normal.
       const res = pendingActionId
         ? await fetch(`/api/athos/actions/${pendingActionId}/execute`, {
@@ -592,7 +592,7 @@ export function WhatsappInbox({
             {/* LA CABECERA DEL HILO, y el botón que convierte un número en un titular.
                 Quien escribe desde un número que no está en la clínica aparece como «+573001234567»
                 y hasta ahora la única salida era copiar el número a mano a la pantalla de Titulares.
-                Peor: mientras no sea titular, Athos TAMPOCO le puede escribir —`athosPuedeEscribirA`
+                Peor: mientras no sea titular, VetGPT TAMPOCO le puede escribir —`athosPuedeEscribirA`
                 sólo deja hablarle a titulares registrados— así que un número sin nombre es también
                 un número sin respuesta. Guardarlo desbloquea las dos cosas de una. */}
             <div className="flex items-center justify-between gap-2 border-b px-4 py-2.5">
@@ -663,7 +663,7 @@ export function WhatsappInbox({
             {proposals.filter((a) => a.id !== pendingActionId).length > 0 && (
               <div className="flex flex-col gap-2 border-t bg-muted/30 p-3">
                 <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                  Propuestas de Athos pendientes
+                  Propuestas de VetGPT pendientes
                 </span>
                 {proposals
                   .filter((a) => a.id !== pendingActionId)
@@ -682,7 +682,7 @@ export function WhatsappInbox({
                 variant="outline"
                 onClick={suggestReply}
                 disabled={suggesting || sending}
-                title="Athos redacta un borrador; vos lo editás y aprobás al enviar"
+                title="VetGPT redacta un borrador; vos lo editás y aprobás al enviar"
               >
                 {suggesting ? <Loader2 className="size-4 animate-spin" /> : <Sparkles className="size-4" />}
                 <span className="hidden sm:inline">Sugerir</span>
@@ -690,7 +690,7 @@ export function WhatsappInbox({
               <Input
                 value={draft}
                 onChange={(e) => setDraft(e.target.value)}
-                placeholder="Escribe un mensaje…  (o pedile un borrador a Athos)"
+                placeholder="Escribe un mensaje…  (o pedile un borrador a VetGPT)"
                 autoFocus
               />
               <Button type="submit" disabled={sending || !draft.trim()} aria-label="Enviar">

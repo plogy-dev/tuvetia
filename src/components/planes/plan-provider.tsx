@@ -8,7 +8,7 @@ import { tieneAcceso } from "@/lib/planes"
 // El plan de la clínica, disponible en cualquier componente de cliente.
 //
 // POR QUÉ UN CONTEXTO Y NO UNA CONSULTA. Los dos lugares donde hay que frenar al vet —el compositor
-// de Athos y el botón de iniciar consulta— están hundidos en el árbol y son de cliente. Con una
+// de VetGPT y el botón de iniciar consulta— están hundidos en el árbol y son de cliente. Con una
 // consulta propia, cada uno haría su round-trip y, peor, tendría un instante de "no sé todavía" en
 // el que el botón responde como si el plan alcanzara.
 //
@@ -43,7 +43,7 @@ export function PlanProvider({
   children,
 }: ContextoDelPlan & { children: React.ReactNode }) {
   // `useMemo` con las tres primitivas como deps: sin él, cada render del layout crea un objeto
-  // nuevo y re-renderiza a todos los consumidores, que incluyen el compositor de Athos.
+  // nuevo y re-renderiza a todos los consumidores, que incluyen el compositor de VetGPT.
   const valor = React.useMemo(
     () => ({ plan, precioCentavos, esAdmin }),
     [plan, precioCentavos, esAdmin],

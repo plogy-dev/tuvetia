@@ -1,4 +1,4 @@
-// Cliente del microservicio Athos (RAG clínico). Llama /athos/chat (SSE) y /athos/phantom/suggest
+// Cliente del microservicio VetGPT (RAG clínico). Llama /athos/chat (SSE) y /athos/phantom/suggest
 // con el JWT de Supabase del usuario. La URL base viene de NEXT_PUBLIC_ATHOS_URL.
 import { sinNombresDeProveedor } from "@/lib/sin-proveedores"
 import type { BandaDeEvidencia } from "@/lib/evidencia"
@@ -19,7 +19,7 @@ async function authHeaders(): Promise<Record<string, string>> {
 
 // Arma el mensaje que ve el vet a partir de una respuesta fallida del microservicio.
 //
-// El `detail` de FastAPI se superficia a propósito: sin él el toast sólo decía "Athos respondió
+// El `detail` de FastAPI se superficia a propósito: sin él el toast sólo decía "VetGPT respondió
 // 500" y escondía la causa real (falta una credencial, la consulta no tiene audio, el usuario no
 // pertenece a la clínica). Pero se superficia TACHADO — llegó a traer el nombre del proveedor de
 // transcripción y 200 caracteres de su cuerpo crudo. Ver `lib/sin-proveedores.ts` para por qué el
@@ -31,7 +31,7 @@ async function mensajeDeError(res: Response): Promise<string> {
     .then((b) => (b as { detail?: string })?.detail)
     .catch(() => null)
   const limpio = detail ? sinNombresDeProveedor(detail) : ""
-  return `Athos respondió ${res.status}${limpio ? `: ${limpio}` : ""}`
+  return `VetGPT respondió ${res.status}${limpio ? `: ${limpio}` : ""}`
 }
 
 export type Citation = {
@@ -111,7 +111,7 @@ export async function athosChat(
       }),
       signal,
     })
-    if (!res.ok || !res.body) throw new Error(`Athos respondió ${res.status}`)
+    if (!res.ok || !res.body) throw new Error(`VetGPT respondió ${res.status}`)
 
     const reader = res.body.getReader()
     const decoder = new TextDecoder()
@@ -182,7 +182,7 @@ export async function athosPhantomSuggest(params: {
       clinic_id: params.clinicId,
     }),
   })
-  if (!res.ok) throw new Error(`Athos respondió ${res.status}`)
+  if (!res.ok) throw new Error(`VetGPT respondió ${res.status}`)
   return (await res.json()) as PhantomResponse
 }
 
@@ -236,7 +236,7 @@ export async function athosLive(params: {
     }),
     signal: params.signal,
   })
-  if (!res.ok) throw new Error(`Athos respondió ${res.status}`)
+  if (!res.ok) throw new Error(`VetGPT respondió ${res.status}`)
   return (await res.json()) as LiveResponse
 }
 

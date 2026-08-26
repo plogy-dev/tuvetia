@@ -1,6 +1,6 @@
 "use client"
 
-// Tarjeta de aprobación de una acción propuesta por Athos: el vet la ve, puede editar el texto
+// Tarjeta de aprobación de una acción propuesta por VetGPT: el vet la ve, puede editar el texto
 // (si es un mensaje), y Aprobar (ejecuta bajo SU sesión) o Rechazar. Ambas transiciones quedan
 // en athos_actions + audit_logs.
 
@@ -91,7 +91,7 @@ const RESOLVED_LABELS: Record<string, string> = {
   executed: "✓ Ejecutada",
   rejected: "✗ Rechazada",
   failed: "⚠ Falló — revisa e intenta de nuevo",
-  expired: "⌛ Expiró — pedile a Athos una nueva",
+  expired: "⌛ Expiró — pedile a VetGPT una nueva",
   approved: "⏳ Quedó a medio ejecutar — verificá el resultado antes de repetirla",
 }
 
@@ -303,7 +303,7 @@ export function ActionApprovalCard({
               acá va antes, que es donde de verdad cambia una decisión. Después ya no hay nada que
               decidir, y estas ejecuciones duran uno o dos segundos.
 
-              Lo que resuelve: una acción de Athos casi nunca es una sola cosa. "Agendar la cita"
+              Lo que resuelve: una acción de VetGPT casi nunca es una sola cosa. "Agendar la cita"
               también la copia al Google Calendar de la clínica; "actualizar la ficha" pueden ser
               tres escrituras distintas. El vet apretaba "Aprobar" viendo una sola frase. */}
           {previstos.length > 0 && (
@@ -346,8 +346,8 @@ export function ActionApprovalCard({
           </div>
           <p className="text-[13px] text-fg-muted">
             {ENVIA.has(action.tool_name)
-              ? "Athos no escribe al titular hasta que usted apruebe."
-              : "Athos no ejecuta nada hasta que usted apruebe."}
+              ? "VetGPT no escribe al titular hasta que usted apruebe."
+              : "VetGPT no ejecuta nada hasta que usted apruebe."}
           </p>
         </div>
       )}
