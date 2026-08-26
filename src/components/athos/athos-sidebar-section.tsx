@@ -89,10 +89,13 @@ export function AthosSidebarSection() {
           .select("id, status, started_at, patient:patients(name)")
           .order("started_at", { ascending: false })
           .limit(TOPE_CONSULTAS),
+        // Vienen también las filas GENERALES (patient_id null, thread_key 0092): cada chat que
+        // quedó atrás es un botón del historial al que se vuelve. `role` y `content` se traen para
+        // titular el chat con la primera pregunta del vet — un botón que dice "Chat general" veinte
+        // veces no le sirve a nadie.
         supabase
           .from("athos_messages")
-          .select("patient_id, created_at")
-          .not("patient_id", "is", null)
+          .select("patient_id, thread_key, role, content, created_at")
           .order("created_at", { ascending: false })
           .limit(TOPE_MENSAJES),
         supabase.from("patients").select("id, name").limit(500),
@@ -116,19 +119,48 @@ export function AthosSidebarSection() {
         ((pts.data as { id: string; name: string }[] | null) ?? []).map((p) => [p.id, p.name]),
       )
       // Las filas vienen de la más nueva a la más vieja, así que el primer avistamiento de cada
-      // paciente ya es su último mensaje.
-      const vistos = new Map<string, string>()
-      for (const m of ((msgs.data as { patient_id: string; created_at: string }[] | null) ?? [])) {
-        if (!vistos.has(m.patient_id)) vistos.set(m.patient_id, m.created_at)
+      // hilo ya es su último mensaje. Un solo recorrido arma los dos tipos: hilos de PACIENTE
+      // (clave = patient_id) e hilos GENERALES (clave = thread_key 0092), titulados con la primera
+      // pregunta del vet que se encuentre (yendo de nuevo a viejo, la última vista es la primera
+      // de la conversación).
+      type Fila = {
+        patient_id: string | null
+        thread_key: string | null
+        role: string
+        content: string | null
+        created_at: string
       }
-      setChats(
-        [...vistos.entries()].map(([pid, ts]) => ({
+      const pacientes = new Map<string, string>()
+      const generales = new Map<string, { ts: string; titulo: string }>()
+      for (const m of ((msgs.data as Fila[] | null) ?? [])) {
+        if (m.patient_id) {
+          if (!pacientes.has(m.patient_id)) pacientes.set(m.patient_id, m.created_at)
+        } else if (m.thread_key) {
+          const g = generales.get(m.thread_key) ?? { ts: m.created_at, titulo: "" }
+          if (m.role === "user" && m.content?.trim()) g.titulo = m.content.trim()
+          generales.set(m.thread_key, g)
+        }
+      }
+      const filasChats: (Item & { ts: string })[] = [
+        ...[...pacientes.entries()].map(([pid, ts]) => ({
           key: pid,
           href: `/dashboard/asistente?patient=${pid}`,
           titulo: nombres.get(pid) ?? "Paciente",
           sub: `Último mensaje · ${bogotaDate(ts)}`,
+          ts,
         })),
-      )
+        ...[...generales.entries()].map(([clave, g]) => ({
+          key: clave,
+          href: `/dashboard/asistente?chat=${clave}`,
+          titulo: g.titulo ? (g.titulo.length > 48 ? `${g.titulo.slice(0, 47)}…` : g.titulo) : "Chat general",
+          sub: `Chat general · ${bogotaDate(g.ts)}`,
+          ts: g.ts,
+        })),
+      ]
+      // Mezclados por actividad, el más reciente arriba: el hilo que acabas de dejar es el que
+      // más probablemente quieres retomar.
+      filasChats.sort((a, b) => (a.ts < b.ts ? 1 : -1))
+      setChats(filasChats.map(({ ts: _ts, ...item }) => item))
     })()
     return () => {
       vivo = false
@@ -145,6 +177,7 @@ export function AthosSidebarSection() {
   if (!visible) return null
 
   const pacienteActivo = searchParams.get("patient")
+  const chatActivo = searchParams.get("chat")
 
   return (
     <SidebarGroup className="group-data-[collapsible=icon]:hidden">
@@ -256,7 +289,7 @@ export function AthosSidebarSection() {
             {items.map((i) => {
               const activo =
                 tab === "chats"
-                  ? pacienteActivo === i.key
+                  ? pacienteActivo === i.key || chatActivo === i.key
                   : pathname === `/dashboard/consultas/${i.key}`
               return (
                 <SidebarMenuItem key={i.key}>

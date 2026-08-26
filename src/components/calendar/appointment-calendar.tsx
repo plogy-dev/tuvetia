@@ -20,7 +20,7 @@ import withDragAndDrop, {
 } from "react-big-calendar/lib/addons/dragAndDrop"
 import { format, getDay, parse, startOfWeek } from "date-fns"
 import { es } from "date-fns/locale/es"
-import { PlusIcon } from "lucide-react"
+import { PlusIcon, SearchIcon } from "lucide-react"
 import { toast } from "sonner"
 
 import "react-big-calendar/lib/css/react-big-calendar.css"
@@ -29,6 +29,7 @@ import "./calendar-theme.css"
 
 import { createClient } from "@/lib/supabase/client"
 import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
 import {
   APPOINTMENT_SELECT,
   APPOINTMENT_STATUS,
@@ -45,6 +46,8 @@ import {
 import { HelpTip } from "@/components/help-tip"
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 import { citasVisibles, deOtros, sinAsignar, type FiltroDeAgenda } from "@/lib/agenda/filtro"
+import { coincideConLaBusqueda } from "@/lib/agenda/buscar"
+import { PanelDeAgenda } from "./panel-de-agenda"
 import { AvisoDeLaCita, type ResultadoDeAviso } from "./aviso-de-la-cita"
 import {
   AgendaEventContent,
@@ -88,6 +91,18 @@ const MOTIVO_DEL_CALENDARIO: Record<string, string> = {
     "Ni el veterinario asignado ni el administrador conectaron su calendario en Integraciones.",
 }
 
+/**
+ * El id de la columna «Sin asignar» del Programador.
+ *
+ * NO es `null`: la librería agrupa por el id del recurso y un `null` no hace juego con ninguna
+ * columna, así que esas citas se caerían de la vista. Se les da una columna real con un id que
+ * ningún perfil puede tener — y son justamente las que hay que ver, para que alguien las tome.
+ */
+const SIN_ASIGNAR = "sin-asignar"
+
+/** Una columna del Programador: un veterinario. `object` es lo que tipa la librería. */
+type RecursoDeVet = { id: string; title: string }
+
 const DEFAULT_DURATION_MIN = 30
 
 // Eje de horas compacto ("6 AM" en vez de "06:00"), como Google Calendar.
@@ -109,6 +124,7 @@ export function AppointmentCalendar({
   miId,
   veTodo,
   acotarA,
+  avisosActivos = false,
 }: {
   initialAppointments: AppointmentRow[]
   initialRange: { start: string; end: string }
@@ -133,6 +149,8 @@ export function AppointmentCalendar({
    * bastaría con avanzar una semana para volver a traerse la agenda de todos.
    */
   acotarA: string | null
+  /** Si la clínica tiene encendidos los avisos de cita. El panel lo DICE, no lo cambia. */
+  avisosActivos?: boolean
 }) {
   const [supabase] = useState(() => createClient())
   const [events, setEvents] = useState<CalendarEvent[]>(() => initialAppointments.map(toEvent))
@@ -145,6 +163,13 @@ export function AppointmentCalendar({
     end: new Date(initialRange.end),
   }))
   const [view, setView] = useState<View>(Views.WEEK)
+
+  // Qué se escribió en el buscador de la agenda. Filtra al PINTAR, sobre lo que ya está en memoria:
+  // buscar no puede costar una consulta por tecla, y el rango que se está mirando ya está cargado.
+  const [busqueda, setBusqueda] = useState("")
+  // Qué calendarios se ven. `null` = todos, que es distinto de "el conjunto vacío": arrancar con un
+  // conjunto obligaría a mantenerlo sincronizado cada vez que entra alguien nuevo al equipo.
+  const [vetsVisibles, setVetsVisibles] = useState<Set<string> | null>(null)
   // Ancla en "hoy" si cae dentro del rango inicial (así Día/Agenda abren en hoy, no en el lunes de la
   // semana, al cambiar de vista) — si no, cae al inicio del rango como antes.
   const [date, setDate] = useState<Date>(() => {
@@ -367,18 +392,74 @@ export function AppointmentCalendar({
   // vista es instantáneo y no dispara otra consulta. Y el solapamiento se sigue detectando contra la
   // agenda completa — esconder una cita no puede volver libre un horario que está ocupado.
   const visibles = citasVisibles(
-    events.map((e) => ({ ...e, vet_id: e.resource.vet_id })),
+    events.map((e) => ({
+      ...e,
+      vet_id: e.resource.vet_id,
+      // `resourceId` es lo que la vista Programador usa para poner cada cita en su columna. Va
+      // SIEMPRE, no sólo en esa vista: calcularlo condicionalmente obligaría a rehacer el arreglo
+      // al cambiar de vista, y no cuesta nada.
+      resourceId: e.resource.vet_id ?? SIN_ASIGNAR,
+    })),
     filtro,
     miId,
   )
+    // LOS CALENDARIOS APAGADOS EN EL PANEL. `null` = todos. Las citas sin veterinario se ven
+    // siempre: son de todos y de nadie, y esconderlas detrás de una casilla que no existe las
+    // dejaría fuera de la pantalla sin que nadie pueda traerlas de vuelta.
+    .filter((e) => vetsVisibles === null || !e.resource.vet_id || vetsVisibles.has(e.resource.vet_id))
+    // EL BUSCADOR. Filtra sobre lo que ya está en memoria —el rango que se está mirando— así que no
+    // cuesta una consulta por tecla. Mira el paciente, el título y el motivo, que es por lo que se
+    // busca una cita: «¿a qué hora era lo de Luna?».
+    .filter((e) => coincideConLaBusqueda(e.resource, busqueda))
   // CUÁNTAS SE ESTÁN ESCONDIENDO — y sólo tiene sentido si de verdad hay algo escondido. Sin el
   // permiso, las citas de los demás nunca llegaron: contar cero y decirlo sería mentir por omisión
   // al revés, sugiriendo que la clínica no tiene más citas que las tuyas.
   const ocultas = veTodo && filtro === "mia" ? deOtros(events.map((e) => e.resource), miId) : 0
   const huerfanas = sinAsignar(events.map((e) => e.resource))
 
+  const esProgramador = view === ("programador" as View)
+
+  // LAS COLUMNAS DEL PROGRAMADOR, acotadas a los calendarios que estén encendidos en el panel.
+  const vetsDelDia: RecursoDeVet[] = [
+    { id: SIN_ASIGNAR, title: "Sin asignar" },
+    ...vets
+      .filter((v) => vetsVisibles === null || vetsVisibles.has(v.id))
+      .map((v) => ({ id: v.id, title: v.label })),
+  ]
+
   return (
-    <div className="flex flex-col gap-3">
+    // ── DOS COLUMNAS ────────────────────────────────────────────────────────────────────────
+    // El panel a la izquierda y la agenda a la derecha, como cualquier agenda profesional. En
+    // pantalla angosta se apila: el mini calendario arriba sigue sirviendo para saltar de fecha y
+    // la grilla debajo se recorre igual.
+    <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:gap-6">
+      <PanelDeAgenda
+        fecha={date}
+        onElegirFecha={(d) => {
+          setDate(d)
+          // Saltar desde el mini calendario abre el DÍA: si se eligió un día puntual es porque
+          // interesa ese día. Desde Mes no se toca, que ahí el gesto natural es seguir viendo el
+          // mes con el día resaltado.
+          if (view === Views.WEEK) setView(Views.DAY)
+        }}
+        vets={vets}
+        vetsVisibles={vetsVisibles}
+        onAlternarVet={(id) =>
+          setVetsVisibles((prev) => {
+            // `null` = todos. Al destildar el primero hay que materializar el conjunto con TODOS
+            // menos ése; si no, el primer clic dejaría la pantalla con un solo calendario.
+            const base = prev ?? new Set(vets.map((v) => v.id))
+            const siguiente = new Set(base)
+            if (siguiente.has(id)) siguiente.delete(id)
+            else siguiente.add(id)
+            // Volver a tenerlos todos vuelve a `null`: así un vet nuevo entra visible solo.
+            return siguiente.size === vets.length ? null : siguiente
+          })
+        }
+        avisosActivos={avisosActivos}
+      />
+
+      <div className="flex min-w-0 flex-1 flex-col gap-3">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <h1 className="flex items-center gap-1.5 text-lg font-semibold">
           Calendario
@@ -427,6 +508,25 @@ export function AppointmentCalendar({
               {huerfanas} sin asignar
             </span>
           )}
+          {/* ── BUSCAR EN LO QUE SE ESTÁ VIENDO ────────────────────────────────────────────
+              Filtra sobre las citas YA cargadas —las del rango en pantalla— así que no cuesta un
+              viaje por tecla. La contrapartida se dice en el marcador: busca en lo que se ve, no en
+              toda la historia. Es lo correcto para un buscador dentro de la agenda — el resultado
+              tiene que ser algo que se pueda ver ahí mismo, en su día y su hora. Para buscar en
+              todo está el buscador del encabezado del panel. */}
+          <div className="relative">
+            <SearchIcon
+              className="pointer-events-none absolute top-1/2 left-2.5 size-3.5 -translate-y-1/2 text-fg-faint"
+              aria-hidden
+            />
+            <Input
+              value={busqueda}
+              onChange={(e) => setBusqueda(e.target.value)}
+              placeholder="Buscar en la vista…"
+              aria-label="Buscar citas en el rango que se está viendo"
+              className="h-8 w-44 pl-8 text-[13px]"
+            />
+          </div>
           <Button onClick={newAppointment}>
             <PlusIcon /> Nueva cita
           </Button>
@@ -448,11 +548,21 @@ export function AppointmentCalendar({
           messages={MESSAGES}
           formats={FORMATS}
           events={visibles}
-          view={view}
           onView={setView}
           date={date}
           onNavigate={setDate}
-          views={[Views.WEEK, Views.AGENDA]}
+          // «Programador» NO es una vista de la librería: es el DÍA con una columna por
+          // veterinario (`resources`). Por eso lo que se le pasa acá es `day` — el rótulo del botón
+          // es lo único que cambia, y `esProgramador` decide si se le dan recursos.
+          view={esProgramador ? Views.DAY : view}
+          views={[Views.MONTH, Views.WEEK, Views.DAY, Views.AGENDA]}
+          {...(esProgramador
+            ? {
+                resources: vetsDelDia,
+                resourceIdAccessor: (r: object) => (r as RecursoDeVet).id,
+                resourceTitleAccessor: (r: object) => (r as RecursoDeVet).title,
+              }
+            : {})}
           onRangeChange={handleRangeChange}
           selectable
           onSelectSlot={handleSelectSlot}
@@ -496,6 +606,7 @@ export function AppointmentCalendar({
           resultados={aviso.resultados}
         />
       )}
+      </div>
     </div>
   )
 }

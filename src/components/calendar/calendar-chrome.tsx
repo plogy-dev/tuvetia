@@ -12,18 +12,22 @@ import type { EventProps, HeaderProps, ToolbarProps, View } from "react-big-cale
 
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select"
 import { APPOINTMENT_STATUS, type CalendarEvent } from "@/lib/appointments"
 
+// ── LAS CINCO VISTAS ────────────────────────────────────────────────────────────────────────────
+//
+// Eran dos —Semana y Agenda— y con eso no se puede trabajar una agenda de verdad: no había forma de
+// ver el mes de un vistazo ni de mirar un solo día con detalle.
+//
+// «Programador» es la vista por veterinario: el día partido en una columna por persona. Sirve para
+// lo único que las otras cuatro no resuelven —quién tiene hueco AHORA— que es la pregunta que se
+// hace en el mostrador con el titular esperando.
 const VIEW_OPTIONS: { value: string; label: string }[] = [
+  { value: "month", label: "Mes" },
   { value: "week", label: "Semana" },
-  { value: "agenda", label: "Agenda" },
+  { value: "day", label: "Día" },
+  { value: "agenda", label: "Lista" },
+  { value: "programador", label: "Programador" },
 ]
 
 export function CalendarToolbar({
@@ -69,18 +73,28 @@ export function CalendarToolbar({
           {label}
         </span>
       </div>
-      <Select value={view} onValueChange={(v) => onView(v as View)}>
-        <SelectTrigger size="sm" className="w-28">
-          <SelectValue>{VIEW_OPTIONS.find((o) => o.value === view)?.label ?? view}</SelectValue>
-        </SelectTrigger>
-        <SelectContent align="end">
-          {VIEW_OPTIONS.map((o) => (
-            <SelectItem key={o.value} value={o.value}>
-              {o.label}
-            </SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
+      {/* SEGMENTADO Y NO DESPLEGABLE. Con dos vistas un `<Select>` alcanzaba; con cinco, esconder
+          las opciones detrás de un clic convierte cambiar de vista —que se hace todo el tiempo— en
+          dos gestos. Todas a la vista y la activa resaltada, que es como lo resuelve cualquier
+          agenda. */}
+      <div className="flex items-center rounded-lg border border-line p-0.5" role="group">
+        {VIEW_OPTIONS.map((o) => (
+          <button
+            key={o.value}
+            type="button"
+            onClick={() => onView(o.value as View)}
+            aria-pressed={view === o.value}
+            className={cn(
+              "rounded-md px-2.5 py-1 text-[12.5px] font-medium transition-colors",
+              view === o.value
+                ? "bg-brand text-on-brand"
+                : "text-fg-muted hover:bg-accent hover:text-fg",
+            )}
+          >
+            {o.label}
+          </button>
+        ))}
+      </div>
     </div>
   )
 }
