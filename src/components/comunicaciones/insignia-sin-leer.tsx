@@ -43,6 +43,15 @@ import { createClient } from "@/lib/supabase/client"
 /** Ráfagas: abrir una conversación marca muchos mensajes de una y dispara un UPDATE por cada uno. */
 const ESPERA_MS = 400
 
+// CADA MONTAJE USA SU PROPIO CANAL, y no es estilo: supabase-js devuelve el MISMO RealtimeChannel
+// cuando el topic se repite, y llamarle `.on()` a un canal ya suscrito LANZA («cannot add
+// postgres_changes callbacks after subscribe()»). Con DOS consumidores de este hook montados a la
+// vez —la insignia del sidebar y la campanita de la cabecera, que es el caso normal— el segundo
+// tumbaba la app entera al error boundary (visto en producción, 26-ago, minutos después del
+// deploy de la campanita). El sufijo por instancia le da un canal a cada montaje; los eventos de
+// `postgres_changes` llegan igual a todos.
+let instancia = 0
+
 export function useMensajesSinLeer(): number {
   const [supabase] = useState(() => createClient())
   const [sinLeer, setSinLeer] = useState(0)
@@ -70,7 +79,7 @@ export function useMensajesSinLeer(): number {
 
     void contar()
     const canal = supabase
-      .channel("mensajes-sin-leer")
+      .channel(`mensajes-sin-leer-${++instancia}`)
       // INSERT: llegó uno nuevo. UPDATE: alguien lo leyó (o le cambió el estado).
       .on("postgres_changes", { event: "INSERT", schema: "public", table: "whatsapp_messages" }, recontarPronto)
       .on("postgres_changes", { event: "UPDATE", schema: "public", table: "whatsapp_messages" }, recontarPronto)
