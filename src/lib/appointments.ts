@@ -36,7 +36,7 @@ export const APPOINTMENT_STATUS_ORDER: AppointmentStatus[] = [
 // Columnas que se piden a PostgREST (RLS aísla por clínica). El embed to-one patient:patients(name)
 // llega como objeto plano en runtime (mismo gotcha documentado en DATABASE.md).
 export const APPOINTMENT_SELECT =
-  "id, title, reason, status, starts_at, ends_at, patient_id, owner_id, vet_id, notes, google_event_id, microsoft_event_id, calendar_owner_id, patient:patients(name)"
+  "id, title, reason, status, starts_at, ends_at, patient_id, owner_id, vet_id, notes, es_bloqueo, tipo, sin_hora, google_event_id, microsoft_event_id, calendar_owner_id, patient:patients(name)"
 
 export type AppointmentRow = {
   id: string
@@ -49,6 +49,12 @@ export type AppointmentRow = {
   owner_id: string | null
   vet_id: string | null
   notes: string | null
+  /** Reserva de espacio sin paciente ni titular (0093). */
+  es_bloqueo: boolean | null
+  /** De qué es la cita. Null en las anteriores a la 0093. */
+  tipo: string | null
+  /** Cita de día completo. */
+  sin_hora: boolean | null
   google_event_id: string | null
   microsoft_event_id: string | null
   /** En el calendario de qué usuario vive el evento — hace falta para borrarlo allá. */
