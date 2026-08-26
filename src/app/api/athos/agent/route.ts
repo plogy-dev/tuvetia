@@ -242,6 +242,10 @@ export async function POST(req: Request) {
             patient_id: patientId ?? null,
             role: turno.role,
             content: turno.content,
+            // Identidad de la conversación (0092): con esto el chat general que quedó atrás es un
+            // botón del historial al que se vuelve. En hilos de paciente cae al patient_id —
+            // redundante pero uniforme. Recortada: es una clave, no un campo libre.
+            thread_key: (conversationKey ?? patientId ?? null)?.slice(0, 64) ?? null,
           })),
         )
         if (error) console.error("[athos/agent] no se pudo guardar el turno:", error.message)

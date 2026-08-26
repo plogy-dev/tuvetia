@@ -13,7 +13,7 @@ import { readFileSync } from "node:fs"
 
 import { describe, expect, it } from "vitest"
 
-import { TURNOS_POR_PACIENTE, agruparPorPaciente, type MensajeFila } from "../athos-history"
+import { TURNOS_POR_PACIENTE, agruparPorClave, agruparPorPaciente, type MensajeFila } from "../athos-history"
 
 function fila(over: Partial<MensajeFila> & { id: string }): MensajeFila {
   return {
@@ -112,7 +112,7 @@ describe("la pantalla no esconde el historial que la base sí tiene", () => {
     // mostraba un hilo vacío aunque su conversación estuviera guardada. Que la app abra limpia lo
     // gobierna el paciente inicial (la consulta general no tiene historial), no este mapa.
     const pagina = limpiar(readFileSync("src/app/dashboard/asistente/page.tsx", "utf8"))
-    expect(pagina).toContain("threads = historial")
+    expect(pagina).toContain("threads = agruparPorPaciente(")
     expect(pagina).not.toMatch(/threads\s*=\s*patientParam\s*\?/)
   })
 
@@ -123,5 +123,30 @@ describe("la pantalla no esconde el historial que la base sí tiene", () => {
     const i = asistente.indexOf("initialPatientId !== patientDeLaUrl")
     expect(i, "se perdió la sincronización del ?patient= en navegación suave").toBeGreaterThan(-1)
     expect(asistente.slice(i, i + 200)).toContain("setPatientId(initialPatientId)")
+  })
+})
+
+describe("agruparPorClave — los chats generales recuperables (0092)", () => {
+  const fila = (over: Partial<MensajeFila>): MensajeFila => ({
+    id: crypto.randomUUID(),
+    patient_id: null,
+    thread_key: "g100",
+    role: "user",
+    content: "hola",
+    created_at: "2026-08-26T10:00:00Z",
+    ...over,
+  })
+
+  it("agrupa por thread_key, cronológico, ignorando filas de paciente y sin clave", () => {
+    const hilos = agruparPorClave([
+      fila({ id: "a3", thread_key: "g200", content: "otra conversación" }),
+      fila({ id: "a2", role: "assistant", content: "buenas, ¿qué caso?" }),
+      fila({ id: "a1", content: "hola" }),
+      fila({ id: "px", patient_id: "pac-1", thread_key: null, content: "de paciente: fuera" }),
+      fila({ id: "viejo", thread_key: null, content: "general viejo sin clave: fuera" }),
+    ])
+    expect(Object.keys(hilos).sort()).toEqual(["g100", "g200"])
+    expect(hilos.g100.map((m) => m.id)).toEqual(["a1", "a2"]) // cronológico
+    expect(hilos.g100[1].role).toBe("assistant")
   })
 })

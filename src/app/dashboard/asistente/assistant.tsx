@@ -357,6 +357,7 @@ export function Assistant({
   tiraClinica,
   textoInicial,
   claveNueva,
+  hiloGeneral,
 }: {
   clinicId: string
   patients: AssistantPatient[]
@@ -379,6 +380,9 @@ export function Assistant({
    *  conversación GENERAL fresca. Entra al id del hilo, así el hook crea un chat vacío en vez de
    *  volver al hilo general que quedó en memoria. */
   claveNueva?: string
+  /** `?chat=` del historial: un chat GENERAL guardado (clave 0092) con sus mensajes ya sembrados,
+   *  para volver y seguir la conversación donde quedó. */
+  hiloGeneral?: { key: string; messages: UIMessage[] }
 }) {
   // CONSULTA GENERAL POR DEFECTO, no el primer paciente (decisión de la reunión del 24-ago: el
   // vet abre el chat para preguntar lo que sea; encontrarse con un paciente pre-seleccionado que
@@ -415,6 +419,21 @@ export function Assistant({
     setClaveVista(claveNueva)
     if (claveNueva) setPatientId(GENERAL)
   }
+  // Volver a un chat general del historial (`?chat=`): mismo patrón otra vez.
+  const [hiloVisto, setHiloVisto] = useState(hiloGeneral?.key)
+  if (hiloGeneral?.key !== hiloVisto) {
+    setHiloVisto(hiloGeneral?.key)
+    if (hiloGeneral) setPatientId(GENERAL)
+  }
+
+  // ── LA CLAVE DEL HILO GENERAL VIGENTE (0092) ────────────────────────────────────────────────
+  // Toda conversación general tiene identidad desde que nace, para que al quedar atrás sea un
+  // botón del historial al que se vuelve. Prioridad: el chat retomado (?chat=) > el chat nuevo
+  // (?nuevo=) > una clave local generada al montar (la visita directa a la pantalla también es
+  // una conversación que mañana se quiere retomar). Viaja como `conversationKey` en cada envío y
+  // la ruta la persiste como `thread_key`.
+  const [claveLocal] = useState(() => `g${Date.now()}`)
+  const claveDeHilo = hiloGeneral?.key ?? (claveNueva ? `g${claveNueva}` : claveLocal)
   const threadRef = useRef<HTMLDivElement>(null)
 
   // --- Dictado por micrófono (reunión 24-ago). El dictado APPENDEA sobre lo que había: la base se
@@ -458,12 +477,18 @@ export function Assistant({
   // La clave de «Nuevo chat» entra al id SOLO en modo general: cada clic estrena un id → un hilo
   // vacío de verdad. Los hilos de paciente no la llevan — un paciente tiene UNA conversación
   // continua por diseño, y "nuevo chat" significa "quiero empezar de cero en general".
+  // En modo general el id ES la clave del hilo (0092): cada «Nuevo chat» estrena una → hilo vacío
+  // de verdad; volver del historial reutiliza la guardada → mismo hilo, sembrado con lo
+  // persistido. Los hilos de paciente no llevan clave: un paciente tiene UNA conversación
+  // continua por diseño.
   const { messages, sendMessage, status, error, stop, regenerate } = useChat({
-    id:
-      patientId === GENERAL && claveNueva
-        ? `athos-general-${claveNueva}`
-        : `athos-${patientId}`,
-    messages: threads[patientId] ?? [],
+    id: patientId === GENERAL ? `athos-${claveDeHilo}` : `athos-${patientId}`,
+    messages:
+      patientId === GENERAL
+        ? hiloGeneral?.key === claveDeHilo
+          ? hiloGeneral.messages
+          : []
+        : (threads[patientId] ?? []),
     transport,
     onError: (e) => toast.error(`No se pudo consultar a VetGPT: ${e.message}`),
   })
@@ -540,10 +565,17 @@ export function Assistant({
       }
     }
     setAdjuntos([])
-    // El agente deriva la clínica de la sesión; aquí solo viaja el contexto de paciente.
+    // El agente deriva la clínica de la sesión. `conversationKey` identifica el hilo (0092): en
+    // general es la clave del hilo vigente; en paciente, su id — la ruta la persiste por turno.
     void sendMessage(
       { text: conAdjuntos },
-      { body: { patientId: isGeneral ? null : patientId, source: "chat" } },
+      {
+        body: {
+          patientId: isGeneral ? null : patientId,
+          source: "chat",
+          conversationKey: isGeneral ? claveDeHilo : patientId,
+        },
+      },
     )
   }
 
@@ -558,7 +590,13 @@ export function Assistant({
     }
     void sendMessage(
       { text: texto },
-      { body: { patientId: isGeneral ? null : patientId, source: "chat" } },
+      {
+        body: {
+          patientId: isGeneral ? null : patientId,
+          source: "chat",
+          conversationKey: isGeneral ? claveDeHilo : patientId,
+        },
+      },
     )
   }
 

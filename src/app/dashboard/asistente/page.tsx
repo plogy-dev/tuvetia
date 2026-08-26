@@ -1,6 +1,7 @@
 import { sesionDelServidor } from "@/lib/supabase/sesion"
 import {
   TOPE_MENSAJES,
+  agruparPorClave,
   agruparPorPaciente,
   type MensajeFila,
   type StoredThreads,
@@ -64,9 +65,10 @@ export default async function AsistentePage({
   // `?pedir=` lo pone "Resolverlo con VetGPT" del riel: deja la petición escrita y lista para enviar.
   // `?nuevo=` lo pone «Nuevo chat con VetGPT»: un valor SIEMPRE distinto (timestamp) que fuerza una
   // conversación general fresca — sin él, el botón navegaba a la misma URL y no pasaba nada.
-  searchParams: Promise<{ patient?: string; pedir?: string; desde?: string; minutos?: string; nuevo?: string }>
+  // `?chat=` lo pone el historial del sidebar al abrir un chat GENERAL guardado (clave 0092).
+  searchParams: Promise<{ patient?: string; pedir?: string; desde?: string; minutos?: string; nuevo?: string; chat?: string }>
 }) {
-  const { patient: patientParam, pedir, desde, minutos, nuevo } = await searchParams
+  const { patient: patientParam, pedir, desde, minutos, nuevo, chat } = await searchParams
   const { supabase, user } = await sesionDelServidor()
 
   let clinicId = ""
@@ -76,6 +78,7 @@ export default async function AsistentePage({
   let nombreVet: string | null = null
   let patients: AssistantPatient[] = []
   let threads: StoredThreads = {}
+  let generales: StoredThreads = {}
   let consultasHoy = 0
   let ventasMesCents = 0
   let carteraVencidaCents = 0
@@ -115,13 +118,14 @@ export default async function AsistentePage({
           .eq("clinic_id", clinicId)
           .order("name")
           .limit(500),
-        // La RLS ya acota por clínica; el patient_id null es la consulta general, que el backend
-        // trata como sin estado y por eso se descarta acá.
+        // La RLS ya acota por clínica. Vienen TAMBIÉN las filas generales (patient_id null): desde
+        // la 0092 llevan `thread_key` y son hilos recuperables — el pedido del 26-ago es poder
+        // volver a un chat del historial y seguirlo donde quedó. Las generales VIEJAS (sin clave)
+        // se filtran al agrupar.
         supabase
           .from("athos_messages")
-          .select("id,patient_id,role,content,created_at")
+          .select("id,patient_id,thread_key,role,content,created_at")
           .eq("clinic_id", clinicId)
-          .not("patient_id", "is", null)
           .in("role", ["user", "assistant"])
           .order("created_at", { ascending: false })
           .limit(TOPE_MENSAJES),
@@ -175,8 +179,11 @@ export default async function AsistentePage({
       // hilo VACÍO aunque su conversación estuviera guardada — «está fallando poder ir a los chats
       // existentes» (David, 25-ago). El sembrado total arregla eso sin resucitar el problema
       // original.
-      const historial = agruparPorPaciente((msgs.data as MensajeFila[] | null) ?? [])
-      threads = historial
+      const filasMsgs = (msgs.data as MensajeFila[] | null) ?? []
+      threads = agruparPorPaciente(filasMsgs)
+      // Los hilos GENERALES, por clave (0092). Solo se le pasa al asistente el que pide la URL:
+      // sembrar los demás sería pagar memoria por conversaciones que no se están mirando.
+      generales = agruparPorClave(filasMsgs)
       consultasHoy = consultas.count ?? 0
       facturacionActiva =
         (billing.data as { module_status: string } | null)?.module_status === "ACTIVO"
@@ -258,6 +265,9 @@ export default async function AsistentePage({
         threads={threads}
         initialPatientId={initialPatientId}
         claveNueva={nuevo}
+        // Solo con mensajes REALES: un ?chat= inventado o de otra clínica llega con hilo vacío y
+        // se ignora — no se abre "una conversación" que no existe.
+        hiloGeneral={chat && generales[chat]?.length ? { key: chat, messages: generales[chat] } : undefined}
         saludo={saludoCompleto(horaBogota, nombreVet)}
         contexto={resumenDelDia({ citas: citas.length, consultasHoy, pendientes })}
         // Por debajo de `xl` el riel de la derecha no se pinta. Sin esto, en un teléfono la app

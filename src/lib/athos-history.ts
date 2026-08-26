@@ -16,6 +16,8 @@ export type MensajeFila = {
   role: string
   content: string
   created_at: string
+  /** Clave de conversación (0092). En hilos generales es `g<timestamp>`; null en filas viejas. */
+  thread_key?: string | null
 }
 
 /** Cuántos turnos se precargan por paciente. Más que la memoria del LLM (8 turnos en
@@ -36,11 +38,34 @@ export function agruparPorPaciente(filas: MensajeFila[]): StoredThreads {
   const out: StoredThreads = {}
   for (const f of filas) {
     const pid = f.patient_id
-    // patient_id null es la consulta general, que el backend trata como sin estado: no tiene hilo.
+    // patient_id null es la consulta general: su hilo se agrupa por `thread_key` (ver abajo).
     if (!pid || !f.content?.trim()) continue
     const hilo = (out[pid] ??= [])
     if (hilo.length >= TURNOS_POR_PACIENTE) continue // ya tiene los más recientes
     // `unshift` porque las filas vienen del más reciente al más antiguo.
+    hilo.unshift({
+      id: f.id,
+      role: f.role === "user" ? "user" : "assistant",
+      parts: [{ type: "text", text: f.content }],
+    })
+  }
+  return out
+}
+
+/**
+ * Hilos GENERALES (patient_id null) agrupados por su `thread_key` (0092), cronológicos.
+ *
+ * Existe por el pedido del 26-ago: el chat que quedó atrás al abrir uno nuevo tiene que ser un
+ * botón al que se vuelve y se sigue donde quedó. Las filas generales viejas (sin clave) se saltan:
+ * no hay forma honesta de saber qué conversación eran.
+ */
+export function agruparPorClave(filas: MensajeFila[]): StoredThreads {
+  const out: StoredThreads = {}
+  for (const f of filas) {
+    const clave = f.thread_key
+    if (f.patient_id || !clave || !f.content?.trim()) continue
+    const hilo = (out[clave] ??= [])
+    if (hilo.length >= TURNOS_POR_PACIENTE) continue
     hilo.unshift({
       id: f.id,
       role: f.role === "user" ? "user" : "assistant",
