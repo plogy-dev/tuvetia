@@ -1,4 +1,4 @@
--- 0095: que «sin hora definida» de verdad ocupe el día.
+-- 0096: que «sin hora definida» de verdad ocupe el día.
 --
 -- ── EL DEFECTO ──────────────────────────────────────────────────────────────────────────────────
 --
