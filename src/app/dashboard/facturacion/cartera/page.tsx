@@ -84,7 +84,11 @@ export default async function CarteraPage() {
         <ArrowLeft className="size-3.5" aria-hidden />
         Facturación
       </Link>
-      <header className="flex flex-wrap items-center justify-between gap-3">
+      {/* `items-end` como el resto de las cabeceras del módulo: con `items-center` la acción de la
+          derecha se centraba contra el bloque ENTERO de título + descripción, así que flotaba a
+          media altura en vez de apoyarse en la línea de base. Se veía poco cuando la pantalla
+          medía 1024px; con los 1200 de PageShell quedó a la vista. */}
+      <header className="flex flex-wrap items-end justify-between gap-3">
         <div>
           <h1 className="text-2xl font-semibold tracking-tight text-fg">Cartera</h1>
           <p className="mt-1 text-sm text-fg-faint">
