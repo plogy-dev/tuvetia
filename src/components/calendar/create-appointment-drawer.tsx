@@ -11,6 +11,7 @@ import { toast } from "sonner"
 
 import { createClient } from "@/lib/supabase/client"
 import { finSegunTipo, TIPOS_DE_CITA } from "@/lib/agenda/tipos-de-cita"
+import { hayQueAvisar } from "@/lib/citas/cuando-avisar"
 import { borrarEventosRemotos } from "@/lib/calendar-remote"
 import { Button } from "@/components/ui/button"
 import {
@@ -96,8 +97,14 @@ export function CreateAppointmentDrawer({
   patients: PatientOption[]
   owners: SelectOption[]
   vets: SelectOption[]
-  /** `esEdicion` decide el título de la ventana de aviso: creada o actualizada. */
-  onSaved: (appointmentId: string, esEdicion: boolean) => void
+  /**
+   * `esEdicion` decide el título de la ventana de aviso; `avisarAlTitular`, si sale el
+   * WhatsApp.
+   *
+   * LO DECIDE EL DRAWER Y NO EL CALENDARIO porque es el único que sabe QUÉ CAMBIÓ: el
+   * calendario recibe un id y no tiene con qué comparar la hora vieja.
+   */
+  onSaved: (appointmentId: string, esEdicion: boolean, avisarAlTitular: boolean) => void
   /** Ya no lleva los ids del evento: el borrado remoto ocurre acá dentro, antes de borrar la fila. */
   onDeleted: () => void
 }) {
@@ -214,7 +221,20 @@ export function CreateAppointmentDrawer({
     const savedId = (data as string | null) ?? initial.id ?? ""
     toast.success(isEdit ? "Cita actualizada" : "Cita creada")
     onOpenChange(false)
-    onSaved(savedId, isEdit)
+    // El WhatsApp NO sale en cada guardado. La regla vive en `citas/cuando-avisar` con sus
+    // tests: corregirle una tilde al motivo le mandaba al titular otro «quedó agendada»
+    // idéntico al de ayer, y eso le escribe de más a un cliente real.
+    onSaved(
+      savedId,
+      isEdit,
+      hayQueAvisar({
+        esEdicion: isEdit,
+        status,
+        esBloqueo,
+        inicioAnterior: initial.starts_at ?? null,
+        inicioNuevo: startsIso,
+      }),
+    )
   }
 
   async function handleDelete() {

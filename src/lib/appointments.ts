@@ -68,6 +68,14 @@ export type CalendarEvent = {
   title: string
   start: Date
   end: Date
+  /**
+   * La cita es de día completo (`sin_hora`).
+   *
+   * react-big-calendar la saca de la grilla horaria y la pone en la franja de arriba, que es
+   * lo que hace falta: sin esto, una cita que cubre el día se dibujaba como un bloque de 24
+   * horas que tapaba la columna entera y escondía todas las citas con hora de ese día.
+   */
+  allDay: boolean
   resource: AppointmentRow
 }
 
@@ -79,7 +87,11 @@ export function toEvent(a: AppointmentRow): CalendarEvent {
     id: a.id,
     title: `${who}${a.title}`,
     start,
+    // El recorte a las 23:59 conviene TAMBIÉN acá: el rango guardado va de medianoche a
+    // medianoche del día siguiente, y sin recortar, react-big-calendar lo lee como un evento
+    // de DOS días y lo estira sobre el encabezado del siguiente.
     end: clampToStartDay(start, end),
+    allDay: a.sin_hora ?? false,
     resource: a,
   }
 }

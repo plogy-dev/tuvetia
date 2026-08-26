@@ -5,7 +5,7 @@
 // RLS de la BD aísla por clínica; las mutaciones de refs pasan por RPC (create/update_appointment),
 // mover/redimensionar por UPDATE directo (solo cambia horas → seguro bajo RLS).
 
-import { useCallback, useState, type ComponentType } from "react"
+import { useCallback, useMemo, useState, type ComponentType } from "react"
 import {
   Calendar,
   dateFnsLocalizer,
@@ -13,6 +13,7 @@ import {
   type CalendarProps,
   type Formats,
   type SlotInfo,
+  type ToolbarProps,
   type View,
 } from "react-big-calendar"
 import withDragAndDrop, {
@@ -363,19 +364,23 @@ export function AppointmentCalendar({
    * se va solo a los cinco segundos.
    */
   const handleSaved = useCallback(
-    async (appointmentId: string, esEdicion: boolean) => {
+    async (appointmentId: string, esEdicion: boolean, avisarAlTitular: boolean) => {
       void loadRange(range.start, range.end)
       if (!appointmentId) return
 
       const titulo = esEdicion ? "Cita actualizada" : "Cita creada"
       setAviso({ titulo, resultados: null })
+      // EL CALENDARIO SE EMPUJA SIEMPRE y el WhatsApp no, y la diferencia no es un descuido:
+      // actualizar un evento que ya existe no le llega a nadie como mensaje nuevo, mientras
+      // que cada WhatsApp es una notificación en el teléfono de un cliente. Quién merece el
+      // aviso lo decidió el drawer, que es el único que sabe qué cambió.
       const [calendario, whatsapp] = await Promise.all([
         pushAlCalendario(appointmentId),
-        confirmarAlTitular(appointmentId),
+        avisarAlTitular ? confirmarAlTitular(appointmentId) : Promise.resolve(null),
       ])
       // WhatsApp primero: es la vía por la que el titular se entera de verdad, así que es el
       // renglón que el vet tiene que leer antes de cerrar la ventana.
-      setAviso({ titulo, resultados: [whatsapp, calendario] })
+      setAviso({ titulo, resultados: [whatsapp, calendario].filter((r) => r !== null) })
     },
     [loadRange, range, pushAlCalendario, confirmarAlTitular],
   )
@@ -422,6 +427,25 @@ export function AppointmentCalendar({
   const huerfanas = sinAsignar(events.map((e) => e.resource))
 
   const esProgramador = view === ("programador" as View)
+
+  // Los componentes que react-big-calendar usa por dentro.
+  //
+  // MEMOIZADO, y no es micro-optimización: `components` es lo que la librería usa para construir
+  // sus hijos, así que un objeto nuevo en cada render los desmonta y los vuelve a montar. Con el
+  // toolbar eso se nota — el campo de búsqueda perdía el foco mientras se escribía.
+  //
+  // El toolbar va envuelto para pisarle el `view`: la librería le manda el suyo (`Views.DAY` en
+  // Programador) y hay que resaltar contra el de la app.
+  const componentes = useMemo(
+    () => ({
+      toolbar: (props: ToolbarProps<CalendarEvent, object>) => (
+        <CalendarToolbar {...props} view={view} />
+      ),
+      week: { header: DayColumnHeader, event: EventContent },
+      agenda: { event: AgendaEventContent },
+    }),
+    [view],
+  )
 
   // LAS COLUMNAS DEL PROGRAMADOR, acotadas a los calendarios que estén encendidos en el panel.
   const vetsDelDia: RecursoDeVet[] = [
@@ -587,11 +611,14 @@ export function AppointmentCalendar({
           onEventResize={move}
           popup
           dayLayoutAlgorithm="overlap"
-          components={{
-            toolbar: CalendarToolbar,
-            week: { header: DayColumnHeader, event: EventContent },
-            agenda: { event: AgendaEventContent },
-          }}
+          /* AL TOOLBAR LE VA EL `view` DE LA APP, NO EL DE LA LIBRERÍA.
+              «Programador» no es una vista de react-big-calendar: se dibuja con la de día más
+              recursos, así que abajo se le pasa `Views.DAY`. Y esa es la que la librería le
+              reenvía al toolbar, que resalta comparando contra ella — o sea que estando en
+              Programador aparecía encendido «Día», y tocar ese botón ya encendido hacía
+              desaparecer las columnas por veterinario sin ninguna señal de qué pasó.
+              `vistaDeLaApp` es la que el usuario eligió; es contra ésa que hay que resaltar. */
+          components={componentes}
           /* ── DE QUÉ COLOR VA CADA BLOQUE ─────────────────────────────────────────────────
               El TIPO manda cuando lo hay: es lo que se busca con la vista en una semana llena
               —dónde están las cirugías, cuántas vacunaciones— y el estado ya se lee en la lista.

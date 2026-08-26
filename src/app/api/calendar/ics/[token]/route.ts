@@ -25,16 +25,35 @@ export async function GET(_req: Request, { params }: { params: Promise<{ token: 
   //
   // Sin filtro, PostgREST corta en 1.000 filas SIN ERROR y `order ASC` entrega las 1.000 MÁS
   // VIEJAS: al pasar mil citas acumuladas, las nuevas jamás llegaban al calendario del vet y
-  // nadie veía fallar nada. Un calendario vive del presente: 30 días hacia atrás bastan para el
-  // contexto, y el tope alto es red de seguridad, no meta.
-  const hace30Dias = new Date(Date.now() - 30 * 24 * 3_600_000).toISOString()
+  // nadie veía fallar nada. Un calendario vive del presente.
+  //
+  // ── EL ARREGLO DE AYER TRAÍA LA MISMA BOMBA CON OTRA MECHA ──────────────────────────────
+  //
+  // Quedó en 30 días hacia atrás con tope 500, y esos dos números se pelean: una clínica con
+  // 20 citas al día llena las 500 con el pasado —600 filas— y TODO el futuro se cae del feed.
+  // El mismo fallo silencioso, sólo que hace falta más volumen para verlo.
+  //
+  // La ventana baja a 7 días, que es todo el pasado que un calendario necesita mostrar, y el
+  // tope sube al máximo que sirve PostgREST. Con eso el pasado ocupa a lo sumo ~140 filas y las
+  // otras ~860 son futuro.
+  //
+  // ── Y SE QUEDA EN ASCENDENTE, A PROPÓSITO ───────────────────────────────────────────────
+  //
+  // Darlo vuelta a descendente parece el arreglo natural —«traer lo más nuevo»— y es peor: el
+  // tope se comería entonces las citas MÁS CERCANAS y dejaría las de dentro de seis meses. Un
+  // feed al que le falta la cita de mañana no sirve para nada; uno al que le falta la de
+  // noviembre se completa solo cuando llegue.
+  //
+  // Ascendente desde hace una semana garantiza la propiedad que importa: lo primero que entra
+  // es lo que está por pasar, y lo que se cae —si algún día se cae— es lo más lejano.
+  const hace7Dias = new Date(Date.now() - 7 * 24 * 3_600_000).toISOString()
   const { data: appts } = await admin
     .from("appointments")
     .select("id, title, reason, notes, starts_at, ends_at, status, patient:patients(name)")
     .eq("clinic_id", (feed as { clinic_id: string }).clinic_id)
-    .gte("starts_at", hace30Dias)
+    .gte("starts_at", hace7Dias)
     .order("starts_at", { ascending: true })
-    .limit(500)
+    .limit(1000)
 
   const ics = buildIcs((appts as unknown as IcsAppointment[] | null) ?? [], {
     calName: "Tuvetia — Agenda",
