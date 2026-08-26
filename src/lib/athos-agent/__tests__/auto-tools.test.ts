@@ -144,12 +144,17 @@ describe("aislamiento por clínica — no hay RLS que respalde", () => {
   })
 })
 
-describe("un número desconocido no puede hacer nada", () => {
-  it("sin titular reconocido, las tools de titular NI SIQUIERA EXISTEN", () => {
+describe("un número desconocido no accede a datos de nadie", () => {
+  it("las tools de TITULAR ni siquiera existen", () => {
     const { admin } = crearAdmin({})
     const tools = buildAutoReplyTools(admin, { ...CTX, ownerId: null })
     // Más fuerte que devolver un error: el modelo no puede llamar lo que no está en su lista.
-    expect(Object.keys(tools)).toEqual(["list_available_slots"])
+    //
+    // OJO CON LO QUE ESTE TEST FIJA. Antes exigía que la lista fuera EXACTAMENTE
+    // `["list_available_slots"]`, y eso mezclaba dos cosas: que no vea datos ajenos (que sigue
+    // valiendo) con que no pueda pedir cita (que se revirtió a propósito el 26-ago — el cliente
+    // nuevo era el único al que la clínica respondía a mano). Lo que se fija ahora es lo primero.
+    expect(Object.keys(tools).sort()).toEqual(["list_available_slots", "solicitar_cita"])
   })
 })
 
@@ -268,5 +273,43 @@ describe("calcularCupos", () => {
     expect(calcularCupos({ date: "2026-08-10", franjas, ocupados: [], durationMin: 180 })).toEqual(
       [],
     )
+  })
+})
+
+// ── Un número NO registrado también puede pedir cita ────────────────────────────────────────────
+//
+// Antes no podía: `if (!ownerId) return publicas` le dejaba sólo los horarios, así que el cliente
+// nuevo —el que más cuesta conseguir— era el único al que la clínica le respondía a mano.
+//
+// Lo que se fija acá son las dos mitades del acuerdo: que PUEDA pedir, y que lo que pida NO entre
+// solo a la base.
+
+describe("un número que no está registrado", () => {
+  const SIN_TITULAR = { ...CTX, ownerId: null }
+
+  it("puede consultar cupos y pedir cita", () => {
+    const { admin } = crearAdmin({ clinic_hours: [], appointments: [] })
+    const tools = buildAutoReplyTools(admin, SIN_TITULAR)
+    expect(tools).toHaveProperty("list_available_slots")
+    expect(tools).toHaveProperty("solicitar_cita")
+  })
+
+  it("NO puede ver mascotas ni citas de nadie", () => {
+    // Un teléfono no verifica a nadie: enumerar mascotas o citas sería entregar información de otra
+    // persona a quien sepa un número.
+    const { admin } = crearAdmin({ clinic_hours: [], appointments: [] })
+    const tools = buildAutoReplyTools(admin, SIN_TITULAR)
+    expect(tools).not.toHaveProperty("list_my_patients")
+    expect(tools).not.toHaveProperty("list_my_appointments")
+    expect(tools).not.toHaveProperty("propose_appointment")
+  })
+
+  it("un titular reconocido NO recibe la herramienta de solicitud", () => {
+    // Tiene `propose_appointment`, que ata la cita a su paciente real. Dejarle las dos permitiría
+    // crear un titular duplicado de alguien que ya está en la base.
+    const { admin } = crearAdmin({ clinic_hours: [], appointments: [] })
+    const tools = buildAutoReplyTools(admin, CTX)
+    expect(tools).not.toHaveProperty("solicitar_cita")
+    expect(tools).toHaveProperty("propose_appointment")
   })
 })

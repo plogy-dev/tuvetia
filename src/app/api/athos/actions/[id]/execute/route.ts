@@ -278,6 +278,82 @@ const threadId = String(p.thread_id ?? "")
       }
     }
 
+    /**
+     * `solicitar_cita` — el pedido de un número que no estaba en la base.
+     *
+     * Aprobarla hace TRES cosas: crea el titular con su teléfono, crea la mascota y agenda la cita.
+     * En ese orden, porque cada una necesita el id de la anterior.
+     *
+     * ── LOS FALLOS A MEDIAS SE DICEN, y son la parte que importa ─────────────────────────────
+     *
+     * Si el paciente falla, el titular YA quedó creado; si la cita falla, quedaron los dos. Volver
+     * a aprobar la propuesta duplicaría lo que sí se creó, así que cada mensaje dice exactamente
+     * qué quedó hecho y qué falta — es el mismo criterio que `create_owner_and_patient`, del que
+     * esto es la versión con un paso más.
+     *
+     * LA CITA SE CREA SIN VETERINARIO, y no es un olvido: la RPC lo exige. Quien aprueba está
+     * mirando la tarjeta y es quien sabe a quién asignársela; el `p_vet_id` va con SU id, igual que
+     * en `create_appointment`.
+     */
+    case "solicitar_cita": {
+      const { data: ownerId, error: oErr } = await supabase.rpc("create_owner", {
+        p_full_name: p.nombre,
+        p_phone: p.telefono,
+        p_email: null,
+        p_document_id: null,
+        p_address: null,
+        p_notes: "Se registró solo, pidiendo cita por WhatsApp.",
+      })
+      if (oErr) throw new Error(`No se pudo crear el titular: ${oErr.message}`)
+
+      const { data: patientId, error: pcErr } = await supabase.rpc("create_patient", {
+        p_owner_id: ownerId,
+        p_name: p.mascota,
+        // La especie no se pregunta por WhatsApp: alargar la conversación para un campo que el vet
+        // completa en dos segundos al atender es cobrarle al cliente el trabajo de la ficha.
+        p_species: "Sin especificar",
+        p_sex: "unknown",
+        p_breed: null,
+        p_birth_date: null,
+        p_weight_kg: null,
+      })
+      if (pcErr)
+        throw new ErrorQueElVetPuedeResolver(
+          "El titular se creó, pero la mascota no. Agregala desde su ficha y agendá la cita a mano: si volvés a aprobar esta solicitud, el titular queda duplicado.",
+          409,
+          `Titular creado pero el paciente falló: ${pcErr.message}`,
+        )
+
+      const { data: appointmentId, error: aErr } = await supabase.rpc("create_appointment", {
+        p_title: `${String(p.mascota)} — ${String(p.reason)}`,
+        p_starts_at: p.starts_at,
+        p_ends_at: p.ends_at,
+        p_patient_id: patientId,
+        p_owner_id: ownerId,
+        p_vet_id: userId,
+        p_reason: p.reason,
+        p_status: "scheduled",
+        p_notes: "Pedida por WhatsApp desde un número que no estaba registrado.",
+      })
+      if (aErr)
+        throw new ErrorQueElVetPuedeResolver(
+          "El titular y la mascota se crearon, pero la cita no. Agendala desde la agenda: si volvés a aprobar esta solicitud, quedan duplicados.",
+          409,
+          `Titular y paciente creados pero la cita falló: ${aErr.message}`,
+        )
+
+      // Mismo empuje al calendario que una cita creada a mano — si no, una cita nacida por WhatsApp
+      // no aparecería en el teléfono de nadie y no habría forma de saber por qué.
+      const { googleEventId, aviso } = await pushToGoogle(appointmentId)
+      return {
+        owner_id: ownerId as unknown,
+        patient_id: patientId as unknown,
+        appointment_id: appointmentId as unknown,
+        google_event_id: googleEventId,
+        ...(aviso ? { aviso, aviso_enlace: "/dashboard/calendario" } : {}),
+      }
+    }
+
     case "update_appointment": {
       // La RPC reemplaza todos los campos: cargar la cita actual (RLS) y mergear los cambios.
       const { data: current, error: curErr } = await supabase

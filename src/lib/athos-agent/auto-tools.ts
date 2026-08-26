@@ -126,9 +126,69 @@ export function buildAutoReplyTools(admin: SB, ctx: AutoReplyContext) {
     }),
   }
 
-  // Sin titular reconocido no se ofrece nada más: un número desconocido no puede enumerar mascotas,
-  // ver citas ni proponer nada.
-  if (!ownerId) return publicas
+  // ── NÚMERO NO RECONOCIDO ────────────────────────────────────────────────────────────────────
+  //
+  // Sigue sin poder enumerar mascotas ni ver citas: eso es información de OTRA persona, y un
+  // teléfono no verifica a nadie.
+  //
+  // Lo que SÍ puede es pedir cita, que era el pedido: antes se le daban los horarios y se le decía
+  // que el equipo lo contactaría — o sea que el cliente nuevo, el que más cuesta conseguir, era el
+  // único al que la clínica le respondía a mano.
+  //
+  // No propone una cita: deja una SOLICITUD. La diferencia no es de nombre, es de base de datos —
+  // `create_appointment` exige paciente y titular (0048), y este número no tiene ninguno de los dos.
+  // La solicitud carga los nombres tal como los dijo la persona, y al aprobarla se crean titular,
+  // paciente y cita de un tirón.
+  //
+  // POR QUÉ NO SE CREA EL TITULAR AL VUELO: cualquiera que le escriba al número de la clínica
+  // podría sembrarle titulares y pacientes en la base, indistinguibles de los reales. Que una
+  // persona mire antes de escribir es la misma regla que gobierna el resto de VetGPT.
+  if (!ownerId) {
+    return {
+      ...publicas,
+
+      solicitar_cita: tool({
+        description:
+          "PIDE una cita para alguien que NO está registrado en la clínica. Úsala sólo si list_my_patients no está disponible. " +
+          "Antes tenés que preguntarle su NOMBRE y el NOMBRE DE LA MASCOTA — sin los dos no la llames. " +
+          "Consultá list_available_slots antes de nombrar un horario. NO agenda: queda pendiente de que el equipo la confirme; " +
+          "decile que le confirman en breve, nunca que ya quedó agendada.",
+        inputSchema: z.object({
+          nombre: z.string().min(2).max(80).describe("Nombre de quien escribe, tal como lo dijo"),
+          mascota: z.string().min(1).max(60).describe("Nombre de la mascota, tal como lo dijo"),
+          date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+          time: z.string().regex(/^\d{2}:\d{2}$/).describe("Hora local, de list_available_slots"),
+          duration_min: z.number().int().min(5).max(240).default(30),
+          reason: z.string().min(1).max(200).describe("Motivo, en las palabras de quien escribe"),
+        }),
+        execute: async ({ nombre, mascota, date, time, duration_min, reason }) => {
+          const rango = localRange(date, time, duration_min)
+          if (!rango) return invalidDateError(date, time)
+          if (new Date(rango.from).getTime() < Date.now()) {
+            return { error: "Ese horario ya pasó. Ofrecé uno futuro." }
+          }
+
+          return proposeAction(
+            contextoDeAccion(ctx),
+            "solicitar_cita",
+            {
+              nombre: nombre.trim(),
+              mascota: mascota.trim(),
+              // EL TELÉFONO SALE DEL CONTEXTO Y NO DEL MODELO. Es el dato con el que se va a crear
+              // el titular, y es el único de toda la solicitud que no puede venir de lo que alguien
+              // escribió: es de quién llega el mensaje, no lo que el mensaje dice.
+              telefono: ctx.conversationKey,
+              starts_at: rango.from,
+              ends_at: rango.to,
+              reason,
+            },
+            `Solicitud de cita de ${nombre.trim()} para ${mascota.trim()} — ${date} a las ${time}`,
+            {},
+          )
+        },
+      }),
+    }
+  }
 
   return {
     ...publicas,

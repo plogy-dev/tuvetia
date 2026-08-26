@@ -111,6 +111,21 @@ function objeto(v: unknown): Record<string, unknown> | null {
 }
 
 const POR_TOOL: Record<string, (p: Record<string, unknown>) => CampoDeAccion[]> = {
+  // La solicitud de alguien que NO está registrado. Se muestran los NOMBRES y el TELÉFONO —no un
+  // paciente ni un titular, porque todavía no existen— y el vet está aprobando crearlos.
+  solicitar_cita: (p) => [
+    ...fila("Quien escribe", p.nombre),
+    ...fila("Teléfono", p.telefono),
+    ...fila("Mascota", p.mascota),
+    ...(typeof p.starts_at === "string"
+      ? [...cuando(p.starts_at), ...duracion(p.starts_at, p.ends_at)]
+      : [
+          ...fila("Fecha", typeof p.date === "string" ? bogotaDateOnly(p.date) : null),
+          ...fila("Hora", p.time),
+        ]),
+    ...fila("Motivo", p.reason),
+  ],
+
   create_appointment: (p) => [
     ...fila("Título", p.title),
     // El payload GUARDADO trae `starts_at`/`ends_at` (la tool los resolvió a ISO antes de proponer).

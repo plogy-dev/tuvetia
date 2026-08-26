@@ -105,7 +105,7 @@ describe("revalidacion del payload al aprobar", () => {
     expect(r.ok).toBe(true)
   })
 
-  it("cubre las 9 tools de escritura: agregar una obliga a declarar su esquema", () => {
+  it("cubre las 10 tools de escritura: agregar una obliga a declarar su esquema", () => {
     expect(Object.keys(PAYLOAD_SCHEMAS).sort()).toEqual([
       "create_appointment",
       "create_owner",
@@ -114,6 +114,7 @@ describe("revalidacion del payload al aprobar", () => {
       "reply_email",
       "send_email",
       "send_whatsapp_message",
+      "solicitar_cita",
       "update_appointment",
       "update_patient_record",
     ])
@@ -145,5 +146,42 @@ describe("revalidacion del payload al aprobar", () => {
     const r = validarPayload("reply_email", { ...base, from_email: "otro@ejemplo.com" })
     expect(r.ok).toBe(true)
     if (r.ok) expect(r.payload).not.toHaveProperty("from_email")
+  })
+})
+
+describe("solicitar_cita — el pedido de alguien que no está registrado", () => {
+  const base = {
+    nombre: "Ana Pérez",
+    mascota: "Luna",
+    telefono: "573001234567",
+    starts_at: "2026-09-01T14:00:00-05:00",
+    ends_at: "2026-09-01T14:30:00-05:00",
+    reason: "Vacunación",
+  }
+
+  it("acepta el pedido completo", () => {
+    expect(validarPayload("solicitar_cita", base).ok).toBe(true)
+  })
+
+  it("exige el teléfono: es con lo que se va a crear el titular", () => {
+    // No viene del modelo sino de la conversación, pero se valida igual: entre proponer y ejecutar
+    // el payload pasa por el navegador.
+    expect(validarPayload("solicitar_cita", { ...base, telefono: "" }).ok).toBe(false)
+    expect(validarPayload("solicitar_cita", { ...base, telefono: "123" }).ok).toBe(false)
+  })
+
+  it("exige los dos nombres", () => {
+    expect(validarPayload("solicitar_cita", { ...base, nombre: "" }).ok).toBe(false)
+    expect(validarPayload("solicitar_cita", { ...base, mascota: "" }).ok).toBe(false)
+  })
+
+  it("NO acepta patient_id ni owner_id: todavía no existen", () => {
+    // Si alguien los agrega al override esperando que lleguen a la RPC, `z.object()` los descarta.
+    const r = validarPayload("solicitar_cita", { ...base, patient_id: "x", owner_id: "y" })
+    expect(r.ok).toBe(true)
+    if (r.ok) {
+      expect(r.payload).not.toHaveProperty("patient_id")
+      expect(r.payload).not.toHaveProperty("owner_id")
+    }
   })
 })

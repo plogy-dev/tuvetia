@@ -70,6 +70,15 @@ export function pasosPrevistos(toolName: string, payload: unknown): string[] {
     case "create_appointment":
       return ["Crear la cita en la agenda", "Copiarla al Google Calendar de la clínica"]
 
+    // TRES PASOS, y decirlos importa: quien aprueba esto no está confirmando una cita, está
+    // creando un titular y un paciente nuevos en la base de la clínica.
+    case "solicitar_cita":
+      return [
+        "Crear el titular con su teléfono",
+        "Crear la mascota y asociarla",
+        "Crear la cita en la agenda",
+      ]
+
     case "update_appointment":
       return ["Actualizar la cita en la agenda"]
 
@@ -128,6 +137,16 @@ export function pasosEjecutados(toolName: string, result: unknown): PasoEjecutad
     case "update_appointment":
       return [ok("Cita actualizada en la agenda")]
 
+    case "solicitar_cita":
+      return [
+        ok("Titular creado"),
+        ok("Mascota creada y asociada"),
+        ok("Cita creada en la agenda"),
+        textoNoVacio(r.google_event_id)
+          ? ok("Copiada al calendario")
+          : no("No se copió a ningún calendario"),
+      ]
+
     case "create_owner":
       return [ok("Titular creado")]
 
@@ -167,6 +186,7 @@ export function destinosDeAccion(toolName: string, result: unknown): DestinoDeAc
   switch (toolName) {
     case "create_appointment":
     case "update_appointment":
+    case "solicitar_cita":
       return [{ texto: "Ver en la agenda", href: "/dashboard/calendario" }]
 
     case "create_patient":
