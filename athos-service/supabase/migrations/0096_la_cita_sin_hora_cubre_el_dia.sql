@@ -52,6 +52,22 @@ comment on function public.normalizar_cita_de_dia_completo() is
   'Una cita marcada `sin_hora` cubre su día completo en horario de Bogotá. Vive como trigger y no '
   'dentro de las RPC para que valga para TODO el que escriba en appointments, no sólo para el drawer.';
 
+-- ── QUE NO QUEDE COLGADA DE LA API ──────────────────────────────────────────────────────────────
+--
+-- Postgres le concede EXECUTE a PUBLIC sobre toda función nueva, y PUBLIC incluye a `anon` y
+-- `authenticated`: sin esto, la función queda publicada en `/rest/v1/rpc/` para cualquiera. No es
+-- explotable —Postgres rechaza invocar directamente una función que devuelve `trigger`, y ésta ni
+-- siquiera es `security definer`— pero la deja apareciendo en el linter de seguridad y con más
+-- superficie de la que necesita.
+--
+-- VA CONTRA `public` Y NO CONTRA LOS ROLES. Medido el 26-ago: revocarle a `anon` y `authenticated`
+-- por nombre NO alcanza — el permiso que manda es el de PUBLIC (`=X/postgres` en el ACL) y ellos lo
+-- heredan. Hay que quitárselo a PUBLIC.
+--
+-- No afecta al trigger: Postgres comprueba el permiso de ejecución al CREARLO, no cada vez que se
+-- dispara.
+revoke execute on function public.normalizar_cita_de_dia_completo() from public;
+
 -- `before` y no `after`: hay que corregir la fila ANTES de que se guarde y antes de que el
 -- antisolape de la 0067 la mire. Un `after` vería el rango de media hora y dejaría agendar encima.
 drop trigger if exists appointments_dia_completo on public.appointments;

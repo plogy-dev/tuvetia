@@ -162,6 +162,13 @@ begin
   return new;
 end $$;
 
+-- Postgres le concede EXECUTE a PUBLIC sobre toda función nueva, y PUBLIC incluye a `anon` y
+-- `authenticated`: sin esto queda publicada en `/rest/v1/rpc/`. Se revoca a PUBLIC y no a los roles
+-- por nombre — el permiso que heredan es el de PUBLIC (`=X/postgres` en el ACL), así que revocarles
+-- nominalmente no cambia nada (medido el 26-ago). No afecta al trigger: el permiso se comprueba al
+-- crearlo, no al dispararse. Agregado tras encontrarlo en la auditoría del 26-ago.
+revoke execute on function public.health_plan_uses_caben_en_el_plan() from public;
+
 drop trigger if exists health_plan_uses_caben on public.health_plan_uses;
 create trigger health_plan_uses_caben
   before insert or update on public.health_plan_uses
