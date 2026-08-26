@@ -595,43 +595,55 @@ export function Assistant({
         </div>
       )}
 
-      {/* `items-end`: al crecer el campo, los botones se quedan abajo en vez de centrarse contra un
-          bloque de tres renglones. */}
-      <div className="flex items-end gap-1 p-1.5">
-        <input
-          ref={fileRef}
-          type="file"
-          accept={ADJUNTOS_ACEPTA}
-          multiple
-          className="hidden"
-          onChange={(e) => void agregarAdjuntos(e.target.files)}
-        />
-        <Button
-          type="button"
-          variant="ghost"
-          size="sm"
-          aria-label="Adjuntar documento"
-          onClick={() => fileRef.current?.click()}
-          disabled={busy}
-          className="size-9 shrink-0 rounded-full p-0 text-fg-muted"
-        >
-          <Paperclip className="size-4" aria-hidden />
-        </Button>
+      {/* ── LA ALINEACIÓN, QUE ES LO QUE HABÍA QUE RESOLVER ──────────────────────────────────
+          `items-start` y no `items-end`: con dos o tres renglones escritos, los controles bajaban
+          con el campo y quedaban a la altura del ÚLTIMO — lejos del cursor y desalineados de todo
+          lo demás. Arriba se quedan quietos mientras el texto crece hacia abajo.
 
-        {/* EL CONTEXTO VIVE ACÁ, en el lugar donde Claude pone su selector de modo: pegado al clip,
-            a la izquierda del campo. Antes eran dos controles flotando arriba a la derecha más una
-            franja de ancho completo explicándolos — tres elementos para decir una cosa. */}
-        <SelectorDeContexto
-          compacto
-          pacientes={patients}
-          patientId={isGeneral ? null : patientId}
-          detectado={detectado}
-          hayConversacion={messages.length > 0}
-          onElegir={(id) => {
-            void stop() // si había un stream en curso, córtalo antes de resetear
-            setPatientId(id ?? GENERAL) // el cambio de id de useChat cambia el hilo
-          }}
-        />
+          Y el alineado fino lo hacen los dos grupos con `h-10`, que es EXACTAMENTE lo que mide la
+          primera línea del campo: `py-2` (8+8) más `leading-6` (24) = 40 px. Centrando dentro de
+          esa caja, el clip, la pastilla, el micrófono y el botón de enviar caen los cuatro sobre el
+          eje de la primera línea de texto, midan lo que midan.
+
+          Hacerlo con márgenes sueltos —`mt-0.5` acá, `mt-1.5` allá— también alinea, pero se rompe
+          en cuanto alguien toca el tamaño de la fuente o el alto de un botón. */}
+      <div className="flex items-start gap-1.5 p-1.5">
+        <div className="flex h-10 shrink-0 items-center gap-1">
+          <input
+            ref={fileRef}
+            type="file"
+            accept={ADJUNTOS_ACEPTA}
+            multiple
+            className="hidden"
+            onChange={(e) => void agregarAdjuntos(e.target.files)}
+          />
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            aria-label="Adjuntar documento"
+            onClick={() => fileRef.current?.click()}
+            disabled={busy}
+            className="size-9 shrink-0 rounded-full p-0 text-fg-muted"
+          >
+            <Paperclip className="size-4" aria-hidden />
+          </Button>
+
+          {/* EL CONTEXTO VIVE ACÁ, en el lugar donde Claude pone su selector de modo: pegado al clip,
+              a la izquierda del campo. Antes eran dos controles flotando arriba a la derecha más una
+              franja de ancho completo explicándolos — tres elementos para decir una cosa. */}
+          <SelectorDeContexto
+            compacto
+            pacientes={patients}
+            patientId={isGeneral ? null : patientId}
+            detectado={detectado}
+            hayConversacion={messages.length > 0}
+            onElegir={(id) => {
+              void stop() // si había un stream en curso, córtalo antes de resetear
+              setPatientId(id ?? GENERAL) // el cambio de id de useChat cambia el hilo
+            }}
+          />
+        </div>
 
         <Textarea
           id="pedir-a-athos"
@@ -651,47 +663,49 @@ export function Assistant({
           // EL MARCADOR ES CORTO. El de antes —con su ejemplo entre comillas— medía media línea de
           // más de lo que entra en una barra de una fila: se cortaba a mitad de palabra.
           placeholder={vacio ? "Pregúntale a VetGPT…" : "Responder a VetGPT…"}
-          className="field-sizing-content max-h-40 min-h-0 flex-1 resize-none border-0 bg-transparent px-1.5 py-2 text-[14px] leading-6 shadow-none focus-visible:ring-0 dark:bg-transparent"
+          className="field-sizing-content max-h-40 min-h-0 flex-1 resize-none border-0 bg-transparent px-1 py-2 text-[14px] leading-6 shadow-none focus-visible:ring-0 dark:bg-transparent"
         />
 
+          <div className="flex h-10 shrink-0 items-center gap-1">
         {/* El mic solo existe si el navegador trae la Web Speech API (ver lib/athos-dictado.ts). */}
-        {dictado.soportado && (
-          <Button
-            type="button"
-            variant="ghost"
-            size="sm"
-            aria-label={dictado.activo ? "Detener dictado" : "Dictar por micrófono"}
-            aria-pressed={dictado.activo}
-            onClick={() => {
-              if (!dictado.activo) baseDictado.current = input ? `${input.trimEnd()} ` : ""
-              dictado.alternar()
-            }}
-            className={
-              dictado.activo
-                ? "size-9 shrink-0 animate-pulse rounded-full p-0 text-destructive"
-                : "size-9 shrink-0 rounded-full p-0 text-fg-muted"
-            }
-          >
-            <Mic className="size-4" aria-hidden />
-          </Button>
-        )}
-
-        {/* REDONDO Y SÓLO ICONO. La palabra «Enviar» ocupaba el ancho de tres botones en una fila
-            que ahora los tiene a todos; y con Enter para mandar, el botón es el respaldo, no la vía
-            principal. El `aria-label` conserva el nombre para quien no ve el icono. */}
-        <Button
-          onClick={send}
-          disabled={busy || !input.trim()}
-          size="sm"
-          aria-label="Enviar"
-          className="size-9 shrink-0 rounded-full p-0"
-        >
-          {busy ? (
-            <Loader2 className="size-4 animate-spin" aria-hidden />
-          ) : (
-            <ArrowUp className="size-4" aria-hidden />
+          {dictado.soportado && (
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              aria-label={dictado.activo ? "Detener dictado" : "Dictar por micrófono"}
+              aria-pressed={dictado.activo}
+              onClick={() => {
+                if (!dictado.activo) baseDictado.current = input ? `${input.trimEnd()} ` : ""
+                dictado.alternar()
+              }}
+              className={
+                dictado.activo
+                  ? "size-9 shrink-0 animate-pulse rounded-full p-0 text-destructive"
+                  : "size-9 shrink-0 rounded-full p-0 text-fg-muted"
+              }
+            >
+              <Mic className="size-4" aria-hidden />
+            </Button>
           )}
-        </Button>
+
+          {/* REDONDO Y SÓLO ICONO. La palabra «Enviar» ocupaba el ancho de tres botones en una fila
+              que ahora los tiene a todos; y con Enter para mandar, el botón es el respaldo, no la vía
+              principal. El `aria-label` conserva el nombre para quien no ve el icono. */}
+          <Button
+            onClick={send}
+            disabled={busy || !input.trim()}
+            size="sm"
+            aria-label="Enviar"
+            className="size-9 shrink-0 rounded-full p-0"
+          >
+            {busy ? (
+              <Loader2 className="size-4 animate-spin" aria-hidden />
+            ) : (
+              <ArrowUp className="size-4" aria-hidden />
+            )}
+          </Button>
+        </div>
       </div>
     </div>
   )
