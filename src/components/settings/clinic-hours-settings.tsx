@@ -202,8 +202,8 @@ export function ClinicHoursSettings({
             ))}
           </SelectContent>
         </Select>
-        <Input type="time" value={opens} onChange={(e) => setOpens(e.target.value)} className="w-28" aria-label="Abre" />
-        <Input type="time" value={closes} onChange={(e) => setCloses(e.target.value)} className="w-28" aria-label="Cierra" />
+        <Input type="time" value={opens} onChange={(e) => setOpens(e.target.value)} className="w-36" aria-label="Abre" />
+        <Input type="time" value={closes} onChange={(e) => setCloses(e.target.value)} className="w-36" aria-label="Cierra" />
         <Input
           type="number"
           min={5}

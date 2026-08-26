@@ -470,3 +470,18 @@
     @apply font-sans;
   }
 }
+
+/* ── LAS FECHAS Y HORAS NO SE CORTAN ─────────────────────────────────────────────────────────
+   David, 26-ago: «para poner fechas se cortan números» y «en el horario no se ve el am o pm».
+   La causa no era UN input: es que los <input type="date|time"> tienen segmentos internos
+   (dd/mm/aaaa, hh:mm a. m.) que el navegador RECORTA en silencio cuando un flex los aprieta —
+   no hay overflow visible, solo dígitos que desaparecen. El mínimo va acá, global y escopado a
+   la app, porque el próximo formulario que alguien escriba va a tener el mismo bug si el arreglo
+   vive en los ocho formularios de hoy. es-CO usa reloj de 12 horas: el sufijo «a. m.» necesita
+   sus ~2.5em además de los dígitos. */
+.app-theme input[type="date"] {
+  min-width: 8.75rem;
+}
+.app-theme input[type="time"] {
+  min-width: 7.5rem;
+}

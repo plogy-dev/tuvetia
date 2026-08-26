@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useTransition } from 'react';
+import { InputPesos } from '@/components/facturacion/InputPesos';
 import { useRouter } from 'next/navigation';
 import { AlertTriangle } from 'lucide-react';
 import { upsertCatalogItem, type UpsertCatalogItemInput } from '@/lib/facturacion/actions';
@@ -138,25 +139,23 @@ export function CatalogItemForm({
       </div>
       <div>
         <label className={labelCls}>Precio de venta (COP)</label>
-        <input
+        {/* Con separador de miles mientras se teclea (David, 26-ago): en el campo donde un cero
+            de más es diez veces el precio, «80.000» se lee y «80000» se cuenta con el dedo. */}
+        <InputPesos
           name="pricePesos"
-          type="number"
-          min={0}
-          step={100}
           required
           defaultValue={initial ? initial.price_cents / 100 : undefined}
           className={inputCls}
+          aria-label="Precio de venta en pesos"
         />
       </div>
       <div>
         <label className={labelCls}>Costo (COP, opcional)</label>
-        <input
+        <InputPesos
           name="costPesos"
-          type="number"
-          min={0}
-          step={100}
           defaultValue={initial?.cost_cents != null ? initial.cost_cents / 100 : undefined}
           className={inputCls}
+          aria-label="Costo en pesos"
         />
       </div>
       <div>
