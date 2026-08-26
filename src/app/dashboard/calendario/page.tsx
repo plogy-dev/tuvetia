@@ -147,7 +147,17 @@ export default async function CalendarioPage() {
   })
 
   return (
-    <div className="flex flex-col gap-6 p-[clamp(16px,3vw,32px)]">
+    // ── EL ALTO SE HEREDA, NO SE CALCULA (misma regla que el chat, ver assistant.tsx) ──────────
+    //
+    // `lg:flex-1 lg:min-h-0`: el layout ya baja una columna `flex min-h-0 flex-1`, así que con esto
+    // la agenda toma EXACTAMENTE el alto que queda bajo la cabecera — sin `100svh - header`, que
+    // está mal por los 16 px del `m-2` del inset y pintaba scroll de página. Con el alto acotado,
+    // el calendario de abajo se estira con `flex-1` y el scroll vive DENTRO de su rejilla de horas,
+    // no en la página («toca escrollear mucho», el cliente, en 1366×768).
+    //
+    // Sólo en `lg:`: en pantalla angosta el panel y la grilla van APILADOS y encerrarlos en el alto
+    // del viewport dejaría al calendario sin espacio; ahí la página scrollea como siempre.
+    <div className="flex flex-col gap-4 p-[clamp(16px,3vw,32px)] lg:min-h-0 lg:flex-1">
       {/* SIN <h1> ACÁ, y es a propósito. Le puse uno `sr-only` en el PR #98 dando por hecho que la
           pantalla se quedaba sin encabezado, porque `page.tsx` no tenía ninguno. Medido después en
           producción: sí lo tiene — `AppointmentCalendar` renderiza <h1>Calendario</h1>. Con el mío

@@ -35,7 +35,10 @@ const ETIQUETA_ESTADO: Record<string, { texto: string; clase: string }> = {
 /** Una fila: hora en mono con ancho FIJO, para que las horas formen columna. */
 function Fila({ children }: { children: React.ReactNode }) {
   return (
-    <div className="flex items-center gap-4 px-5 py-4 text-sm not-last:border-b not-last:border-line">
+    // `py-2.5` y no `py-4`: cada fila medía 53 px y un día de 6 citas empujaba el calendario bajo
+    // el pliegue en un portátil de 768 px. La lista sigue legible — es la densidad de las filas de
+    // «Próximas citas» del tablero.
+    <div className="flex items-center gap-3 px-4 py-2.5 text-sm not-last:border-b not-last:border-line">
       {children}
     </div>
   )
@@ -52,8 +55,10 @@ export function DiaDeHoy({ citas, huecos }: { citas: CitaDeHoy[]; huecos: Hueco[
   if (filas.length === 0) return null
 
   return (
-    <section className="overflow-hidden rounded-xl border border-line bg-card">
-      <div className="flex items-center justify-between gap-4 border-b border-line px-5 py-3.5">
+    // `lg:shrink-0`: en la columna de alto acotado de la agenda, esta sección no puede dejarse
+    // aplastar por el calendario `flex-1` — su techo lo pone el scroll interno de abajo.
+    <section className="overflow-hidden rounded-xl border border-line bg-card lg:shrink-0">
+      <div className="flex items-center justify-between gap-4 border-b border-line px-4 py-2.5">
         <span className="text-[11px] font-semibold uppercase tracking-[0.08em] text-fg-faint">
           Hoy
         </span>
@@ -64,6 +69,10 @@ export function DiaDeHoy({ citas, huecos }: { citas: CitaDeHoy[]; huecos: Hueco[
         </span>
       </div>
 
+      {/* Techo + scroll propio: un día lleno (10+ filas entre citas y huecos) crecía sin límite y
+          el calendario —lo que esta pantalla existe para mostrar— quedaba entero bajo el pliegue.
+          El día se sigue viendo completo scrolleando LA LISTA, no la página. */}
+      <div className="max-h-[30svh] overflow-y-auto">
       {filas.map((f) =>
         f.tipo === "cita" ? (
           <Fila key={f.cita.id}>
@@ -100,6 +109,7 @@ export function DiaDeHoy({ citas, huecos }: { citas: CitaDeHoy[]; huecos: Hueco[
           </Fila>
         ),
       )}
+      </div>
     </section>
   )
 }

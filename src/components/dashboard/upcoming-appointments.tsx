@@ -46,7 +46,10 @@ export function UpcomingAppointments({ appointments }: { appointments: UpcomingA
           </Link>
         </div>
       ) : (
-        <ul className="divide-y">
+        // Techo + scroll propio: con las 8 citas que trae la página, la lista medía ~450 px y era
+        // ella la que estiraba la fila gráfico/citas del tablero — el scroll le pertenece a la
+        // lista, no a la página. 288 px (~5 filas) empareja el panel con el alto del gráfico.
+        <ul className="max-h-72 divide-y overflow-y-auto">
           {appointments.map((a) => {
             const meta = APPOINTMENT_STATUS[a.status]
             return (

@@ -132,7 +132,7 @@ describe("plegable", () => {
     // Y `plegado` tiene que estar en las DEPENDENCIAS, o el efecto no vuelve a correr al desplegar
     // y el panel abriría vacío para siempre. La guarda sin la dependencia es media solución, y se
     // ve peor que ninguna.
-    expect(SECCION).toMatch(/\}, \[visible, plegado, rutaKey\]\)/)
+    expect(SECCION).toMatch(/\}, \[visible, plegado, rutaKey, refresco\]\)/)
   })
 
   it("la lista tiene techo y scroll propio", () => {

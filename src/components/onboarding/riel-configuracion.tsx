@@ -99,7 +99,10 @@ export function RielConfiguracion({ progreso }: { progreso: Progreso }) {
       </button>
 
       {!plegado && (
-        <ul className="flex flex-col gap-0.5 border-t border-line-soft p-3">
+        // Techo + scroll propio: los 6 pasos a dos líneas miden ~340 px y en un portátil de 768 px
+        // el riel desplegado empujaba medio tablero bajo el pliegue. El encabezado con el
+        // porcentaje —lo que David pidió grande— no se toca; sólo el detalle scrollea.
+        <ul className="flex max-h-[38svh] flex-col gap-0.5 overflow-y-auto border-t border-line-soft p-3">
           {progreso.pasos.map((paso) => (
             <li key={paso.id}>
               {paso.hecho ? (
