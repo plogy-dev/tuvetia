@@ -126,6 +126,9 @@ export default async function AsistentePage({
           .from("athos_messages")
           .select("id,patient_id,thread_key,role,content,created_at")
           .eq("clinic_id", clinicId)
+          // Los chats "eliminados" de la vista (0095) no se siembran: reabrir ese paciente arranca
+          // un hilo limpio — la memoria semántica del paciente sigue intacta por su propio camino.
+          .is("hidden_at", null)
           .in("role", ["user", "assistant"])
           .order("created_at", { ascending: false })
           .limit(TOPE_MENSAJES),
