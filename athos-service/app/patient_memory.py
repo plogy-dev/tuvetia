@@ -108,12 +108,23 @@ def index_chat_document(clinic_id: str, patient_id: str, nombre: str, texto: str
     if not fila:
         return False
     contenido = f"[Documento adjuntado al chat: {nombre}]\n{texto}"[:MAX_CHARS]
-    try:
-        vector = EmbeddingClient().embed([contenido], input_type="search_document")[0]
-    except EmbeddingError:
-        return False
+    # La huella ANTES de embeber (auditoría 26-ago): re-adjuntar el mismo documento no debe pagar
+    # Cohere otra vez — el on conflict solo ahorraba la fila, no la llamada.
     huella = hashlib.sha1(contenido.encode("utf-8")).hexdigest()
     source_id = str(uuid.uuid5(uuid.NAMESPACE_URL, f"tuvetia:chat_document:{clinic_id}:{patient_id}:{huella}"))
+    if fetch_all(
+        "select 1 from public.patient_embeddings "
+        "where clinic_id = %s and source_type = 'chat_document' and source_id = %s",
+        (clinic_id, source_id),
+    ):
+        return True  # ya estaba indexado tal cual
+    try:
+        # Timeout CORTO como el embed de consulta (auditoría 26-ago): el default de 60s + retries
+        # retenía un worker sync ~2 min con Cohere lento — multiplicado por una ráfaga de adjuntos,
+        # el threadpool compartido con /chat y /retrieve se quedaba sin cupo.
+        vector = EmbeddingClient(timeout_s=8.0).embed([contenido], input_type="search_document")[0]
+    except EmbeddingError:
+        return False
     execute(
         "insert into public.patient_embeddings "
         "  (clinic_id, patient_id, source_type, source_id, content, embedding) "

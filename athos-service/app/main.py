@@ -163,7 +163,7 @@ def athos_patient_memory_document(
     """
     _, clinic_id = _auth(authorization, body.clinic_id)
     from app.patient_memory import index_chat_document
-    indexed = index_chat_document(clinic_id, body.patient_id, body.nombre[:200], body.texto)
+    indexed = index_chat_document(clinic_id, body.patient_id, body.nombre, body.texto)
     return ChatDocumentResponse(indexed=indexed)
 
 

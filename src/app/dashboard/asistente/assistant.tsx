@@ -25,7 +25,8 @@ import {
 } from "@/lib/athos-adjuntos"
 
 import { renderInline, splitBlocks } from "@/components/athos/rich-text"
-import { Cuestionario, type PreguntaDeContexto } from "@/components/athos/cuestionario"
+import { Cuestionario } from "@/components/athos/cuestionario"
+import { extraerOpciones, sinMarcas } from "@/components/athos/opciones"
 import { Pensando } from "@/components/athos/pensando"
 import { ActionApprovalCard } from "@/components/athos/action-approval-card"
 import { ConnectEmailCard } from "@/components/athos/connect-email-card"
@@ -100,74 +101,8 @@ function outputError(output: unknown): string | null {
 
 // Bloques de texto del asistente con el formato de siempre (rich-text compartido). El agente cita
 // las fuentes en el propio texto, así que renderInline va sin lista de citas.
-/**
- * Quita las marcas `[[propuesto:…]]` que se persisten con el turno.
- *
- * Son contexto PARA EL MODELO —le muestran que ese turno sí llamó una herramienta, y no solo lo
- * dijo— pero no son contenido para el veterinario. Ver `turnoAGuardar` en conversacion.ts.
- */
-function sinMarcas(texto: string): string {
-  return texto
-    // `[^\]]*` y no `[a-z_,]+`: el patrón estricto sólo tapaba las marcas que escribe el servidor,
-    // y las que escribe el MODELO no respetan ese formato. En producción quedó a la vista del vet
-    // `[[propuesto:send_email, send_email]]` — el espacio rompía el patrón y la marca se pintó como
-    // texto. `turnoAGuardar` ya no las persiste, pero las filas viejas siguen guardadas.
-    .replace(/\s*\[\[propuesto:[^\]]*\]\]/g, "")
-    // `sanearHistorial` agrega esta segunda marca a los turnos VIEJOS que afirmaban una propuesta
-    // sin haberla registrado. Igual que la otra: contexto para el modelo, invisible para el vet.
-    .replace(/\s*\[\[sin-propuesta:[^\]]*\]\]/g, "")
-    .trim()
-}
-
-// Bloque ```opciones``` al final de una respuesta: el CUESTIONARIO de contexto (estilo Claude,
-// pedido del cliente 25-ago). El system prompt define el formato nuevo — array de
-// {pregunta, opciones} — y acá se acepta también el viejo (array de strings) porque los hilos
-// persistidos de esta semana lo traen y deben seguir renderizando.
-const OPCIONES_RE = /```opciones\s*\n?([\s\S]*?)```\s*$/
-
-function extraerOpciones(
-  texto: string,
-  streaming: boolean,
-): { limpio: string; preguntas: PreguntaDeContexto[] } {
-  const m = OPCIONES_RE.exec(texto)
-  if (!m) {
-    // Sin cierre de fence: DURANTE el streaming el bloque todavía está llegando y se oculta la
-    // cola para que el vet no vea JSON crudo escribiéndose. Pero en un mensaje TERMINADO, un
-    // bloque sin cierre es un bloque malformado — y ocultarlo dejaba la respuesta EN BLANCO si el
-    // modelo lo abría temprano (reportado 25-ago: "VetGPT se quedó en blanco"). Feo gana a
-    // invisible: terminado y malformado, se muestra tal cual.
-    if (streaming) return { limpio: texto.replace(/```opciones[\s\S]*$/, "").trimEnd(), preguntas: [] }
-    return { limpio: texto, preguntas: [] }
-  }
-  try {
-    const arr: unknown = JSON.parse(m[1])
-    if (Array.isArray(arr)) {
-      // Formato viejo: strings sueltos = una sola pregunta sin enunciado.
-      if (arr.every((x): x is string => typeof x === "string") && arr.length) {
-        return {
-          limpio: texto.slice(0, m.index).trimEnd(),
-          preguntas: [{ pregunta: "", opciones: arr.slice(0, 5) }],
-        }
-      }
-      const objetos = arr.filter(
-        (x): x is PreguntaDeContexto =>
-          typeof x === "object" && x !== null &&
-          typeof (x as PreguntaDeContexto).pregunta === "string" &&
-          Array.isArray((x as PreguntaDeContexto).opciones) &&
-          (x as PreguntaDeContexto).opciones.every((o) => typeof o === "string"),
-      )
-      if (objetos.length) {
-        return {
-          limpio: texto.slice(0, m.index).trimEnd(),
-          preguntas: objetos.slice(0, 3).map((p) => ({ ...p, opciones: p.opciones.slice(0, 5) })),
-        }
-      }
-    }
-  } catch {
-    /* JSON malformado: mejor mostrar el texto tal cual que romper la respuesta */
-  }
-  return { limpio: texto, preguntas: [] }
-}
+// `sinMarcas` y `extraerOpciones` viven en components/athos/opciones.ts desde la auditoría del
+// 26-ago: el widget y el onboarding pintaban el bloque del cuestionario CRUDO por no compartirlos.
 
 function TextBlocks({
   text,
@@ -450,8 +385,13 @@ export function Assistant({
 
   async function agregarAdjuntos(files: FileList | null) {
     if (!files?.length) return
+    // Contador LOCAL sembrado del estado (auditoría 26-ago): `adjuntos.length` es el closure del
+    // render y no avanza dentro del loop — con 4 archivos elegidos y tope 2, los 4 se LEÍAN (los
+    // escaneados/fotos facturando visión) y el setter descartaba los sobrantes en silencio
+    // mientras su toast decía "listo". Ahora se corta ANTES de leer.
+    let cupo = MAX_ADJUNTOS - adjuntos.length
     for (const f of Array.from(files)) {
-      if (adjuntos.length >= MAX_ADJUNTOS) {
+      if (cupo <= 0) {
         toast.error(`Máximo ${MAX_ADJUNTOS} documentos por mensaje.`)
         break
       }
@@ -460,6 +400,7 @@ export function Assistant({
       const t = toast.loading(`Leyendo ${f.name}…`)
       try {
         const adj = await leerAdjunto(f)
+        cupo -= 1
         setAdjuntos((prev) => (prev.length >= MAX_ADJUNTOS ? prev : [...prev, adj]))
         toast.success(`${f.name} listo para enviar`, { id: t })
       } catch (e) {
@@ -635,7 +576,7 @@ export function Assistant({
         <div className="flex flex-wrap gap-1.5 px-4 pt-3">
           {adjuntos.map((a) => (
             <span
-              key={a.nombre}
+              key={a.id}
               className="inline-flex items-center gap-1 rounded-full border border-line bg-surface-2 px-2 py-0.5 text-[11.5px] text-fg-muted"
             >
               <Paperclip className="size-3" aria-hidden />
@@ -643,7 +584,8 @@ export function Assistant({
               <button
                 type="button"
                 aria-label={`Quitar ${a.nombre}`}
-                onClick={() => setAdjuntos((prev) => prev.filter((x) => x.nombre !== a.nombre))}
+                // Por id, no por nombre (auditoría 26-ago): dos archivos homónimos y la X borraba ambos.
+                onClick={() => setAdjuntos((prev) => prev.filter((x) => x.id !== a.id))}
                 className="ml-0.5 rounded-full p-0.5 hover:bg-surface hover:text-fg"
               >
                 <X className="size-3" aria-hidden />

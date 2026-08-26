@@ -22,8 +22,8 @@ sys.path.insert(0, BASE)
 os.chdir(BASE)
 
 from app.db import fetch_all_corpus  # noqa: E402
-from app.retrieval.cascade import (TIER1_SQL, TIER2_LIMIT, _ts_config,  # noqa: E402
-                                   tier1_params)
+from app.retrieval.cascade import (TIER1_FTS_SQL, TIER1_LIMIT, TIER1_FTS_SCAN_CAP,  # noqa: E402
+                                   TIER1_MESH_SCAN_CAP, TIER1_MESH_SQL, TIER2_LIMIT, _ts_config)
 
 CONCEPTOS = ["Babesiosis", "Ehrlichiosis", "Fever", "Thrombocytopenia"]
 MESH = CONCEPTOS
@@ -63,8 +63,11 @@ def main() -> None:
     cfg = _ts_config("en")
     terms = " or ".join(CONCEPTOS)
     print("consultas del hot-path (mediana de 3):")
-    # El SQL sale de cascade.py: se mide lo que corre en producción, no una copia.
-    medir("Tier 1", TIER1_SQL, tier1_params(cfg, terms, MESH))
+    # El SQL sale de cascade.py: se mide lo que corre en producción, no una copia. Desde el
+    # split del Tier 1 (bbb28eb) producción corre la rama MeSH SIEMPRE y la full-text solo si
+    # la MeSH no llena el cupo — acá se miden LAS DOS para ver el peor caso.
+    medir("Tier 1 MeSH", TIER1_MESH_SQL, (cfg, terms, MESH, TIER1_MESH_SCAN_CAP, TIER1_LIMIT))
+    medir("Tier 1 FTS ", TIER1_FTS_SQL, (cfg, terms, cfg, terms, MESH, TIER1_FTS_SCAN_CAP, TIER1_LIMIT))
     medir("Tier 2",
           "select id, source, title, content, metadata, 1 - (embedding <=> %s::vector) as sim "
           "from public.corpus_chunks where embedding is not null "
@@ -73,7 +76,8 @@ def main() -> None:
 
     print("\n¿usan indice? (primeras lineas del plan)")
     for nombre, sql, params in (
-        ("Tier 1", TIER1_SQL, tier1_params(cfg, terms, MESH)),
+        ("Tier 1 MeSH", TIER1_MESH_SQL, (cfg, terms, MESH, TIER1_MESH_SCAN_CAP, TIER1_LIMIT)),
+        ("Tier 1 FTS ", TIER1_FTS_SQL, (cfg, terms, cfg, terms, MESH, TIER1_FTS_SCAN_CAP, TIER1_LIMIT)),
         ("Tier 2", "select id from public.corpus_chunks where embedding is not null "
                    "order by embedding <=> %s::vector limit %s", (emb, TIER2_LIMIT)),
     ):

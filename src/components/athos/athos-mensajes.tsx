@@ -24,6 +24,8 @@ import { getToolName as getStaticToolName, type ToolUIPart, type UIMessage } fro
 import { Loader2 } from "lucide-react"
 
 import { ActionApprovalCard } from "@/components/athos/action-approval-card"
+import { Cuestionario } from "@/components/athos/cuestionario"
+import { extraerOpciones, sinMarcas } from "@/components/athos/opciones"
 import { renderInline, splitBlocks } from "@/components/athos/rich-text"
 
 /** Una tool de ESCRITURA no ejecuta: devuelve la acción ya registrada como propuesta. */
@@ -35,7 +37,19 @@ export function comoPropuesta(output: unknown): { action_id: string; summary: st
     : null
 }
 
-export function AthosMensajes({ messages }: { messages: UIMessage[] }) {
+export function AthosMensajes({
+  messages,
+  onOpcion,
+  streaming = false,
+}: {
+  messages: UIMessage[]
+  /** Recibe la respuesta compuesta del cuestionario ```opciones``` (auditoría 26-ago: sin esto,
+   *  el widget y el onboarding pintaban el bloque CRUDO). Solo el último turno lo ofrece. */
+  onOpcion?: (texto: string) => void
+  /** Si el último mensaje sigue streameando: gobierna cómo se recorta un bloque incompleto. */
+  streaming?: boolean
+}) {
+  const ultimoAsistente = [...messages].reverse().find((m) => m.role === "assistant")?.id
   return (
     <>
       {messages.map((m) => (
@@ -55,6 +69,16 @@ export function AthosMensajes({ messages }: { messages: UIMessage[] }) {
             <div className="space-y-1.5">
               {m.parts.map((p, i) => {
                 if (p.type === "text") {
+                  // Marcas internas fuera y el bloque ```opciones``` separado del texto (módulo
+                  // compartido con assistant.tsx — auditoría 26-ago). Las opciones solo se
+                  // OFRECEN en el último turno con VetGPT quieto: responder una pregunta de hace
+                  // tres turnos ya no tiene destinatario.
+                  const esUltimo = m.id === ultimoAsistente
+                  const { limpio, preguntas } = extraerOpciones(
+                    sinMarcas(p.text),
+                    streaming && esUltimo,
+                  )
+                  if (!limpio && preguntas.length === 0) return null
                   return (
                     // LA RESPUESTA NO VA EN BURBUJA. En el prototipo —y ya en `assistant.tsx`— lo
                     // que dice VetGPT fluye sobre el fondo: la burbuja es del que pregunta. Acá
@@ -65,15 +89,16 @@ export function AthosMensajes({ messages }: { messages: UIMessage[] }) {
                     // separa los turnos en una columna de 780px; acá costaría 37px con el gap para
                     // decir algo que la alineación ya dice — la del vet va a la derecha, la de
                     // VetGPT a la izquierda, y no hay un tercer interlocutor posible.
-                    <div key={i} className="text-[13.5px] leading-[1.55] text-fg">
-                      {splitBlocks(p.text).map((blk, j) => (
-                        <div
-                          key={j}
-                          className="border-b border-line-soft py-2 last:border-b-0 last:pb-0"
-                        >
-                          {renderInline(blk.text, [], `${m.id}-${i}-${j}`)}
-                        </div>
+                    //
+                    // SIN RAYAS entre bloques (paridad con assistant.tsx, que las quitó en el
+                    // #131): los párrafos se separan con espacio, no con una planilla.
+                    <div key={i} className="flex flex-col gap-2 text-[13.5px] leading-[1.55] text-fg">
+                      {splitBlocks(limpio).map((blk, j) => (
+                        <div key={j}>{renderInline(blk.text, [], `${m.id}-${i}-${j}`)}</div>
                       ))}
+                      {preguntas.length > 0 && esUltimo && !streaming && onOpcion && (
+                        <Cuestionario preguntas={preguntas} onResponder={onOpcion} />
+                      )}
                     </div>
                   )
                 }

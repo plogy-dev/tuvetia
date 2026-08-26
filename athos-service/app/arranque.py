@@ -46,6 +46,10 @@ def resumen(s) -> list[str]:
     lineas.append("cascada — " + (" · ".join(puestas) if puestas else "sin configurar (se usa el cliente de siempre)"))
 
     lineas.append("credenciales — " + " ".join(f"{k.replace('_api_key', '')}={_si_no(getattr(s, k, ''))}" for k in KEYS))
+    # STT (auditoría 26-ago): tras la migración a Grok, el proveedor de transcripción es una
+    # decisión de negocio — el arranque tiene que decir cuál quedó activo, no dejarlo a adivinar.
+    lineas.append(f"stt — proveedor: {getattr(s, 'stt_provider', 'deepgram')}"
+                  f" · modelo deepgram: {getattr(s, 'stt_model', 'nova-2')}")
     return lineas
 
 
@@ -75,6 +79,16 @@ def advertencias(s) -> list[str]:
 
     if not getattr(s, "embedding_api_key", ""):
         avisos.append("sin key de embeddings: el Tier 2 vectorial queda fuera y el retrieval degrada")
+
+    # STT (auditoría 26-ago): la trampa espejo de la de redacción — STT_PROVIDER=grok sin
+    # XAI_API_KEY (o sin NINGUNA key de STT) deja la transcripción muerta con /health en verde.
+    stt = str(getattr(s, "stt_provider", "deepgram") or "").strip().lower()
+    if stt == "grok" and not getattr(s, "xai_api_key", ""):
+        avisos.append("STT_PROVIDER=grok sin XAI_API_KEY: toda transcripción irá directo al respaldo "
+                      "Deepgram (o fallará si tampoco hay DEEPGRAM_API_KEY)")
+    if not getattr(s, "xai_api_key", "") and not getattr(s, "deepgram_api_key", ""):
+        avisos.append("sin NINGUNA key de STT (ni xai ni deepgram): la transcripción de consultas va "
+                      "a fallar, pero /health seguirá en verde")
     return avisos
 
 

@@ -83,3 +83,40 @@ def test_proveedor_por_defecto_sigue_siendo_deepgram(monkeypatch):
     monkeypatch.setattr(tr, "_call_deepgram", lambda audio, mime="audio/webm": {"results": {}})
     _, provider, _ = tr._transcribir_con_proveedor(b"audio")
     assert provider == "deepgram"
+
+
+def test_grok_200_vacio_dispara_el_respaldo(monkeypatch):
+    """Un 200 sin text ni words es un fallo (auditoría 26-ago): sin esto se insertaba un
+    transcript en blanco y la grabación real se perdía EN SILENCIO."""
+    _config(monkeypatch, {"stt_provider": "grok", "xai_api_key": "xai-x",
+                          "deepgram_api_key": "dg", "stt_model": "nova-2"})
+
+    class _Resp:
+        status_code = 200
+        text = "{}"
+        def json(self):
+            return {}
+
+    class _Cliente:
+        def __init__(self, *a, **k): pass
+        def __enter__(self): return self
+        def __exit__(self, *a): return False
+        def post(self, *a, **k): return _Resp()
+
+    monkeypatch.setattr(tr.httpx, "Client", _Cliente)
+    llamado = {}
+    monkeypatch.setattr(tr, "_call_deepgram",
+                        lambda audio, mime="audio/webm": llamado.setdefault("dg", True) or {"results": {}})
+    _, provider, _ = tr._transcribir_con_proveedor(b"audio")
+    assert llamado.get("dg") and provider == "deepgram"
+
+
+def test_adaptador_coacciona_speaker_no_entero():
+    """'0' como string o basura no puede reventar `speaker + 1` aguas abajo con la
+    transcripción ya pagada."""
+    payload = tr._grok_a_payload_comun({"text": "hola", "words": [
+        {"text": "hola", "start": 0, "end": 0.4, "speaker": "1"},
+        {"text": "doc", "start": 0.4, "end": 0.8, "speaker": None},
+    ]})
+    ws = payload["results"]["channels"][0]["alternatives"][0]["words"]
+    assert ws[0]["speaker"] == 1 and ws[1]["speaker"] == 0

@@ -58,6 +58,9 @@ import {
 /** Cuántas filas de cada lista se traen. Es un panel de acceso rápido, no un archivo completo. */
 const TOPE_CONSULTAS = 40
 const TOPE_MENSAJES = 400
+// Menor que TOPE_MENSAJES porque estas filas SÍ cargan `content` completo (titulan los hilos
+// generales con la primera pregunta): 150 mensajes generales cubren semanas de chats.
+const TOPE_GENERALES = 150
 
 type Item = { key: string; href: string; titulo: string; sub: string }
 
@@ -92,23 +95,33 @@ export function AthosSidebarSection() {
     let vivo = true
     void (async () => {
       const supabase = createClient()
-      const [cons, msgs, pts] = await Promise.all([
+      const [cons, msgsPacientes, msgsGenerales, pts] = await Promise.all([
         supabase
           .from("consultations")
           .select("id, status, started_at, patient:patients(name)")
           .order("started_at", { ascending: false })
           .limit(TOPE_CONSULTAS),
-        // Vienen también las filas GENERALES (patient_id null, thread_key 0092): cada chat que
-        // quedó atrás es un botón del historial al que se vuelve. `role` y `content` se traen para
-        // titular el chat con la primera pregunta del vet — un botón que dice "Chat general" veinte
-        // veces no le sirve a nadie.
+        // DOS consultas de mensajes a propósito (auditoría 26-ago): la de PACIENTE va sin
+        // `content` — traer 400 respuestas completas (hasta ~30 KB por turno con adjuntos) solo
+        // para saber la fecha del último mensaje era el peso real del panel. El `content` solo lo
+        // necesitan los hilos GENERALES para titularse con la primera pregunta del vet, y esos van
+        // en su propia consulta con tope corto.
         supabase
           .from("athos_messages")
-          .select("patient_id, thread_key, role, content, created_at")
+          .select("patient_id, created_at")
+          .not("patient_id", "is", null)
           // Sin los chats "eliminados" de la vista (0095) — ver /api/athos/chats/ocultar.
           .is("hidden_at", null)
           .order("created_at", { ascending: false })
           .limit(TOPE_MENSAJES),
+        supabase
+          .from("athos_messages")
+          .select("thread_key, role, content, created_at")
+          .is("patient_id", null)
+          .not("thread_key", "is", null)
+          .is("hidden_at", null)
+          .order("created_at", { ascending: false })
+          .limit(TOPE_GENERALES),
         supabase.from("patients").select("id, name").limit(500),
       ])
       if (!vivo) return
@@ -130,27 +143,25 @@ export function AthosSidebarSection() {
         ((pts.data as { id: string; name: string }[] | null) ?? []).map((p) => [p.id, p.name]),
       )
       // Las filas vienen de la más nueva a la más vieja, así que el primer avistamiento de cada
-      // hilo ya es su último mensaje. Un solo recorrido arma los dos tipos: hilos de PACIENTE
-      // (clave = patient_id) e hilos GENERALES (clave = thread_key 0092), titulados con la primera
-      // pregunta del vet que se encuentre (yendo de nuevo a viejo, la última vista es la primera
-      // de la conversación).
-      type Fila = {
-        patient_id: string | null
-        thread_key: string | null
-        role: string
-        content: string | null
-        created_at: string
-      }
+      // hilo ya es su último mensaje. Hilos de PACIENTE (clave = patient_id, sin content) e hilos
+      // GENERALES (clave = thread_key 0092), titulados con la primera pregunta del vet que se
+      // encuentre (yendo de nuevo a viejo, la última vista es la primera de la conversación).
       const pacientes = new Map<string, string>()
+      for (const m of (msgsPacientes.data as { patient_id: string; created_at: string }[] | null) ?? []) {
+        if (!pacientes.has(m.patient_id)) pacientes.set(m.patient_id, m.created_at)
+      }
       const generales = new Map<string, { ts: string; titulo: string }>()
-      for (const m of ((msgs.data as Fila[] | null) ?? [])) {
-        if (m.patient_id) {
-          if (!pacientes.has(m.patient_id)) pacientes.set(m.patient_id, m.created_at)
-        } else if (m.thread_key) {
-          const g = generales.get(m.thread_key) ?? { ts: m.created_at, titulo: "" }
-          if (m.role === "user" && m.content?.trim()) g.titulo = m.content.trim()
-          generales.set(m.thread_key, g)
+      type FilaGeneral = { thread_key: string; role: string; content: string | null; created_at: string }
+      for (const m of (msgsGenerales.data as FilaGeneral[] | null) ?? []) {
+        const g = generales.get(m.thread_key) ?? { ts: m.created_at, titulo: "" }
+        if (m.role === "user" && m.content?.trim()) {
+          // El bloque de un documento adjunto no es título: se quita y queda la pregunta real.
+          const sinAdjuntos = m.content
+            .replace(/\[Documento adjunto: [^\]]+\]\n"""[\s\S]*?"""\s*/g, "")
+            .trim()
+          g.titulo = sinAdjuntos || "Chat con documento"
         }
+        generales.set(m.thread_key, g)
       }
       const filasChats: (Item & { ts: string })[] = [
         ...[...pacientes.entries()].map(([pid, ts]) => ({
@@ -200,6 +211,9 @@ export function AthosSidebarSection() {
       setRefresco((r) => r + 1) // recarga: el optimista se revierte con la verdad de la base
       return
     }
+    // La marca del ocultado viaja al "Deshacer": restaura SOLO este borrado, no los chats del
+    // mismo hilo que se ocultaron en borrados anteriores (auditoría 26-ago).
+    const { marca } = (await res.json().catch(() => ({}))) as { marca?: string }
     toast(`«${item.titulo}» eliminado del historial`, {
       action: {
         label: "Deshacer",
@@ -207,7 +221,7 @@ export function AthosSidebarSection() {
           void fetch("/api/athos/chats/ocultar", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ accion: "restaurar", ...cuerpo }),
+            body: JSON.stringify({ accion: "restaurar", marca, ...cuerpo }),
           }).then(() => setRefresco((r) => r + 1))
         },
       },
