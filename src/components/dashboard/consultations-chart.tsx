@@ -36,7 +36,9 @@ export function ConsultationsChart({ data }: { data: { label: string; count: num
               labelStyle={{ color: "var(--foreground)" }}
               formatter={(value) => [value, "Consultas"]}
             />
-            <Bar dataKey="count" className="fill-primary" radius={[4, 4, 0, 0]} maxBarSize={36} />
+            {/* var(--chart-1) y no fill-primary: el primario es el color de ACCION del sistema (botones);
+              las series usan la paleta categorica validada, la misma de la dona. */}
+            <Bar dataKey="count" fill="var(--chart-1)" radius={[4, 4, 0, 0]} maxBarSize={36} />
           </BarChart>
         </ResponsiveContainer>
       )}

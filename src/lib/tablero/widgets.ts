@@ -28,6 +28,7 @@ export type IdDeWidget =
   | "riel"
   | "metricas"
   | "grafico"
+  | "ventas"
   | "citas"
   | "borradores"
 
@@ -68,6 +69,13 @@ export const CATALOGO: Widget[] = [
     titulo: "Próximas citas",
     descripcion: "Lo que viene, en orden.",
     ancho: "dos",
+  },
+  {
+    id: "ventas",
+    titulo: "Ventas del mes por tipo",
+    descripcion:
+      "La dona de lo facturado este mes: cuánto fue servicios, cuánto medicamentos, cuánto productos.",
+    ancho: "tres",
   },
   {
     id: "borradores",
