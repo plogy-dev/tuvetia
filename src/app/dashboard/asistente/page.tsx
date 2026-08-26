@@ -160,21 +160,21 @@ export default async function AsistentePage({
         species: p.species,
         owner: p.owner?.full_name ?? null,
       })) satisfies AssistantPatient[])
-      // ── CHAT NUEVO AL ABRIR LA APP ──────────────────────────────────────────────────────────
+      // ── CHAT NUEVO AL ABRIR LA APP, PERO CON TODO EL HISTORIAL A MANO ───────────────────────
       //
-      // El historial completo SÓLO se siembra cuando se viene del historial del sidebar, o sea
-      // cuando la URL trae `?patient=`. Entrar a Athos por la barra abre una conversación limpia.
+      // El mapa de conversaciones se siembra SIEMPRE, y lo que gobierna con qué arranca la
+      // pantalla es OTRA cosa: el paciente inicial. Sin `?patient=` se abre en Consulta general,
+      // que no tiene historial a propósito — así que la app sigue arrancando limpia.
       //
-      // POR QUÉ. Antes se sembraba siempre, así que la app abría con la última conversación —de
-      // ayer, de otro paciente, a medio terminar— y el vet tenía que leer de qué estaba hablando
-      // antes de poder preguntar. Un asistente que arranca a mitad de una charla vieja obliga a
-      // recordar en vez de a usar.
-      //
-      // NO SE BORRA NADA. Las conversaciones siguen en `athos_messages` y el historial del sidebar
-      // las abre igual; lo único que cambia es con qué arranca la pantalla cuando nadie pidió una
-      // conversación en particular.
+      // ANTES el mapa sólo se sembraba con `?patient=` en la URL, con la intención de que la app
+      // no abriera a mitad de una charla vieja. Pero esa condición confundía DOS preguntas: «¿con
+      // qué conversación abro?» (la responde el paciente inicial) y «¿qué conversaciones conozco?»
+      // (la responde este mapa). Al mezclarlas, elegir un paciente con el selector mostraba un
+      // hilo VACÍO aunque su conversación estuviera guardada — «está fallando poder ir a los chats
+      // existentes» (David, 25-ago). El sembrado total arregla eso sin resucitar el problema
+      // original.
       const historial = agruparPorPaciente((msgs.data as MensajeFila[] | null) ?? [])
-      threads = patientParam ? historial : {}
+      threads = historial
       consultasHoy = consultas.count ?? 0
       facturacionActiva =
         (billing.data as { module_status: string } | null)?.module_status === "ACTIVO"

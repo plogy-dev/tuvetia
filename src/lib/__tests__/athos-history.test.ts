@@ -9,6 +9,8 @@
  * (para que el tope se quede con las últimas), y el hilo tiene que quedar cronológico o el
  * veterinario lee la conversación al revés.
  */
+import { readFileSync } from "node:fs"
+
 import { describe, expect, it } from "vitest"
 
 import { TURNOS_POR_PACIENTE, agruparPorPaciente, type MensajeFila } from "../athos-history"
@@ -93,5 +95,33 @@ describe("agruparPorPaciente", () => {
 
   it("sin mensajes devuelve un mapa vacío, no revienta", () => {
     expect(agruparPorPaciente([])).toEqual({})
+  })
+})
+
+describe("la pantalla no esconde el historial que la base sí tiene", () => {
+  // David, 25-ago: «está fallando poder ir a los chats existentes». Eran DOS bugs que se tapaban
+  // entre sí, y los dos eran regresiones silenciosas posibles — por eso se escanea el fuente.
+  const limpiar = (s: string) =>
+    s
+      .replace(/\{\/\*[\s\S]*?\*\/\}/g, "")
+      .replace(/\/\*[\s\S]*?\*\//g, "")
+      .replace(/\/\/.*$/gm, "")
+
+  it("el mapa de hilos se siembra SIEMPRE, no sólo con ?patient= en la URL", () => {
+    // `threads = patientParam ? historial : {}` era el bug: elegir un paciente con el selector
+    // mostraba un hilo vacío aunque su conversación estuviera guardada. Que la app abra limpia lo
+    // gobierna el paciente inicial (la consulta general no tiene historial), no este mapa.
+    const pagina = limpiar(readFileSync("src/app/dashboard/asistente/page.tsx", "utf8"))
+    expect(pagina).toContain("threads = historial")
+    expect(pagina).not.toMatch(/threads\s*=\s*patientParam\s*\?/)
+  })
+
+  it("el clic del historial funciona también con la pantalla ya abierta", () => {
+    // `?patient=` llega como prop y `useState` sólo lo lee al montar: la navegación suave del
+    // sidebar no remonta el componente, así que sin la sincronización el clic no hacía nada.
+    const asistente = limpiar(readFileSync("src/app/dashboard/asistente/assistant.tsx", "utf8"))
+    const i = asistente.indexOf("initialPatientId !== patientDeLaUrl")
+    expect(i, "se perdió la sincronización del ?patient= en navegación suave").toBeGreaterThan(-1)
+    expect(asistente.slice(i, i + 200)).toContain("setPatientId(initialPatientId)")
   })
 })
