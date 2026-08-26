@@ -9,7 +9,7 @@ import {
   type ToolUIPart,
   type UIMessage,
 } from "ai"
-import { Loader2, Mic, Paperclip, Send, Sparkles, X } from "lucide-react"
+import { ArrowUp, Loader2, Mic, Paperclip, Sparkles, X } from "lucide-react"
 
 import { BrandGlyph } from "@/components/brand-glyph"
 import { toast } from "sonner"
@@ -554,34 +554,27 @@ export function Assistant({
   // La pastilla lleva el borde y el foco; el textarea va sin los suyos, así el conjunto se lee como
   // UN control y no como dos piezas sueltas. Y la barra de acciones va DEBAJO del campo, no al lado:
   // con el botón al lado, el campo no puede crecer sin empujarlo.
+  // ── EL COMPOSITOR ─────────────────────────────────────────────────────────────────────────────
+  //
+  // UNA SOLA FILA, como el de ChatGPT. Antes eran dos: el campo arriba y una barra de acciones
+  // debajo, y entre las dos la pastilla medía CIENTO TREINTA PÍXELES con el chat vacío — un tercio
+  // del alto útil ocupado por una caja de texto que todavía no tiene texto. Lo que se lleva ese
+  // espacio es justamente lo que hay que leer: las respuestas.
+  //
+  // Ahora los botones van EN LA MISMA LÍNEA que el campo y la pastilla arranca en ~52 px. La barra
+  // debajo existía porque «con el botón al lado, el campo no puede crecer sin empujarlo»; eso se
+  // resuelve con `items-end` — los botones se quedan abajo y el campo crece hacia arriba, que es
+  // exactamente lo que hacen ChatGPT y Claude.
+  //
+  // `field-sizing-content` es lo que la hace crecer sola con lo que se escribe, sin medir alturas a
+  // mano en un efecto. Donde el navegador no lo soporte, el `max-h-40` deja scroll: peor, pero no
+  // peor que hoy.
   const compositor = (
-    <div className="rounded-2xl border border-line bg-surface text-left shadow-popover transition focus-within:border-brand focus-within:ring-[3px] focus-within:ring-brand-soft">
-      <Textarea
-        id="pedir-a-athos"
-        aria-label="Pedirle algo a VetGPT"
-        value={input}
-        onChange={(e) => setInput(e.target.value)}
-        onKeyDown={(e) => {
-          // Enter envía y Shift+Enter hace salto de línea, que es lo que espera cualquiera que haya
-          // usado un chat. Antes exigía Ctrl/Cmd+Enter: un atajo que nadie descubre y que deja al
-          // vet apretando Enter y viendo cómo su pregunta se convierte en un párrafo.
-          if (e.key === "Enter" && !e.shiftKey) {
-            e.preventDefault()
-            send()
-          }
-        }}
-        rows={vacio ? 2 : 1}
-        placeholder={
-          vacio
-            ? "Pregúntale a VetGPT… (p. ej. «resúmeme el historial de Luna antes de su cita»)"
-            : "Responder a VetGPT…"
-        }
-        className="max-h-48 w-full resize-none border-0 bg-transparent px-4 pb-1 pt-3.5 text-[13.5px] shadow-none focus-visible:ring-0 dark:bg-transparent"
-      />
+    <div className="rounded-[26px] border border-line bg-surface text-left shadow-popover transition focus-within:border-brand focus-within:ring-[3px] focus-within:ring-brand-soft">
       {/* Chips de documentos ya extraídos, con su X. Van DENTRO de la pastilla: son parte del
           mensaje que está por salir, no un estado aparte de la pantalla. */}
       {adjuntos.length > 0 && (
-        <div className="flex flex-wrap gap-1.5 px-3 pt-1">
+        <div className="flex flex-wrap gap-1.5 px-4 pt-3">
           {adjuntos.map((a) => (
             <span
               key={a.nombre}
@@ -601,7 +594,10 @@ export function Assistant({
           ))}
         </div>
       )}
-      <div className="flex items-center gap-1.5 px-2.5 pb-2.5 pt-1.5">
+
+      {/* `items-end`: al crecer el campo, los botones se quedan abajo en vez de centrarse contra un
+          bloque de tres renglones. */}
+      <div className="flex items-end gap-1 p-1.5">
         <input
           ref={fileRef}
           type="file"
@@ -617,10 +613,32 @@ export function Assistant({
           aria-label="Adjuntar documento"
           onClick={() => fileRef.current?.click()}
           disabled={busy}
-          className="h-[30px] w-[30px] shrink-0 rounded-[7px] p-0 text-fg-muted"
+          className="size-9 shrink-0 rounded-full p-0 text-fg-muted"
         >
-          <Paperclip className="size-3.5" aria-hidden />
+          <Paperclip className="size-4" aria-hidden />
         </Button>
+
+        <Textarea
+          id="pedir-a-athos"
+          aria-label="Pedirle algo a VetGPT"
+          value={input}
+          onChange={(e) => setInput(e.target.value)}
+          onKeyDown={(e) => {
+            // Enter envía y Shift+Enter hace salto de línea, que es lo que espera cualquiera que
+            // haya usado un chat. Antes exigía Ctrl/Cmd+Enter: un atajo que nadie descubre y que
+            // deja al vet apretando Enter y viendo cómo su pregunta se convierte en un párrafo.
+            if (e.key === "Enter" && !e.shiftKey) {
+              e.preventDefault()
+              send()
+            }
+          }}
+          rows={1}
+          // EL MARCADOR ES CORTO. El de antes —con su ejemplo entre comillas— medía media línea de
+          // más de lo que entra en una barra de una fila: se cortaba a mitad de palabra.
+          placeholder={vacio ? "Pregúntale a VetGPT…" : "Responder a VetGPT…"}
+          className="field-sizing-content max-h-40 min-h-0 flex-1 resize-none border-0 bg-transparent px-1.5 py-2 text-[14px] leading-6 shadow-none focus-visible:ring-0 dark:bg-transparent"
+        />
+
         {/* El mic solo existe si el navegador trae la Web Speech API (ver lib/athos-dictado.ts). */}
         {dictado.soportado && (
           <Button
@@ -635,27 +653,28 @@ export function Assistant({
             }}
             className={
               dictado.activo
-                ? "h-[30px] w-[30px] shrink-0 animate-pulse rounded-[7px] p-0 text-destructive"
-                : "h-[30px] w-[30px] shrink-0 rounded-[7px] p-0 text-fg-muted"
+                ? "size-9 shrink-0 animate-pulse rounded-full p-0 text-destructive"
+                : "size-9 shrink-0 rounded-full p-0 text-fg-muted"
             }
           >
-            <Mic className="size-3.5" aria-hidden />
+            <Mic className="size-4" aria-hidden />
           </Button>
         )}
-        <div className="flex-1" />
+
+        {/* REDONDO Y SÓLO ICONO. La palabra «Enviar» ocupaba el ancho de tres botones en una fila
+            que ahora los tiene a todos; y con Enter para mandar, el botón es el respaldo, no la vía
+            principal. El `aria-label` conserva el nombre para quien no ve el icono. */}
         <Button
           onClick={send}
           disabled={busy || !input.trim()}
           size="sm"
-          className="h-[30px] shrink-0 rounded-[7px] px-3 text-[12.5px]"
+          aria-label="Enviar"
+          className="size-9 shrink-0 rounded-full p-0"
         >
           {busy ? (
-            <Loader2 className="size-3.5 animate-spin" aria-hidden />
+            <Loader2 className="size-4 animate-spin" aria-hidden />
           ) : (
-            <>
-              Enviar
-              <Send className="size-3.5" aria-hidden />
-            </>
+            <ArrowUp className="size-4" aria-hidden />
           )}
         </Button>
       </div>
