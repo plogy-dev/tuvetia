@@ -47,6 +47,7 @@ import {
 import { HelpTip } from "@/components/help-tip"
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 import { citasVisibles, deOtros, sinAsignar, type FiltroDeAgenda } from "@/lib/agenda/filtro"
+import { normalizarRango } from "@/lib/agenda/rango"
 import { coincideConLaBusqueda } from "@/lib/agenda/buscar"
 import { comoFechas, rangoVisible, type FranjaHoraria } from "@/lib/agenda/rango-visible"
 import { tipoDeCita } from "@/lib/agenda/tipos-de-cita"
@@ -113,10 +114,8 @@ const FORMATS: Formats = {
   timeGutterFormat: (date) => formatGutterHour(date),
 }
 
-function normalizeRange(range: Date[] | { start: Date; end: Date }): { start: Date; end: Date } {
-  if (Array.isArray(range)) return { start: range[0], end: range[range.length - 1] }
-  return { start: range.start, end: range.end }
-}
+// `normalizarRango` vive en lib/agenda/rango.ts (puro y con test): la versión de acá adentro
+// colapsaba la vista Día al instante 00:00 y la recarga borraba las citas de la pantalla.
 
 export function AppointmentCalendar({
   initialAppointments,
@@ -297,7 +296,7 @@ export function AppointmentCalendar({
 
   const handleRangeChange = useCallback(
     (r: Date[] | { start: Date; end: Date }) => {
-      const nr = normalizeRange(r)
+      const nr = normalizarRango(r)
       setRange(nr)
       void loadRange(nr.start, nr.end)
     },
@@ -475,6 +474,10 @@ export function AppointmentCalendar({
         <CalendarToolbar {...props} view={view} />
       ),
       week: { header: DayColumnHeader, event: EventContent },
+      // El MISMO render de evento para la vista Día (y el Programador, que se dibuja con ella):
+      // sin esto, Día usaba el render crudo de la librería y «el contenido no se ajusta a la
+      // tarjeta» (reporte 27-ago) — el bloque corto perdía el truncado y el modo compacto <40 min.
+      day: { event: EventContent },
       agenda: { event: AgendaEventContent },
     }),
     [view],
