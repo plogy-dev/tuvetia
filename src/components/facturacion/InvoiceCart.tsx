@@ -931,7 +931,7 @@ export function InvoiceCart({
       </div>
 
       {/* Desglose: el descuento sólo aparece si lo hubo, para no llenar la pantalla de ceros. */}
-      <dl className="ml-auto w-full max-w-xs space-y-1.5 text-sm">
+      <dl className="ml-auto w-full max-w-xs space-y-1.5 text-sm tabular-nums">
         <div className="flex justify-between text-fg-muted">
           <dt>Subtotal</dt>
           <dd>{totals ? formatCOP(totals.subtotalCents) : '—'}</dd>

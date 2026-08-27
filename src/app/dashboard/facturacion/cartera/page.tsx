@@ -173,7 +173,7 @@ export default async function CarteraPage() {
                       </td>
                       <td className="px-3 py-2 text-fg-muted">{r.payer?.name ?? '—'}</td>
                       <td className="px-3 py-2 text-fg-muted">{fmtDate(r.due_date)}</td>
-                      <td className="px-3 py-2 text-right font-medium text-fg">
+                      <td className="px-3 py-2 text-right font-medium tabular-nums text-fg">
                         {formatCOP(r.balance_cents)}
                       </td>
                       <td className="px-3 py-2">
@@ -231,7 +231,7 @@ function Kpi({ label, value, tone }: { label: string; value: string; tone?: 'war
   return (
     <div className="rounded-xl border border-line bg-surface px-4 py-3">
       <div className="text-xs text-fg-faint">{label}</div>
-      <div className={`mt-0.5 text-lg font-semibold ${tone === 'warn' ? 'text-warn' : 'text-fg'}`}>
+      <div className={`mt-0.5 text-lg font-semibold tabular-nums ${tone === 'warn' ? 'text-warn' : 'text-fg'}`}>
         {value}
       </div>
     </div>
@@ -252,7 +252,7 @@ function AgingCell({
     <div className="rounded-xl border border-line bg-surface px-3 py-2.5">
       <div className="text-[11.5px] font-medium text-fg-faint">{label}</div>
       <div
-        className={`mt-0.5 text-base font-semibold ${active && tone === 'warn' ? 'text-warn' : 'text-fg'}`}
+        className={`mt-0.5 text-base font-semibold tabular-nums ${active && tone === 'warn' ? 'text-warn' : 'text-fg'}`}
       >
         {formatCOP(bucket.amountCents)}
       </div>

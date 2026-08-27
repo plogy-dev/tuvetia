@@ -48,7 +48,7 @@ function Kpi({ label, value, tone }: { label: string; value: string; tone?: 'war
     <div className="rounded-xl border border-line bg-surface px-4 py-3">
       <p className="text-[11.5px] font-medium text-fg-faint">{label}</p>
       <p
-        className={`mt-1 text-lg font-semibold ${
+        className={`mt-1 text-lg font-semibold tabular-nums ${
           tone === 'warn' ? 'text-warn' : tone === 'ok' ? 'text-ok' : 'text-fg'
         }`}
       >
@@ -282,8 +282,8 @@ export default async function InventarioPage({
                     <td className="px-3 py-2.5 text-fg-muted">
                       {TYPE_LABELS[i.item_type] ?? i.item_type}
                     </td>
-                    <td className="px-3 py-2.5 text-right text-fg">{formatCOP(i.price_cents)}</td>
-                    <td className="px-3 py-2.5 text-right text-fg-muted">
+                    <td className="px-3 py-2.5 text-right tabular-nums text-fg">{formatCOP(i.price_cents)}</td>
+                    <td className="px-3 py-2.5 text-right tabular-nums text-fg-muted">
                       {i.track_stock ? `${stock ?? 0} ${i.use_unit}` : '—'}
                     </td>
                     <td className="px-5 py-2.5 text-xs">
@@ -326,7 +326,7 @@ export default async function InventarioPage({
                   {MOVEMENT_LABELS[m.movement_type] ?? m.movement_type}
                 </span>
                 <span
-                  className={`w-20 shrink-0 text-right font-medium ${m.qty >= 0 ? 'text-ok' : 'text-warn'}`}
+                  className={`w-20 shrink-0 text-right font-medium tabular-nums ${m.qty >= 0 ? 'text-ok' : 'text-warn'}`}
                 >
                   {m.qty >= 0 ? '+' : ''}
                   {m.qty}

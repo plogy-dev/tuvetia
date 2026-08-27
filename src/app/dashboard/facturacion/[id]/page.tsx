@@ -225,7 +225,7 @@ export default async function FacturaDetallePage({
                   <td colSpan={5} className="px-4 py-1 text-right text-fg-muted">
                     IVA
                   </td>
-                  <td className="px-4 py-1 text-right text-fg">{formatCOP(invoice.tax_cents)}</td>
+                  <td className="px-4 py-1 text-right tabular-nums text-fg">{formatCOP(invoice.tax_cents)}</td>
                 </tr>
                 <tr className="text-base font-semibold">
                   <td colSpan={5} className="px-4 py-2 text-right text-fg">
