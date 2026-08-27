@@ -89,6 +89,16 @@ def advertencias(s) -> list[str]:
     if not getattr(s, "xai_api_key", "") and not getattr(s, "deepgram_api_key", ""):
         avisos.append("sin NINGUNA key de STT (ni xai ni deepgram): la transcripción de consultas va "
                       "a fallar, pero /health seguirá en verde")
+    # EL HUECO QUE DEJÓ LA MIGRACIÓN A GROK, y el que probablemente explica el reporte de David del
+    # 26-ago («no hay transcripción en vivo»): el streaming es DEEPGRAM-ONLY sin importar
+    # STT_PROVIDER —Grok live exige Opus crudo y el navegador graba WebM contenerizado (ver
+    # `config.py`)—. Así que con XAI_API_KEY puesta y DEEPGRAM_API_KEY ausente, los lotes funcionan
+    # perfecto, /health está en verde, y el vivo muere en cada consulta. El front lo tapaba con un
+    # `console.info`, que es como estuvo invisible hasta que lo notó el cliente.
+    if not getattr(s, "deepgram_api_key", ""):
+        avisos.append("sin DEEPGRAM_API_KEY: la TRANSCRIPCIÓN EN VIVO no va a funcionar en ninguna "
+                      "consulta (el streaming es Deepgram-only, sin importar STT_PROVIDER). Los "
+                      "lotes sí siguen andando, así que el fallo no se nota en /health")
     return avisos
 
 

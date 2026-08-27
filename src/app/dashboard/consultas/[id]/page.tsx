@@ -174,11 +174,27 @@ export default function NotaConsultaPage({ params }: { params: Promise<{ id: str
   //
   // Al terminar deja de haber grabación y esta pantalla vuelve sola, con el material ya listo. No
   // hay navegación de por medio: es la misma ruta cambiando de forma según lo que esté pasando.
+  //
+  // ── Y NO SE RETIRA APENAS SE SUELTA EL BOTÓN ──────────────────────────────────────────────────
+  //
+  // David, 26-ago: «es super agresivo y poco amigable, como de la nada salta a esta pantalla».
+  // Tenía razón y la causa era exactamente ésta. `detener()` emite `fase: "subiendo"` como su
+  // PRIMERA acción —antes de vaciar el buffer, antes de subir nada—, así que con la condición
+  // vieja (`fase === "grabando"`) el cockpit desaparecía en ese mismo tick y el editor SOAP vacío
+  // se pintaba de golpe, sin transición y sin material.
+  //
+  // El propio archivo del cockpit prometía otra cosa: «cuando la grabación termina, el cockpit se
+  // retira solo y la pantalla de siempre vuelve CON EL MATERIAL YA LISTO». Incluir las dos fases
+  // de cierre es lo que hace cierta esa promesa. El vet se queda donde estaba, ve el progreso
+  // —guardando, transcribiendo— y la pantalla sólo cambia cuando de verdad hay algo que mostrar.
+  // Y si no quiere esperar, «Minimizar» sigue ahí: el notch lo acompaña a donde vaya.
   const router = useRouter()
   const consultaEnVivo = useConsultaViva()
   const [pestanaCockpit, setPestanaCockpit] = useState<PestanaDelCockpit>("consulta")
-  const grabandoEsta =
-    consultaEnVivo.fase === "grabando" && consultaEnVivo.consultaId === id
+  const esLaMia = consultaEnVivo.consultaId === id
+  const cerrandoEsta =
+    esLaMia && (consultaEnVivo.fase === "subiendo" || consultaEnVivo.fase === "transcribiendo")
+  const grabandoEsta = (esLaMia && consultaEnVivo.fase === "grabando") || cerrandoEsta
 
   const load = useCallback(async () => {
     const { data: c, error: cErr } = await supabase
@@ -412,6 +428,7 @@ export default function NotaConsultaPage({ params }: { params: Promise<{ id: str
         <Cockpit
           pestana={pestanaCockpit}
           alCambiarPestana={setPestanaCockpit}
+          cerrando={cerrandoEsta}
           alMinimizar={() => router.push("/dashboard/consultas")}
         />
       </div>

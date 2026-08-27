@@ -289,7 +289,14 @@ export const consultaViva = {
         },
       )
 
-      const rec = new MediaRecorder(media, { mimeType: "audio/webm", audioBitsPerSecond: 48000 })
+      // 64 kbps y no 48. Opus a 48 kbps es holgado para UNA voz cerca del micrófono; una consulta
+      // es otra cosa: dos personas a distintas distancias de un portátil, con un perro de fondo y
+      // el ruido de una sala. Ahí los 48 se notan justo en lo que peor tolera el reconocimiento —
+      // las consonantes de los nombres de fármacos, que es lo que David reportó como impreciso.
+      //
+      // El costo es 33% más de bytes sobre un audio que se borra a los 4 días. Barato contra tener
+      // que corregir a mano un principio activo mal escrito en una historia clínica.
+      const rec = new MediaRecorder(media, { mimeType: "audio/webm", audioBitsPerSecond: 64000 })
       rec.ondataavailable = (e) => {
         if (e.data.size > 0) {
           trozos.push(e.data)

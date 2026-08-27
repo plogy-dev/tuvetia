@@ -29,6 +29,7 @@ from dataclasses import dataclass, field
 from typing import Any
 from urllib.parse import urlencode
 
+from app.stt_vocabulario import parametros_de_vocabulario
 from app.transcription import (
     _insert_transcript,
     _set_consultation_status,
@@ -201,8 +202,12 @@ async def abrir_deepgram():
     api_key = _settings_value("deepgram_api_key", "DEEPGRAM_API_KEY")
     if not api_key:
         raise RuntimeError("falta DEEPGRAM_API_KEY")
-    params = dict(LIVE_PARAMS)
-    params["model"] = _settings_value("stt_model", "STT_MODEL", "nova-2")
+    model = _settings_value("stt_model", "STT_MODEL", "nova-2")
+    # `urlencode` sobre una LISTA de pares, no sobre el dict: el vocabulario veterinario repite la
+    # misma clave una vez por término y un dict conservaría sólo el último.
+    params = [(k, v) for k, v in LIVE_PARAMS.items() if k != "model"]
+    params.insert(0, ("model", model))
+    params += parametros_de_vocabulario(model)
     url = f"{DEEPGRAM_LIVE_URL}?{urlencode(params)}"
     return await connect(url, additional_headers={"Authorization": f"Token {api_key}"})
 

@@ -10,18 +10,18 @@
 // el micrófono al desmontar, así que irse a la agenda a mirar la próxima cita mataba la grabación en
 // curso, en silencio y a mitad de una consulta.
 //
-// Consecuencia buena y no obvia: volver a esta pantalla RE-ENGANCHA la misma sesión y muestra el
-// mismo texto en vivo, porque el texto vive en el módulo y no en el estado de este componente.
+// Consecuencia buena y no obvia: volver a esta pantalla RE-ENGANCHA la misma sesión —el estado
+// vive en el módulo, no en este componente— y la consulta reaparece en el Cockpit, con su
+// cronómetro y su texto intactos.
 //
 // El consentimiento SE QUEDA acá y no se mueve a la pastilla flotante: tiene que estar en la
 // pantalla, donde el titular puede leerlo en el monitor del vet. Pedirlo desde una burbuja es peor
 // evidencia legal, no mejor.
 
 import { useCallback, useEffect, useRef, useState } from "react"
-import { AudioLines, Loader2, Mic, ShieldCheck, Square } from "lucide-react"
+import { AudioLines, Mic, ShieldCheck } from "lucide-react"
 import { toast } from "sonner"
 
-import { comoReloj } from "@/lib/duracion"
 import { consultaViva } from "@/lib/consulta-viva/sesion"
 import { useConsultaViva } from "@/lib/consulta-viva/usar"
 import { createClient } from "@/lib/supabase/client"
@@ -66,12 +66,8 @@ export function ConsultationRecorder({
   // La sesión es global: puede haber una grabación de OTRA consulta. Esta pantalla sólo muestra el
   // estado de la suya — si no, el vet vería el transcript de otro paciente en esta ficha.
   const esLaMia = sesion.consultaId === consultationId
-  const grabando = esLaMia && sesion.fase === "grabando"
-  const cerrando = esLaMia && (sesion.fase === "subiendo" || sesion.fase === "transcribiendo")
   const lista = esLaMia && sesion.fase === "terminada"
   const otraEnCurso = !esLaMia && sesion.fase === "grabando"
-
-  const mmss = comoReloj(sesion.segundos)
 
   // Inserta la fila de consentimiento de ESTA consulta (el trigger de BD la exige siempre).
   // owner_scope=true cuando el titular acepta por primera vez -> cubre sus próximas consultas.
@@ -136,9 +132,31 @@ export function ConsultationRecorder({
 
   // ARRANQUE AUTOMÁTICO al llegar desde "Iniciar consulta".
   //
-  // Se dispara una sola vez y sólo con `?grabar=1` en la URL, que pone el drawer al crear la
-  // consulta. Llama al MISMO `iniciar()` que el botón: si hay consentimiento vigente graba, y si no
-  // lo hay abre el panel para que el titular lo lea. El gate no se mueve.
+  // Se dispara sólo con `?grabar=1` en la URL, que pone el drawer al crear la consulta. Llama al
+  // MISMO `iniciar()` que el botón: si hay consentimiento vigente graba, y si no lo hay abre el
+  // panel para que el titular lo lea. El gate no se mueve.
+  //
+  // ── EL PARÁMETRO SE CONSUME, NO SE LEE ──────────────────────────────────────────────────────
+  //
+  // Acá estaba el defecto que David reportó el 26-ago como «uno deja de grabar y sale una vaina
+  // abajo a la derecha que confunde al usuario y como que traba el app».
+  //
+  // Mientras se graba, la pantalla de la consulta devuelve el Cockpit y ESTE COMPONENTE SE
+  // DESMONTA. Al acabar vuelve a montarse —instancia nueva, `yaArranco` otra vez en falso— y el
+  // `?grabar=1` seguía intacto en la URL. Así que el efecto arrancaba de nuevo, sobre una consulta
+  // recién terminada:
+  //
+  //   · insertaba una SEGUNDA fila en `consents` — evidencia legal duplicada (Ley 1581), que es
+  //     lo más grave de todo esto y no se veía en pantalla;
+  //   · chocaba con el cerrojo de sesión única y disparaba «Ya estás grabando la consulta de X.
+  //     Detenela antes de iniciar otra» — el mensaje sin sentido que él vio;
+  //   · y sin `ownerId`, peor todavía: abría el modal de consentimiento ENCIMA de la nota recién
+  //     transcrita, con su backdrop y su trampa de foco. Eso es el «traba el app», literal.
+  //
+  // Un `useRef` no podía cerrar esto: el ref muere con la instancia y el problema ES que hay
+  // instancia nueva. Lo que tiene que morir es la orden, así que se borra de la URL apenas se
+  // ejecuta. Con `history.replaceState` y no con el router: es la misma ruta, no hay nada que
+  // navegar, y un `router.replace` volvería a renderizar el árbol justo en el peor momento.
   //
   // El permiso del micrófono lo pide `getUserMedia` dentro de `iniciar()`. Viene de un gesto real
   // del vet —el clic en "Iniciar consulta"— aunque haya ocurrido en la pantalla anterior.
@@ -150,8 +168,11 @@ export function ConsultationRecorder({
   useEffect(() => {
     if (yaArranco.current) return
     if (typeof window === "undefined") return
-    if (new URLSearchParams(window.location.search).get("grabar") !== "1") return
+    const url = new URL(window.location.href)
+    if (url.searchParams.get("grabar") !== "1") return
     yaArranco.current = true
+    url.searchParams.delete("grabar")
+    window.history.replaceState(null, "", `${url.pathname}${url.search}${url.hash}`)
     const t = setTimeout(() => void iniciar(), 0)
     return () => clearTimeout(t)
   }, [iniciar])
@@ -202,60 +223,18 @@ export function ConsultationRecorder({
     </Dialog>
   )
 
-  if (grabando) {
-    return (
-      <div className="rounded-xl border border-destructive/40 bg-danger-soft p-4">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div className="flex items-center gap-2 text-sm">
-            <span className="size-2 rounded-full bg-destructive motion-safe:animate-pulse" />
-            <span className="font-medium">Grabando consulta</span>
-            <span className="font-mono text-muted-foreground">{mmss}</span>
-            {sesion.vivo && (
-              <span className="text-xs text-muted-foreground">· transcribiendo en vivo</span>
-            )}
-          </div>
-          <Button variant="destructive" onClick={() => void consultaViva.detener()}>
-            <Square className="size-4" /> Detener y transcribir
-          </Button>
-        </div>
-
-        {/* Que esto siga acá al volver de otra pantalla es la prueba de que la sesión sobrevivió:
-            el texto vive en el módulo, no en este componente. */}
-        {(sesion.estable || sesion.provisional) && (
-          <div
-            className="mt-3 max-h-48 overflow-y-auto rounded-lg border bg-background p-3 text-sm leading-relaxed"
-            aria-live="polite"
-            aria-label="Transcripción en vivo"
-          >
-            {sesion.estable.split("\n").map((linea, i) => {
-              const [quien, ...resto] = linea.split(":")
-              const dicho = resto.join(":").trim()
-              if (!dicho) return null
-              return (
-                <p key={i} className="mb-1">
-                  <span className="font-medium text-muted-foreground">{quien}:</span> {dicho}
-                </p>
-              )
-            })}
-            {/* La hipótesis en curso va atenuada: el proveedor la reemplaza al confirmar. */}
-            {sesion.provisional && (
-              <p className="text-muted-foreground/60 italic">{sesion.provisional}</p>
-            )}
-          </div>
-        )}
-      </div>
-    )
-  }
-
-  if (cerrando) {
-    return (
-      <div className="flex items-center gap-2 rounded-xl border bg-card p-4 text-sm text-muted-foreground">
-        <Loader2 className="size-4 animate-spin" />
-        {sesion.fase === "subiendo" ? "Guardando el audio…" : "Transcribiendo la consulta…"}
-      </div>
-    )
-  }
-
+  // ── ACÁ NO SE GRABA NI SE MUESTRA LA GRABACIÓN EN CURSO ─────────────────────────────────────
+  //
+  // Había dos ramas más —«Grabando consulta» con su transcripción en vivo, y «Guardando el
+  // audio…»— y las dos eran INALCANZABLES. La pantalla de la consulta devuelve el Cockpit mientras
+  // la sesión de ESTA consulta está viva (`page.tsx`: grabando, subiendo o transcribiendo), así que
+  // este componente ni siquiera está montado en esos estados. Su condición era la misma que la del
+  // Cockpit, palabra por palabra, y perdía siempre.
+  //
+  // Costaba entender el módulo —parecían dos superficies de grabación compitiendo— y hacía creer
+  // que la transcripción en vivo tenía un lugar donde mostrarse que en realidad nunca se pintaba.
+  // La grabación en curso se ve en el Cockpit y en el notch; acá quedan el gate de consentimiento,
+  // el botón de arranque y el estado de después, que es lo único que esta pantalla llega a mostrar.
   return (
     <>
       {dialogoDeConsentimiento}

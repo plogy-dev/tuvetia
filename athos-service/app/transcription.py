@@ -18,6 +18,7 @@ from psycopg.types.json import Json
 from app.config import get_settings
 from app.db import fetch_all, get_conn
 from app.speaker_roles import infer_vet_speaker, label_for
+from app.stt_vocabulario import parametros_de_vocabulario
 
 log = logging.getLogger(__name__)
 
@@ -171,13 +172,16 @@ def _call_deepgram(audio: bytes, mime: str = "audio/webm") -> dict[str, Any]:
         log.error("falta DEEPGRAM_API_KEY: la transcripción no puede correr")
         raise HTTPException(status_code=500, detail="la transcripción no está configurada en el servidor")
     model = _settings_value("stt_model", "STT_MODEL", "nova-2")
-    params = {
-        "model": model,
-        "language": "es",
-        "diarize": "true",
-        "punctuate": "true",
-        "smart_format": "true",
-    }
+    # Lista de pares y no diccionario: el vocabulario veterinario repite la misma clave una vez por
+    # término (ver `stt_vocabulario.py`), y un dict se quedaría con el último.
+    params: list[tuple[str, str]] = [
+        ("model", model),
+        ("language", "es"),
+        ("diarize", "true"),
+        ("punctuate", "true"),
+        ("smart_format", "true"),
+    ]
+    params += parametros_de_vocabulario(model)
     headers = {"Authorization": f"Token {api_key}", "Content-Type": mime}
     with httpx.Client(timeout=300) as client:
         resp = client.post(DEEPGRAM_URL, params=params, headers=headers, content=audio)
