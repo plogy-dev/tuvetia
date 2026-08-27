@@ -164,6 +164,21 @@ describe("la agenda no desborda la página", () => {
     expect(hoy).toContain("lg:flex-1")
   })
 
+  it("la página acota su alto de verdad, no lo hereda", () => {
+    // EL ARREGLO ANTERIOR NO ALCANZÓ, y el porqué vale más que el test: la cadena entera de
+    // `flex-1 min-h-0` cuelga de `SidebarProvider`, que es `min-h-svh` — altura MÍNIMA. Un
+    // contenedor que puede crecer nunca genera escasez, y sin escasez flexbox no encoge a nadie:
+    // «Hoy» podía ceder todo lo que quisiera y no cedía nada, porque no hacía falta.
+    //
+    // Hasta que la raíz se arregle (es cambio de shell, ~40 pantallas), la agenda se acota sola.
+    const pagina = leer("src", "app", "dashboard", "calendario", "page.tsx")
+    expect(pagina).toMatch(/lg:h-\[calc\(100svh-/)
+    // Y descuenta el `m-2` del inset: olvidarlo era el motivo por el que se había descartado
+    // calcular, y es lo que devolvía unos px de scroll de página.
+    expect(pagina).toContain("var(--header-height)")
+    expect(pagina).toMatch(/lg:h-\[calc\(100svh-var\(--header-height\)-1rem\)\]/)
+  })
+
   it("la grilla conserva su piso: es la parte que no puede achicarse", () => {
     // Si cediera ésta en vez de «Hoy», la semana quedaría sin alto para decir ni la hora.
     const cal = leer("src", "components", "calendar", "appointment-calendar.tsx")

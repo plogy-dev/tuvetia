@@ -147,17 +147,32 @@ export default async function CalendarioPage() {
   })
 
   return (
-    // ── EL ALTO SE HEREDA, NO SE CALCULA (misma regla que el chat, ver assistant.tsx) ──────────
+    // ── EL ALTO SE ACOTA ACÁ, PORQUE HEREDARLO NO FUNCIONA ────────────────────────────────────
     //
-    // `lg:flex-1 lg:min-h-0`: el layout ya baja una columna `flex min-h-0 flex-1`, así que con esto
-    // la agenda toma EXACTAMENTE el alto que queda bajo la cabecera — sin `100svh - header`, que
-    // está mal por los 16 px del `m-2` del inset y pintaba scroll de página. Con el alto acotado,
-    // el calendario de abajo se estira con `flex-1` y el scroll vive DENTRO de su rejilla de horas,
-    // no en la página («toca escrollear mucho», el cliente, en 1366×768).
+    // Decía «el alto se hereda, no se calcula» y confiaba en `lg:flex-1 lg:min-h-0` porque «el
+    // layout ya baja una columna flex min-h-0 flex-1». Esa premisa ES FALSA, y por eso el cliente
+    // seguía reportando el 26-ago que «la agenda sale desbordada, toca escrollear hasta abajo para
+    // verla completa» incluso después de arreglar el reparto entre «Hoy» y la grilla.
+    //
+    // LA RAÍZ: el contenedor de más arriba de todo —`SidebarProvider`, en `ui/sidebar.tsx`— es
+    // `min-h-svh`, altura MÍNIMA. O sea que crece con su contenido en vez de acotarlo. Y flexbox
+    // sólo encoge a sus hijos cuando el contenedor tiene un tamaño DEFINIDO e insuficiente: si el
+    // contenedor puede crecer, no hay escasez que repartir y nadie cede. Toda la cadena de
+    // `flex-1 min-h-0` de abajo está bien escrita y no sirve de nada mientras la raíz no acote.
+    //
+    // Se arregla acá y no en la raíz A PROPÓSITO: cambiar `min-h-svh` por `h-svh` volvería ciertas
+    // esas mismas frases en el chat y el cockpit, pero recortaría cualquiera de las ~40 pantallas
+    // que hoy crecen y scrollean la página. Es un cambio de shell que merece su propia tanda y su
+    // propia revisión, no un arreglo de paso a las 8 de la noche.
+    //
+    // LA CUENTA: 100svh menos el `m-2` del inset (0.5rem arriba + 0.5rem abajo = 1rem) y menos la
+    // cabecera. Se lee del token en vez de escribir «3rem»: `--header-height` lo declara el layout
+    // y si cambia, esto lo sigue. El comentario viejo descartaba este cálculo por «los 16 px del
+    // m-2» — el problema no era calcular, era olvidarse de ese margen. Acá está contado.
     //
     // Sólo en `lg:`: en pantalla angosta el panel y la grilla van APILADOS y encerrarlos en el alto
     // del viewport dejaría al calendario sin espacio; ahí la página scrollea como siempre.
-    <div className="flex flex-col gap-4 p-[clamp(16px,3vw,32px)] lg:min-h-0 lg:flex-1">
+    <div className="flex flex-col gap-4 p-[clamp(16px,3vw,32px)] lg:h-[calc(100svh-var(--header-height)-1rem)] lg:min-h-0 lg:flex-1">
       {/* SIN <h1> ACÁ, y es a propósito. Le puse uno `sr-only` en el PR #98 dando por hecho que la
           pantalla se quedaba sin encabezado, porque `page.tsx` no tenía ninguno. Medido después en
           producción: sí lo tiene — `AppointmentCalendar` renderiza <h1>Calendario</h1>. Con el mío

@@ -580,17 +580,20 @@ export function AppointmentCalendar({
           garantizaban scroll de página— sino `flex-1`: lo que quede de la columna acotada que baja
           la página.
 
-          EL PISO DE 420 PX SE QUEDA, y ahora no cuesta scroll de página. Antes decía acá que con
-          la lista de «Hoy» llena se prefería «devolverle unos px de scroll a la página» antes que
-          dejar la grilla inusable — y el cliente lo reportó el 26-ago: «la agenda está
-          completamente desbordada y toca hacer scroll down». No eran unos px: eran 131 en un
-          portátil de 768.
+          EL PISO BAJA DE 420 A 220 PX, Y NO SE PIERDE NADA. `flex-1` le da a la grilla TODO el
+          sobrante de la columna, así que en un monitor normal sigue midiendo 420 o mucho más: el
+          piso sólo entra en juego cuando el espacio escasea, que es justo cuando 420 dejaba de
+          caber y empujaba la página entera.
 
-          El empate era imposible porque «Hoy» estaba en `shrink-0` y esto en `min-h`: dos bloques
-          que no ceden en una columna acotada sólo pueden desbordar. Se resolvió del otro lado
-          (`dia-de-hoy.tsx`, con la cuenta completa): «Hoy» cede y esta grilla se queda con su
-          mínimo, que es la parte que de verdad no puede achicarse. */}
-      <div className="tuvetia-calendar h-[75svh] overflow-x-auto lg:h-auto lg:min-h-[420px] lg:flex-1">
+          Los 420 salían de una decisión razonable que resultó cara —«antes de dejar la grilla
+          inusable, se prefiere devolverle unos px de scroll a la página»— y el cliente lo reportó
+          DOS veces el 26-ago; la segunda con la corrección de escala: «literalmente me toca
+          escrollear hasta abajo para verla completa». No eran unos px.
+
+          A 220 px la grilla no queda inusable: `rbc-time-content` scrollea por dentro, que es lo
+          que esta pantalla viene diciendo desde arriba — el scroll vive en la rejilla de horas y
+          no en la página. */}
+      <div className="tuvetia-calendar h-[75svh] overflow-x-auto lg:h-auto lg:min-h-[220px] lg:flex-1">
         <div className="h-full min-w-[700px]">
         <DnDCalendar
           localizer={localizer}
