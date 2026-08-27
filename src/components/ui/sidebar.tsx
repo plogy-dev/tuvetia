@@ -380,11 +380,74 @@ function SidebarSeparator({
   )
 }
 
-function SidebarContent({ className, ...props }: React.ComponentProps<"div">) {
+/**
+ * El área que scrollea de la barra, con una SEÑAL de que hay más abajo.
+ *
+ * ── POR QUÉ HIZO FALTA ────────────────────────────────────────────────────────────────────────
+ *
+ * Es la tercera vuelta sobre el mismo problema y las dos anteriores lo empeoraron por turnos.
+ * Primero la barra del sistema escondía contenido y encima se veía mal; se quitó (David: «no
+ * pueden aparecer barras grises»). Después se recortaron 44 px de alto. El resultado neto fue que
+ * se seguía escondiendo contenido **y ya no quedaba ninguna pista de que existía**.
+ *
+ * Medido en producción el 26-ago, ventana de 639 px: en el tablero se ocultaban 52 px; y en Modo
+ * Fantasma —donde la barra suma el Historial— el contenido mide 928 px en 464 de espacio: **la
+ * mitad invisible**, incluido «Nuevo chat con VetGPT» y la lista entera de consultas. David lo
+ * reportó como «la barra lateral está igual», y tenía razón.
+ *
+ * Recortar más no lo cierra: cada monitor tiene otro alto y cada pantalla nueva del menú lo vuelve
+ * a romper. Lo que faltaba no era espacio, era AVISAR.
+ *
+ * ── POR QUÉ UN DEGRADADO Y NO UNA BARRA ───────────────────────────────────────────────────────
+ *
+ * Cumple la misma función —decir «hay más»— sin el aspecto que el cliente pidió quitar, y sin
+ * robar ancho. Va con `mask-image` y no con un elemento encima a propósito: una máscara no ocupa
+ * lugar en el layout, no intercepta clics y no obliga a envolver el contenedor en otro div, que
+ * sería cambiarle la caja a un hijo flex que ya está calibrado.
+ *
+ * Se apaga al llegar al final, así que cuando no hay nada más abajo no se ve nada.
+ */
+function SidebarContent({ className, style, ...props }: React.ComponentProps<"div">) {
+  const ref = React.useRef<HTMLDivElement>(null)
+  const [hayMasAbajo, setHayMasAbajo] = React.useState(false)
+
+  React.useEffect(() => {
+    const el = ref.current
+    if (!el) return
+    // 4 px de tolerancia: los navegadores redondean `scrollHeight` y sin holgura el degradado
+    // parpadea al final del recorrido.
+    const medir = () =>
+      setHayMasAbajo(el.scrollHeight - el.scrollTop - el.clientHeight > 4)
+
+    medir()
+    el.addEventListener("scroll", medir, { passive: true })
+    // El alto del CONTENIDO cambia sin que cambie el del contenedor: el Historial se monta sólo en
+    // VetGPT y Modo Fantasma, y se pliega. Por eso hacen falta las dos observaciones — el tamaño
+    // del contenedor y las altas y bajas de sus hijos.
+    const ro = new ResizeObserver(medir)
+    ro.observe(el)
+    const mo = new MutationObserver(medir)
+    mo.observe(el, { childList: true, subtree: true })
+    return () => {
+      el.removeEventListener("scroll", medir)
+      ro.disconnect()
+      mo.disconnect()
+    }
+  }, [])
+
+  const desvanecer = "linear-gradient(to bottom, #000 calc(100% - 28px), transparent)"
+
   return (
     <div
+      ref={ref}
       data-slot="sidebar-content"
       data-sidebar="content"
+      data-hay-mas={hayMasAbajo ? "" : undefined}
+      style={
+        hayMasAbajo
+          ? { maskImage: desvanecer, WebkitMaskImage: desvanecer, ...style }
+          : style
+      }
       className={cn(
         // `overflow-auto` también en modo icono: antes era `overflow-hidden`, y como el dashboard
         // ARRANCA colapsado, si el contenido no cabía los ítems de abajo quedaban inalcanzables

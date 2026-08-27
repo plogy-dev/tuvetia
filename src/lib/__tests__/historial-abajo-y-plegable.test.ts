@@ -95,15 +95,30 @@ describe("abajo", () => {
     expect(iHistorial).toBeGreaterThan(iMenu)
   })
 
-  it("INTEGRACIONES/CONFIGURACIÓN/AYUDA VIVEN EN EL PIE, no en el contenido", () => {
-    // Es lo que impide que un historial de cuarenta consultas las saque de la pantalla. En el
-    // contenido, «al final» dura hasta que alguien tenga muchas consultas.
+  it("INTEGRACIONES/CONFIGURACIÓN/AYUDA VIVEN EN EL CONTENIDO, y por eso scrollean", () => {
+    // 26-AGO: ESTA PRUEBA VIGILABA LO CONTRARIO. Decía «viven en el pie», porque el 19-ago un
+    // historial de cuarenta consultas las empujaba fuera de la pantalla y no quedaba rastro de
+    // que siguieran ahí. David pidió invertirlo mirando la barra: que el escudo, el enchufe y el
+    // signo de pregunta «también bajen, que no se queden sticky».
+    //
+    // Se pudo conceder porque la razón vieja dejó de aplicar, no porque se ignorara: el
+    // contenedor ahora DELATA lo que esconde (el degradado de `SidebarContent`, vigilado en
+    // `el-ancho-no-corta.test.ts`). Ese degradado es la condición de esta decisión — si alguien
+    // lo quita, hay que devolver estas tres al pie, no dejarlas perdidas al fondo.
+    const iFinContenido = BARRA.indexOf("</SidebarContent>")
+    const iSecundario = BARRA.indexOf("<NavSecondary")
+    expect(iSecundario).toBeGreaterThan(-1)
+    expect(iSecundario).toBeLessThan(iFinContenido)
+  })
+
+  it("y el pie se queda sólo con la cuenta, que es lo que no se puede perder de vista", () => {
+    // Cerrar sesión y cambiar de clínica siguen ancladas a propósito: son la salida.
     const iPie = BARRA.indexOf("<SidebarFooter>")
     const iFinDelPie = BARRA.indexOf("</SidebarFooter>")
-    const iSecundario = BARRA.indexOf("<NavSecondary")
+    const iUsuario = BARRA.indexOf("<NavUser")
     expect(iPie).toBeGreaterThan(-1)
-    expect(iSecundario).toBeGreaterThan(iPie)
-    expect(iSecundario).toBeLessThan(iFinDelPie)
+    expect(iUsuario).toBeGreaterThan(iPie)
+    expect(iUsuario).toBeLessThan(iFinDelPie)
   })
 
   it("y el historial sigue en el contenido, que es lo que scrollea", () => {

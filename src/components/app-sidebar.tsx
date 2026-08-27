@@ -208,23 +208,30 @@ export function AppSidebar({
             abajo y plegables"—. Sigue apareciendo SÓLO dentro de VetGPT y del Modo Fantasma, así que
             en el resto de la app este lugar queda vacío y la barra se ve igual que siempre. */}
         <AthosSidebarSection />
-      </SidebarContent>
-      {/* ── INTEGRACIONES · CONFIGURACIÓN · AYUDA, EN EL PIE ─────────────────────────────────
-          «Abajo al final», lo pidió David el 25-ago. Estaban en medio del contenido, con el
-          Historial debajo.
+        {/* ── INTEGRACIONES · ADMINISTRACIÓN · CONFIGURACIÓN · AYUDA, EN EL CONTENIDO ─────────
+            Vuelven a scrollear con el resto. Es una INVERSIÓN de lo que se decidió el 25-ago, y el
+            cliente la pidió mirando la barra: «ese sticky donde está el escudo, el enchufe de
+            conexiones y el símbolo de pregunta, que también baje».
 
-          VAN AL PIE Y NO AL FONDO DEL CONTENIDO, y esa diferencia es la que evita repetir un
-          defecto ya arreglado: el 19-ago el Historial se bajó justamente porque, estando arriba,
-          «con cuarenta consultas cargadas empujaba Configuración y Ayuda fuera de la barra».
-          Intercambiar los dos bloques habría devuelto ese problema con el orden invertido.
+            LA RAZÓN VIEJA ERA BUENA Y YA NO APLICA. Se anclaron al pie el 19-ago porque, al final
+            del contenido, un historial de cuarenta consultas las empujaba fuera de la pantalla y
+            no había NADA que delatara que seguían ahí. Lo que cambió no es el criterio sino el
+            contenedor: `SidebarContent` ahora avisa cuando esconde algo (el degradado del pie, ver
+            `ui/sidebar.tsx`). Empujadas hacia abajo ya no significa perdidas — significa que hay
+            que bajar, y se ve que hay que bajar.
 
-          El pie no scrollea con el contenido: por largo que sea el Historial, estas tres se quedan
-          donde el vet las va a buscar.
-
-          Se fue también el `mt-auto` del chip de Primeros pasos. Existía para empujar este bloque al
-          fondo; ahora el fondo lo da el pie, y dejarlo abriría un hueco en medio de la barra. */}
-      <SidebarFooter>
+            De paso el pie deja de costar ~40 px que le robaba al contenido sin scrollear. */}
         <NavSecondary items={data.navSecondary} />
+      </SidebarContent>
+      {/* ── EL PIE, AHORA SÓLO LA CUENTA ────────────────────────────────────────────────────
+          Queda anclado a propósito y no es un descuido al mover la fila de iconos arriba: es el
+          menú de sesión (cerrar sesión, cambiar de clínica), lo único que el vet tiene que poder
+          alcanzar sin buscar. Son ~56 px, la mitad de los 110 que costaba el pie completo.
+
+          Sobre el `mt-auto` que el chip de Primeros pasos tenía y ya no: existía para empujar los
+          iconos al fondo. Con ellos dentro del contenido volvería a abrir un hueco en medio de la
+          barra, así que sigue fuera. */}
+      <SidebarFooter>
         <NavUser user={user} />
       </SidebarFooter>
     </Sidebar>

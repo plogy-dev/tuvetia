@@ -65,10 +65,11 @@ describe("el ancho del shell", () => {
   })
 })
 
-describe("el pie de la barra", () => {
+describe("la fila de accesos (integraciones · administración · configuración · ayuda)", () => {
   it("es una fila de iconos, no una pila — o «Consulta» vuelve a caer bajo el pliegue", () => {
-    // El pie está anclado (pedido de David, protegido por historial-abajo-y-plegable.test.ts) y
-    // cada px que mide se lo resta al contenido. Apilado costaba ~232 px; en fila, ~90.
+    // Ya no vive en el pie (26-ago: David pidió que bajara con el resto), pero la fila sigue
+    // siendo lo correcto: apilada costaba ~232 px de alto contra ~90 en fila, y ahora ese alto
+    // se lo cobra al scroll de todos los demás.
     const nav = leer("src", "components", "nav-secondary.tsx")
     expect(nav).toContain("flex-row")
     // Y colapsada en modo icono vuelve a columna: ahí la barra mide 3rem y la fila no cabe.
@@ -98,5 +99,43 @@ describe("la barra en modo icono", () => {
     expect(sidebar).not.toContain("group-data-[collapsible=icon]:overflow-hidden")
     // Y la clase fantasma no vuelve: `no-scrollbar` no existe en ningún CSS del repo.
     expect(sidebar).not.toContain("no-scrollbar")
+  })
+})
+
+describe("la barra avisa cuando esconde contenido", () => {
+  // ── LA TERCERA VUELTA SOBRE EL MISMO PROBLEMA ────────────────────────────────────────────────
+  //
+  // 1) La barra del sistema escondía contenido y se veía mal → se quitó (David: «no pueden
+  //    aparecer barras grises»). 2) Se recortaron 44 px de alto. Resultado neto: se seguía
+  //    escondiendo contenido y ya no quedaba NINGUNA pista de que existía.
+  //
+  // Medido en producción el 26-ago con ventana de 639 px: en Modo Fantasma el contenido de la
+  // barra mide 928 px en 464 de espacio — la mitad invisible, incluido el Historial entero.
+  //
+  // Lo que se protege acá es la señal, no los píxeles: recortar alto no cierra esto porque cada
+  // monitor mide distinto.
+  const sidebar = leer("src", "components", "ui", "sidebar.tsx")
+
+  it("mide el desborde de verdad, no lo adivina con una media query", () => {
+    // El alto disponible NO es el de la ventana: la barra tiene cabecera y pie anclados (el pie,
+    // desde el 26-ago, sólo la cuenta). Una media query acertaría en un monitor y fallaría en el
+    // resto.
+    expect(sidebar).toContain("scrollHeight")
+    expect(sidebar).toContain("clientHeight")
+  })
+
+  it("se entera cuando el contenido cambia de alto, no sólo el contenedor", () => {
+    // El Historial se monta sólo en VetGPT y Modo Fantasma, y se pliega: el contenido crece y
+    // encoge sin que el contenedor cambie de tamaño. Con sólo ResizeObserver la señal se queda
+    // pegada en el estado anterior.
+    expect(sidebar).toContain("ResizeObserver")
+    expect(sidebar).toContain("MutationObserver")
+  })
+
+  it("la señal es una máscara, no una barra del sistema", () => {
+    // `mask-image` no ocupa lugar, no intercepta clics y no obliga a envolver el contenedor.
+    // Y sobre todo: no es la barra gris que el cliente pidió sacar.
+    expect(sidebar).toContain("maskImage")
+    expect(sidebar).not.toContain("scrollbar-width: thin")
   })
 })

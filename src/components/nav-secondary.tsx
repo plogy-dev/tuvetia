@@ -13,19 +13,25 @@ import {
   SidebarMenuItem,
 } from "@/components/ui/sidebar"
 
-// El bloque secundario del pie: Integraciones, Administración, Configuración, Ayuda.
+// El bloque secundario: Integraciones, Administración, Configuración, Ayuda.
+//
+// ── DÓNDE VIVE, Y POR QUÉ CAMBIÓ DOS VECES ────────────────────────────────────────────────────
+//
+// 25-ago: David lo mandó al pie anclado. 26-ago: David lo mandó de vuelta al contenido —«ese
+// sticky donde está el escudo, el enchufe de conexiones y el símbolo de pregunta, que también
+// baje». Hoy vive dentro de `SidebarContent` (ver `app-sidebar.tsx`, que explica por qué la razón
+// del ancla dejó de aplicar).
 //
 // ── UNA FILA DE ICONOS, NO UNA PILA DE FILAS ──────────────────────────────────────────────────
 //
-// El pie de la barra está anclado (David lo pidió el 25-ago-AM y hay test que lo protege), y todo
-// lo que mide el pie se lo resta al contenido de arriba. Apilados, estos cuatro ítems + el usuario
-// costaban ~232 px — y en un portátil de 768 de alto eso dejaba al grupo «Consulta» (Athos, Modo
-// Fantasma, Iniciar consulta) justo debajo del pliegue: «se pierde el Athos y el modo fantasma»
-// (David, 25-ago-PM). Los dos pedidos del mismo día chocaban entre sí.
+// Esto sobrevive a los dos cambios de sitio porque nunca fue por el pie, fue por el alto.
+// Apilados, estos cuatro ítems costaban ~232 px, y en un portátil de 768 eso dejaba al grupo
+// «Consulta» (Athos, Modo Fantasma, Iniciar consulta) justo debajo del pliegue: «se pierde el
+// Athos y el modo fantasma» (David, 25-ago-PM). En fila cuestan ~90.
 //
-// La fila de iconos los reconcilia: el pie sigue anclado y pasa a costar ~90 px. Son cuatro
-// destinos que se visitan una vez por semana — no necesitan su rótulo a la vista permanente; el
-// tooltip lo dice al pasar, el `aria-label` lo dice al lector, y el activo se resalta igual.
+// Son cuatro destinos que se visitan una vez por semana — no necesitan su rótulo a la vista
+// permanente; el tooltip lo dice al pasar, el `aria-label` lo dice al lector, y el activo se
+// resalta igual.
 //
 // COLAPSADA EN MODO ICONO la fila vuelve a ser columna: ahí la barra mide 3rem y cuatro iconos en
 // horizontal no caben — quedarían recortados, que es justo la clase de «una vaina esconde otra»
