@@ -51,6 +51,7 @@ import { normalizarRango } from "@/lib/agenda/rango"
 import { coincideConLaBusqueda } from "@/lib/agenda/buscar"
 import { comoFechas, rangoVisible, type FranjaHoraria } from "@/lib/agenda/rango-visible"
 import { tipoDeCita } from "@/lib/agenda/tipos-de-cita"
+import { tintaSobre } from "@/lib/agenda/tinta"
 import { PanelDeAgenda } from "./panel-de-agenda"
 import { AvisoDeLaCita, type ResultadoDeAviso } from "./aviso-de-la-cita"
 import {
@@ -715,10 +716,15 @@ export function AppointmentCalendar({
                 },
               }
             }
-            const porTipo = tipoDeCita(a.tipo)?.color
+            // LA LETRA SALE DEL FONDO, no es blanca fija. `calendar-chrome.tsx` escribía siempre en
+            // blanco y la mitad de los fondos de esta paleta son claros —todos los del tema oscuro,
+            // y en claro los que usaban `--color-accent`—, así que había citas que no se leían. Ver
+            // `lib/agenda/tinta.ts`: la decide el navegador con la claridad del propio fondo.
+            const fondo = tipoDeCita(a.tipo)?.color ?? APPOINTMENT_STATUS[a.status].color
             return {
               style: {
-                backgroundColor: porTipo ?? APPOINTMENT_STATUS[a.status].color,
+                backgroundColor: fondo,
+                color: tintaSobre(fondo),
                 border: "none",
               },
             }

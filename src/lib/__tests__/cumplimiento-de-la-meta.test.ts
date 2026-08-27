@@ -89,7 +89,7 @@ describe("el ritmo del mes", () => {
     // Ámbar y no rojo: el rojo permanente se vuelve ruido que se deja de mirar.
     const c = cumplimiento(4_000_00, META, { dia: 28, dias: 30 })!
     expect(c.enRitmo).toBe(false)
-    expect(c.color).toBe("var(--color-amber)")
+    expect(c.color).toBe("var(--color-warn)")
   })
 
   it("superar la meta manda sobre el ritmo", () => {

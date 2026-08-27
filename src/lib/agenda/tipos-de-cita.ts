@@ -63,9 +63,25 @@ export const TIPOS_DE_CITA: DefinicionDeTipo[] = [
   { id: "consulta_especializada", label: "Consulta especializada", color: "var(--color-brand-deep)", minutos: 45 },
   { id: "cirugia", label: "Cirugía", color: "var(--color-danger)", minutos: 90 },
   { id: "urgencia", label: "Urgencia", color: "var(--color-danger)", minutos: 45 },
-  { id: "laboratorio", label: "Examen de laboratorio", color: "var(--color-accent)", minutos: 20 },
-  { id: "imagenes", label: "Imágenes diagnósticas", color: "var(--color-accent)", minutos: 30 },
-  { id: "peluqueria", label: "Peluquería o spa", color: "var(--color-amber)", minutos: 60 },
+  // ── DOS TOKENS QUE NO ERAN LO QUE PARECÍAN (auditoría de UI, 27-ago) ────────────────────────
+  //
+  // `--color-accent` NO ES EL ACENTO DE LA MARCA. En `globals.css` apunta a `--ui-accent`, que es el
+  // hover sutil de los menús de shadcn: `hsl(162 35% 93%)`, menta 100, casi blanco. Como relleno de
+  // un bloque de agenda eso es un rectángulo blanco sobre una grilla blanca, y en oscuro es
+  // `hsl(160 19% 16%)` contra una card de `hsl(164 24% 11%)` — o sea casi invisible en los DOS
+  // temas. Además de frágil: si algún día se retoca el hover de los menús, cambian las citas.
+  //
+  // Las dos van a `--color-info`, que es un token real y con su par en oscuro. Comparten hue a
+  // propósito: laboratorio e imágenes son la pareja de diagnóstico. QUEDA UN CHOQUE CON «Control»,
+  // que también usa `--color-info` — la paleta tiene siete hues para once tipos y ya había dos
+  // parejas repetidas (ok en vacunación/desparasitación, danger en cirugía/urgencia). Repartir once
+  // colores distinguibles es decisión de diseño, no de este arreglo: va al informe.
+  //
+  // `--color-amber` directamente NO EXISTE — nunca se expuso en el `@theme inline`. El ámbar de la
+  // casa es `--color-warn`, calibrado para los dos temas; peluquería quedaba SIN fondo.
+  { id: "laboratorio", label: "Examen de laboratorio", color: "var(--color-info)", minutos: 20 },
+  { id: "imagenes", label: "Imágenes diagnósticas", color: "var(--color-info)", minutos: 30 },
+  { id: "peluqueria", label: "Peluquería o spa", color: "var(--color-warn)", minutos: 60 },
   { id: "otro", label: "Otro", color: "var(--color-fg-muted)", minutos: 30 },
 ]
 

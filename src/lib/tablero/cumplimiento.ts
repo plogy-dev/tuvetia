@@ -107,5 +107,12 @@ function colorDe(cumplida: boolean, enRitmo: boolean | null): string {
   // Sin día no hay juicio de ritmo: se pinta en la marca de la casa y no en rojo. Un rojo por no
   // saber el día sería una alarma inventada.
   if (enRitmo == null) return "var(--color-brand)"
-  return enRitmo ? "var(--color-brand)" : "var(--color-amber)"
+  // `--color-warn` Y NO `--color-amber`: ese segundo token NO EXISTE. El `@theme inline` de
+  // `globals.css` expone `--color-warn` —el mismo ámbar, `--tv-amber-700` en claro y `#e5c078` en
+  // oscuro— y nunca expuso `--color-amber`. O sea que este arco se pintaba con una variable sin
+  // valor: el navegador descarta la declaración y el «fuera de ritmo» se quedaba SIN su color de
+  // atención, que es justo la señal que esta función existe para dar. Encontrado en la auditoría
+  // de UI del 27-ago. El `--amber` crudo tampoco servía: no se redefine en oscuro, así que ahí
+  // habría quedado un marrón sobre fondo negro.
+  return enRitmo ? "var(--color-brand)" : "var(--color-warn)"
 }
