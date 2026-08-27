@@ -17,7 +17,16 @@ from urllib.parse import parse_qsl, urlencode
 
 import app.streaming_transcription as st
 import app.transcription as tr
+import pytest
+
 from app.stt_vocabulario import TERMINOS, TOPE, parametros_de_vocabulario
+
+
+@pytest.fixture(autouse=True)
+def _encendido(monkeypatch):
+    """El refuerzo está APAGADO por defecto desde el 27-ago (ver el módulo). Estos tests describen
+    cómo se comporta ENCENDIDO, así que lo encienden — el default tiene su propio test abajo."""
+    monkeypatch.setenv("STT_VOCABULARIO", "on")
 
 
 def test_ningun_termino_se_pierde_por_el_tope():
@@ -149,3 +158,17 @@ def test_en_nova_3_el_nombre_viaja_entero():
 
 def test_sin_nombre_todo_sigue_igual():
     assert parametros_de_vocabulario("nova-2") == parametros_de_vocabulario("nova-2", None)
+
+
+def test_apagado_por_defecto_no_manda_una_sola_palabra(monkeypatch):
+    """EL DEFAULT, y es la decisión que importa hoy.
+
+    El refuerzo se encendió el 26-ago y la primera prueba real produjo «Propofol» donde el vet dijo
+    «probando». Bajar el empuje fue una hipótesis SIN MEDIR, y el cliente está evaluando el Modo
+    Fantasma justo ahora: una hipótesis nuestra no puede ser una variable de su prueba.
+
+    Vuelve a encenderse con `STT_VOCABULARIO=on` cuando exista una medición contra audio real.
+    """
+    monkeypatch.delenv("STT_VOCABULARIO", raising=False)
+    assert parametros_de_vocabulario("nova-2", "Achira") == []
+    assert parametros_de_vocabulario("nova-3") == []

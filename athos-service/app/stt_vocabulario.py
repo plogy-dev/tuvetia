@@ -101,6 +101,26 @@ TERMINOS: tuple[str, ...] = FARMACOS + PATOLOGIAS + CLINICOS
 TOPE = 100
 
 
+# ── APAGADO POR DEFECTO DESDE EL 27-AGO ─────────────────────────────────────────────────────────
+#
+# El refuerzo se encendió el 26-ago y la PRIMERA prueba real lo desmintió: «probando, probando»
+# salió como «Propofol.» — un anestésico inventado en una historia clínica. Se bajó el empuje de
+# 1.5 a 1, pero eso sigue siendo una hipótesis SIN MEDIR, y el cliente está evaluando el Modo
+# Fantasma —que llamó «el core»— justo hoy.
+#
+# Una hipótesis mía no puede ser una variable de su prueba. Apagado, el motor entra exactamente
+# como entraba cuando funcionaba bien, y lo que ellos encuentren es comportamiento real del
+# producto y no un experimento mío.
+#
+# CÓMO SE VUELVE A ENCENDER: `STT_VOCABULARIO=on` en Railway. El módulo, sus tests y el refuerzo
+# por nombre quedan intactos — lo que falta no es código sino una MEDICIÓN contra audio real de
+# consulta, comparando el mismo audio con y sin refuerzo. Ese es el trabajo pendiente, y hasta que
+# exista el default es «apagado».
+def vocabulario_encendido() -> bool:
+    import os
+    return os.environ.get("STT_VOCABULARIO", "").strip().lower() in ("1", "on", "true", "si")
+
+
 def parametros_de_vocabulario(model: str, nombre_paciente: str | None = None) -> list[tuple[str, str]]:
     """Los pares (clave, valor) que le pasan el vocabulario al modelo de Deepgram.
 
@@ -118,6 +138,9 @@ def parametros_de_vocabulario(model: str, nombre_paciente: str | None = None) ->
     probable del audio. Va PRIMERO, porque si la lista global llegara al tope, lo que se recorta
     es la cola global y nunca el nombre.
     """
+    if not vocabulario_encendido():
+        return []
+
     propios: list[str] = []
     if nombre_paciente:
         # Un nombre compuesto («Rocky Balboa») entra palabra por palabra en nova-2, que no acepta
