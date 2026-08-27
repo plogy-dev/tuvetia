@@ -302,7 +302,13 @@ export function RielClinica({
   }
 
   return (
-    <aside className="hidden w-80 shrink-0 flex-col gap-6 overflow-auto border-l border-line p-5 xl:flex">
+    // `min-h-0` NO es decorativo, y su ausencia arrastraba la PANTALLA ENTERA. Este aside tiene
+    // `overflow-auto`, pero sin `min-h-0` su alto mínimo sigue siendo el de su contenido: con la
+    // agenda del día, los pendientes y las señales adentro, empujaba la fila, la fila empujaba al
+    // shell y el chat entero pasaba a scrollear con la página — la cabecera se iba de vista y había
+    // que bajar a buscar el compositor (reporte del 27-ago, con capturas). `overflow-auto` sin
+    // `min-h-0` es scroll que no llega a activarse nunca.
+    <aside className="hidden min-h-0 w-80 shrink-0 flex-col gap-6 overflow-auto border-l border-line p-5 xl:flex">
       {/* La solapa va ARRIBA DEL TODO y alineada a la derecha: es el borde por el que se pliega, y
           ponerla al pie obligaría a bajar hasta el final para cerrar algo que estorba arriba. */}
       <button

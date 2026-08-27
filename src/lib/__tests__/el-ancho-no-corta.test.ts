@@ -185,3 +185,29 @@ describe("la agenda no desborda la página", () => {
     expect(cal).toMatch(/lg:min-h-\[\d+px\]/)
   })
 })
+
+describe("el chat de VetGPT no scrollea con la página", () => {
+  // Reporte 27-ago con capturas: al bajar en el hilo, la CABECERA se iba de vista y había que
+  // scrollear para reencontrar el compositor. En la pantalla donde más se escribe.
+  //
+  // Dos causas sumadas, y las dos son la misma deuda de shell que desbordó la agenda:
+  //   · el riel de la clínica tenía `overflow-auto` SIN `min-h-0`, así que su contenido empujaba
+  //     la fila y de ahí para arriba — scroll que nunca llegaba a activarse;
+  //   · y la página confiaba en heredar un alto que nadie acota (`SidebarProvider` es `min-h-svh`).
+
+  it("el riel puede encogerse: overflow-auto sin min-h-0 no scrollea, empuja", () => {
+    // Hay DOS asides: el riel plegado (una fila de iconos, contenido corto que no empuja) y el
+    // desplegado, que es el del scroll. Se busca por el `overflow-auto`, que es lo que lo define.
+    const riel = leer("src", "components", "athos", "riel-clinica.tsx")
+    const i = riel.indexOf("overflow-auto")
+    expect(i, "el riel desplegado tiene que seguir teniendo su propio scroll").toBeGreaterThan(-1)
+    const apertura = riel.lastIndexOf("<aside", i)
+    const aside = riel.slice(apertura, riel.indexOf(">", i))
+    expect(aside).toContain("min-h-0")
+  })
+
+  it("y la página acota su alto, con el m-2 del inset contado", () => {
+    const pagina = leer("src", "app", "dashboard", "asistente", "page.tsx")
+    expect(pagina).toMatch(/md:h-\[calc\(100svh-var\(--header-height\)-1rem\)\]/)
+  })
+})
