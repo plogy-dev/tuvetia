@@ -69,6 +69,7 @@ import {
   DropdownMenuContent,
   DropdownMenuTrigger,
   DropdownMenuItem,
+  DropdownMenuGroup,
   DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuSub,
@@ -134,16 +135,27 @@ export function MenuDeVentas() {
         <ChevronDown className="size-4" aria-hidden />
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-64">
-        <DropdownMenuLabel className="flex items-center gap-2">
-          <FileText className="size-3.5 text-fg-faint" aria-hidden />
-          Documentos
-        </DropdownMenuLabel>
-        {DOCUMENTOS.map(({ href, label, Icono }) => (
-          <DropdownMenuItem key={href} render={<Link href={href} />}>
-            <Icono className="size-4" aria-hidden />
-            {label}
-          </DropdownMenuItem>
-        ))}
+        {/* ── EL GRUPO NO ES DECORACIÓN: SIN ÉL, LA PANTALLA SE CAÍA ─────────────────────────
+            `DropdownMenuLabel` es `Menu.GroupLabel` de Base UI, y esa primitiva LANZA si no está
+            dentro de un `Menu.Group`: «MenuGroupContext is missing». Acá el rótulo colgaba directo
+            del contenido, así que abrir «Secciones» tiraba la pantalla entera al error boundary
+            —reportado el 27-ago— y el menú de ventas quedaba inalcanzable.
+            `nav-user.tsx` sí lo envolvía, que es por lo que el menú de la cuenta nunca falló: era
+            el único uso correcto de los dos que hay en la app.
+            Y no es sólo evitar el fallo: el grupo es lo que hace que un lector de pantalla anuncie
+            «Documentos» como el nombre de esta lista en vez de como una línea suelta. */}
+        <DropdownMenuGroup>
+          <DropdownMenuLabel className="flex items-center gap-2">
+            <FileText className="size-3.5 text-fg-faint" aria-hidden />
+            Documentos
+          </DropdownMenuLabel>
+          {DOCUMENTOS.map(({ href, label, Icono }) => (
+            <DropdownMenuItem key={href} render={<Link href={href} />}>
+              <Icono className="size-4" aria-hidden />
+              {label}
+            </DropdownMenuItem>
+          ))}
+        </DropdownMenuGroup>
 
         <DropdownMenuSeparator />
 
