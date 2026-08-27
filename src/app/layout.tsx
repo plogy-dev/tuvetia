@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import {
   Inter_Tight,
   Bricolage_Grotesque,
@@ -88,6 +88,26 @@ export const metadata: Metadata = {
   metadataBase: new URL(getAppBaseUrl()),
   title: "Tuvetia",
   description: "Inteligencia artificial para veterinarias",
+  // iOS ignora los `icons` del manifiesto para «Añadir a pantalla de inicio»: sin este PNG el
+  // icono instalado es una captura de la página en un marco. Lo genera `scripts/generar-iconos.mjs`.
+  icons: { apple: "/icons/apple-icon-180.png" },
+};
+
+// ── EL VIEWPORT QUE ENCIENDE CÓDIGO YA ESCRITO ────────────────────────────────────────────────
+//
+// `viewportFit: "cover"` no es cosmético: sin él, `env(safe-area-inset-*)` vale CERO siempre, y el
+// repo ya tiene dos superficies que lo usan y hoy no hacen nada — la barra inferior del móvil
+// (`tab-bar-movil.tsx`) y el dock de VetGPT (`athos-dock.tsx`). Esta línea es la que hace que en
+// un iPhone instalado la barra no quede debajo del indicador de gestos.
+//
+// `themeColor` pinta la barra del sistema del color del tile del icono; los valores salen de los
+// tokens de `globals.css` (grafito de marca / blanco), no se inventan acá.
+export const viewport: Viewport = {
+  viewportFit: "cover",
+  themeColor: [
+    { media: "(prefers-color-scheme: light)", color: "#ffffff" },
+    { media: "(prefers-color-scheme: dark)", color: "#0c1613" },
+  ],
 };
 
 export default function RootLayout({

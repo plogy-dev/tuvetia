@@ -1,6 +1,7 @@
 "use client"
 
 import { useState } from "react"
+import { useEsInstalada } from "@/hooks/use-standalone"
 import Link from "next/link"
 import { cn } from "@/lib/utils"
 import { createClient } from "@/lib/supabase/client"
@@ -52,6 +53,48 @@ export function LoginForm({
     authError ? authFailureMessage(authReason) : null,
   )
   const [sent, setSent] = useState(false)
+
+  // ── EL CÓDIGO DE 6 DÍGITOS: LO QUE HACE POSIBLE ENTRAR EN LA APP INSTALADA ──────────────────
+  //
+  // El enlace mágico abre en el NAVEGADOR — y en iOS la app instalada tiene su propio almacén de
+  // cookies. O sea que el vet que instala Tuvetia, pide el enlace y lo toca desde el correo,
+  // termina con la sesión en Safari y la app instalada sigue pidiendo login: instala, no puede
+  // entrar, y concluye que no sirve. El código se teclea DENTRO de la app y la sesión queda donde
+  // tiene que quedar.
+  //
+  // `signInWithOtp` ya manda el correo con las dos cosas (el enlace Y el código, si la plantilla
+  // de Supabase incluye {{ .Token }}); lo que faltaba era la puerta para canjearlo. En el
+  // navegador de escritorio el enlace sigue siendo el camino natural — por eso el código es una
+  // opción visible, y sólo ARRANCA preseleccionado cuando la página corre instalada
+  // (`useEsInstalada`: `useSyncExternalStore`, false en SSR, sin setState en efectos).
+  const instalada = useEsInstalada()
+  const [prefiereCodigo, setPrefiereCodigo] = useState<boolean | null>(null)
+  const usarCodigo = prefiereCodigo ?? instalada
+  const [codigo, setCodigo] = useState("")
+  const [verificando, setVerificando] = useState(false)
+
+  async function verificarCodigo(e: React.FormEvent) {
+    e.preventDefault()
+    setError(null)
+    setVerificando(true)
+    const supabase = createClient()
+    const { error } = await supabase.auth.verifyOtp({ email, token: codigo.trim(), type: "email" })
+    setVerificando(false)
+    if (error) {
+      // El canje tiene sus propios fallos, distintos de los del envío.
+      if (error.code === "otp_expired") {
+        setError("Ese código venció o ya se usó. Pedí uno nuevo con tu email.")
+      } else if (error.status === 403 || error.code === "invalid_credentials") {
+        setError("El código no coincide. Revisalo — son los 6 dígitos del correo.")
+      } else {
+        setError(error.message)
+      }
+      return
+    }
+    // Mismo destino que el enlace: el ?next= se respeta también entrando por acá.
+    const next = new URLSearchParams(window.location.search).get("next") ?? "/dashboard"
+    window.location.assign(next)
+  }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -140,13 +183,55 @@ export function LoginForm({
           </div>
           <h1 className="text-xl font-bold">Revisa tu correo</h1>
           <FieldDescription>
-            Te enviamos un link de acceso a <strong>{email}</strong>. Ábrelo
-            para iniciar sesión.
+            {usarCodigo ? (
+              <>
+                Te enviamos un correo a <strong>{email}</strong> con un código de 6 dígitos.
+                Escribilo acá para entrar.
+              </>
+            ) : (
+              <>
+                Te enviamos un link de acceso a <strong>{email}</strong>. Ábrelo para iniciar
+                sesión.
+              </>
+            )}
           </FieldDescription>
         </div>
-        <Button variant="outline" onClick={() => setSent(false)}>
-          Usar otro email
-        </Button>
+
+        {usarCodigo && (
+          <form onSubmit={verificarCodigo} className="flex flex-col gap-3">
+            <Input
+              // `one-time-code` es lo que hace que iOS ofrezca el código del correo encima del
+              // teclado — sin teclearlo. `inputMode` abre el teclado numérico.
+              autoComplete="one-time-code"
+              inputMode="numeric"
+              pattern="[0-9]{6}"
+              maxLength={6}
+              placeholder="000000"
+              value={codigo}
+              onChange={(e) => setCodigo(e.target.value.replace(/\D/g, ""))}
+              className="text-center font-mono text-lg tracking-[0.4em]"
+              aria-label="Código de 6 dígitos"
+              required
+            />
+            {error && <FieldError>{error}</FieldError>}
+            <Button type="submit" disabled={verificando || codigo.length < 6}>
+              {verificando && <Loader2Icon className="animate-spin" />}
+              Entrar
+            </Button>
+          </form>
+        )}
+
+        {/* El mismo correo trae el enlace Y el código: cambiar de camino no re-envía nada. */}
+        <div className="flex flex-col gap-2">
+          {!usarCodigo && (
+            <Button variant="ghost" onClick={() => setPrefiereCodigo(true)}>
+              Prefiero escribir el código del correo
+            </Button>
+          )}
+          <Button variant="outline" onClick={() => { setSent(false); setCodigo(""); setError(null) }}>
+            Usar otro email
+          </Button>
+        </div>
       </div>
     )
   }

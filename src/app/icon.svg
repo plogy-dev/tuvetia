@@ -1,4 +1,7 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
-  <circle cx="16" cy="16" r="16" fill="#8C2318"/>
-  <circle cx="21.5" cy="10.5" r="5" fill="#EFEAE0"/>
+  <!-- Favicon: la chispa de la marca en la paleta blanco/menta v2. Traía la brasa anterior
+       (#8C2318/#EFEAE0) — era la única superficie de la app que seguía con la marca muerta, y se
+       notaba justo en la pestaña del navegador. Mismo dibujo, tokens de hoy. -->
+  <circle cx="16" cy="16" r="16" fill="#12856a"/>
+  <circle cx="21.5" cy="10.5" r="5" fill="#f5f8f7"/>
 </svg>

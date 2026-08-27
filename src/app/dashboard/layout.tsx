@@ -5,6 +5,7 @@ import { AppSidebar } from "@/components/app-sidebar"
 import { CuentaDesactivada } from "@/components/cuenta-desactivada"
 import { estadoDeAcceso } from "@/lib/acceso"
 import { SiteHeader } from "@/components/site-header"
+import { AvisoDeEscritorio } from "@/components/movil/aviso-de-escritorio"
 import { TabBarMovil } from "@/components/tab-bar-movil"
 import { OnboardingTour } from "@/components/onboarding-tour"
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar"
@@ -199,6 +200,10 @@ export default async function DashboardLayout({
               ella —no sobre el viewport, que con el sidebar abierto está 144px corrido— y queda
               debajo de la cabecera en vez de taparle el título y el buscador. */}
           <NotchDeConsulta />
+          {/* En la app INSTALADA, las secciones fuera del alcance lite avisan que el trabajo de
+              verdad se hace en el computador — con la razón, sin bloquear. En navegador no pinta
+              nada. Ver `lib/movil/lite.ts`. */}
+          <AvisoDeEscritorio />
           {/* `min-h-0` EN LOS DOS. En una columna flex, un hijo con `flex-1` no se encoge por
               debajo de su contenido salvo que se le diga — y sin eso, una pantalla que quiera
               ocupar exactamente el alto disponible no tiene forma de saber cuál es.

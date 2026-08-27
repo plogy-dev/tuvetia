@@ -1,5 +1,5 @@
 import Link from "next/link"
-import { Building2, CalendarClock, Clock, Download, Plug, User, Users } from "lucide-react"
+import { Building2, CalendarClock, Clock, Download, Plug, Smartphone, User, Users } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import { sesionDelServidor } from "@/lib/supabase/sesion"
@@ -15,6 +15,7 @@ import {
 } from "@/components/settings/team-settings"
 import { composioConfigurado, estadoConexion } from "@/lib/composio/correo"
 import { HelpTip } from "@/components/help-tip"
+import { InstalarApp } from "@/components/movil/instalar-app"
 import { PageHeader, PageShell } from "@/components/ui/page-shell"
 import { TabNav, TabNavLink } from "@/components/ui/tab-nav"
 import { ROLES_LEGIBLES } from "@/lib/roles"
@@ -261,6 +262,15 @@ export default async function ConfiguracionDeLaClinicaPage({
             <Button variant="outline" render={<Link href="/dashboard/conexiones" />}>
               <Plug className="size-4" /> Ir a Integraciones
             </Button>
+          </div>
+
+          {/* La app en el teléfono (26-ago). Vive en Cuenta y no en una pestaña propia: instalar
+              es algo que se hace UNA vez, con la misma sesión que ya está abierta acá. */}
+          <div className="rounded-xl border bg-card p-4">
+            <div className="mb-2 flex items-center gap-2 text-sm font-semibold">
+              <Smartphone className="size-4 text-muted-foreground" /> Tuvetia en tu teléfono
+            </div>
+            <InstalarApp />
           </div>
 
           <div className="rounded-xl border bg-card p-4">

@@ -1,6 +1,18 @@
 <svg width="64" height="64" viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Tuvetia">
-  <!-- Monograma para app icon / avatar: tile tinta, "T" crema, la chispa brasa como acento. -->
-  <rect width="64" height="64" rx="14" fill="#16140F"/>
-  <text x="31" y="46" text-anchor="middle" font-family="'Bricolage Grotesque', sans-serif" font-weight="700" font-size="40" fill="#F5F2EB">T</text>
-  <circle cx="45" cy="20" r="4" fill="#E8643C"/>
+  <!-- Monograma para app icon / avatar: tile grafito, "T" nieve, la chispa menta como acento.
+       ACTUALIZADO 26-ago, dos cosas a la vez:
+       · La paleta pasa a la blanco/menta del sistema v2 (tokens de globals.css). El archivo traía
+         la brasa anterior (#16140F / #E8643C) y es la FUENTE de los iconos instalables — generar
+         la app del teléfono con la marca muerta habría clavado el color viejo en la pantalla de
+         inicio de cada vet. Menta 300 (#7ed0ba) y no 500: sobre grafito el 500 no contrasta,
+         misma regla que el contexto oscuro de la app.
+       · La T deja de ser <text> y pasa a trazos. El <text> dependía de que quien rasterice tenga
+         Bricolage instalada; librsvg (con el que sharp genera los PNG) no la tiene y la T salía
+         en la fuente de respaldo del sistema — un icono distinto según qué máquina lo generara. -->
+  <rect width="64" height="64" rx="14" fill="#0c1613"/>
+  <!-- La T: travesaño y asta con puntas redondeadas. Centrada en x=29 y no en 32: deja el
+       cuadrante superior derecho libre para la chispa, igual que el monograma original. -->
+  <path fill="#f5f8f7" d="M15 16h28a3.5 3.5 0 0 1 0 7H15a3.5 3.5 0 0 1 0-7Z"/>
+  <path fill="#f5f8f7" d="M25 20h8v26a4 4 0 0 1-8 0V20Z"/>
+  <circle cx="51" cy="11.5" r="4.5" fill="#7ed0ba"/>
 </svg>
