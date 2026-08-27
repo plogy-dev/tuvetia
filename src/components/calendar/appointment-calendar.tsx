@@ -447,7 +447,13 @@ export function AppointmentCalendar({
   // aparezca fuera de rango. Con todas, el alto de la grilla no cambia al filtrar — y una grilla
   // que cambia de tamaño cada vez que tocás un interruptor se siente rota.
   const rango = useMemo(
-    () => rangoVisible(franjas, events.map((e) => ({ inicio: e.start, fin: e.end }))),
+    () =>
+      rangoVisible(
+        franjas,
+        // `diaCompleto` NO es opcional de adorno: una cita «sin hora» cubre de medianoche a
+        // medianoche, y sin decírselo estiraba la grilla a 24 horas ella sola.
+        events.map((e) => ({ inicio: e.start, fin: e.end, diaCompleto: e.allDay })),
+      ),
     [franjas, events],
   )
   const { min: horaMin, max: horaMax } = useMemo(() => comoFechas(rango, date), [rango, date])

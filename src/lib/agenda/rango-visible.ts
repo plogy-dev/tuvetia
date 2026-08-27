@@ -29,7 +29,23 @@
 export type FranjaHoraria = { opens_at: string | null; closes_at: string | null }
 
 /** Una cita ya convertida a horario local — que es en el que se dibuja la grilla. */
-export type CitaEnPantalla = { inicio: Date; fin: Date }
+export type CitaEnPantalla = {
+  inicio: Date
+  fin: Date
+  /**
+   * La cita es de día completo (`sin_hora`). NO cuenta para el rango.
+   *
+   * Y ES LA DIFERENCIA ENTRE QUE ESTO SIRVA O NO. Una cita «sin hora definida» se guarda cubriendo
+   * el día —de medianoche a medianoche, así lo hace el trigger de la 0096— así que si contara como
+   * cualquier otra, UNA SOLA de ellas estiraría la grilla de 0 a 24 y devolvería el alargue que
+   * este módulo entero viene a arreglar.
+   *
+   * No es una excepción incómoda: es que esas citas **no se dibujan en la grilla**. Van a la franja
+   * de día completo de arriba, que no tiene horas. Pedirle horas a la grilla por una cita que no
+   * vive en la grilla es lo que no tenía sentido.
+   */
+  diaCompleto?: boolean
+}
 
 export type RangoVisible = {
   /** Primera hora que se dibuja (0–23). */
@@ -78,6 +94,9 @@ export function rangoVisible(
   let hasta = base.hastaHora
 
   for (const cita of citas) {
+    // Las de día completo se saltean: no se dibujan en la grilla, así que no tienen por qué
+    // decidir qué horas dibuja.
+    if (cita.diaCompleto) continue
     const i = horaDe(cita.inicio)
     const f = finDe(cita.fin)
     if (i === null || f === null) continue

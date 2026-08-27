@@ -107,6 +107,34 @@ describe("LA GARANTÍA: acotar no puede esconder una cita", () => {
   })
 })
 
+describe("la cita de día completo NO estira la grilla", () => {
+  // ES EL DEFECTO QUE MAS FACIL VUELVE. Una cita «sin hora definida» se guarda cubriendo el dia
+  // entero (el trigger de la 0096 la normaliza de medianoche a medianoche). Si contara como
+  // cualquier otra, UNA SOLA devolveria la grilla de 24 horas — o sea el alargue que este modulo
+  // entero viene a arreglar, reintroducido por la otra mitad del mismo trabajo.
+  const diaEntero = {
+    inicio: new Date(2026, 7, 27, 0, 0),
+    fin: new Date(2026, 7, 27, 23, 59),
+    diaCompleto: true,
+  }
+
+  it("una sola cita de dia completo no devuelve las 24 horas", () => {
+    expect(rangoVisible(JORNADA, [diaEntero])).toEqual({ desdeHora: 7, hastaHora: 19 })
+  })
+
+  it("y sin la marca SI las devolveria — que es por que la marca existe", () => {
+    // Este test documenta el mecanismo del defecto. Si algun dia falla, es que alguien cambio como
+    // se leen las fechas y la proteccion de arriba puede haber dejado de hacer falta... o de servir.
+    const { diaCompleto: _, ...sinLaMarca } = diaEntero
+    expect(rangoVisible(JORNADA, [sinLaMarca])).toEqual({ desdeHora: 0, hastaHora: 24 })
+  })
+
+  it("una de dia completo junto a una temprana: manda la temprana", () => {
+    const r = rangoVisible(JORNADA, [diaEntero, cita(6, 0, 6, 30)])
+    expect(r).toEqual({ desdeHora: 6, hastaHora: 19 })
+  })
+})
+
 describe("los bordes del día", () => {
   it("no se sale por arriba ni por abajo", () => {
     const r = rangoVisible([{ opens_at: "00:00:00", closes_at: "23:59:00" }])
