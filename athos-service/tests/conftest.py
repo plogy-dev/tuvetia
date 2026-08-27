@@ -4,9 +4,14 @@ Las fixtures de integración con DB (`require_db`, `seeded_tenants`) se SALTAN s
 está disponible (p.ej. CI sin Postgres), y siembran/limpian datos de prueba con ids fijos.
 
 ⚠️ **NUNCA contra el proyecto PRINCIPAL.** `seeded_tenants` hace `insert` de clínicas, dueños,
-pacientes y alergias, y al terminar hace `delete from public.clinics ... ` — que **cascadea**.
-Correrlo contra el principal escribe y borra en la base con los datos reales de las clínicas, y
-además ensucia `rag_retrieval_log` con ids de fixture.
+pacientes y alergias, y al terminar las **borra hoja→raíz** (ver `_borrar_clinicas`). Correrlo
+contra el principal escribe y borra en la base con los datos reales de las clínicas, y además
+ensucia `rag_retrieval_log` con ids de fixture.
+
+Decía que el teardown «cascadea» con un solo `delete from public.clinics`. **No cascadea**: de las
+61 claves foráneas que apuntan a `clinics`, una —`audit_logs`— no lo hace, y los triggers `*_traza`
+de la 0063 la vuelven a llenar durante el propio borrado. Eso hacía fallar el teardown y acumular
+clínicas de prueba en la base de desarrollo (auditoría del 27-ago, hallazgo 1).
 
 Ya pasó: el 2026-07-30 el `.env` local apuntaba al principal (venía del "MODO PROD-LIKE" del 16-jul
 que nunca se revirtió) y la suite corrió varias veces contra él. Por eso existe `_exigir_db_de_dev`:
@@ -166,8 +171,35 @@ def seeded_tenants(require_db) -> dict:
         )
         conn.commit()
     yield {"clinic_a": CLINIC_A, "clinic_b": CLINIC_B, "luna": PATIENT_LUNA, "michi": PATIENT_MICHI}
+    _borrar_clinicas(CLINIC_A, CLINIC_B)
+
+
+def _borrar_clinicas(*ids: str) -> None:
+    """Borra las clínicas de prueba y todo lo suyo, en orden.
+
+    POR QUÉ NO ES UN `delete from clinics` Y YA. Lo era, y no funcionaba: de las 61 claves foráneas
+    que apuntan a `clinics`, 60 cascadean y una no —`audit_logs`—, y los triggers `*_traza` de la
+    migración 0063 son AFTER DELETE e insertan en `audit_logs` con el `clinic_id` de la fila que se
+    acaba de borrar. O sea que el propio cascade generaba las filas que impedían que terminara, el
+    teardown fallaba, y las clínicas de prueba se acumulaban en la base de desarrollo.
+    (Auditoría del 27-ago, hallazgo 1. La 0098 ataca la causa raíz en la base; esto no depende de
+    que esa migración esté aplicada, que es lo que se quiere de un teardown.)
+
+    EL ORDEN IMPORTA Y `audit_logs` VA AL FINAL. Es lo contrario de lo que sugiere su profundidad de
+    claves foráneas, y por eso es la línea que alguien "simplifica" dentro de seis meses: hay que
+    vaciarla DESPUÉS de borrar titulares y pacientes, porque son sus triggers los que la llenan al
+    borrarlos. Vaciarla antes no sirve de nada.
+
+    Sólo se borra lo que esta fixture crea. El borrado completo de una clínica cualquiera —con
+    facturación, que agrega nueve cadenas `restrict`— vive en
+    `athos-service/supabase/mantenimiento/borrar_una_clinica.sql`.
+    """
     with get_conn() as conn, conn.cursor() as cur:
-        cur.execute("delete from public.clinics where id in (%s,%s)", (CLINIC_A, CLINIC_B))
+        for tabla in ("allergies", "patients", "owners"):
+            cur.execute(f"delete from public.{tabla} where clinic_id = any(%s)", (list(ids),))
+        # La traza que acaban de escribir los tres deletes de arriba.
+        cur.execute("delete from public.audit_logs where clinic_id = any(%s)", (list(ids),))
+        cur.execute("delete from public.clinics where id = any(%s)", (list(ids),))
         conn.commit()
 
 
