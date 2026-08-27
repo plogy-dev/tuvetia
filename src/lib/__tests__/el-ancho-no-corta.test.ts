@@ -164,21 +164,6 @@ describe("la agenda no desborda la página", () => {
     expect(hoy).toContain("lg:flex-1")
   })
 
-  it("la página acota su alto de verdad, no lo hereda", () => {
-    // EL ARREGLO ANTERIOR NO ALCANZÓ, y el porqué vale más que el test: la cadena entera de
-    // `flex-1 min-h-0` cuelga de `SidebarProvider`, que es `min-h-svh` — altura MÍNIMA. Un
-    // contenedor que puede crecer nunca genera escasez, y sin escasez flexbox no encoge a nadie:
-    // «Hoy» podía ceder todo lo que quisiera y no cedía nada, porque no hacía falta.
-    //
-    // Hasta que la raíz se arregle (es cambio de shell, ~40 pantallas), la agenda se acota sola.
-    const pagina = leer("src", "app", "dashboard", "calendario", "page.tsx")
-    expect(pagina).toMatch(/lg:h-\[calc\(100svh-/)
-    // Y descuenta el `m-2` del inset: olvidarlo era el motivo por el que se había descartado
-    // calcular, y es lo que devolvía unos px de scroll de página.
-    expect(pagina).toContain("var(--header-height)")
-    expect(pagina).toMatch(/lg:h-\[calc\(100svh-var\(--header-height\)-1rem\)\]/)
-  })
-
   it("la grilla conserva su piso: es la parte que no puede achicarse", () => {
     // Si cediera ésta en vez de «Hoy», la semana quedaría sin alto para decir ni la hora.
     const cal = leer("src", "components", "calendar", "appointment-calendar.tsx")
@@ -206,8 +191,50 @@ describe("el chat de VetGPT no scrollea con la página", () => {
     expect(aside).toContain("min-h-0")
   })
 
-  it("y la página acota su alto, con el m-2 del inset contado", () => {
-    const pagina = leer("src", "app", "dashboard", "asistente", "page.tsx")
-    expect(pagina).toMatch(/md:h-\[calc\(100svh-var\(--header-height\)-1rem\)\]/)
+})
+
+describe("EL SHELL ACOTA — la raíz de todos los desbordes", () => {
+  // ── LO QUE COSTÓ LLEGAR ACÁ ─────────────────────────────────────────────────────────────────
+  //
+  // Tres reportes del cliente en dos días, en tres pantallas distintas: la agenda desbordada, el
+  // chat que se llevaba la cabecera al scrollear, y «aparece en todo». Se parchó dos veces en
+  // local —con `h-[calc(...)]` por pantalla— antes de aceptar que la causa era UNA palabra.
+  //
+  // `SidebarProvider` era `min-h-svh`: altura MÍNIMA, o sea que el shell crecía con su contenido
+  // en vez de acotarlo. Y eso hacía FALSA la doctrina que el chat, el cockpit y la agenda tienen
+  // escrita — `flex-1 min-h-0` sólo reparte cuando alguien de arriba tiene alto DEFINIDO. Sin
+  // escasez no hay reparto: los hijos podían ceder todo lo que quisieran y no cedía nadie.
+  //
+  // Son DOS mitades y por eso hay dos tests: acotar sin mover el scroll adentro recortaría
+  // contenido, y mover el scroll sin acotar no cambiaría nada.
+
+  it("el shell mide el viewport, no crece con su contenido", () => {
+    const sidebar = leer("src", "components", "ui", "sidebar.tsx")
+    const i = sidebar.indexOf("group/sidebar-wrapper")
+    expect(i).toBeGreaterThan(-1)
+    const clases = sidebar.slice(i, i + 120)
+    expect(clases).toContain("h-svh")
+    expect(clases, "`min-h-svh` es lo que dejaba crecer el shell").not.toContain("min-h-svh")
+  })
+
+  it("y el scroll vive en el contenido, para que la cabecera no se vaya de viaje", () => {
+    // Cabecera, barra lateral y barra inferior del móvil quedan FUERA de este contenedor: por eso
+    // se quedan quietas mientras el contenido se mueve.
+    const layout = leer("src", "app", "dashboard", "layout.tsx")
+    expect(layout).toMatch(/flex min-h-0 flex-1 flex-col overflow-y-auto/)
+  })
+
+  it("y las pantallas vuelven a heredar el alto en vez de calcularlo", () => {
+    // Con la raíz arreglada, los parches por pantalla sobran — y dejarlos sería mantener dos
+    // fuentes de verdad para el mismo alto. Si alguno reaparece, es señal de que la raíz se rompió
+    // otra vez y alguien está tapándolo pantalla por pantalla, que es justo lo que pasó el 27-ago.
+    for (const ruta of [
+      ["src", "app", "dashboard", "asistente", "page.tsx"],
+      ["src", "app", "dashboard", "calendario", "page.tsx"],
+    ]) {
+      expect(leer(...ruta), `${ruta.at(-2)} volvió a calcular su alto`).not.toContain(
+        "100svh-var(--header-height)",
+      )
+    }
   })
 })

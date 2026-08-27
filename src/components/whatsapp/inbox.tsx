@@ -489,7 +489,7 @@ export function WhatsappInbox({
   const newCandidates = owners.filter((o) => o.phone && !conversations.some((c) => c.phone === digits(o.phone!)))
 
   return (
-    <div className="grid h-[calc(100svh-var(--header-height)-2rem)] gap-4 px-4 py-4 lg:grid-cols-[minmax(230px,300px)_1fr] lg:px-6">
+    <div className="grid min-h-0 flex-1 gap-4 px-4 py-4 lg:grid-cols-[minmax(230px,300px)_1fr] lg:px-6">
       {/* Conversaciones */}
       <div className="flex min-h-0 flex-col rounded-xl border bg-card">
         <div className="flex items-center justify-between border-b px-3 py-2.5">

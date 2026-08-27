@@ -204,15 +204,22 @@ export default async function DashboardLayout({
               verdad se hace en el computador — con la razón, sin bloquear. En navegador no pinta
               nada. Ver `lib/movil/lite.ts`. */}
           <AvisoDeEscritorio />
-          {/* `min-h-0` EN LOS DOS. En una columna flex, un hijo con `flex-1` no se encoge por
-              debajo de su contenido salvo que se le diga — y sin eso, una pantalla que quiera
-              ocupar exactamente el alto disponible no tiene forma de saber cuál es.
+          {/* ── ACÁ VIVE EL SCROLL DE LA APP, Y NO EN LA VENTANA ─────────────────────────────
+              `overflow-y-auto` es la otra mitad del `h-svh` del shell (`ui/sidebar.tsx`). Antes
+              scrolleaba la VENTANA, así que una lista larga se llevaba consigo la cabecera con el
+              buscador y las notificaciones — en todas las pantallas, no en una.
 
-              No cambia nada para las pantallas que scrollean: `min-h-0` PERMITE encogerse, no
-              obliga. Una tabla larga sigue creciendo y sigue empujando el scroll de la página,
-              porque nada dentro de ella acota el alto. Lo que habilita es que una pantalla que SÍ
-              se acota —el chat— pueda decir `flex-1` en vez de calcular píxeles de viewport. */}
-          <div className="flex min-h-0 flex-1 flex-col">
+              Ahora la cabecera, la barra lateral y la barra inferior del móvil quedan quietas
+              porque están FUERA de este contenedor, y lo único que se mueve es el contenido. Es lo
+              que cualquiera espera de un panel, y es lo que las pantallas del repo ya creían tener.
+
+              `min-h-0` EN LOS DOS: en una columna flex un hijo con `flex-1` no se encoge por debajo
+              de su contenido salvo que se le diga, y sin eso el `overflow` de acá nunca llegaría a
+              activarse — el mismo defecto que tenía el riel de la clínica.
+
+              LAS PANTALLAS LARGAS NO CAMBIAN de comportamiento: una tabla de doscientas filas
+              sigue scrolleando igual. Lo único que cambia es QUÉ se queda quieto mientras tanto. */}
+          <div className="flex min-h-0 flex-1 flex-col overflow-y-auto">
             <div className="@container/main flex min-h-0 flex-1 flex-col gap-2">
               {children}
             </div>

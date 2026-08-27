@@ -141,7 +141,21 @@ function SidebarProvider({
           } as React.CSSProperties
         }
         className={cn(
-          "group/sidebar-wrapper flex min-h-svh w-full has-data-[variant=inset]:bg-sidebar",
+          // ── `h-svh` Y NO `min-h-svh`: EL SHELL ACOTA, NO CRECE ────────────────────────────
+          //
+          // Era `min-h-svh` —altura MÍNIMA— o sea que el shell crecía con su contenido en vez de
+          // acotarlo. Y esa sola palabra hacía FALSA toda la doctrina de «el alto se hereda, no se
+          // calcula» que el chat, el cockpit y la agenda tienen escrita: `flex-1 min-h-0` sólo
+          // reparte cuando alguien de arriba tiene un alto DEFINIDO. Sin escasez no hay reparto.
+          //
+          // El síntoma que lo delató (26 y 27-ago): al scrollear se iba la pantalla entera —la
+          // cabecera con el buscador y las notificaciones incluida— en todas las pantallas. Se
+          // parchó dos veces en local (agenda y chat) antes de aceptar que la causa era ésta.
+          //
+          // Con `h-svh`, el shell mide exactamente el viewport y el scroll pasa a vivir DENTRO del
+          // área de contenido (ver `dashboard/layout.tsx`). Los `flex-1 min-h-0` de todo el árbol
+          // empiezan a decir la verdad.
+          "group/sidebar-wrapper flex h-svh w-full has-data-[variant=inset]:bg-sidebar",
           className
         )}
         {...props}

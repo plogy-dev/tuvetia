@@ -261,25 +261,13 @@ export default async function AsistentePage({
   const horaBogota = Number(bogotaTimeOf(new Date().toISOString()).slice(0, 2))
 
   return (
-    // ── EL ALTO SE ACOTA ACÁ, IGUAL QUE EN LA AGENDA ──────────────────────────────────────────
+    // El alto SE HEREDA y ahora es cierto: el shell mide el viewport (`ui/sidebar.tsx`, `h-svh`) y
+    // el scroll vive en el área de contenido, así que `flex-1 min-h-0` sí reparte espacio real.
     //
-    // `flex-1 min-h-0` sólo reparte espacio cuando ALGUIEN de arriba tiene un alto definido, y
-    // nadie lo tiene: `SidebarProvider` es `min-h-svh` —altura MÍNIMA— así que el shell crece con
-    // su contenido en vez de acotarlo. Es la misma deuda que desbordó la agenda el 26-ago, y acá
-    // se manifestó peor: la cabecera se iba de vista al scrollear y había que bajar a buscar el
-    // compositor, en la pantalla donde más se escribe (reporte del 27-ago, con capturas).
-    //
-    // `assistant.tsx` dice «el alto se hereda, no se calcula» y descartó este cálculo porque la
-    // versión anterior estaba mal por 16 px: se olvidaba del `m-2` del inset. El cálculo no era el
-    // error, el margen olvidado sí. Acá está contado, y se lee del token en vez de escribir «3rem»
-    // para que siga a la cabecera si cambia.
-    //
-    // Desde `md:` porque ese margen es `md:` y abajo no existe — en móvil la página scrollea como
-    // siempre, con la barra inferior fija.
-    //
-    // CUANDO SE ARREGLE LA RAÍZ (`min-h-svh` → shell acotado, su propia tanda), esto y lo de la
-    // agenda se borran y vuelve el `flex-1` limpio, que es lo correcto.
-    <div className="flex min-h-0 flex-1 md:h-[calc(100svh-var(--header-height)-1rem)]">
+    // Acá hubo un `md:h-[calc(100svh-var(--header-height)-1rem)]` durante unas horas del 27-ago:
+    // un parche local mientras la raíz seguía en `min-h-svh`. Se retira con la raíz arreglada —
+    // dejarlo sería mantener dos fuentes de verdad para el mismo alto.
+    <div className="flex min-h-0 flex-1">
       <Assistant
         clinicId={clinicId}
         patients={patients}

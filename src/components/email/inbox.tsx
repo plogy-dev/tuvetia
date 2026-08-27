@@ -101,7 +101,7 @@ export function EmailInbox({
   }
 
   return (
-    <div className="grid h-[calc(100svh-var(--header-height)-4rem)] gap-4 px-4 py-4 lg:grid-cols-[minmax(260px,340px)_1fr] lg:px-6">
+    <div className="grid min-h-0 flex-1 gap-4 px-4 py-4 lg:grid-cols-[minmax(260px,340px)_1fr] lg:px-6">
       {/* Maestro */}
       <div className="flex flex-col overflow-hidden rounded-xl border bg-card">
         <div className="flex items-center justify-between gap-2 border-b px-3 py-2">
