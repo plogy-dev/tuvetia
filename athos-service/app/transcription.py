@@ -285,6 +285,34 @@ def transcribe(consultation_id: str, clinic_id: str) -> dict[str, Any]:
         segments = build_segments(payload)
         alt = payload.get("results", {}).get("channels", [{}])[0].get("alternatives", [{}])[0]
         full_text = render_full_text(segments, fallback=alt.get("transcript", ""))
+
+        # ── UN TRANSCRIPT VACÍO ES UN FALLO, NO UN ÉXITO SIN PALABRAS ────────────────────────
+        #
+        # Sin esto se insertaba la fila en blanco y la consulta pasaba igual a `generating_note`,
+        # que es un CALLEJÓN SIN SALIDA: la nota se pide sola sólo cuando hay transcripción, así
+        # que nadie la generaba nunca, el estado no volvía a moverse y en la pantalla no aparecía
+        # ningún error. Quedaba colgada para siempre, en silencio.
+        #
+        # Medido en producción el 26-ago: 5 de 47 transcripciones reales estaban vacías, con audio
+        # de verdad detrás (6 a 26 segundos, hasta 158 KB), y 4 de esas 5 consultas seguían
+        # colgadas en `generating_note` — una desde hacía 56 horas.
+        #
+        # El camino EN VIVO ya hacía lo correcto y está escrito en `streaming_transcription.py`:
+        # «silencio total o Deepgram no devolvió nada: que lo resuelva el lote». Las dos rutas se
+        # contradecían y la que dejaba consultas muertas era ésta. Al lanzar acá, el `except` de
+        # abajo devuelve la consulta a `open`: el audio sigue en el bucket y el vet puede reintentar
+        # o escribir la nota a mano, que es lo que no podía hacer estando colgada.
+        if not full_text.strip():
+            log.error(
+                "transcripción vacía con audio real: consulta=%s audio=%s bytes=%s proveedor=%s",
+                consultation_id, audio["id"], audio.get("file_size"), provider,
+            )
+            raise HTTPException(
+                status_code=422,
+                detail="No se detectó voz en la grabación. Revisá que esté seleccionado el "
+                       "micrófono correcto y volvé a grabar.",
+            )
+
         transcript_id = _insert_transcript(
             clinic_id, consultation_id, audio["id"], full_text, segments, model, provider
         )
