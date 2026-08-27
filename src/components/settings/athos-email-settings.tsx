@@ -78,11 +78,18 @@ export function AthosEmailSettings({
     }
   }
 
+  // EL VET NO ES EL OPERADOR DEL SERVIDOR. Este mensaje decía «falta configurar Composio
+  // (COMPOSIO_API_KEY y el auth config del proveedor)» — el nombre de una variable de entorno, a un
+  // veterinario, como si él pudiera hacer algo con eso. Y era la otra mitad de un bucle: la bandeja
+  // de Correo lo mandaba acá prometiéndole que era «un clic», y acá se encontraba con esto.
+  //
+  // Lo que necesita saber es una sola cosa: que no es culpa suya y que no tiene nada que apretar.
+  // Lo que el operador necesita ya está donde corresponde — en el log de arranque, no en pantalla.
   if (disponibles.length === 0) {
     return (
       <p className="text-sm text-fg-muted">
-        La conexión de correo no está disponible en este servidor todavía. Falta configurar Composio
-        (<code>COMPOSIO_API_KEY</code> y el auth config del proveedor).
+        Conectar el correo todavía no está habilitado en esta instalación de Tuvetia. No hay nada
+        que configurar de tu lado: cuando quede lista, la opción aparece acá sola.
       </p>
     )
   }

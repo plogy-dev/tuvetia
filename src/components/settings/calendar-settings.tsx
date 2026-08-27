@@ -66,11 +66,14 @@ export function CalendarSettings({
     }
   }
 
+  // Mismo criterio que en `athos-email-settings.tsx`: el nombre de una variable de entorno no le
+  // dice nada a un veterinario y le sugiere que hay algo que él debería estar haciendo. Lo del
+  // operador va al log de arranque; acá va lo único accionable, que es «no hay nada que hacer».
   if (disponibles !== null && disponibles.length === 0) {
     return (
       <p className="text-sm text-fg-muted">
-        La conexión de calendario no está disponible en este servidor todavía. Falta configurar
-        Composio (<code>COMPOSIO_API_KEY</code> y el auth config del proveedor).
+        Sincronizar tu calendario todavía no está habilitado en esta instalación de Tuvetia. No hay
+        nada que configurar de tu lado: cuando quede lista, la opción aparece acá sola.
       </p>
     )
   }
