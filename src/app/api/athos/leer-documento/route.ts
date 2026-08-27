@@ -22,8 +22,9 @@ export const maxDuration = 60
 // entra ya como texto, así que los turnos siguientes de la conversación no lo re-facturan.
 //
 // Modelo: `visionModel()` — la misma superficie de visión que lee recetas y facturas desde imagen
-// (Anthropic por defecto, `ATHOS_VISION_CASCADE` para respaldo con Gemini). DeepSeek no lee PDFs,
-// por eso esto NO usa el modelo del agente.
+// (Gemini por defecto desde el 26-ago, con Anthropic de respaldo vía `ATHOS_VISION_CASCADE`; era
+// al revés y cada adjunto pagaba un intento muerto contra una cuenta sin crédito). DeepSeek no lee
+// PDFs, por eso esto NO usa el modelo del agente.
 
 // ~10 MB de PDF en base64. El límite real de la fase 2 son las páginas (abajo), pero sin un tope de
 // bytes un PDF gigante viaja entero hasta el modelo solo para fallar allá, pagando el intento.

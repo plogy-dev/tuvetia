@@ -136,9 +136,19 @@ describe("autoModel y visionModel", () => {
     expect(autoModel().modelId).toBe("deepseek-v4-flash")
   })
 
-  it("visión sigue siendo Anthropic por defecto y admite su propia cascada", async () => {
-    expect(visionModel().modelId).toBe("claude-haiku-4-5")
+  it("visión es GEMINI por defecto — no el proveedor sin crédito", async () => {
+    // Era Anthropic, y la inversión es una decisión del cliente («usar gemini para visión
+    // estable»), tomada sobre evidencia: `athos_agent_usage` mostraba que `leer_documento` ya
+    // venía cayendo de `claude-haiku-4-5` a Gemini en cada adjunto, pagando el intento muerto y
+    // su backoff antes de la respuesta buena.
+    //
+    // Lo que este test cuida es el default, o sea el día que la cascada de Vercel falte o tenga un
+    // typo: la caída tiene que ser a Gemini, no al proveedor muerto.
+    expect(visionModel().modelId).toBe("gemini-3.6-flash")
+    expect(visionModel().provider).toBe("google")
+  })
 
+  it("y su cascada sigue mandando sobre el default", async () => {
     fallos.set("anthropic:claude-haiku-4-5", "Overloaded")
     process.env.ATHOS_VISION_CASCADE = "claude-haiku-4-5@anthropic,claude-sonnet-5@anthropic"
     const elegido = visionModel()
@@ -230,7 +240,7 @@ describe("los TRES proveedores (paridad con athos-service)", () => {
     expect(elegido.provider).toBe("anthropic")
   })
 
-  it("visión admite Gemini de respaldo (DeepSeek no tiene visión, Gemini sí)", async () => {
+  it("visión admite Anthropic de respaldo tras Gemini, y también el orden inverso", async () => {
     fallos.set("anthropic:claude-haiku-4-5", "Overloaded")
     process.env.ATHOS_VISION_CASCADE = "claude-haiku-4-5@anthropic,gemini-3.6-flash@google"
     const elegido = visionModel()

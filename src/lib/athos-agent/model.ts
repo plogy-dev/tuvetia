@@ -7,7 +7,8 @@
 //   ATHOS_AUTO_PROVIDER  = anthropic | deepseek   (clasificador/redactor del modo auto; default
 //                                                  hereda ATHOS_AGENT_PROVIDER)
 //   ATHOS_AUTO_MODEL     = id del modelo           (default claude-haiku-4-5 / deepseek-v4-flash)
-//   ATHOS_VISION_MODEL   = id del modelo           (visión; siempre Anthropic, default claude-haiku-4-5)
+//   ATHOS_VISION_PROVIDER = google | anthropic     (visión; default google — DeepSeek no tiene)
+//   ATHOS_VISION_MODEL   = id del modelo           (default gemini-3.6-flash / claude-haiku-4-5)
 //
 // Las tres superficies aceptan además una CASCADA (`*_CASCADE`), que tiene prioridad sobre el par
 // PROVIDER/MODEL de su superficie — ver más abajo.
@@ -195,13 +196,31 @@ export function autoModel(): ModeloElegido {
   })
 }
 
-// Visión (extracción de recetas de consumo y facturas de compra desde imagen).
-// DeepSeek no expone visión estable por API, así que el default sigue siendo Anthropic y punto;
-// `ATHOS_VISION_CASCADE` existe para poder poner OTRO modelo de Anthropic como respaldo (o el
-// proveedor que llegue a tener visión) sin tocar código.
+// Visión. La usan DOS superficies, y conviene tenerlo presente porque una caída acá se ve en las
+// dos: los documentos que el vet adjunta al chat (`api/athos/leer-documento`) y la lectura de
+// recetas y facturas desde imagen (`lib/facturacion/import/ingest.ts`).
+//
+// ── EL DEFAULT ES GEMINI, Y ES UNA DECISIÓN, NO UNA PREFERENCIA ──────────────────────────────
+//
+// Era Anthropic, con este comentario diciendo «el default sigue siendo Anthropic y punto». Se
+// invierte por lo mismo que la regla de más arriba lleva meses escrita: la cuenta de Anthropic no
+// tiene crédito, así que ponerla primero no es elegir un modelo — es garantizar un intento fallido,
+// su backoff y su latencia antes de llegar al que sí contesta. Medido el 26-ago en
+// `athos_agent_usage`: `leer_documento` registra `provider=google` con
+// `fell_back_from=claude-haiku-4-5`. Estaba pagando ese peaje en cada adjunto.
+//
+// DeepSeek no entra acá y no es un olvido: no expone visión estable por API. Los únicos dos
+// candidatos son Gemini y Anthropic, y por eso el orden entre ellos importa tanto.
+//
+// ⚠️ ESTO NO ARREGLA PRODUCCIÓN POR SÍ SOLO. `ATHOS_VISION_CASCADE` está puesta en Vercel y GANA
+// sobre este default — hay que invertirla ahí. Lo que este cambio garantiza es que el día que esa
+// variable falte, se borre o tenga un typo, la caída sea a Gemini y no al proveedor muerto.
 export function visionModel(): ModeloElegido {
   return conCascadaSiHay("vision", process.env.ATHOS_VISION_CASCADE, () => {
-    const modelId = process.env.ATHOS_VISION_MODEL ?? "claude-haiku-4-5"
-    return { model: anthropic(modelId), modelId, provider: "anthropic" }
+    const provider = process.env.ATHOS_VISION_PROVIDER ?? "google"
+    const modelId =
+      process.env.ATHOS_VISION_MODEL ??
+      (provider === "google" ? "gemini-3.6-flash" : "claude-haiku-4-5")
+    return { model: resolve(provider, modelId), modelId, provider }
   })
 }
