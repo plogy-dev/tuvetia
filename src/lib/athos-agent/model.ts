@@ -143,7 +143,19 @@ function conCascadaSiHay(
 //
 //   ATHOS_AGENT_CASCADE  = "deepseek-v4-flash@deepseek,gemini-3.6-flash@google,claude-sonnet-5@anthropic"
 //   ATHOS_AUTO_CASCADE   = "deepseek-v4-flash@deepseek,gemini-3.6-flash@google,claude-haiku-4-5@anthropic"
-//   ATHOS_VISION_CASCADE = "claude-haiku-4-5@anthropic,gemini-3.6-flash@google"
+//   ATHOS_VISION_CASCADE = "gemini-3.6-flash@google,claude-haiku-4-5@anthropic"
+//
+// ⚠️ LA LÍNEA DE VISIÓN DECÍA LO CONTRARIO —Anthropic primero— tres renglones antes de la regla de
+// abajo que lo prohíbe, y producción la copió tal cual. Verificado el 26-ago en
+// `athos_agent_usage`: la superficie `leer_documento` registra `provider=google` con
+// `fell_back_from=claude-haiku-4-5`. O sea que CADA documento que un vet adjunta al chat gasta
+// primero un intento fallido contra Anthropic —y como no se fija `maxRetries`, el SDK reintenta:
+// hasta tres llamadas muertas con su backoff— antes de que Gemini conteste. Con un PDF escaneado
+// pesado eso puede comerse el `maxDuration = 60` de la ruta, y entonces no es lentitud: es el
+// adjunto fallando. Es el reporte del cliente del 26-ago, «está fallando colgar archivos».
+//
+// Corregir el ejemplo no arregla producción: hay que INVERTIR `ATHOS_VISION_CASCADE` en Vercel.
+// Las otras dos superficies ya están bien (`agent` y `briefing` registran DeepSeek sin respaldo).
 //
 // Los TRES proveedores, igual que la cascada de athos-service (cláusula 1.4). Gemini se sumó el
 // 2026-08-02: hasta entonces esta superficie tenía dos y el backend tres, así que una caída
