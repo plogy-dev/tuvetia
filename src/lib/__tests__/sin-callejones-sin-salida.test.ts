@@ -26,6 +26,8 @@ import { join } from "node:path"
 
 import { describe, expect, it } from "vitest"
 
+import { CK_TABS, PILL_TABS } from "@/lib/landing/data"
+
 const RAIZ = join(process.cwd(), "src")
 
 const leer = (...ruta: string[]) => readFileSync(join(RAIZ, ...ruta), "utf8")
@@ -81,5 +83,45 @@ describe("ninguna pantalla del vet nombra una variable de entorno", () => {
       if (hallazgos) culpables.push(`${ruta}: ${hallazgos.join(", ")}`)
     }
     expect(culpables).toEqual([])
+  })
+})
+
+describe("la landing no le anuncia a un visitante que el producto está a medias", () => {
+  // ── EL HALLAZGO MÁS VISIBLE DE LA AUDITORÍA DEL 26-AGO ────────────────────────────────────────
+  //
+  // El demo interactivo de la home tiene once pestañas, y CUATRO —«Casos parecidos» y «Chat», en
+  // las dos barras— caían a un `<div class="soon">Próximamente · placeholder en el código real`.
+  // A un clic desde la portada, en la cara de cualquiera que entrara a mirar.
+  //
+  // Se cerró escribiendo las dos pestañas, no escondiéndolas: la función existe en el producto
+  // (`CasosParecidos` busca en el historial de la propia clínica; el chat cita o se calla), así que
+  // lo que faltaba era el contenido del demo, no la funcionalidad.
+
+  const engine = readFileSync(join(RAIZ, "lib", "landing", "engine.ts"), "utf8")
+    .replace(/\/\*[\s\S]*?\*\//g, "")
+    .replace(/(^|[^:])\/\/.*$/gm, "$1")
+
+  it("ninguna pestaña del demo cae en un cartel de «Próximamente»", () => {
+    expect(engine).not.toContain("Próximamente")
+    expect(engine).not.toContain("placeholder")
+    // Y la clase que lo pintaba se fue con él: sin estilo no puede volver de casualidad.
+    expect(readFileSync(join(RAIZ, "app", "landing.css"), "utf8")).not.toContain(".soon{")
+  })
+
+  it("las pestañas que existen tienen su rama, y las dos barras se cubren", () => {
+    // `consulta` no entra: no pasa por `panelHTML`, lo resuelve el panel en vivo del cockpit.
+    const ids = new Set([...PILL_TABS, ...CK_TABS].map(([id]) => id))
+    ids.delete("consulta")
+    for (const id of ids) {
+      expect(engine, `la pestaña «${id}» no tiene rama en panelHTML`).toContain(`tab === "${id}"`)
+    }
+  })
+
+  it("el demo llama al producto por su nombre actual", () => {
+    // La tanda de renombrado del 26-ago hizo 63 reemplazos en la landing y se saltó este archivo:
+    // el demo —la superficie más visible— seguía diciendo «Athos» mientras el resto decía VetGPT.
+    // `Nosotros.tsx` queda fuera a propósito: ahí Athos es el bulldog del fundador, no el producto.
+    expect(engine).not.toContain("Athos")
+    expect(engine).toContain("VetGPT")
   })
 })

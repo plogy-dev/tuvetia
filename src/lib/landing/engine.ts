@@ -12,6 +12,8 @@ import {
   transcript,
   sugs,
   vetNotes,
+  similares,
+  chatDemo,
   PILL_TABS,
   CK_TABS,
 } from "./data";
@@ -90,7 +92,25 @@ export function initLanding(): () => void {
           .map((n) => `<div class="tline"><div class="tmeta"><span>${n.t}</span></div>${n.txt}</div>`)
           .join("")
       );
-    return `<div class="soon">Próximamente<br><span style="letter-spacing:0;text-transform:none;font-size:11px">placeholder en el código real</span></div>`;
+    if (tab === "similar")
+      return (
+        `<div class="nl">En el historial de tu clínica · ${similares.length}</div>` +
+        similares
+          .map(
+            (c) =>
+              `<div class="sgc"><div>${c.match}</div><div style="opacity:.72;margin-top:5px">${c.cierre}</div><div class="sgb"><span>${c.pac}</span><span>·</span><span>${c.cuando}</span></div></div>`,
+          )
+          .join("")
+      );
+    if (tab === "chat")
+      return (
+        `<div class="tline vet"><div class="tmeta"><span>vet</span></div>${chatDemo.pregunta}</div>` +
+        `<div class="sgc differential">${chatDemo.respuesta}<div class="sgb"><span>${chatDemo.fuentes}</span><span>·</span><span>${chatDemo.banda}</span></div></div>`
+      );
+    // Sin rama para esta pestaña: antes acá había un «Próximamente · placeholder en el código
+    // real» que se le mostraba a cualquiera que abriera el demo desde la home. Si mañana entra una
+    // pestaña nueva, es mejor que no pinte nada a que anuncie que el producto está a medias.
+    return "";
   }
 
   function liveHTML(upto: number): string {
@@ -316,12 +336,12 @@ export function initLanding(): () => void {
 
     /* ── 1.2s → la nota se escribe sola ── */
     {
-      cap: "<b>Atiendes normal.</b> Athos escribe.",
+      cap: "<b>Atiendes normal.</b> VetGPT escribe.",
       run: async () => {
         cur.classList.remove("on");
         say(
           "#livepane",
-          "Athos",
+          "VetGPT",
           "Redacta la <b>historia clínica</b> mientras hablas. Tú no tocas el teclado — a la derecha está tu cuaderno, como siempre.",
           "pr",
         );
@@ -332,7 +352,7 @@ export function initLanding(): () => void {
 
     /* ── 5.3s → la luz ── */
     {
-      cap: "Athos encontró algo.",
+      cap: "VetGPT encontró algo.",
       run: async () => {
         S.alert = true;
         render();
@@ -343,7 +363,7 @@ export function initLanding(): () => void {
 
     /* ── 7.7s → EL REMATE ── */
     {
-      cap: "<b>Athos te frena.</b>",
+      cap: "<b>VetGPT te frena.</b>",
       run: async () => {
         await moveTo('.nt2[data-ct="suggestions"]', 540);
         await press('.nt2[data-ct="suggestions"]', 320);
@@ -354,7 +374,7 @@ export function initLanding(): () => void {
         say(
           ".sgc.contradiction",
           "Contradicción con la ficha",
-          "La ficha de Rocky dice <b>alergia a pollo</b> desde marzo. El alimento nuevo que acaba de mencionar el dueño lo lleva de primer ingrediente. Athos lo cruzó solo, en la consulta.",
+          "La ficha de Rocky dice <b>alergia a pollo</b> desde marzo. El alimento nuevo que acaba de mencionar el dueño lo lleva de primer ingrediente. VetGPT lo cruzó solo, en la consulta.",
           "pr",
         );
         await wait(4400);
@@ -380,7 +400,7 @@ export function initLanding(): () => void {
     },
 
     {
-      cap: "Sigues tu agenda. <b>Athos no se va.</b>",
+      cap: "Sigues tu agenda. <b>VetGPT no se va.</b>",
       run: async () => {
         await moveTo("#nav-cal", 560);
         await press("#nav-cal", 300);
@@ -404,7 +424,7 @@ export function initLanding(): () => void {
         say(
           ".thd",
           "Frenado",
-          "Athos contestó lo logístico solo. Lo clínico lo <b>detiene y te espera</b> — nada sale sin tu aprobación.",
+          "VetGPT contestó lo logístico solo. Lo clínico lo <b>detiene y te espera</b> — nada sale sin tu aprobación.",
           "pt",
         );
         await wait(3400);
@@ -427,7 +447,7 @@ export function initLanding(): () => void {
     },
 
     {
-      cap: "Acabas. <b>Athos organiza tu cuaderno en la nota.</b>",
+      cap: "Acabas. <b>VetGPT organiza tu cuaderno en la nota.</b>",
       run: async () => {
         await moveTo("#bstop", 520);
         await press("#bstop", 300);
@@ -436,7 +456,7 @@ export function initLanding(): () => void {
         cur.classList.remove("on");
         hush();
         $("orb").style.display = "";
-        $("vh").textContent = "Athos está organizando tus notas…";
+        $("vh").textContent = "VetGPT está organizando tus notas…";
         $("vp").textContent = "No cierres la ventana.";
         await wait(1900);
         S.view = "done";
@@ -444,7 +464,7 @@ export function initLanding(): () => void {
         $("orb").style.display = "none";
         $("vh").textContent = "Consulta cerrada.";
         $("vp").textContent =
-          "Athos fusionó tu cuaderno con el transcript en la nota clínica estructurada. Tú la revisas, la corriges y la firmas.";
+          "VetGPT fusionó tu cuaderno con el transcript en la nota clínica estructurada. Tú la revisas, la corriges y la firmas.";
         await wait(2600);
       },
     },
@@ -532,7 +552,7 @@ export function initLanding(): () => void {
     render();
     $("orb").style.display = "none";
     $("vh").textContent = "Consulta cerrada.";
-    $("vp").textContent = "Athos fusionó tu cuaderno con el transcript en la nota clínica estructurada.";
+    $("vp").textContent = "VetGPT fusionó tu cuaderno con el transcript en la nota clínica estructurada.";
   };
   $("bstop").onclick = finishConsult;
   $("ckmin").onclick = () => {
@@ -808,8 +828,8 @@ export function initLanding(): () => void {
     function calc() {
       C.min = Math.min(C.min, C.doc);
       const consMes = C.vets * C.cd * C.dm,
-        conAthos = (consMes * C.ad) / 100,
-        minRec = conAthos * C.min;
+        conVetgpt = (consMes * C.ad) / 100,
+        minRec = conVetgpt * C.min;
       const h = Math.round(minRec / 60),
         j = Math.round(h / 8);
       const consAd = Math.floor((minRec * C.cap) / 100 / C.du),
@@ -836,7 +856,7 @@ export function initLanding(): () => void {
       }
       $("tv-oform").innerHTML =
         "<b>" + C.vets + " vet × " + C.cd + " consultas/día × " + C.dm + " días = " + fmt.format(consMes) + " consultas/mes.</b><br>" +
-        "Sobre el " + C.ad + "% en el que usarías Athos (" + fmt.format(Math.round(conAthos)) + " consultas) se recuperan " + C.min + " min cada una → <b>" + h + " h al mes</b>.<br>" +
+        "Sobre el " + C.ad + "% en el que usarías VetGPT (" + fmt.format(Math.round(conVetgpt)) + " consultas) se recuperan " + C.min + " min cada una → <b>" + h + " h al mes</b>.<br>" +
         "Si el " + C.cap + "% de ese tiempo se reinvierte en consultas de " + C.du + " min, caben <b>" + consAd + " consultas más</b> × $" + fmt.format(C.tk) + " = <b>$" + fmt.format(factM) + "/mes</b>.<br>" +
         "Con un margen del " + C.mg + "%, la contribución es <b>$" + fmt.format(Math.round(contrib)) + "/mes</b>.";
     }

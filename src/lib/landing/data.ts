@@ -68,6 +68,51 @@ export const vetNotes = [
   { t: "10:08", txt: "Volver a pesar al final; la báscula marcaba raro al entrar." },
 ];
 
+/**
+ * Casos parecidos: lo que la clínica YA vio.
+ *
+ * La pestaña existía en las dos barras y caía al «Próximamente · placeholder en el código real» —
+ * a un clic desde la home, en la cara de un visitante. Era el hallazgo más visible de la auditoría
+ * del 26-ago y el más barato de cerrar, porque la función existe: `CasosParecidos` busca en el
+ * historial de la propia clínica, no en literatura.
+ *
+ * El segundo caso es el que vale la pena y por eso está: enseña el patrón que se pierde cuando cada
+ * consulta se mira sola. No es un adorno del demo, es de qué sirve la pestaña.
+ */
+export const similares = [
+  {
+    pac: "Nina · bulldog francés · 4 años",
+    cuando: "hace 3 meses",
+    match: "Prurito facial y otitis bilateral con cerumen oscuro",
+    cierre:
+      "Citología: Malassezia. Limpieza enzimática y antifúngico tópico. La dieta sin proteína aviar cortó el prurito en la semana 6.",
+  },
+  {
+    pac: "Trufa · bulldog francés · 6 años",
+    cuando: "hace 8 meses",
+    match: "Tercer episodio de otitis en el año",
+    cierre:
+      "Se trató sólo el oído las tres veces. Recién con la dieta de eliminación dejó de recaer.",
+  },
+];
+
+/**
+ * El chat: una pregunta clínica contestada CON FUENTES.
+ *
+ * Misma historia que `similares` — la pestaña caía al placeholder. La respuesta va en lenguaje de
+ * posibilidad y con su banda de evidencia porque esa es la regla que el servicio impone por código,
+ * no por prompt: cita o se calla. Un demo que mostrara al modelo afirmando de más estaría vendiendo
+ * algo que el producto se niega a hacer.
+ */
+export const chatDemo = {
+  pregunta:
+    "¿Cuántas semanas tiene que durar la dieta de eliminación para descartar alergia alimentaria?",
+  respuesta:
+    "La evidencia disponible sugiere un mínimo de <b>8 semanas</b> con una proteína novel o hidrolizada, y sin premios ni saborizantes en ese período. En cuadros con otitis asociada, varias series describen que la respuesta cutánea puede tardar más que la ótica.",
+  fuentes: "2 fuentes citadas",
+  banda: "evidencia suficiente",
+};
+
 export const PILL_TABS: Array<[string, string]> = [
   ["transcript", "Transcripción"],
   // El id se queda en inglés: es la clave que lee `engine.ts`, no algo que alguien vea.
