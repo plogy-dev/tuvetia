@@ -84,11 +84,18 @@ beforeEach(() => {
 })
 
 describe("cuando la siembra sale bien", () => {
-  it("escribe las cinco filas y no borra nada", async () => {
+  it("escribe las siete filas y no borra nada", async () => {
     const res = await POST()
 
     expect(res.status).toBe(200)
-    expect(insertados).toEqual(["owners", "patients", "consultations", "transcripts", "clinical_notes"])
+    // `allergies` y `vaccines` entraron el 27-ago y NO son adorno: sin ellas la ficha de ejemplo
+    // nacía vacía y el demo omitía justo lo que más diferencia al producto — el gate de alergia
+    // severa, que es una regla determinística. Se descubrió probando: con la ficha vacía, cuatro
+    // preguntas de la batería de VetGPT no llegaban ni a ejercitarse.
+    expect(insertados).toEqual([
+      "owners", "patients", "allergies", "vaccines",
+      "consultations", "transcripts", "clinical_notes",
+    ])
     expect(borrados).toEqual([])
   })
 })
@@ -193,9 +200,11 @@ describe("una clínica free no recibe el demo del Modo Fantasma", () => {
     const res = await POST()
 
     expect(res.status).toBe(200)
-    // Se lleva a Luna y a su titular: puede recorrer la ficha, la lista y la agenda, que es lo que
-    // SÍ tiene. Lo que no se le muestra es una demo de lo que no compró.
-    expect(insertados).toEqual(["owners", "patients"])
+    // Se lleva a Luna y a su titular CON SU FICHA COMPLETA —alergia severa y vacunas— porque eso
+    // no es Modo Fantasma: es la ficha del paciente, que sí compró. Lo que se corta es la demo de
+    // la consulta grabada. Que una clínica free vea el gate de alergia funcionando es, además, el
+    // mejor argumento para que suba de plan.
+    expect(insertados).toEqual(["owners", "patients", "allergies", "vaccines"])
   })
 
   it("NO deshace lo sembrado: no es un fallo, es una siembra más corta", async () => {
@@ -221,7 +230,7 @@ describe("una clínica free no recibe el demo del Modo Fantasma", () => {
 
     await POST()
 
-    expect(insertados).toEqual(["owners", "patients"])
+    expect(insertados).toEqual(["owners", "patients", "allergies", "vaccines"])
   })
 })
 

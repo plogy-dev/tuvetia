@@ -210,6 +210,61 @@ export async function POST(request?: Request) {
       .single()
     if (pErr) throw new Error(pErr.message)
 
+    const patientId = (patient as { id: string }).id
+
+    // ── LA FICHA DE EJEMPLO TIENE ALERGIA SEVERA Y VACUNAS, Y NO ES ADORNO ────────────────────
+    //
+    // Hasta el 27-ago Luna nacía con la ficha vacía: sin alergias, sin vacunas, sin historia. O sea
+    // que el demo de Tuvetia OMITÍA justo lo que más lo diferencia — el gate de alergia severa, que
+    // es una regla determinística del producto (nº3) y la función que hace que un vet levante la
+    // ceja. Un veterinario recorriendo el ejemplo veía una ficha de perro cualquiera.
+    //
+    // Se descubrió probando: con la ficha vacía, cuatro preguntas de la batería de VetGPT no podían
+    // ejercitarse —el gate, el cruce ficha-contra-relato, los refuerzos de vacuna— y el asistente
+    // contestaba, correctamente, «no voy a inventar». La prueba no fallaba: no llegaba a existir.
+    //
+    // AMOXICILINA Y NO POLLO, a propósito: el gate tiene que dispararse contra un PLAN, y un
+    // antibiótico de primera línea es lo que un vet va a proponer sin pensarlo. Una alergia
+    // alimentaria se queda en la anamnesis y no frena nada.
+    const { error: aErr } = await admin.from("allergies").insert({
+      clinic_id: clinicId,
+      patient_id: patientId,
+      allergen: "Amoxicilina",
+      severity: "severe",
+      reaction: "Angioedema facial y urticaria a los 20 minutos de la primera dosis (ejemplo).",
+      confirmed: true,
+      created_by: user.id,
+    })
+    if (aErr) throw new Error(aErr.message)
+
+    // Dos vacunas: una vencida y otra por vencer este mes. Con las dos, la ficha muestra el estado
+    // real de un paciente de verdad —al día en una, atrasado en otra— que es lo que se ve en una
+    // clínica y lo que hace útil el recordatorio.
+    const hoy = new Date()
+    const enDias = (d: number) =>
+      new Date(hoy.getTime() + d * 86400000).toISOString().slice(0, 10)
+    const { error: vErr } = await admin.from("vaccines").insert([
+      {
+        clinic_id: clinicId,
+        patient_id: patientId,
+        vaccine_name: "Quíntuple canina",
+        administered_at: enDias(-350),
+        next_dose_at: enDias(-5), // vencida: aparece como atrasada
+        administered_by: user.id,
+        notes: "Ejemplo del onboarding.",
+      },
+      {
+        clinic_id: clinicId,
+        patient_id: patientId,
+        vaccine_name: "Antirrábica",
+        administered_at: enDias(-340),
+        next_dose_at: enDias(12), // por vencer: aparece en los refuerzos del mes
+        administered_by: user.id,
+        notes: "Ejemplo del onboarding.",
+      },
+    ])
+    if (vErr) throw new Error(vErr.message)
+
     // ── DE ACÁ EN ADELANTE ES DEMO DEL MODO FANTASMA, Y ESO ES DE PRO ─────────────────────────
     //
     // Los tres inserts que siguen —consulta, transcripción y nota SOAP— existen para que el vet
