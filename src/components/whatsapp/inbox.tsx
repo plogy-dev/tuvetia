@@ -581,7 +581,13 @@ export function WhatsappInbox({
       </div>
 
       {/* Hilo */}
-      <div className="flex min-h-0 flex-col rounded-xl border bg-card">
+      {/* `min-w-0`: la columna del grid es `1fr`, o sea `minmax(auto, 1fr)`, y ese `auto` es el
+          min-content de lo que haya adentro. Un titular manda un enlace sin un solo espacio y el
+          min-content de esa burbuja es el largo entero de la URL, así que la columna se ensancha y
+          la bandeja COMPLETA se va a scroll horizontal. `break-words` en la burbuja no alcanza solo:
+          `overflow-wrap: break-word` deja partir la palabra al pintar pero no cambia el min-content
+          que usa el grid para medir. Hacen falta los dos. */}
+      <div className="flex min-h-0 min-w-0 flex-col rounded-xl border bg-card">
         {!selected ? (
           <div className="flex flex-1 flex-col items-center justify-center gap-2 p-6 text-center text-sm text-muted-foreground">
             <MessageCircle className="size-8" />
@@ -622,7 +628,7 @@ export function WhatsappInbox({
               {thread.map((m) => (
                 <div key={m.id} className={m.direction === "outbound" ? "flex justify-end" : "flex justify-start"}>
                   <div
-                    className={`max-w-[80%] rounded-2xl px-3 py-2 text-sm ${
+                    className={`max-w-[80%] break-words rounded-2xl px-3 py-2 text-sm ${
                       m.direction === "outbound"
                         ? "rounded-br-sm bg-primary text-primary-foreground"
                         : "rounded-bl-sm border bg-background"

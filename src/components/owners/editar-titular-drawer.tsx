@@ -137,7 +137,7 @@ export function EditarTitularDrawer({
               {errores.fullName && <p className="text-xs text-destructive">{errores.fullName}</p>}
             </Field>
 
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-2 gap-4 [&>*]:min-w-0">
               <Field>
                 <FieldLabel htmlFor="et-telefono">Teléfono</FieldLabel>
                 <Input
@@ -166,7 +166,7 @@ export function EditarTitularDrawer({
               </Field>
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-2 gap-4 [&>*]:min-w-0">
               <Field>
                 <FieldLabel htmlFor="et-documento">Documento</FieldLabel>
                 <Input
