@@ -169,6 +169,61 @@ describe("ningún piso en píxeles se come la pantalla", () => {
   })
 })
 
+// ── Familia 5 · una pantalla o CABE o CRECE, y hay que decirlo ───────────────────────────────────
+
+/**
+ * Las pantallas del panel que crecen a propósito, con el motivo.
+ *
+ * ── POR QUÉ ESTO ES UNA LISTA Y NO UNA REGLA ──────────────────────────────────────────────────
+ *
+ * Una columna con `flex-1` reclama el alto que sobra. Con `min-h-0` puede además ENCOGERSE, así que
+ * la pantalla cabe en el viewport y lo que scrollea es cada panel por dentro. Sin `min-h-0` no baja
+ * de su contenido: la pantalla crece y quien scrollea es la página.
+ *
+ * Las dos son decisiones válidas —una agenda es una superficie de trabajo, la ficha de una consulta
+ * es un documento— y ninguna es «la correcta». Lo que no puede pasar es que se cambie de una a la
+ * otra SIN QUE NADIE SE ENTERE, que es exactamente lo que pasó el 27-ago: la agenda pasó de caber a
+ * crecer dentro de un commit que arreglaba otra cosa, y el cliente lo reportó por tercera vez con
+ * las mismas palabras («toda la página se mueve hacia abajo»).
+ *
+ * Con esta lista, cambiar de forma obliga a escribirlo acá. Ese es todo el mecanismo.
+ */
+const PANTALLAS_QUE_CRECEN: Record<string, string> = {
+  "app/dashboard/consultas/[id]/page.tsx":
+    "La ficha de una consulta es un DOCUMENTO: cabecera, SOAP, transcripción y adjuntos, uno debajo " +
+    "del otro. No hay paneles que repartir y su único scroller —la transcripción— ya trae su propio " +
+    "techo (`max-h-[45vh]`). La rama del Cockpit, que sí es superficie de trabajo, sí lleva `min-h-0`.",
+}
+
+describe("cada pantalla del panel declara si cabe o si crece", () => {
+  it("toda columna con flex-1 lleva min-h-0, salvo las que están declaradas", () => {
+    const sinDeclarar: string[] = []
+    for (const ruta of tsx()) {
+      if (!/^app\/dashboard\/.*(page|layout)\.tsx$/.test(ruta)) continue
+      const texto = sinComentarios(readFileSync(join(RAIZ, ruta), "utf8"))
+      for (const { cls, linea } of clases(texto)) {
+        // `flex-1` en una COLUMNA es un reclamo de alto. En una fila es de ancho y no aplica.
+        if (!/(^|[:\s])flex-1\b/.test(cls) || !/\bflex-col\b/.test(cls)) continue
+        if (/\bmin-h-0\b/.test(cls)) continue
+        if (PANTALLAS_QUE_CRECEN[ruta]) continue
+        sinDeclarar.push(`${ruta}:${linea} → ${cls.slice(0, 90)}`)
+      }
+    }
+    expect(
+      sinDeclarar,
+      "esta columna reclama el alto que sobra pero no puede encogerse, así que la PÁGINA va a " +
+        "scrollear. Si es a propósito, decilo en PANTALLAS_QUE_CRECEN con el motivo; si no, ponele " +
+        "`min-h-0`",
+    ).toEqual([])
+  })
+
+  it("la lista de excepciones no se llena de pantallas que ya no existen", () => {
+    // Una excepción que sobrevive a su archivo es permiso para el que venga después.
+    const huerfanas = Object.keys(PANTALLAS_QUE_CRECEN).filter((r) => !tsx().includes(r))
+    expect(huerfanas, "estas excepciones apuntan a archivos que no existen").toEqual([])
+  })
+})
+
 // ── Familia 3 · texto de usuario que no parte ────────────────────────────────────────────────────
 
 describe("las burbujas de conversación parten el texto largo", () => {
