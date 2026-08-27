@@ -1,5 +1,7 @@
 import { SignupForm } from "@/components/signup-form"
 
+export const metadata = { title: "Crear cuenta · Tuvetia" }
+
 export default function SignupPage() {
   return (
     <div className="app-theme relative flex min-h-svh flex-col items-center justify-center gap-6 bg-background p-6 md:p-10">
