@@ -29,6 +29,15 @@ import { cumplimiento, type DiaDelMes } from "@/lib/tablero/cumplimiento"
 //   daltonismo el ámbar y la marca de la casa se parecen; la frase no.
 // · TOKENS Y NUNCA HEX (los pone `cumplimiento()`): la app tiene tema claro y oscuro.
 
+// El carril por donde corre el anillo: es una LÍNEA, no texto.
+//
+// Estaba escrito `var(--color-bg-subtle, var(--muted))`, y las dos mitades estaban mal.
+// `--color-bg-subtle` no existe en ningún lado del repo —cero apariciones en el CSS— así que
+// ganaba siempre el respaldo; y `--muted` es el color de TEXTO tenue (#5d706a, calibrado a 5.26:1
+// de contraste sobre blanco). O sea que el carril se pintaba de un gris de texto y competía con el
+// dato que tenía que enmarcar. `--border` es lo que corresponde: se ve, y se retira.
+const CARRIL_DEL_ANILLO = { fill: "var(--border)" }
+
 export function CumplimientoDeVentas({
   vendidoCents,
   metaCents,
@@ -43,7 +52,7 @@ export function CumplimientoDeVentas({
   const c = cumplimiento(vendidoCents, metaCents, hoy)
 
   return (
-    <div className="flex h-full flex-col rounded-xl border bg-card p-4">
+    <div className="flex h-full flex-col rounded-xl border border-line-soft bg-panel p-4">
       <div className="mb-3">
         <div className="flex items-center gap-1.5 text-sm font-semibold">
           <Target aria-hidden className="size-4" style={{ color: "var(--color-brand)" }} />
@@ -92,7 +101,7 @@ export function CumplimientoDeVentas({
                   angleAxisId={0}
                   cornerRadius={999}
                   fill={c.color}
-                  background={{ fill: "var(--color-bg-subtle, var(--muted))" }}
+                  background={CARRIL_DEL_ANILLO}
                   isAnimationActive={false}
                 />
               </RadialBarChart>

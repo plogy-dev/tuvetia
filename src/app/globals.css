@@ -66,6 +66,7 @@
   --color-ink-2: var(--ink-2);
   --color-surface: var(--surface);
   --color-surface-2: var(--surface-2);
+  --color-panel: var(--panel);
   --color-text-2: var(--text-2);
   --color-accent-bright: var(--accent-bright);
   /* tokens semánticos de marca */
@@ -152,6 +153,17 @@
   --ink-2: var(--tv-snow);      /* bandas / announce */
   --surface: var(--tv-white);   /* cards */
   --surface-2: var(--tv-snow);  /* elevado */
+  /* El panel que SE RETIRA: el desglose del tablero —las donas, el gráfico, las listas— contra el
+     cual las cifras se adelantan en blanco. Es el «contraste gris y blanco» que pidió David con la
+     referencia de OkVet, y el relieve se consigue así y no con sombra, que su propio sistema sólo
+     permite en popovers y menús.
+
+     TIENE NOMBRE PROPIO Y NO REUSA `--surface-2` POR UNA RAZÓN CONCRETA: en el contexto oscuro
+     `--surface-2` y `--card` son EL MISMO valor (#14211c), así que allá el ritmo se aplanaba y las
+     cifras quedaban indistinguibles de los paneles. Lo que se conserva entre temas no es el color
+     sino la RELACIÓN: la cifra se adelanta, el panel se retira. En claro eso es nieve contra
+     blanco; en oscuro es el panel al ras del fondo con la cifra un escalón por encima. */
+  --panel: var(--tv-snow);
   --border: #e2e9e5;
   --border-soft: #edf2f0;
   /* `--border-strong` es para bordes de INPUT: un campo tiene que verse como un
@@ -299,6 +311,8 @@
   --ink-2: #0a1210;
   --surface: var(--tv-graphite);
   --surface-2: #14211c;
+  /* Al ras del fondo: acá lo que se adelanta es la cifra (`--card`, #14211c). */
+  --panel: var(--tv-graphite);
   --border: #223129;
   --border-soft: #1a2620;
   --border-strong: #5c7066;

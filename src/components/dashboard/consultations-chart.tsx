@@ -8,7 +8,7 @@ export function ConsultationsChart({ data }: { data: { label: string; count: num
   const total = data.reduce((s, d) => s + d.count, 0)
 
   return (
-    <div className="flex h-full flex-col rounded-xl border bg-card p-4">
+    <div className="flex h-full flex-col rounded-xl border border-line-soft bg-panel p-4">
       <div className="mb-3">
         <div className="flex items-center gap-1.5 text-sm font-semibold">
           {/* El icono lleva el MISMO tono que las barras y que la pastilla de consultas: es la

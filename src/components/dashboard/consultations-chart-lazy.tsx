@@ -8,7 +8,7 @@ export const ConsultationsChartLazy = dynamic(
   {
     ssr: false,
     loading: () => (
-      <div className="h-64 animate-pulse rounded-xl border bg-card" aria-label="Cargando gráfico…" />
+      <div className="h-64 animate-pulse rounded-xl border border-line-soft bg-panel" aria-label="Cargando gráfico…" />
     ),
   },
 )

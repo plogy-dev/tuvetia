@@ -23,7 +23,7 @@ export function PacientesPorEspecie({ datos }: { datos: EspeciePaciente[] }) {
   const total = datos.reduce((s, d) => s + d.total, 0)
 
   return (
-    <div className="flex h-full flex-col rounded-xl border bg-card p-4">
+    <div className="flex h-full flex-col rounded-xl border border-line-soft bg-panel p-4">
       <div className="mb-3">
         <div className="flex items-center gap-1.5 text-sm font-semibold">
           {/* El violeta de «pacientes», el mismo de su pastilla — identidad por dominio. */}
@@ -66,7 +66,7 @@ export function PacientesPorEspecie({ datos }: { datos: EspeciePaciente[] }) {
                   innerRadius={55}
                   outerRadius={80}
                   paddingAngle={2}
-                  stroke="var(--card)"
+                  stroke="var(--panel)"
                   strokeWidth={2}
                 >
                   {datos.map((d) => (
@@ -109,7 +109,7 @@ export function PacientesPorEspecie({ datos }: { datos: EspeciePaciente[] }) {
                   {/* La barra de proporción, como la referencia. `aria-hidden` porque el número y
                       el porcentaje de arriba ya lo dicen: para un lector de pantalla esto sería la
                       misma información una tercera vez. */}
-                  <div aria-hidden className="mt-1 h-1.5 overflow-hidden rounded-full bg-surface-2">
+                  <div aria-hidden className="mt-1 h-1.5 overflow-hidden rounded-full bg-card">
                     <div
                       className="h-full rounded-full"
                       style={{ width: `${pct}%`, background: d.color }}

@@ -77,26 +77,34 @@ export function StatCard({
     // sólo permite una, la de popovers— y la cifra en MONO, no en display. Que el número vaya en
     // mono no es capricho: es la misma regla que gobierna todo el sistema, donde la mono se reserva
     // para valores clínicos y montos, o sea para lo que se lee como dato y no como texto.
-    // SIN BORDE Y SOBRE LA SUPERFICIE ELEVADA, no una card más.
     //
-    // EL PROBLEMA QUE RESUELVE. En el tablero había SEIS cajas con exactamente el mismo
-    // `rounded-xl border bg-card`: las cuatro métricas, el gráfico y la lista de citas. Sin
-    // jerarquía, la pantalla se lee como una grilla de ladrillos y nada dice qué mirar primero —
-    // que es la mitad de lo que el cliente describió como "no me gusta cómo está organizada".
+    // ── EL RITMO GRIS/BLANCO, Y POR QUÉ ESTÁ INVERTIDO RESPECTO DE ANTES ────────────────────────
     //
-    // Una métrica NO es un panel: es un dato suelto. Los paneles (el gráfico, la lista) llevan
-    // borde porque contienen cosas; una métrica es una cifra con su rótulo, y encerrarla en el
-    // mismo marco la pone al mismo nivel de algo que tiene diez filas adentro.
+    // El principio no cambió y sigue siendo el mismo que resolvió el problema original: en el
+    // tablero había SEIS cajas con exactamente el mismo `rounded-xl border bg-card` —las cuatro
+    // métricas, el gráfico y la lista— y sin jerarquía la pantalla se leía como una grilla de
+    // ladrillos, sin nada que dijera qué mirar primero. Lo que cambió es QUÉ NIVEL OCUPA CADA UNO.
     //
-    // Queda un solo nivel de contraste —relleno suave contra el fondo— y con eso las cuatro
-    // métricas leen como una FILA de datos, no como cuatro tarjetas compitiendo con los paneles.
+    // Antes: métricas en gris sin borde, paneles en blanco. Ahora al revés — y lo pidió David
+    // mandando su referencia de OkVet: «ves cómo ese cambio de color y de relieve le da
+    // profesionalidad y estética… ese toque que le da el contraste gris y blanco».
+    //
+    // En esa referencia las CIFRAS van en blanco nítido y el desglose —las donas, las listas— en
+    // gris. Tiene sentido más allá del gusto: lo blanco se adelanta y lo gris se retira, así que
+    // el nivel claro le toca a lo que hay que leer primero. Con la asignación vieja pasaba lo
+    // contrario: los números se hundían y el andamiaje se adelantaba.
+    //
+    // EL «RELIEVE» SE DA CON CONTRASTE, NO CON SOMBRA, y eso no es una interpretación libre: el
+    // sistema de diseño del propio David dice, en `globals.css`, que la única sombra permitida es
+    // la de popovers y menús. Se le quitó `shadow-sm` a 19 tarjetas por esa regla. Subir estas al
+    // blanco contra paneles grises da la separación que él está viendo sin romper su propia norma.
     //
     // EL RADIO Y EL PADDING NO SE TOCAN: los 12px de card y el padding 24 salen del mockup de David
-    // y siguen valiendo. Lo que cambia es el MARCO, que es donde estaba el problema.
+    // y siguen valiendo.
     <Contenedor
       {...(onVer ? { type: "button", onClick: onVer } : {})}
       className={cn(
-        "group relative flex flex-col gap-2 rounded-xl bg-surface-2 p-6 text-left",
+        "group relative flex flex-col gap-2 rounded-xl border border-line bg-card p-6 text-left",
         onVer &&
           "transition-colors hover:bg-brand-soft focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none",
         className,

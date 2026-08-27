@@ -22,7 +22,7 @@ export type NotaEnBorrador = {
 export function NotasPorAprobar({ notas }: { notas: NotaEnBorrador[] }) {
   // `p-4` como los demás paneles del tablero (gráfico y donas): era el único en `p-5`.
   return (
-    <div className="flex h-full flex-col gap-3 rounded-xl border bg-card p-4">
+    <div className="flex h-full flex-col gap-3 rounded-xl border border-line-soft bg-panel p-4">
       <p className="flex items-center gap-1.5 text-[13px] font-medium text-fg-muted">
         {/* El ámbar de lo pendiente — el mismo de la pastilla «Notas por revisar». */}
         <FileClock className="size-3.5" style={{ color: "var(--chart-2)" }} aria-hidden />
@@ -39,7 +39,7 @@ export function NotasPorAprobar({ notas }: { notas: NotaEnBorrador[] }) {
             <li key={n.id}>
               <Link
                 href={`/dashboard/consultas/${n.consultation?.id ?? ""}`}
-                className="flex items-center gap-3 rounded-[7px] px-2 py-1.5 transition-colors hover:bg-surface-2 focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+                className="flex items-center gap-3 rounded-[7px] px-2 py-1.5 transition-colors hover:bg-card focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
               >
                 <span className="min-w-0 flex-1 truncate text-sm text-fg">
                   {n.consultation?.patient?.name ?? "Consulta"}
