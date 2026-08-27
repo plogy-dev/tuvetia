@@ -139,6 +139,12 @@ describe("inventario de tools — cobertura y separación lectura/escritura", ()
     "get_patient_summary",
     "get_owner_by_phone",
     "list_appointments_on_day",
+    // Entró el 27-ago, y lo destapó una prueba, no una revisión de código: al preguntarle «¿a qué
+    // pacientes les toca refuerzo este mes?», VetGPT veía el CONTEO por las señales de la clínica
+    // («2 por vencer, uno vencido») pero no podía nombrar a nadie — ninguna de las 22 tools
+    // consultaba `vaccines`. Se negó a inventar nombres, que es lo correcto, pero la capacidad
+    // simplemente no existía.
+    "list_vaccine_boosters",
     "get_clinic_hours",
     "list_available_slots",
     "search_whatsapp_conversation",
@@ -160,7 +166,7 @@ describe("inventario de tools — cobertura y separación lectura/escritura", ()
     "update_patient_record",
   ]
 
-  it("expone exactamente las 22 tools esperadas", () => {
+  it("expone exactamente las 23 tools esperadas", () => {
     expect(Object.keys(tools).sort()).toEqual([...LECTURA, ...ESCRITURA].sort())
   })
 

@@ -271,16 +271,25 @@ export function buildAthosTools(supabase: SB, ctx: AgentContext) {
 
     get_patient_summary: tool({
       description:
-        "Resumen clínico de un paciente: ficha (especie, raza, sexo, nacimiento, peso), ALERGIAS (las severas son bloqueantes para cualquier plan) y medicación activa.",
+        "Resumen clínico de un paciente: ficha (especie, raza, sexo, nacimiento, peso), ALERGIAS (las " +
+        "severas son bloqueantes para cualquier plan), medicación activa y vacunas con su próxima dosis.",
       inputSchema: z.object({ patient_id: z.string().uuid() }),
       execute: async ({ patient_id }) => {
-        const [patient, allergies, meds] = await Promise.all([
+        const [patient, allergies, vacunas, meds] = await Promise.all([
           supabase
             .from("patients")
             .select("id, name, species, breed, sex, birth_date, weight_kg, owner:owners(id, full_name, phone, email)")
             .eq("id", patient_id)
             .maybeSingle(),
           supabase.from("allergies").select("allergen, severity, reaction").eq("patient_id", patient_id),
+          // Las vacunas faltaban en el resumen (hallado probando, 27-ago): el agente no podía decir
+          // «Luna tiene la quíntuple vencida» ni mirando la ficha entera. Es de las rutinas que más
+          // ocupan a una clínica y era el único bloque de la ficha al que no llegaba.
+          supabase
+            .from("vaccines")
+            .select("vaccine_name, administered_at, next_dose_at")
+            .eq("patient_id", patient_id)
+            .order("next_dose_at", { ascending: true, nullsFirst: false }),
           supabase
             .from("medications")
             .select("drug_name, dose, frequency, is_chronic, end_date")
@@ -301,6 +310,12 @@ export function buildAthosTools(supabase: SB, ctx: AgentContext) {
             .filter((a) => a.severity === "severe")
             .map((a) => a.allergen),
           active_medications: meds.data ?? [],
+          vaccines: vacunas.data ?? [],
+          // Los refuerzos VENCIDOS, ya separados. Comparar fechas en prosa es donde un LLM se
+          // equivoca sin que nadie lo note, así que la cuenta la hace el código.
+          overdue_boosters: ((vacunas.data ?? []) as { vaccine_name: string; next_dose_at: string | null }[])
+            .filter((v) => v.next_dose_at && v.next_dose_at < new Date().toISOString().slice(0, 10))
+            .map((v) => `${v.vaccine_name} (venció ${v.next_dose_at})`),
         }
       },
     }),
@@ -337,6 +352,56 @@ export function buildAthosTools(supabase: SB, ctx: AgentContext) {
           .order("starts_at", { ascending: true })
         if (error) return { error: error.message }
         return { count: (data ?? []).length, appointments: data ?? [] }
+      },
+    }),
+
+    // ── LAS VACUNAS, QUE NO ESTABAN EN NINGUNA HERRAMIENTA ──────────────────────────────────
+    //
+    // Hallado probando (27-ago). Al preguntarle «¿a qué pacientes les toca refuerzo este mes?»,
+    // VetGPT contestó que veía «2 refuerzos por vencer, uno ya vencido» —eso llega por las señales
+    // de la clínica, que son un CONTEO— pero que no alcanzaba a ver a qué pacientes correspondían,
+    // y se negó a inventar nombres. El comportamiento fue impecable; la capacidad no existía.
+    //
+    // Y no era sólo esta pregunta: `get_patient_summary` trae alergias y medicación pero tampoco
+    // vacunas, así que tampoco podía decir «Luna tiene la quíntuple vencida» mirando una ficha.
+    // El recordatorio de refuerzos es de las rutinas que más ocupan a una clínica, y el asistente
+    // era ciego a ella entera.
+    //
+    // `next_dose_at` es la fecha que importa: `administered_at` cuenta la historia, `next_dose_at`
+    // es lo accionable. Por eso ordena por ahí y trae también las VENCIDAS — un refuerzo atrasado
+    // es más urgente que uno que vence la semana que viene, y esconderlo sería lo contrario de
+    // ayudar.
+    list_vaccine_boosters: tool({
+      description:
+        "Refuerzos de vacuna con su fecha de próxima dosis, entre dos fechas (YYYY-MM-DD). Úsala " +
+        "para '¿a quién le toca refuerzo este mes?' o '¿qué vacunas están vencidas?'. Incluye las " +
+        "VENCIDAS si el rango las abarca: un refuerzo atrasado es más urgente que uno próximo. " +
+        "Devuelve el paciente y su titular, para poder avisarle.",
+      inputSchema: z.object({
+        desde: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+        hasta: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+      }),
+      execute: async ({ desde, hasta }) => {
+        const { data, error } = await supabase
+          .from("vaccines")
+          // El titular cuelga del paciente, en un solo embed anidado: hay que poder avisarle, y
+          // sin el teléfono la respuesta obliga a una segunda pregunta.
+          .select(
+            "vaccine_name, administered_at, next_dose_at, patient:patients(id, name, species, owner:owners(full_name, phone))",
+          )
+          .not("next_dose_at", "is", null)
+          .gte("next_dose_at", desde)
+          .lte("next_dose_at", hasta)
+          .order("next_dose_at", { ascending: true })
+        if (error) return { error: error.message }
+        const hoy = new Date().toISOString().slice(0, 10)
+        const filas = (data ?? []).map((v) => {
+          const r = v as unknown as { next_dose_at: string }
+          // El estado se calcula acá y no se le deja al modelo: comparar fechas en prosa es
+          // justo donde un LLM se equivoca sin que nadie lo note.
+          return { ...v, estado: r.next_dose_at < hoy ? "vencida" : "por vencer" }
+        })
+        return { count: filas.length, refuerzos: filas }
       },
     }),
 
