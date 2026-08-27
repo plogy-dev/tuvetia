@@ -73,7 +73,24 @@ def _auth(authorization: str | None, clinic_id: str) -> tuple[str, str]:
 
 @app.get("/health")
 def health():
-    return {"status": "ok", "service": "athos"}
+    """Vivo, y CON QUÉ VERSIÓN.
+
+    Devolvía `{"status": "ok", "service": "athos"}` y nada más — o sea que no había forma de saber
+    si un push ya estaba corriendo. El 26 y el 27-ago hubo que decirle al cliente cuatro veces
+    «debería haber redesplegado solo, pero no lo puedo verificar» sobre arreglos suyos, incluido
+    uno de la transcripción que estaba probando en ese momento. Un healthcheck que sólo dice «vivo»
+    contesta la pregunta fácil y deja sin contestar la que importa: ¿vivo con qué código?
+
+    `RAILWAY_GIT_COMMIT_SHA` lo inyecta Railway solo en cada build; el fallback deja el campo en
+    "desconocido" en local y en cualquier otro entorno, sin romper nada ni fingir un dato.
+    """
+    import os
+
+    return {
+        "status": "ok",
+        "service": "athos",
+        "commit": (os.environ.get("RAILWAY_GIT_COMMIT_SHA") or "desconocido")[:12],
+    }
 
 
 @app.post("/athos/chat")
