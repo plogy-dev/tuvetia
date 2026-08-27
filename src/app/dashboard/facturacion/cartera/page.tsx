@@ -37,7 +37,7 @@ export default async function CarteraPage() {
         <p className="mt-4 rounded-xl border border-line bg-surface p-6 text-sm text-fg-muted">
           Activa el módulo de facturación para gestionar la cartera.{' '}
           <Link href="/dashboard/facturacion" className="underline underline-offset-2">
-            Ir a Facturación
+            Ir a Ventas
           </Link>
         </p>
       </PageShell>
@@ -82,7 +82,7 @@ export default async function CarteraPage() {
         className="inline-flex items-center gap-1 text-xs text-fg-faint hover:text-fg"
       >
         <ArrowLeft className="size-3.5" aria-hidden />
-        Facturación
+        Ventas
       </Link>
       {/* `items-end` como el resto de las cabeceras del módulo: con `items-center` la acción de la
           derecha se centraba contra el bloque ENTERO de título + descripción, así que flotaba a

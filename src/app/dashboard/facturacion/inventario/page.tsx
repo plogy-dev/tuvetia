@@ -18,7 +18,7 @@ import { ImportBatchesList } from '@/components/facturacion/ImportBatchesList';
 import { PageShell } from '@/components/ui/page-shell';
 import type { ImportBatchRow } from '@/lib/supabase/types';
 
-export const metadata = { title: "Inventario · Tuvetia" }
+export const metadata = { title: "Existencias · Tuvetia" }
 
 
 export const dynamic = 'force-dynamic';
@@ -74,7 +74,7 @@ export default async function InventarioPage({
   if (!active) {
     return (
       <PageShell>
-        <h1 className="text-2xl font-semibold tracking-tight text-fg">Inventario</h1>
+        <h1 className="text-2xl font-semibold tracking-tight text-fg">Existencias</h1>
         <p className="mt-4 rounded-xl border border-line bg-surface-2 px-4 py-3 text-sm text-fg-muted">
           El módulo no está activo.{' '}
           <Link href="/dashboard/facturacion/configuracion" className="underline underline-offset-2">
@@ -154,9 +154,9 @@ export default async function InventarioPage({
             className="mb-3 inline-flex items-center gap-1 text-xs text-fg-faint hover:text-fg"
           >
             <ArrowLeft className="size-3.5" aria-hidden />
-            Facturación
+            Ventas
           </Link>
-          <h1 className="text-2xl font-semibold tracking-tight text-fg">Inventario</h1>
+          <h1 className="text-2xl font-semibold tracking-tight text-fg">Existencias</h1>
           <p className="mt-1 text-sm text-fg-faint">
             Existencias derivadas de los movimientos — nunca se editan a mano.
           </p>
@@ -167,7 +167,7 @@ export default async function InventarioPage({
             className="inline-flex items-center gap-2 rounded-lg border border-line bg-surface px-3 py-2 text-sm text-fg-muted hover:bg-surface-2 hover:text-fg transition"
           >
             <BookOpen className="size-4" aria-hidden />
-            Catálogo
+            Productos y servicios
           </Link>
           <Link
             href="/dashboard/facturacion/compras"
@@ -181,7 +181,7 @@ export default async function InventarioPage({
             className="inline-flex items-center gap-2 rounded-lg border border-line bg-surface px-3 py-2 text-sm text-fg-muted hover:bg-surface-2 hover:text-fg transition"
           >
             <ArrowLeftRight className="size-4" aria-hidden />
-            Movimientos
+            Salidas y reservas
           </Link>
           {/* BAJAR EL INVENTARIO A EXCEL. Es un <a> y no un botón con JS porque la respuesta es
               un archivo: así anda el click derecho, "abrir en otra pestaña" y la descarga no
@@ -321,7 +321,7 @@ export default async function InventarioPage({
               href="/dashboard/facturacion/inventario/movimientos"
               className="text-xs text-fg-faint underline-offset-2 hover:text-fg hover:underline"
             >
-              Ver todos
+              Ver salidas y reservas
             </Link>
           </div>
           <ul className="divide-y divide-line rounded-xl border border-line bg-surface text-sm">

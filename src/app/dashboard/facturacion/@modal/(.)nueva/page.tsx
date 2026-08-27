@@ -22,7 +22,7 @@ export default function ModalNuevaVenta({
   searchParams: Promise<Record<string, string | undefined>>
 }) {
   return (
-    <ModalDeVenta titulo="Nueva cuenta">
+    <ModalDeVenta titulo="Nueva venta">
       <NuevaFacturaPage searchParams={searchParams} enModal />
     </ModalDeVenta>
   )

@@ -22,7 +22,7 @@ import { requireClinicPage } from "@/lib/facturacion/page-auth"
 // SE HABILITA EL .XLSX cuando se reemplace la librería (candidatos: exceljs, o el SheetJS mantenido
 // de su CDN): es editar la constante de `createImportPreview` y el `accept` del input.
 
-export const metadata = { title: "Importar inventario · Tuvetia" }
+export const metadata = { title: "Importar catálogo · Tuvetia" }
 export const dynamic = "force-dynamic"
 
 export default async function ImportarInventarioPage() {
@@ -37,14 +37,14 @@ export default async function ImportarInventarioPage() {
       <div className="mx-auto w-full max-w-3xl px-[30px] pb-16 pt-7">
         <header className="mb-6">
           <Link
-            href="/dashboard/facturacion/inventario"
+            href="/dashboard/facturacion"
             className="mb-3 inline-flex items-center gap-1 text-xs text-fg-faint hover:text-fg"
           >
             <ArrowLeft className="size-3.5" aria-hidden />
-            Inventario
+            Ventas
           </Link>
           <h1 className="font-display text-[26px] font-semibold leading-[1.15] tracking-[-0.022em] text-fg">
-            Importar inventario
+            Importar catálogo
           </h1>
           <p className="mt-[3px] text-[13px] text-fg-muted">
             Catálogo y existencias desde una planilla en CSV

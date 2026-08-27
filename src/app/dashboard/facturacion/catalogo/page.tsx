@@ -13,7 +13,7 @@ import { CategoryManager } from '@/components/facturacion/CategoryManager';
 import { TabNav, TabNavLink } from '@/components/ui/tab-nav';
 import { PageShell } from '@/components/ui/page-shell';
 
-export const metadata = { title: "Catálogo · Tuvetia" }
+export const metadata = { title: "Productos y servicios · Tuvetia" }
 
 
 export const dynamic = 'force-dynamic';
@@ -42,7 +42,7 @@ export default async function CatalogoPage({
   if (settings?.module_status !== 'ACTIVO') {
     return (
       <PageShell>
-        <h1 className="text-2xl font-semibold tracking-tight text-fg">Catálogo</h1>
+        <h1 className="text-2xl font-semibold tracking-tight text-fg">Productos y servicios</h1>
         <p className="mt-4 rounded-xl border border-line bg-surface-2 px-4 py-3 text-sm text-fg-muted">
           El módulo no está activo.{' '}
           <Link href="/dashboard/facturacion/configuracion" className="underline underline-offset-2">
@@ -74,15 +74,15 @@ export default async function CatalogoPage({
     <PageShell>
       <header>
         <Link
-          href="/dashboard/facturacion/inventario"
+          href="/dashboard/facturacion"
           className="mb-3 inline-flex items-center gap-1 text-xs text-fg-faint hover:text-fg"
         >
           <ArrowLeft className="size-3.5" aria-hidden />
-          Inventario
+          Ventas
         </Link>
         <h1 className="flex items-center gap-2 text-2xl font-semibold tracking-tight text-fg">
           <Boxes className="size-6 text-fg-muted" aria-hidden />
-          Catálogo
+          Productos y servicios
         </h1>
         <p className="mt-1 text-sm text-fg-faint">
           Servicios, productos y categorías de tu práctica. Editable en cualquier momento.

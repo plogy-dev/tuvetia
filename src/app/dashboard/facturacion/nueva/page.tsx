@@ -14,7 +14,7 @@ import { sugerirRenglones } from '@/lib/facturacion/lo-recetado';
 import { planDelPaciente } from '@/lib/planes-salud/consultas';
 import { FormularioDeFiltros } from "@/components/ui/formulario-de-filtros"
 
-export const metadata = { title: "Nueva cuenta · Tuvetia" }
+export const metadata = { title: "Nueva venta · Tuvetia" }
 
 
 export const dynamic = 'force-dynamic';
@@ -150,7 +150,7 @@ export default async function NuevaFacturaPage({
                 <ArrowLeft className="size-3.5" aria-hidden />
                 Cambiar cliente
               </Link>
-              <h1 className="text-2xl font-semibold tracking-tight text-fg">Nueva cuenta</h1>
+              <h1 className="text-2xl font-semibold tracking-tight text-fg">Nueva venta</h1>
             </header>
           )}
           {items.length === 0 && (
@@ -230,9 +230,9 @@ export default async function NuevaFacturaPage({
                 className="mb-3 inline-flex items-center gap-1 text-xs text-fg-faint hover:text-fg"
               >
                 <ArrowLeft className="size-3.5" aria-hidden />
-                Facturación
+                Ventas
               </Link>
-              <h1 className="text-2xl font-semibold tracking-tight text-fg">Nueva cuenta</h1>
+              <h1 className="text-2xl font-semibold tracking-tight text-fg">Nueva venta</h1>
             </>
           )}
 {/* YA NO ES UN PASO, ES UN SELECTOR — y esa diferencia la pidió David el 25-ago con estas

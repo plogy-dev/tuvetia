@@ -117,7 +117,7 @@ export default async function FacturaDetallePage({
           className="mb-3 inline-flex items-center gap-1 text-xs text-fg-faint hover:text-fg"
         >
           <ArrowLeft className="size-3.5" aria-hidden />
-          Facturación
+          Ventas
         </Link>
         <div className="flex flex-wrap items-center gap-3">
           <h1 className="text-2xl font-semibold tracking-tight text-fg">
