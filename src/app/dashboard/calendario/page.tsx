@@ -158,7 +158,12 @@ export default async function CalendarioPage() {
     // `h-svh`) y el scroll vive en el área de contenido, así que este `flex-1 min-h-0` reparte
     // espacio de verdad. Acá hubo un `lg:h-[calc(...)]` un día — el parche que sostuvo esta
     // pantalla mientras la raíz seguía en `min-h-svh`. Se retira con la raíz arreglada.
-    <div className="flex flex-col gap-4 p-[clamp(16px,3vw,32px)] lg:min-h-0 lg:flex-1">
+    // `lg:flex-1` SIN `lg:min-h-0`: la pantalla llena lo que sobra, pero no se aprieta por debajo
+    // de su contenido. Con `min-h-0`, «Hoy» + el panel + la grilla se comprimían para caber en el
+    // viewport y cada uno terminaba con su propia barra de desplazamiento — tres barras para una
+    // pantalla. El scroll, cuando de verdad hace falta, ya lo pone el contenedor de
+    // `dashboard/layout.tsx`, que deja quietas la cabecera y la barra lateral.
+    <div className="flex flex-col gap-4 p-[clamp(16px,3vw,32px)] lg:flex-1">
       {/* SIN <h1> ACÁ, y es a propósito. Le puse uno `sr-only` en el PR #98 dando por hecho que la
           pantalla se quedaba sin encabezado, porque `page.tsx` no tenía ninguno. Medido después en
           producción: sí lo tiene — `AppointmentCalendar` renderiza <h1>Calendario</h1>. Con el mío

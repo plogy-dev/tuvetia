@@ -501,7 +501,16 @@ export function AppointmentCalendar({
     // grilla llene lo que queda de pantalla con scroll interno. SIN `lg:items-start`: las columnas
     // se estiran al alto de la fila (es lo que le da alto al `flex-1` del calendario); el panel no
     // cambia a la vista porque su contenido ya vive arriba y su raíz no pinta fondo.
-    <div className="flex flex-col gap-4 lg:min-h-0 lg:flex-1 lg:flex-row lg:gap-5">
+    // `lg:flex-1` SIN `lg:min-h-0`, y la diferencia es todo el arreglo del 27-ago.
+    //
+    // `flex-1` sola crece para llenar lo que sobre —en una pantalla alta, la grilla se estira— pero
+    // NO se encoge por debajo de su contenido, porque un item de flex tiene `min-height: auto`.
+    // `min-h-0` es exactamente lo que anulaba esa protección: con él, la fila se apretaba hasta
+    // caber en el viewport y las dos columnas tenían que ponerse su propia barra para sobrevivir.
+    //
+    // Sin `min-h-0` las dos cosas pasan a ser ciertas a la vez: sobra espacio y se reparte, falta y
+    // la fila crece hacia abajo. El scroll, cuando hace falta, lo pone el contenedor del panel.
+    <div className="flex flex-col gap-4 lg:flex-1 lg:flex-row lg:gap-5">
       <PanelDeAgenda
         fecha={date}
         onElegirFecha={(d) => {
@@ -629,7 +638,13 @@ export function AppointmentCalendar({
           A 220 px la grilla no queda inusable: `rbc-time-content` scrollea por dentro, que es lo
           que esta pantalla viene diciendo desde arriba — el scroll vive en la rejilla de horas y
           no en la página. */}
-      <div className="tuvetia-calendar h-[75svh] overflow-x-auto lg:h-auto lg:min-h-[220px] lg:flex-1">
+      {/* EL PISO SUBE DE 220 A 480 px. Los 220 venían de cuando la fila se apretaba contra el
+          viewport: eran lo mínimo para que la grilla no quedara inusable, no una medida elegida.
+          Ahora que la fila crece en vez de encogerse, el piso puede ser el que de verdad hace
+          falta — 480 px son unas siete horas a los 72 px por hora que necesita una cita de media
+          hora para ser legible, o sea una jornada de mañana entera sin scrollear por dentro.
+          Sigue siendo un PISO y no una altura: en una pantalla alta, `flex-1` la estira más. */}
+      <div className="tuvetia-calendar h-[75svh] overflow-x-auto lg:h-auto lg:min-h-[480px] lg:flex-1">
         <div className="h-full min-w-[700px]">
         <DnDCalendar
           localizer={localizer}

@@ -65,7 +65,17 @@ export function PanelDeAgenda({
     // `lg:min-h-0 lg:overflow-y-auto`: la agenda ahora acota su alto al viewport (ver
     // calendario/page.tsx), así que si esta columna no cabe —muchos veterinarios en la lista—
     // scrollea ella sola en vez de devolverle el scroll a la página entera.
-    <aside className="flex w-full shrink-0 flex-col gap-4 lg:min-h-0 lg:w-64 lg:overflow-y-auto">
+    // ── ESTA COLUMNA NO SCROLLEA: CRECE ────────────────────────────────────────────────────────
+    //
+    // Tenía `lg:min-h-0 lg:overflow-y-auto`, o sea que se encogía por debajo de su contenido y se
+    // ponía su propia barra. El efecto: la lista de calendarios quedaba cortada a mitad de un
+    // nombre y el último veterinario no se veía. Reportado el 27-ago con captura — y esconder un
+    // vet en la pantalla donde se eligen los calendarios es esconder justo lo que se vino a elegir.
+    //
+    // Ahora mide lo que mide su contenido. Si es más alto que la pantalla, quien scrollea es el
+    // contenedor del panel (`dashboard/layout.tsx`), que ya existe y deja quietas la cabecera y la
+    // barra lateral. Una barra menos, y ningún nombre cortado.
+    <aside className="flex w-full shrink-0 flex-col gap-4 lg:w-64">
       {/* ── AVISOS ─────────────────────────────────────────────────────────────────────────────
           Se DICE el estado y se enlaza a donde se cambia; no se cambia acá. El interruptor real
           vive en Administración porque encenderlo decide que la clínica le escribe sola a sus
