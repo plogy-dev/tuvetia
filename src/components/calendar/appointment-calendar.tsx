@@ -48,6 +48,7 @@ import { HelpTip } from "@/components/help-tip"
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 import { citasVisibles, deOtros, sinAsignar, type FiltroDeAgenda } from "@/lib/agenda/filtro"
 import { coincideConLaBusqueda } from "@/lib/agenda/buscar"
+import { comoFechas, rangoVisible, type FranjaHoraria } from "@/lib/agenda/rango-visible"
 import { tipoDeCita } from "@/lib/agenda/tipos-de-cita"
 import { PanelDeAgenda } from "./panel-de-agenda"
 import { AvisoDeLaCita, type ResultadoDeAviso } from "./aviso-de-la-cita"
@@ -127,12 +128,20 @@ export function AppointmentCalendar({
   veTodo,
   acotarA,
   avisosActivos = false,
+  franjas = [],
 }: {
   initialAppointments: AppointmentRow[]
   initialRange: { start: string; end: string }
   patients: PatientOption[]
   owners: SelectOption[]
   vets: SelectOption[]
+  /**
+   * El horario de atención de la clínica, de toda la semana. Decide QUÉ HORAS DIBUJA LA GRILLA.
+   *
+   * Vacío no rompe nada: `rangoVisible` cae en una jornada por defecto. Es lo que ve una clínica
+   * que todavía no cargó su horario en Configuración.
+   */
+  franjas?: FranjaHoraria[]
   /** Quién está mirando. Es lo que hace posible separar "mi agenda" de la de la clínica. */
   miId: string | null
   /**
@@ -428,6 +437,30 @@ export function AppointmentCalendar({
 
   const esProgramador = view === ("programador" as View)
 
+  // ── QUÉ HORAS SE DIBUJAN ──────────────────────────────────────────────────────────────────────
+  //
+  // Sin esto la librería dibuja las VEINTICUATRO, y con los 72 px por hora que necesita una cita de
+  // media hora para ser legible eso son 1.728 px: al abrir la agenda lo primero que se ve son las
+  // filas de la madrugada y las 8 de la mañana quedan fuera de pantalla.
+  //
+  // Se calcula sobre `events` y no sobre los filtrados: una cita que el filtro «mi agenda» esconde
+  // no tiene por qué achicar la grilla, pero tampoco puede achicarla y que al soltar el filtro
+  // aparezca fuera de rango. Con todas, el alto de la grilla no cambia al filtrar — y una grilla
+  // que cambia de tamaño cada vez que tocás un interruptor se siente rota.
+  const rango = useMemo(
+    () => rangoVisible(franjas, events.map((e) => ({ inicio: e.start, fin: e.end }))),
+    [franjas, events],
+  )
+  const { min: horaMin, max: horaMax } = useMemo(() => comoFechas(rango, date), [rango, date])
+
+  // Dónde queda parada la grilla al abrir. Es el inicio del rango y no `new Date()`: a las 8 de la
+  // noche, arrancar en «ahora» deja la jornada entera arriba y fuera de vista.
+  const scrollA = useMemo(() => {
+    const d = new Date(date)
+    d.setHours(rango.desdeHora, 0, 0, 0)
+    return d
+  }, [date, rango.desdeHora])
+
   // Los componentes que react-big-calendar usa por dentro.
   //
   // MEMOIZADO, y no es micro-optimización: `components` es lo que la librería usa para construir
@@ -616,6 +649,9 @@ export function AppointmentCalendar({
                 resourceTitleAccessor: (r: object) => (r as RecursoDeVet).title,
               }
             : {})}
+          min={horaMin}
+          max={horaMax}
+          scrollToTime={scrollA}
           onRangeChange={handleRangeChange}
           selectable
           onSelectSlot={handleSelectSlot}

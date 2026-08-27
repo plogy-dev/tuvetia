@@ -17,6 +17,7 @@ import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { bogotaTimeOf } from "@/lib/date-utils"
 import type { Hueco } from "@/lib/agenda/huecos"
+import { duracionLegible } from "@/lib/agenda/duracion"
 
 export type CitaDeHoy = {
   id: string
@@ -113,8 +114,11 @@ export function DiaDeHoy({ citas, huecos }: { citas: CitaDeHoy[]; huecos: Hueco[
             <span className="w-12 shrink-0 font-mono text-[13px] tabular-nums text-fg-faint">
               {f.hueco.desde}
             </span>
+            {/* En palabras y no en minutos crudos: con la agenda vacía y jornada de 8 a 18 esto
+                decía «600 minutos libres», que hay que dividir por sesenta para entender. El enlace
+                de abajo SÍ sigue llevando los minutos — eso lo lee VetGPT, no una persona. */}
             <span className="min-w-0 flex-1 truncate text-fg-muted">
-              {f.hueco.minutos} minutos libres
+              {duracionLegible(f.hueco.minutos)} libres
             </span>
             {/* Deja la petición ESCRITA en el compositor de VetGPT, no la envía: el vet ve qué se va
                 a pedir antes de que salga. Misma regla que "Resolverlo con VetGPT" del riel. */}

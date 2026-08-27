@@ -111,16 +111,23 @@ export default async function CalendarioPage() {
   // semana incluye hoy— así que no cuesta ninguna consulta extra; sólo los horarios de atención,
   // que son cinco filas.
   const hoy = bogotaTodayISO()
-  const { data: franjasHoy } = clinicId
+  // LA SEMANA ENTERA, NO SÓLO HOY. Antes esta consulta filtraba por el día de hoy porque su único
+  // consumidor era «Hoy». Ahora también decide QUÉ HORAS DIBUJA LA GRILLA (`rangoVisible`), y la
+  // vista de semana muestra siete días: si el sábado abre más temprano, esa fila tiene que existir.
+  // Son siete filas en vez de una, así que sigue siendo una consulta que no se nota.
+  const { data: franjasDeLaSemana } = clinicId
     ? await supabase
         .from("clinic_hours")
         .select("weekday, opens_at, closes_at, vet_id")
         .eq("clinic_id", clinicId)
-        .eq("weekday", localWeekday(hoy))
         // La de la clínica y la de quien está mirando (0069): esta lista es SU día, no el de la
         // puerta. Cuál manda lo decide `franjasQueMandan`, no el filtro.
         .or(user ? `vet_id.is.null,vet_id.eq.${user.id}` : "vet_id.is.null")
     : { data: null }
+
+  const todasLasFranjas = (franjasDeLaSemana as (FranjaDeAlguien & { weekday: number })[] | null) ?? []
+  // El filtro por día que antes hacía Postgres. «Hoy» sigue necesitando sólo el día de hoy.
+  const franjasHoy = todasLasFranjas.filter((f) => f.weekday === localWeekday(hoy))
 
   const citasDeHoy: CitaDeHoy[] = ((appts as unknown as AppointmentRow[] | null) ?? [])
     .filter((a) => a.starts_at.slice(0, 10) === hoy && ESTADOS_VIVOS.has(a.status))
@@ -200,6 +207,11 @@ export default async function CalendarioPage() {
         miId={user?.id ?? null}
         veTodo={veTodo}
         acotarA={acotarA}
+        /* Las de TODA la semana y sin pasar por `franjasQueMandan`: la grilla es una sola para los
+           siete días, así que lo que corresponde es la unión —la apertura más temprana y el cierre
+           más tardío— y no elegir entre el horario de la clínica y el propio. Elegir achicaría el
+           rango, y hacia ese lado es donde se esconden citas. */
+        franjas={todasLasFranjas}
         avisosActivos={Boolean(
           (avisos as { confirmacion_citas_activo?: boolean; recordatorio_citas_activo?: boolean } | null)
             ?.confirmacion_citas_activo ||
