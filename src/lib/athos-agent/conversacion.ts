@@ -256,10 +256,46 @@ export function turnoAGuardar(
   // Se limpia ANTES de anexar la de verdad: lo que llega acá es la salida fresca del modelo, así
   // que toda marca que traiga la escribió él. Ver `sinMarcaDePropuesta`.
   const respuestaTexto = respuesta ? sinMarcaDePropuesta(textoDe(respuesta)) : ""
+  const propuestas = respuesta ? toolsQuePropusieron(respuesta) : []
+
   if (respuestaTexto) {
-    const propuestas = toolsQuePropusieron(respuesta)
     const marca = propuestas.length ? `\n\n[[propuesto:${propuestas.join(",")}]]` : ""
     turnos.push({ role: "assistant", content: `${respuestaTexto}${marca}` })
+    return turnos
+  }
+
+  // ── UN TURNO SIN TEXTO NO PUEDE DESAPARECER EN SILENCIO ────────────────────────────────────
+  //
+  // Antes, sin texto no se guardaba nada: el vet veía su pregunta y DEBAJO NADA. Ni respuesta ni
+  // error — el hilo simplemente no crecía. Pasó el 27-ago con una remisión en Word: el turno topó
+  // `maxOutputTokens` (2000 exactos, medido) y lo que quedó cortado fue una llamada a herramienta,
+  // no texto, así que no había qué mostrar. El vet escribió «?» y perdió ese turno también.
+  //
+  // Al recargar era peor: como tampoco se persistía, la pregunta desaparecía y quedaba la sensación
+  // de que el chat se come lo que uno escribe.
+  //
+  // Dos casos distintos y por eso dos mensajes:
+  //
+  //   · CON PROPUESTAS, no hay nada roto: el modelo propuso una acción y la tarjeta habla por sí
+  //     sola. Se deja constancia para que el hilo tenga sentido al releerlo.
+  //   · SIN PROPUESTAS es un turno que se perdió, y hay que DECIRLO. Un mensaje de una línea vale
+  //     infinitamente más que el vacío: el vet sabe que puede reintentar en vez de quedarse
+  //     mirando la pantalla preguntándose si mandó el mensaje.
+  //
+  // Se guarda como `assistant` a propósito: es lo que el hilo mostró en ese lugar, y así el
+  // historial que se recarga coincide con lo que el vet vio.
+  if (propuestas.length) {
+    turnos.push({
+      role: "assistant",
+      content: `Te dejé una propuesta para aprobar.\n\n[[propuesto:${propuestas.join(",")}]]`,
+    })
+  } else if (respuesta) {
+    turnos.push({
+      role: "assistant",
+      content:
+        "Se me cortó la respuesta antes de terminarla. Volvé a preguntarme — si el mensaje traía " +
+        "un documento largo, probá con una pregunta más específica sobre él.",
+    })
   }
   return turnos
 }

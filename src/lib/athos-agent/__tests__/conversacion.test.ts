@@ -217,10 +217,44 @@ describe("turnoAGuardar — sólo el turno nuevo", () => {
     ])
   })
 
-  it("una respuesta vacía (sólo tools) no se guarda", () => {
+  // ── ESTE TEST VIGILABA LO CONTRARIO, Y ESE COMPORTAMIENTO CAUSÓ UN FALLO REAL ──────────────
+  //
+  // Decía «una respuesta vacía (sólo tools) no se guarda». Sonaba prudente y dejaba al vet mirando
+  // una pantalla en blanco: pasó el 27-ago con una remisión en Word. El turno topó
+  // `maxOutputTokens` (2000 exactos, medido en `athos_agent_usage`) y lo que quedó cortado fue una
+  // llamada a herramienta, no texto — así que no había nada que guardar ni que mostrar. Ni
+  // respuesta, ni error, ni rastro al recargar: la pregunta desaparecía.
+  //
+  // Un mensaje de una línea vale infinitamente más que el vacío: el vet sabe que puede reintentar
+  // en vez de dudar de si mandó el mensaje.
+
+  it("un turno cortado deja constancia en vez de desaparecer", () => {
     const soloTools = { id: "a", role: "assistant",
                         parts: [{ type: "tool-search_patients" }] } as unknown as UIMessage
-    expect(turnoAGuardar(historial, soloTools)).toHaveLength(1)
+    const turnos = turnoAGuardar(historial, soloTools)
+    expect(turnos).toHaveLength(2)
+    expect(turnos[1].role).toBe("assistant")
+    // Dice qué pasó y qué hacer. No es un error técnico en la cara del veterinario.
+    expect(turnos[1].content).toContain("cortó")
+    expect(turnos[1].content).toContain("Volvé a preguntarme")
+  })
+
+  it("y si lo que hubo fue una propuesta, lo dice sin hablar de un corte", () => {
+    // Acá NO hay nada roto: el modelo propuso una acción y la tarjeta habla por sí sola. Decirle
+    // «se me cortó» sería mentirle y hacerle desconfiar de una propuesta que está bien.
+    const propone = {
+      id: "a", role: "assistant",
+      // La forma REAL de una propuesta: `action_id` + `status: "proposed"`, que es lo que
+      // `toolsQuePropusieron` reconoce. Un fixture aproximado hacía pasar el test por el camino
+      // equivocado — el del turno cortado.
+      parts: [{ type: "tool-create_appointment", state: "output-available",
+                output: { action_id: "act-1", status: "proposed" } }],
+    } as unknown as UIMessage
+    const turnos = turnoAGuardar(historial, propone)
+    expect(turnos).toHaveLength(2)
+    expect(turnos[1].content).toContain("propuesta")
+    expect(turnos[1].content).not.toContain("cortó")
+    expect(turnos[1].content).toContain("[[propuesto:create_appointment]]")
   })
 
   it("sin mensajes del vet no guarda nada del vet", () => {

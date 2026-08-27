@@ -186,7 +186,22 @@ export async function POST(req: Request) {
     // los turnos VIEJOS que dicen haber propuesto algo sin haberlo hecho. La persistencia de abajo
     // sigue usando `messages` completo: el recorte es del camino al modelo, no de la conversación.
     messages: await convertToModelMessages(sanearHistorial(recortarHistorial(messages as UIMessage[]))),
-    maxOutputTokens: 2000,
+    // ── EL TOPE ERA 2000 Y GUILLOTINABA TURNOS ENTEROS ────────────────────────────────────────
+    //
+    // `maxOutputTokens` aplica POR PASO del loop, no al turno. Medido el 27-ago probando adjuntos:
+    // el vet subió una remisión en Word y la llamada terminó con `tokens_out` = 2000 EXACTO — el
+    // corte. Lo que salió cortado no era texto sino la llamada a una herramienta a medio escribir,
+    // así que el turno terminó sin nada que mostrar: pantalla en blanco, sin error, sin respuesta
+    // guardada. El vet escribió «?» y ese turno también se perdió.
+    //
+    // Las otras doce llamadas de esa sesión, todas por debajo del tope, se guardaron sin problema.
+    // La correlación es exacta: topar el límite = turno perdido.
+    //
+    // 6000 da aire para un análisis clínico largo —los que sí funcionaron gastaron 2500-3300
+    // sumando todos sus pasos— sin volverse un cheque en blanco. Y es MITIGACIÓN, no cura: el
+    // cerrojo de abajo es lo que garantiza que un turno cortado nunca vuelva a verse como una
+    // pantalla vacía.
+    maxOutputTokens: 6000,
     tools: buildAthosTools(supabase, ctx),
     stopWhen: stepCountIs(8),
     // Consumo: va en el `onFinish` de streamText y no en el de `toUIMessageStreamResponse`, que no
