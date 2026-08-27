@@ -111,6 +111,17 @@ describe("abajo", () => {
     expect(iSecundario).toBeLessThan(iFinContenido)
   })
 
+  it("pero ARRIBA del Historial, o vuelve el defecto del 19-ago con otro disfraz", () => {
+    // Debajo cumplirían igual la letra del pedido —scrollean, no son sticky— y quedarían
+    // enterradas bajo cuarenta consultas, que es palabra por palabra el problema que el orden
+    // invertido vino a arreglar. Acá arriba se sostienen las dos cosas: donde el Historial no se
+    // monta —casi toda la app— estas cuatro son lo último de la barra, y donde sí se monta quedan
+    // a un scroll corto.
+    const iSecundario = BARRA.indexOf("<NavSecondary")
+    const iHistorial = BARRA.indexOf("<AthosSidebarSection")
+    expect(iSecundario).toBeLessThan(iHistorial)
+  })
+
   it("y el pie se queda sólo con la cuenta, que es lo que no se puede perder de vista", () => {
     // Cerrar sesión y cambiar de clínica siguen ancladas a propósito: son la salida.
     const iPie = BARRA.indexOf("<SidebarFooter>")

@@ -204,10 +204,6 @@ export function AppSidebar({
             </React.Suspense>
           </SidebarMenuItem>
         </SidebarMenu>
-        {/* EL HISTORIAL, ABAJO DEL CONTENIDO. Lo pidió David el 19-ago —"las consultas y los chats,
-            abajo y plegables"—. Sigue apareciendo SÓLO dentro de VetGPT y del Modo Fantasma, así que
-            en el resto de la app este lugar queda vacío y la barra se ve igual que siempre. */}
-        <AthosSidebarSection />
         {/* ── INTEGRACIONES · ADMINISTRACIÓN · CONFIGURACIÓN · AYUDA, EN EL CONTENIDO ─────────
             Vuelven a scrollear con el resto. Es una INVERSIÓN de lo que se decidió el 25-ago, y el
             cliente la pidió mirando la barra: «ese sticky donde está el escudo, el enchufe de
@@ -220,8 +216,20 @@ export function AppSidebar({
             `ui/sidebar.tsx`). Empujadas hacia abajo ya no significa perdidas — significa que hay
             que bajar, y se ve que hay que bajar.
 
+            VAN ARRIBA DEL HISTORIAL, Y AHÍ ESTÁ TODA LA GRACIA. Debajo cumplirían igual el pedido
+            —scrollean, no son sticky— pero quedarían enterradas bajo cuarenta consultas, que es
+            EXACTAMENTE el defecto que se arregló el 19-ago con el orden invertido. Acá arriba las
+            dos cosas se sostienen: en casi toda la app el Historial no se monta (sólo aparece en
+            VetGPT y en Modo Fantasma), así que estas cuatro SON lo último de la barra —«abajo al
+            final», el pedido del 25-ago— y donde sí se monta quedan a un scroll corto en vez de a
+            cuarenta filas.
+
             De paso el pie deja de costar ~40 px que le robaba al contenido sin scrollear. */}
         <NavSecondary items={data.navSecondary} />
+        {/* EL HISTORIAL, ABAJO DEL CONTENIDO. Lo pidió David el 19-ago —"las consultas y los chats,
+            abajo y plegables"—. Sigue apareciendo SÓLO dentro de VetGPT y del Modo Fantasma, así que
+            en el resto de la app este lugar queda vacío y la barra se ve igual que siempre. */}
+        <AthosSidebarSection />
       </SidebarContent>
       {/* ── EL PIE, AHORA SÓLO LA CUENTA ────────────────────────────────────────────────────
           Queda anclado a propósito y no es un descuido al mover la fila de iconos arriba: es el
