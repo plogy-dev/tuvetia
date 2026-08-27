@@ -12,6 +12,7 @@ import { CatalogItemsTab } from '@/components/facturacion/CatalogItemsTab';
 import { CategoryManager } from '@/components/facturacion/CategoryManager';
 import { TabNav, TabNavLink } from '@/components/ui/tab-nav';
 import { PageShell } from '@/components/ui/page-shell';
+import { ModuloInactivo } from "@/components/facturacion/modulo-inactivo";
 
 export const metadata = { title: "Productos y servicios · Tuvetia" }
 
@@ -41,16 +42,7 @@ export default async function CatalogoPage({
   const settings = await getBillingSettings(supabase, clinicId);
   if (settings?.module_status !== 'ACTIVO') {
     return (
-      <PageShell>
-        <h1 className="text-2xl font-semibold tracking-tight text-fg">Productos y servicios</h1>
-        <p className="mt-4 rounded-xl border border-line bg-surface-2 px-4 py-3 text-sm text-fg-muted">
-          El módulo no está activo.{' '}
-          <Link href="/dashboard/facturacion/configuracion" className="underline underline-offset-2">
-            Configúralo primero
-          </Link>
-          .
-        </p>
-      </PageShell>
+      <ModuloInactivo titulo="Productos y servicios" />
     );
   }
 

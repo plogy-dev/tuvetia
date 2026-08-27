@@ -84,6 +84,18 @@ export function InvoiceActionsPanel({
   const [plan, setPlan] = useState<PaymentPlan>(() => makeDefaultPlan(defaultTermsDays));
   const [payMethod, setPayMethod] = useState<'EFECTIVO' | 'TRANSFERENCIA'>('EFECTIVO');
   const [payAmount, setPayAmount] = useState(''); // en pesos
+  // ── EL CORREO SE PEDÍA CON `window.prompt` ────────────────────────────────────────────────────
+  //
+  // Un diálogo del sistema operativo en medio de una app: sin el tipo de campo correcto —así que en
+  // el teléfono sale el teclado equivocado—, sin validación, sin poder pegar y corregir con calma,
+  // sin recordar lo escrito si se cierra, y bloqueando la pestaña entera mientras está abierto. Y
+  // en algunos navegadores directamente no aparece.
+  //
+  // Acá es un campo en la misma tarjeta: se ve lo que se escribe, se corrige, y el botón dice a
+  // dónde va a salir. Se abre SÓLO cuando el pagador no tiene correo en su ficha, que es el único
+  // caso en que hay algo que preguntar.
+  const [pidiendoCorreo, setPidiendoCorreo] = useState(false);
+  const [correoManual, setCorreoManual] = useState('');
 
   // wa.me: normaliza el teléfono a dígitos; celular colombiano sin indicativo → +57.
   function waHref(): string {
@@ -96,6 +108,22 @@ export function InvoiceActionsPanel({
     const link = shareUrl ? `\n\nPuedes verla aquí: ${shareUrl}` : '';
     const text = encodeURIComponent(`${saludo}te comparto ${doc}${monto}.${link}`);
     return digits ? `https://wa.me/${digits}?text=${text}` : `https://wa.me/?text=${text}`;
+  }
+
+  /** Manda la factura a la dirección escrita a mano, y cierra el campo si salió. */
+  function mandarCorreoManual() {
+    const dest = correoManual.trim();
+    if (!dest) return;
+    run(
+      async () => {
+        const r = await sendInvoiceEmailAction({ invoiceId, to: dest });
+        return r.ok ? { ok: true, msg: `Enviada a ${r.to}` } : { ok: false, error: r.error };
+      },
+      () => {
+        setPidiendoCorreo(false);
+        setCorreoManual('');
+      },
+    );
   }
 
   function run(
@@ -248,13 +276,14 @@ export function InvoiceActionsPanel({
               type="button"
               disabled={isPending}
               onClick={() => {
-                const dest = payerEmail ?? window.prompt('Email del cliente:') ?? '';
-                if (!dest) return;
+                // Sin correo en la ficha, se abre el campo de acá abajo en vez de un diálogo del
+                // sistema. Con correo, sale directo: no hay nada que preguntar.
+                if (!payerEmail) {
+                  setPidiendoCorreo(true);
+                  return;
+                }
                 run(async () => {
-                  const r = await sendInvoiceEmailAction({
-                    invoiceId,
-                    to: payerEmail ? null : dest,
-                  });
+                  const r = await sendInvoiceEmailAction({ invoiceId, to: null });
                   return r.ok
                     ? { ok: true, msg: `Enviada a ${r.to}` }
                     : { ok: false, error: r.error };
@@ -284,6 +313,59 @@ export function InvoiceActionsPanel({
               Imprimir / PDF
             </a>
           </div>
+
+          {/* El campo que reemplaza al `window.prompt`. Aparece bajo la fila de botones, en la
+              misma tarjeta, para que se vea a qué dirección va a salir antes de apretar. */}
+          {pidiendoCorreo && (
+            <div className="space-y-2 rounded-lg border border-line bg-surface-2 px-3 py-2.5">
+              <label
+                htmlFor="correo-de-envio"
+                className="block text-xs font-medium text-fg-muted"
+              >
+                Este cliente no tiene correo en su ficha. ¿A dónde la mandamos?
+              </label>
+              <div className="flex flex-wrap items-center gap-2">
+                <input
+                  id="correo-de-envio"
+                  type="email"
+                  inputMode="email"
+                  autoComplete="email"
+                  autoFocus
+                  value={correoManual}
+                  onChange={(e) => setCorreoManual(e.target.value)}
+                  onKeyDown={(e) => {
+                    // Enter manda, que es lo que espera cualquiera que acaba de escribir un correo.
+                    // No hay `<form>` que lo haga solo: esta tarjeta vive dentro del panel, y
+                    // meterla en un form anidaría con los de arriba.
+                    if (e.key === 'Enter' && correoManual.trim() && !isPending) {
+                      e.preventDefault();
+                      mandarCorreoManual();
+                    }
+                  }}
+                  placeholder="titular@correo.com"
+                  className="min-w-0 flex-1 rounded-lg border border-line bg-surface px-3 py-2 text-sm text-fg placeholder:text-fg-faint outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
+                />
+                <button
+                  type="button"
+                  disabled={isPending || !correoManual.trim()}
+                  onClick={mandarCorreoManual}
+                  className="inline-flex items-center gap-2 rounded-lg bg-brand px-4 py-2 text-sm font-medium text-on-brand hover:bg-brand-deep transition disabled:opacity-60"
+                >
+                  {isPending ? 'Enviando…' : 'Enviar'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setPidiendoCorreo(false)}
+                  className="rounded-lg px-2 py-2 text-sm text-fg-faint hover:text-fg transition"
+                >
+                  Cancelar
+                </button>
+              </div>
+              <p className="text-[11.5px] text-fg-faint">
+                Se manda sólo esta vez. Para que quede guardado, agregalo en la ficha del titular.
+              </p>
+            </div>
+          )}
 
           {/* ── Anular con nota crédito ──────────────────────────────────────────────────────
               Es la ÚNICA forma de corregir una factura emitida, y hasta el 23-ago no existía: la
@@ -444,6 +526,31 @@ export function InvoiceActionsPanel({
             )}
           </div>
         </>
+      )}
+
+      {/* ── LAS DOS RAMAS QUE FALTABAN ────────────────────────────────────────────────────────
+          Este panel sólo tenía `BORRADOR` y `EMITIDA`. Con la factura anulada o a medio emitir se
+          pintaba el «Acciones» de arriba y NADA debajo: una tarjeta con un título y aire, que es la
+          peor forma de fallar porque no se distingue de una que todavía está cargando.
+
+          Y no son estados raros: `EMITIENDO` es el que queda si el proveedor fiscal se cae después
+          de que el consecutivo ya se asignó —está previsto y documentado en `invoices.ts`, la
+          emisión es tolerante a fallos a propósito— y `ANULADA` es el destino de toda nota crédito
+          total. */}
+      {status === 'ANULADA' && (
+        <p className="text-xs leading-relaxed text-fg-muted">
+          Esta factura está <strong className="text-fg">anulada</strong> con nota crédito. No admite
+          pagos ni envíos: su consecutivo queda consumido y no se reutiliza, que es como la DIAN
+          exige que se haga. Si hay que volver a cobrar, se registra una venta nueva.
+        </p>
+      )}
+      {status === 'EMITIENDO' && (
+        <p className="text-xs leading-relaxed text-fg-muted">
+          La emisión quedó a medio camino: el consecutivo ya se asignó pero no se pudo cerrar el
+          documento. <strong className="text-fg">No la vuelvas a emitir</strong> — el número ya está
+          consumido y reemitir crearía un segundo documento. Recargá en un momento; si sigue igual,
+          avisale al equipo con el número de esta factura.
+        </p>
       )}
 
       {error && (

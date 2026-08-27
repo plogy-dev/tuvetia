@@ -60,7 +60,16 @@ export default async function ImprimirFacturaPage({
     <>
       <style dangerouslySetInnerHTML={{ __html: INVOICE_DOC_STYLES }} />
       <div className="doc-root">
-        <PrintAutoTrigger />
+        {/* ── LA SALIDA VA EN LA BARRA QUE YA EXISTÍA ─────────────────────────────────────────
+            Esta ruta se abre con `target="_blank"` desde el panel de acciones: pestaña nueva, sin
+            historial. O sea que el «atrás» del navegador está DESHABILITADO, y acá no hay flecha de
+            volver, ni `PageShell`, ni cabecera — el `doc-root` tampoco es un overlay. La única
+            forma de salir era cerrar la pestaña, y quien no cayera en eso quedaba mirando una
+            factura sin nada alrededor.
+
+            Vuelve a la FACTURA y no al libro de ventas: se llegó desde ahí. Y como se abrió en
+            pestaña nueva, la del libro sigue intacta detrás. */}
+        <PrintAutoTrigger volverA={`/dashboard/facturacion/${id}`} rotuloVolver="Volver a la factura" />
         <InvoiceDocument
           invoice={invoice}
           lines={lines}

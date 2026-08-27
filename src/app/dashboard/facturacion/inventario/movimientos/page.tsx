@@ -7,6 +7,7 @@ import { MovementsExport } from '@/components/facturacion/MovementsExport';
 import { TrLink } from '@/components/ui/TrLink';
 import { FormularioDeFiltros } from "@/components/ui/formulario-de-filtros"
 import { PageShell } from '@/components/ui/page-shell';
+import { ModuloInactivo } from "@/components/facturacion/modulo-inactivo";
 
 export const metadata = { title: "Salidas y reservas · Tuvetia" }
 
@@ -61,16 +62,7 @@ export default async function MovimientosPage({
 
   if (!active) {
     return (
-      <PageShell>
-        <h1 className="text-2xl font-semibold tracking-tight text-fg">Salidas y reservas</h1>
-        <p className="mt-4 rounded-xl border border-line bg-surface-2 px-4 py-3 text-sm text-fg-muted">
-          El módulo no está activo.{' '}
-          <Link href="/dashboard/facturacion/configuracion" className="underline underline-offset-2">
-            Configúralo primero
-          </Link>
-          .
-        </p>
-      </PageShell>
+      <ModuloInactivo titulo="Salidas y reservas" />
     );
   }
 

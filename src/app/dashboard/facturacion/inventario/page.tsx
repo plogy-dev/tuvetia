@@ -17,6 +17,7 @@ import { InventorySearch } from '@/components/facturacion/InventorySearch';
 import { ImportBatchesList } from '@/components/facturacion/ImportBatchesList';
 import { PageShell } from '@/components/ui/page-shell';
 import type { ImportBatchRow } from '@/lib/supabase/types';
+import { ModuloInactivo } from "@/components/facturacion/modulo-inactivo";
 
 export const metadata = { title: "Existencias · Tuvetia" }
 
@@ -73,16 +74,7 @@ export default async function InventarioPage({
 
   if (!active) {
     return (
-      <PageShell>
-        <h1 className="text-2xl font-semibold tracking-tight text-fg">Existencias</h1>
-        <p className="mt-4 rounded-xl border border-line bg-surface-2 px-4 py-3 text-sm text-fg-muted">
-          El módulo no está activo.{' '}
-          <Link href="/dashboard/facturacion/configuracion" className="underline underline-offset-2">
-            Configúralo primero
-          </Link>
-          .
-        </p>
-      </PageShell>
+      <ModuloInactivo titulo="Existencias" />
     );
   }
 

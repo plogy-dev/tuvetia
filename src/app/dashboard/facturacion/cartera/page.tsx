@@ -17,6 +17,7 @@ import { HumanTasksPanel, type TaskItem } from '@/components/cartera/HumanTasksP
 import { RunSweepButton } from '@/components/cartera/RunSweepButton';
 import { TrLink } from '@/components/ui/TrLink';
 import { PageShell } from '@/components/ui/page-shell';
+import { ModuloInactivo } from "@/components/facturacion/modulo-inactivo";
 
 export const metadata = { title: "Cartera · Tuvetia" }
 
@@ -32,15 +33,10 @@ export default async function CarteraPage() {
   const settings = await getBillingSettings(supabase, clinicId);
   if (settings?.module_status !== 'ACTIVO') {
     return (
-      <PageShell width="narrow">
-        <h1 className="text-2xl font-semibold text-fg">Cartera</h1>
-        <p className="mt-4 rounded-xl border border-line bg-surface p-6 text-sm text-fg-muted">
-          Activa el módulo de facturación para gestionar la cartera.{' '}
-          <Link href="/dashboard/facturacion" className="underline underline-offset-2">
-            Ir a Ventas
-          </Link>
-        </p>
-      </PageShell>
+      // Antes tenía su propio texto y mandaba a Ventas, que es donde el vet ya estaba: el enlace
+      // devolvía al punto de partida sin acercarlo a activar nada. Ahora comparte el bloque con las
+      // otras cuatro pantallas — flecha para volver Y enlace a Configuración, que es lo que resuelve.
+      <ModuloInactivo titulo="Cartera" detalle="Seguimiento de recaudo bajo la Ley 2300 de 2023." />
     );
   }
 

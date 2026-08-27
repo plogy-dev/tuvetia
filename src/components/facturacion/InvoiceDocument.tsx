@@ -209,6 +209,13 @@ export const INVOICE_DOC_STYLES = `
     font-size: 0.9rem; font-weight: 500; cursor: pointer;
   }
   .print-button:hover { opacity: 0.9; }
+  /* La salida de la pestaña nueva. Va primero en la barra y en tono secundario: el diálogo de
+     impresión ya se abrió solo, así que quien sigue leyendo esta fila es el que NO venía a imprimir. */
+  .print-toolbar-volver {
+    color: var(--ink-soft); font-size: 0.9rem; text-decoration: none;
+    padding: 0.6rem 0.75rem 0.6rem 0; white-space: nowrap;
+  }
+  .print-toolbar-volver:hover { color: var(--ink); text-decoration: underline; }
   .print-toolbar-help { margin: 0; color: var(--ink-soft); font-size: 0.85rem; }
 
   .public-note {

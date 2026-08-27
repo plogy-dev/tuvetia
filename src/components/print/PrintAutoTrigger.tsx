@@ -13,9 +13,24 @@
  */
 'use client';
 
+import Link from 'next/link';
 import { useEffect } from 'react';
 
-export function PrintAutoTrigger() {
+export function PrintAutoTrigger({
+  /**
+   * A dónde se vuelve. SIN ESTO LA PANTALLA ES UN CALLEJÓN: estas rutas se abren con
+   * `target="_blank"`, o sea pestaña nueva y sin historial, así que el «atrás» del navegador está
+   * deshabilitado y no hay cabecera ni barra lateral alrededor del documento. La única salida era
+   * cerrar la pestaña — y quien no cayera en eso se quedaba mirando una factura sin nada más.
+   *
+   * Es opcional para no obligar a quien la abra en la MISMA pestaña, donde el «atrás» sí funciona.
+   */
+  volverA,
+  rotuloVolver = 'Volver',
+}: {
+  volverA?: string;
+  rotuloVolver?: string;
+} = {}) {
   useEffect(() => {
     const id = setTimeout(() => {
       window.print();
@@ -25,6 +40,13 @@ export function PrintAutoTrigger() {
 
   return (
     <div className="print-toolbar no-print">
+      {volverA && (
+        // Antes del botón de imprimir: el diálogo de impresión ya se abrió solo, así que quien
+        // sigue mirando esta barra es justamente el que NO quería imprimir.
+        <Link href={volverA} className="print-toolbar-volver">
+          ← {rotuloVolver}
+        </Link>
+      )}
       <button
         type="button"
         onClick={() => window.print()}
