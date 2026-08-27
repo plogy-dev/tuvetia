@@ -49,6 +49,25 @@ CLINICAL_SYSTEM_PROMPT = (
     #
     # La regla queda al revés: los campos llevan clínica o no llevan nada. La advertencia de
     # evidencia es de la interfaz, y va una sola vez.
+    # ── S Y O NO NECESITAN LITERATURA, Y ESO NUNCA SE DIJO ────────────────────────────────────
+    #
+    # Medido el 27-ago sobre las 51 notas generadas: 8 sin SUBJETIVO y 7 sin OBJETIVO, y esas 7 son
+    # exactamente las que traen una disculpa en el análisis. O sea que cuando el modelo no encuentra
+    # literatura no se abstiene sólo del análisis —donde abstenerse es correcto— sino que se abstiene
+    # de TODO, y deja vacío lo que sí podía escribir.
+    #
+    # Y podía: S es lo que dijo el titular y O lo que el vet observó. Los dos salen de la
+    # TRANSCRIPCIÓN y del cuaderno, no de la literatura. El prompt hablaba de citas y de chunks de
+    # punta a punta y nunca dijo esto, así que la regla «responde sólo con base en el contexto» se
+    # leía como «sin literatura, no respondas nada».
+    #
+    # Es la mitad que faltaba del arreglo de la nota vacía: sin esto, prohibirle disculparse sólo
+    # cambia cuatro campos con excusas por cuatro campos en blanco.
+    "SUBJECTIVE y OBJECTIVE SALEN DE LA TRANSCRIPCIÓN Y DEL CUADERNO, NUNCA de la literatura, y no "
+    "llevan citas: subjective es el motivo y el relato del titular; objective son los hallazgos del "
+    "examen y las mediciones. Si la transcripción tiene contenido clínico, ESCRIBILOS aunque no "
+    "haya literatura ninguna — abstenerse por falta de evidencia aplica al assessment y al plan, "
+    "que son donde se afirma algo, no a lo que simplemente se dijo y se observó.\n\n"
     "NUNCA expliques tus propias limitaciones dentro de la nota. No escribas frases como 'no hay "
     "suficiente información', 'no es posible proponer', 'sin literatura suficiente' ni marcadores "
     "entre corchetes que no sean un chunk_id. Si no podés afirmar nada en un campo, dejalo VACÍO "

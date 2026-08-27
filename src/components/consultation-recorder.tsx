@@ -19,7 +19,7 @@
 // evidencia legal, no mejor.
 
 import { useCallback, useEffect, useRef, useState } from "react"
-import { AudioLines, Mic, ShieldCheck } from "lucide-react"
+import { AudioLines, Loader2, Mic, ShieldCheck } from "lucide-react"
 import { toast } from "sonner"
 
 import { consultaViva } from "@/lib/consulta-viva/sesion"
@@ -112,22 +112,57 @@ export function ConsultationRecorder({
 
   // Arranque: si el titular YA dio su consentimiento (vigente, no revocado), no se re-pregunta —
   // se registra la fila de esta consulta citando ese consentimiento y se graba directo.
+  //
+  // ── EL CERROJO DE ARRANQUE ──────────────────────────────────────────────────────────────────
+  //
+  // Hallado en la prueba del 27-ago: una consulta con DOS filas de consentimiento separadas por 5
+  // segundos, las dos con `owner_scope=false`. No es el remontaje de ayer (ése daba pares
+  // [true,false] a 23-50 s): es `iniciar()` corriendo dos veces.
+  //
+  // Y se entiende por qué. Entre el clic y la primera señal visible hay un RPC de consentimiento
+  // vigente, un `getUser`, un insert y el permiso del micrófono — cientos de milisegundos en los
+  // que el botón NO se deshabilita y NADA se mueve. El vet cree que no registró y vuelve a tocar.
+  // El `disabled` de abajo sólo miraba si había OTRA consulta grabando, nunca ésta.
+  //
+  // Cinco segundos son demasiados para un doble clic accidental: es alguien esperando. Por eso el
+  // arreglo es doble — el cerrojo impide la segunda inserción, y el botón pasa a decir «Preparando…»
+  // con su spinner, que es lo que faltaba para que nadie sienta que hay que insistir.
+  //
+  // Importa más de lo que parece: `consents` es EVIDENCIA legal (Ley 1581), y una fila de más es
+  // una fila que nadie puede explicar después.
+  // EL CERROJO ES UN REF Y NO EL ESTADO: `setArrancando` no aterriza hasta el próximo render, así
+  // que un segundo clic en el mismo tick vería `arrancando === false` y pasaría igual. El ref
+  // cambia en el acto. El estado existe sólo para PINTAR el botón.
+  const arrancandoRef = useRef(false)
+  const [arrancando, setArrancando] = useState(false)
+
   const iniciar = useCallback(async () => {
-    if (ownerId) {
-      const { data: standing } = await supabase.rpc("has_owner_consent", { p_owner_id: ownerId })
-      if (standing === true) {
-        try {
-          await insertConsent(false)
-        } catch (e) {
-          toast.error(`No se pudo registrar el consentimiento: ${(e as Error).message}`)
+    if (arrancandoRef.current) return
+    arrancandoRef.current = true
+    setArrancando(true)
+    try {
+      if (ownerId) {
+        const { data: standing } = await supabase.rpc("has_owner_consent", { p_owner_id: ownerId })
+        if (standing === true) {
+          try {
+            await insertConsent(false)
+          } catch (e) {
+            toast.error(`No se pudo registrar el consentimiento: ${(e as Error).message}`)
+            return
+          }
+          toast.success("Consentimiento vigente del titular — grabando")
+          await grabar()
           return
         }
-        toast.success("Consentimiento vigente del titular — grabando")
-        await grabar()
-        return
       }
+      setPidiendoConsentimiento(true)
+    } finally {
+      // En `finally` y no al final del cuerpo: los tres `return` de arriba y cualquier excepción
+      // pasan por acá. Si el cerrojo se quedara puesto, el botón no volvería a funcionar nunca y
+      // haría falta recargar para grabar.
+      arrancandoRef.current = false
+      setArrancando(false)
     }
-    setPidiendoConsentimiento(true)
   }, [ownerId, supabase, insertConsent, grabar])
 
   // ARRANQUE AUTOMÁTICO al llegar desde "Iniciar consulta".
@@ -253,8 +288,24 @@ export function ConsultationRecorder({
             transcribe y VetGPT redacta la nota SOAP; el audio se elimina a los 4 días.
           </HelpTip>
         </div>
-        <Button onClick={iniciar} disabled={otraEnCurso} variant={lista ? "outline" : "default"}>
-          <Mic className="size-4" /> {lista ? "Grabar otra vez" : "Iniciar grabación"}
+        {/* «Preparando…» con su rueda: entre el clic y el primer aviso hay un RPC, un insert y el
+            permiso del micrófono. Sin señal, el vet cree que no registró y vuelve a tocar — que es
+            de donde salía el consentimiento duplicado. El `disabled` sólo miraba si había OTRA
+            consulta grabando; ahora también mira ésta. */}
+        <Button
+          onClick={iniciar}
+          disabled={otraEnCurso || arrancando}
+          variant={lista ? "outline" : "default"}
+        >
+          {arrancando ? (
+            <>
+              <Loader2 className="size-4 animate-spin" /> Preparando…
+            </>
+          ) : (
+            <>
+              <Mic className="size-4" /> {lista ? "Grabar otra vez" : "Iniciar grabación"}
+            </>
+          )}
         </Button>
       </div>
     </>

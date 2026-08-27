@@ -143,3 +143,40 @@ describe("una sola superficie de grabación", () => {
     expect(rec).not.toContain("Detener y transcribir")
   })
 })
+
+describe("arrancar la grabación no se puede disparar dos veces", () => {
+  // Hallado en la prueba del 27-ago, en los datos: una consulta con DOS filas de `consents`
+  // separadas por 5 segundos, las dos con `owner_scope=false`.
+  //
+  // NO es el remontaje del `?grabar=1` que se arregló el 26 —ése daba pares [true,false] a 23-50
+  // segundos—: es `iniciar()` corriendo dos veces. Entre el clic y el primer aviso hay un RPC, un
+  // `getUser`, un insert y el permiso del micrófono; el botón no se deshabilitaba y nada se movía,
+  // así que el vet creía que no había registrado y volvía a tocar. Cinco segundos no son un doble
+  // clic: son alguien esperando.
+  //
+  // `consents` es evidencia legal (Ley 1581): una fila de más es una fila que nadie puede explicar.
+
+  const rec = leer("components/consultation-recorder.tsx")
+
+  it("el cerrojo es un ref, no el estado", () => {
+    // `setArrancando` no aterriza hasta el próximo render: un segundo clic en el mismo tick vería
+    // el estado viejo y pasaría igual. El ref cambia en el acto.
+    expect(rec).toContain("arrancandoRef")
+    const i = rec.indexOf("const iniciar = useCallback")
+    expect(rec.slice(i, i + 200)).toContain("if (arrancandoRef.current) return")
+  })
+
+  it("y se suelta en `finally`, o el botón queda muerto hasta recargar", () => {
+    const i = rec.indexOf("const iniciar = useCallback")
+    const cuerpo = rec.slice(i, rec.indexOf("}, [ownerId", i))
+    expect(cuerpo).toContain("finally")
+    expect(cuerpo.slice(cuerpo.indexOf("finally"))).toContain("arrancandoRef.current = false")
+  })
+
+  it("el botón se deshabilita por ESTA consulta, no sólo por otra", () => {
+    // El `disabled` miraba únicamente si había OTRA consulta grabando.
+    expect(rec).toContain("disabled={otraEnCurso || arrancando}")
+    // Y dice que está haciendo algo: sin señal, insistir es la reacción razonable.
+    expect(rec).toContain("Preparando…")
+  })
+})

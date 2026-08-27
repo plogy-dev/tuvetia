@@ -81,3 +81,19 @@ def test_el_prompt_prohibe_explicitamente_hablar_de_las_limitaciones():
     assert "NUNCA expliques tus propias limitaciones" in g.CLINICAL_SYSTEM_PROMPT
     # Y ya no pide lo contrario, que es de donde salía el texto.
     assert "indícalo en el assessment" not in g.CLINICAL_SYSTEM_PROMPT
+
+
+def test_el_prompt_dice_que_S_y_O_no_necesitan_literatura():
+    """La mitad que faltaba, y sin ella el arreglo anterior empeora la nota.
+
+    Medido el 27-ago sobre 51 notas: 8 sin subjetivo y 7 sin objetivo, y esas 7 son exactamente las
+    que traen disculpa en el análisis. Sin literatura el modelo no se abstenía sólo del análisis
+    —donde abstenerse es correcto— sino de TODO, dejando vacío lo que sí podía escribir.
+
+    Prohibirle disculparse, solo, cambiaría cuatro campos con excusas por cuatro campos en blanco.
+    """
+    p = g.CLINICAL_SYSTEM_PROMPT
+    assert "SUBJECTIVE y OBJECTIVE SALEN DE LA TRANSCRIPCIÓN" in p
+    assert "NUNCA de la literatura" in p
+    # Y deja claro que la abstención es del assessment y el plan, no de los cuatro campos.
+    assert "no a lo que simplemente se dijo y se observó" in p
