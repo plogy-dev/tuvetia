@@ -49,7 +49,10 @@ export default async function BienvenidaPage() {
   // dashboard vacío, sin onboarding y sin explicación.
   if (!p?.clinic_id) {
     const { data: pendiente } = await supabase.rpc("has_pending_invitation")
-    return <SinClinica tieneInvitacionPendiente={Boolean(pendiente)} />
+    // El correo va a la pantalla porque es EL DATO que resuelve el caso más común: la invitación se
+    // mandó a una dirección y la persona se registró con otra. Sin verlo escrito no hay forma de
+    // notarlo desde adentro.
+    return <SinClinica tieneInvitacionPendiente={Boolean(pendiente)} correo={user.email} />
   }
 
   // Ya lo completó -> al dashboard.

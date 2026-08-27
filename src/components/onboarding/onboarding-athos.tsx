@@ -183,8 +183,16 @@ export function OnboardingAthos({
           rows={1}
           className="max-h-28 min-h-9 resize-none text-sm"
         />
-        <Button size="icon" onClick={() => enviar(input)} disabled={busy || !input.trim()}>
-          <SendHorizontal className="size-4" />
+        {/* `aria-label` — es un botón de sólo icono, así que sin esto no tiene NINGÚN nombre
+            accesible: un lector de pantalla lo anuncia como «botón» a secas y no hay forma de saber
+            que es el de enviar. El icono va `aria-hidden` para que no intente leerlo como contenido. */}
+        <Button
+          size="icon"
+          onClick={() => enviar(input)}
+          disabled={busy || !input.trim()}
+          aria-label="Enviar mensaje a VetGPT"
+        >
+          <SendHorizontal className="size-4" aria-hidden />
         </Button>
       </div>
     </aside>

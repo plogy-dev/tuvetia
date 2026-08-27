@@ -14,6 +14,7 @@
 //   2. La clínica no se aprovisionó (el trigger no corrió). Ahí sí se le ofrece crearla.
 
 import { useState } from "react"
+import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { Building2, Loader2, MailCheck } from "lucide-react"
 import { toast } from "sonner"
@@ -23,11 +24,36 @@ import { Button } from "@/components/ui/button"
 import { Field, FieldLabel } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
 
-export function SinClinica({ tieneInvitacionPendiente }: { tieneInvitacionPendiente: boolean }) {
+export function SinClinica({
+  tieneInvitacionPendiente,
+  correo,
+}: {
+  tieneInvitacionPendiente: boolean
+  correo?: string | null
+}) {
   const router = useRouter()
   const [supabase] = useState(() => createClient())
   const [nombre, setNombre] = useState("")
   const [busy, setBusy] = useState(false)
+  const [saliendo, setSaliendo] = useState(false)
+
+  // ── LA SALIDA, QUE NO EXISTÍA ─────────────────────────────────────────────────────────────────
+  //
+  // CIERRA LA SESIÓN ANTES DE IR A /login, y ese orden es lo único que hace que el botón sirva.
+  // Con la sesión viva, `/login` ve un usuario autenticado y lo devuelve al dashboard, que lo
+  // rebota a `/bienvenida`: el usuario volvería exactamente a donde estaba, que es el defecto que
+  // este botón viene a arreglar.
+  async function salir() {
+    setSaliendo(true)
+    try {
+      await supabase.auth.signOut()
+    } catch {
+      // Si el cierre falla igual conviene llevarlo a /login: allá puede volver a intentar, y
+      // quedarse acá encerrado es peor que una sesión que no se cerró.
+    }
+    router.replace("/login")
+    router.refresh()
+  }
 
   async function crearClinica() {
     const n = nombre.trim()
@@ -54,9 +80,33 @@ export function SinClinica({ tieneInvitacionPendiente }: { tieneInvitacionPendie
           entrar: así te sumas a la clínica que ya existe, con sus pacientes e historial. Si creas
           una nueva quedarías por fuera de la de ellos.
         </p>
+        {/* EL CORREO CON EL QUE ENTRÓ, ESCRITO. La causa más común de llegar acá y no encontrar
+            nada es haberse registrado con una dirección distinta a la que recibió la invitación, y
+            eso es imposible de notar si la app no dice con cuál estás adentro. */}
+        {correo && (
+          <p className="text-xs text-muted-foreground">
+            Entraste como <span className="font-medium text-foreground">{correo}</span>. La
+            invitación tiene que haber llegado a esa misma dirección.
+          </p>
+        )}
         <p className="text-xs text-muted-foreground">
           ¿No encuentras el correo? Pídele a quien te invitó que te reenvíe el enlace.
         </p>
+        {/* ── SIN ESTO LA PANTALLA ERA UN CALLEJÓN SIN SALIDA ──────────────────────────────────
+            Tenía un icono, un título y dos párrafos: CERO elementos en los que se pudiera hacer
+            clic. Y no hay forma de irse por las malas —`dashboard/layout.tsx` rebota a
+            `/bienvenida` en cada intento—, así que quien se registraba con otro correo quedaba
+            encerrado hasta encontrar el mensaje o hasta que la invitación venciera a los 7 días.
+            Es el mismo par de salidas que ya ofrece `cuenta-desactivada.tsx`, que es la otra
+            pantalla del repo que retiene a alguien fuera del dashboard. */}
+        <div className="flex flex-wrap justify-center gap-2 pt-1">
+          <Button variant="outline" size="sm" render={<Link href="/" />}>
+            Ir al inicio
+          </Button>
+          <Button variant="ghost" size="sm" onClick={salir} disabled={saliendo}>
+            {saliendo && <Loader2 className="size-4 animate-spin" />} Entrar con otra cuenta
+          </Button>
+        </div>
       </main>
     )
   }
