@@ -103,8 +103,13 @@ export function EmailInbox({
   return (
     <div className="grid min-h-0 flex-1 gap-4 px-4 py-4 lg:grid-cols-[minmax(260px,340px)_1fr] lg:px-6">
       {/* Maestro */}
-      <div className="flex flex-col overflow-hidden rounded-xl border bg-card">
-        <div className="flex items-center justify-between gap-2 border-b px-3 py-2">
+      {/* `min-h-0` acá y en el scroller: sin eso la lista de correos no scrolleaba, se recortaba.
+          El `overflow-hidden` de esta tarjeta esconde lo que se sale, así que los últimos correos
+          quedaban inalcanzables y sin una sola señal de que faltaba algo. La cabecera va `shrink-0`
+          porque el único que debe ceder alto es la lista. Es la misma forma que usa el panel de
+          detalle de al lado (`:149`) y las dos columnas de WhatsApp. */}
+      <div className="flex min-h-0 flex-col overflow-hidden rounded-xl border bg-card">
+        <div className="flex shrink-0 items-center justify-between gap-2 border-b px-3 py-2">
           <span className="text-xs font-medium text-muted-foreground">{correos.length} correos</span>
           <Button
             variant="ghost"
@@ -122,7 +127,7 @@ export function EmailInbox({
             Actualizar
           </Button>
         </div>
-        <div className="flex flex-col gap-1 overflow-y-auto p-1.5">
+        <div className="flex min-h-0 flex-1 flex-col gap-1 overflow-y-auto p-1.5">
           {correos.map((c) => (
             <button
               key={c.id}

@@ -832,7 +832,7 @@ export function Assistant({
                   LA ESQUINA DE ABAJO-DERECHA VA RECTA (4px contra 14px). Es el detalle del prototipo
                   que hace que la burbuja APUNTE a quien la escribió, sin necesidad de un avatar del
                   lado del vet — que es lo que deja el hilo con un solo avatar y sin simetría falsa. */}
-              <div className="max-w-[80%] whitespace-pre-wrap rounded-[14px] rounded-br-[4px] bg-surface-2 px-3.5 py-2.5 text-[13.5px] leading-normal">
+              <div className="max-w-[80%] break-words whitespace-pre-wrap rounded-[14px] rounded-br-[4px] bg-surface-2 px-3.5 py-2.5 text-[13.5px] leading-normal">
                 {msg.parts
                   .filter((p): p is Extract<(typeof msg.parts)[number], { type: "text" }> => p.type === "text")
                   .map((p) => p.text)
@@ -896,7 +896,12 @@ export function Assistant({
       {/* CON MENSAJES el compositor va al pie, separado por una línea. En vacío no se pinta acá:
           ya está en el medio, dentro del hero. */}
       {!vacio && (
-      <div className="-mx-4 mt-auto border-t border-line px-4 pt-4 md:-mx-6 md:px-6">
+      // `shrink-0`: el contenedor de arriba lleva `overflow-hidden`, así que lo que se salga se
+      // CORTA sin barra que lo alcance. El hilo tiene `flex-basis: 0` y ya no puede ceder más, o sea
+      // que en una ventana baja el único que quedaba para absorber el faltante era este compositor —
+      // y se cortaba contra el borde con el botón de enviar adentro. El hilo tiene su propio scroll;
+      // el compositor no puede desaparecer, porque es la única forma de salir de esta pantalla.
+      <div className="-mx-4 mt-auto shrink-0 border-t border-line px-4 pt-4 md:-mx-6 md:px-6">
        <div className="mx-auto w-full max-w-[780px]">
         {compositor}
         {/* LA ADVERTENCIA APARECE AL ESCRIBIR, no al cargar la pantalla.

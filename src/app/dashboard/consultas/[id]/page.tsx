@@ -424,7 +424,10 @@ export default function NotaConsultaPage({ params }: { params: Promise<{ id: str
   if (grabandoEsta) {
     return (
       // El cockpit NO fuerza superficie oscura — ver el comentario del return principal.
-      <div className="flex flex-1 flex-col">
+      // `min-h-0` porque el Cockpit reparte su alto con `flex-1` y scrollea por dentro: sin él este
+      // envoltorio no baja de su contenido y los paneles pierden su scroll. Es la pantalla donde
+      // menos se puede perder contenido — es la que está abierta con el micrófono grabando.
+      <div className="flex min-h-0 flex-1 flex-col">
         <Cockpit
           pestana={pestanaCockpit}
           alCambiarPestana={setPestanaCockpit}
@@ -715,7 +718,7 @@ export default function NotaConsultaPage({ params }: { params: Promise<{ id: str
                       {t.who === "vet" ? "Veterinario" : "Titular"}
                     </span>
                     <div
-                      className={`max-w-[88%] rounded-2xl px-3 py-2 text-sm ${
+                      className={`max-w-[88%] break-words rounded-2xl px-3 py-2 text-sm ${
                         t.who === "vet"
                           ? "rounded-br-sm bg-primary text-primary-foreground"
                           : "rounded-bl-sm border bg-background"
