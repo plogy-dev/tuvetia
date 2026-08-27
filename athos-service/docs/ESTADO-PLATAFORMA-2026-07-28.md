@@ -32,6 +32,12 @@ a equivocar.
 Cómo se midió: dev (`ghmpjyuchwkrvnjvdeum`) se bootstrapeó del mismo esquema base y sólo recibió
 nuestras migraciones, así que la diferencia prod−dev es (casi exactamente) lo que entró por fuera.
 
+> **Nota del 2026-08-27 — el ref de dev de arriba ya no existe.** `ghmpjyuchwkrvnjvdeum` se **borró
+> el 2026-07-31** y se reemplazó por **`gdiiagioiukadifejewv`** (mismo nombre de proyecto,
+> `tuvetia-athos-dev`, us-west-2). El ref viejo se deja escrito porque es **con ése** que se tomó
+> esta medición y cambiarlo haría que el documento afirme algo que no pasó; pero **no lo copies**
+> — apunta a un proyecto muerto. El vigente está en `MIGRACIONES.md` §Principio.
+
 | objeto | producción | dev | sólo en producción |
 |---|---|---|---|
 | tablas | 56 | 25 | **31** |

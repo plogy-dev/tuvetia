@@ -4,7 +4,9 @@
 > y sin base de desarrollo la única salida era apuntar el `.env` al principal: así fue como la suite
 > —que siembra y BORRA clínicas— terminó corriendo contra producción. El proyecto nuevo es
 > **`tuvetia-athos-dev`, ref `gdiiagioiukadifejewv`** (us-west-2, micro), con el esquema base y las 43
-> migraciones aplicadas. Las referencias al ref viejo que quedan abajo son **históricas**.
+> migraciones aplicadas. Las referencias al ref viejo que quedan abajo son **históricas** y están
+> marcadas una por una donde aparecen (**verificado contra el repo el 2026-08-27**), para que quien
+> caiga a mitad del documento por una búsqueda no copie el ref muerto.
 >
 > La cadena de conexión **no va al repo** (lleva contraseña): pedírsela a quien recreó el proyecto.
 > Hoy hay además un cortafuegos en `app/db.py` que impide que una prueba abra la DB del principal.
@@ -169,7 +171,7 @@ Filosofía: **gastar la mínima IA**. Un buscador determinístico con un diccion
 - Runbook: `MIGRACIONES.md`. Reglas duras: `../CLAUDE.md` → *Entornos y migraciones*.
 
 **2026-07-13 — Entorno dev conectado y migración `0001` aplicada**
-- Proyecto `tuvetia-athos-dev` (ref `ghmpjyuchwkrvnjvdeum`) conectado por el **session pooler** (puerto 5432). MCP repuntado a dev (read-only).
+- Proyecto `tuvetia-athos-dev` (ref `ghmpjyuchwkrvnjvdeum` — **ref histórico, borrado el 31-jul; hoy es `gdiiagioiukadifejewv`**) conectado por el **session pooler** (puerto 5432). MCP repuntado a dev (read-only).
 - El esquema **base ya estaba aplicado** en dev (19 tablas + `private.my_clinic_id()`).
 - Migración **`0001` aplicada** con `supabase db push` (registrada en `schema_migrations`). Se crearon `glossary_*`, `athos_messages`, `rag_*`; `corpus_chunks.embedding` → `vector(1024)`.
 - **Pendientes a coordinar con el equipo (para el PR a main):**
@@ -299,7 +301,7 @@ Filosofía: **gastar la mínima IA**. Un buscador determinístico con un diccion
 - **Gotcha documentado:** el JWT HS256 legacy sirve para la API de Athos (fallback propio) pero **Supabase Storage/PostgREST lo rechazan** (el principal firma asimétrico) → para probar RLS como usuario se obtiene un access_token real vía `admin/generate_link` + `/auth/v1/verify`.
 
 ## 11. Coordinación abierta — 3 decisiones que necesitamos del equipo (antes del PR a main)
-> Todo lo de abajo está **probado en el proyecto dev** (`tuvetia-athos-dev`, ref `ghmpjyuchwkrvnjvdeum`). **Nada se ha tocado en el principal** (ref `auxlnexhkmtoedrzfsnz`). Para llevar las migraciones `0001`/`0002` al principal necesitamos confirmar 3 cosas, porque tocan **tablas generales** y **auth compartida**. El PR incluirá **solo** `supabase/migrations/0001*.sql` y `0002*.sql` (el bootstrap **no** se PR-ea).
+> Todo lo de abajo está **probado en el proyecto dev** (`tuvetia-athos-dev`, ref `ghmpjyuchwkrvnjvdeum` — **ref histórico, borrado el 31-jul; hoy es `gdiiagioiukadifejewv`**). **Nada se ha tocado en el principal** (ref `auxlnexhkmtoedrzfsnz`). Para llevar las migraciones `0001`/`0002` al principal necesitamos confirmar 3 cosas, porque tocan **tablas generales** y **auth compartida**. El PR incluirá **solo** `supabase/migrations/0001*.sql` y `0002*.sql` (el bootstrap **no** se PR-ea).
 
 ### A) Dimensión de embeddings: `1536` → `1024`  ·  ✅ DECIDIDO (2026-07-14)
 > **Decisión (nuestra recomendación):** el principal se estandariza en **1024**. La migración `0001` ya lo implementa. Único paso operativo al aplicar el PR: confirmar si `corpus_chunks`/`patient_embeddings` del principal ya tienen datos (para planear re-embed si los hubiera).

@@ -4,19 +4,32 @@ Este proyecto usa **Supabase** (Postgres) como base de datos, conectado a travé
 
 ## Conexión
 
+> **Verificado contra el repo el 2026-08-27.**
+
 - **Project ref:** `auxlnexhkmtoedrzfsnz`
-- **Servidor MCP:** `supabase` (scope: `project`), configurado en [.mcp.json](.mcp.json) en la raíz del repo:
+- **Servidor MCP:** `supabase` (scope: `project`). Hay **dos** `.mcp.json` y los dos declaran lo mismo: [`.mcp.json`](.mcp.json) en la raíz y [`athos-service/.mcp.json`](athos-service/.mcp.json).
 
 ```json
 {
   "mcpServers": {
     "supabase": {
       "type": "http",
-      "url": "https://mcp.supabase.com/mcp?project_ref=auxlnexhkmtoedrzfsnz"
+      "url": "https://mcp.supabase.com/mcp?project_ref=auxlnexhkmtoedrzfsnz&read_only=true"
     }
   }
 }
 ```
+
+> 🔒 **`read_only=true` no es un detalle de configuración: es la corrección del incidente del 30-jul.**
+> Ese día la suite terminó apuntando al principal y en los logs de producción aparecieron
+> `invalid input syntax for type uuid: "clinic-a"` — los fixtures de las pruebas contra la base con
+> datos clínicos reales. Desde entonces **el principal nunca queda escribible por MCP**, que es una
+> de las reglas duras de [`athos-service/docs/MIGRACIONES.md`](athos-service/docs/MIGRACIONES.md).
+>
+> Ésta es la **configuración de referencia** del repo, la que está commiteada. Si en tu copia de
+> trabajo ves `read_only=false`, es una modificación local: **no es lo que el repo declara** y no
+> deberías subirla. Herramientas con escritura → sólo contra el proyecto **dev**
+> (`gdiiagioiukadifejewv`), repuntando el `.mcp.json` a ese ref.
 
 Al estar en `.mcp.json` (no en settings globales), este servidor viaja con el repo: cualquiera que clone el proyecto y use Claude Code lo verá disponible automáticamente, pero cada persona debe autenticarse por su cuenta (la sesión de auth no se comparte ni se versiona).
 
@@ -36,20 +49,32 @@ El servidor MCP remoto requiere OAuth interactivo, que **no puede completarse de
    ```
    Debe pasar de `⏸ Pending approval` a `✔ Connected`.
 
-Hasta que esto se complete, las herramientas del MCP de Supabase (migraciones, queries, etc.) no están disponibles para este proyecto específico.
+Hasta que esto se complete, las herramientas del MCP de Supabase (consultas, introspección, diagnóstico) no están disponibles para este proyecto específico. Las **migraciones no dependen de esto**: se aplican a mano por el editor SQL, no por MCP (ver la sección siguiente).
 
 ## Cómo se opera la base de datos vía MCP
 
-Una vez autenticado, Claude Code expone herramientas con el prefijo `mcp__supabase__*` para trabajar contra este proyecto sin salir del asistente, entre ellas:
+Una vez autenticado, Claude Code expone herramientas con el prefijo `mcp__supabase__*`. **Contra el principal el MCP es una herramienta de LECTURA, y nada más** — con `read_only=true` las de escritura ni siquiera están disponibles. Lo que sí sirve:
 
-- `list_tables` / `get_project` — inspeccionar el esquema y metadatos del proyecto antes de tocar nada.
-- `apply_migration` — aplicar una migración SQL versionada al proyecto (esto es lo que se usa para crear/alterar tablas, ej. las tablas de `auth`).
-- `execute_sql` — correr SQL puntual (consultas, seeds, fixes) fuera del flujo de migraciones.
-- `generate_typescript_types` — generar los tipos TS del esquema para usarlos en el código de Next.js.
-- `get_logs` / `get_advisors` — diagnóstico y recomendaciones de seguridad/performance antes o después de un cambio.
-- `get_project_url` / `get_publishable_keys` — obtener la URL del proyecto y la clave pública para configurar el cliente de Supabase en el frontend (`NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`).
+- `list_tables` / `list_extensions` / `list_migrations` — inspeccionar el esquema y los metadatos.
+- `execute_sql` — **sólo consultas.** Es la vía para introspección del catálogo, que según `MIGRACIONES.md` es lo único que dice la verdad sobre el estado del principal (`supabase migration list` miente en las dos direcciones).
+- `generate_typescript_types` — generar los tipos TS del esquema para el código de Next.js.
+- `get_logs` / `get_advisors` — diagnóstico y recomendaciones de seguridad/performance.
+- `get_project_url` / `get_publishable_keys` — la URL y la clave pública para configurar el cliente de Supabase en el frontend (`NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`).
 
-**Convención de trabajo:** los cambios de esquema (nuevas tablas, columnas, políticas RLS) se aplican siempre vía `apply_migration` para que queden versionados como migraciones, no con `execute_sql` suelto. `execute_sql` se reserva para lectura o correcciones puntuales de datos.
+### El MCP **no** es la vía para seeds, fixes ni migraciones
+
+Este documento decía lo contrario y era falso en las dos puntas: ni `apply_migration` ni un `execute_sql` de escritura funcionan contra el principal en sólo-lectura, y aunque funcionaran, la regla de la casa los prohíbe. La vía real, según [`athos-service/docs/MIGRACIONES.md`](athos-service/docs/MIGRACIONES.md):
+
+| Qué querés hacer | Cómo se hace de verdad |
+|---|---|
+| **Cambiar el esquema** (tabla, columna, índice, RLS) | Escribir `athos-service/supabase/migrations/NNNN_nombre.sql` **a mano** + su verificación en `supabase/verificaciones/NNNN_nombre.sql`. Reservá el número **al abrir el PR** mirando el último en `master`, no en tu rama. |
+| **Probarlo** | `supabase db push` contra el proyecto **dev** enlazado (`gdiiagioiukadifejewv`), o el Postgres local con el shim de `.github/ci/athos-db-shim.sql`. |
+| **Llevarlo al principal** | PR → revisión → **aplicar A MANO por el editor SQL del principal**, y después correr la verificación. |
+| **Un seed o un fix de datos** | Igual: por el editor SQL del principal, a mano y con alguien mirando. Nunca desde una máquina de dev por MCP. |
+
+> ⛔ **`supabase db push` contra el principal: NO.** El principal lleva su propio historial en `supabase_migrations.schema_migrations` (55 entradas del equipo original, con versiones tipo `20260727073858`, ninguna con nuestra numeración `00XX`). Un `db push` intentaría reconciliar dos numeraciones distintas sobre una base con datos clínicos reales, y re-aplicaría migraciones ya aplicadas — entre ellas la del índice HNSW, que son 4 GB.
+
+**Regla dura, de `MIGRACIONES.md`:** *MCP y cualquier herramienta con escritura → sólo dev.* El principal se escribe a mano, por el editor SQL, y con la migración ya revisada en un PR.
 
 ## Autenticación
 

@@ -13,7 +13,19 @@ import pytest
 
 from app.db import ESCOTILLA, REF_PRINCIPAL, _vetar_principal_en_tests
 
-DEV = "postgresql://postgres.ghmpjyuchwkrvnjvdeum:x@aws-1-us-west-2.pooler.supabase.com:5432/postgres"
+# El ref de dev VIGENTE (`gdiiagioiukadifejewv`, recreado el 2026-07-31). Antes acá estaba el
+# anterior, `ghmpjyuchwkrvnjvdeum`, que es un proyecto BORRADO.
+#
+# Que quede claro qué cambió y qué no: esta constante pasa el guard por lo que NO tiene, no por lo
+# que tiene. `_vetar_principal_en_tests` sólo pregunta si `REF_PRINCIPAL` aparece en la cadena, así
+# que cualquier ref distinto del principal da el mismo resultado. Cambiarla no debilita ni refuerza
+# la prueba — la razón por la que pasa es la misma antes y después.
+#
+# Se actualizó igual porque una cadena de conexión de ejemplo es de lo primero que alguien copia, y
+# copiarla apuntaba a un proyecto que ya no existe. Lo que NO se toca es el `"tuvetia-athos-dev"`
+# que afirma `test_el_mensaje_dice_qué_hacer`: eso es el NOMBRE del proyecto, va contra el texto del
+# error de `app/db.py`, y el proyecto recreado conserva ese nombre.
+DEV = "postgresql://postgres.gdiiagioiukadifejewv:x@aws-1-us-west-2.pooler.supabase.com:5432/postgres"
 PRINCIPAL = f"postgresql://postgres.{REF_PRINCIPAL}:x@aws-1-us-west-2.pooler.supabase.com:5432/postgres"
 LOCAL = "postgresql://postgres:postgres@localhost:5432/athos"
 
