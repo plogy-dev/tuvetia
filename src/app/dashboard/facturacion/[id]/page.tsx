@@ -72,7 +72,7 @@ export default async function FacturaDetallePage({
   // Los avisos del borrador se recalculan ACÁ, que es donde ahora se emite. Antes vivían en el
   // carrito junto al botón «Emitir ahora»; al mover la emisión a esta pantalla se habrían perdido,
   // y con ellos la única señal de que se está vendiendo algo que no hay en existencia.
-  const avisos = await avisosDelBorrador(supabase, clinicId, invoice, lines);
+  const { avisos, umbralPos } = await avisosDelBorrador(supabase, clinicId, invoice, lines);
 
   // Contexto CRM: paciente facturado y consulta de origen. La consulta se enlaza por su id
   // (la ruta /dashboard/consultas/[id] espera consultations.id) — la query de chat_id que había
@@ -330,6 +330,27 @@ export default async function FacturaDetallePage({
               </ul>
             </section>
           )}
+          {/* ── EL UMBRAL DE LAS 5 UVT, ACÁ Y NO SÓLO EN EL CARRITO ─────────────────────────────
+              `previewDraft` lo calculaba y `avisosDelBorrador` lo tiraba, así que este aviso vivía
+              únicamente en el carrito — un paso ANTES de la pantalla que emite, que es la única
+              donde todavía se puede cambiar el tipo de documento sin haber quemado el consecutivo.
+              Va aparte de los otros avisos porque no es lo mismo: aquéllos son del inventario y la
+              clínica ya decidió que no frenan una venta; éste es fiscal y cambia qué documento se
+              emite. */}
+          {umbralPos?.exceeds && (
+            <section className="rounded-xl border border-warn bg-surface-2 p-4 text-sm text-warn">
+              <h2 className="mb-2 flex items-center gap-2 text-xs font-medium uppercase tracking-wide">
+                <AlertTriangle className="size-3.5 shrink-0" aria-hidden />
+                Puede que no corresponda un POS
+              </h2>
+              <p className="text-xs leading-relaxed">{umbralPos.message}</p>
+              <p className="mt-2 text-xs leading-relaxed text-fg-muted">
+                Se puede emitir igual: por encima del umbral el tiquete POS sigue siendo válido
+                mientras el cliente no exija factura. Si la exige, cambiá el tipo de documento en la
+                cuenta ANTES de emitir — después el consecutivo ya está tomado.
+              </p>
+            </section>
+          )}
           <InvoiceActionsPanel
             invoiceId={invoice.id}
             status={invoice.status}
@@ -343,6 +364,7 @@ export default async function FacturaDetallePage({
             shareUrl={shareUrl}
             deliveryStatus={invoice.delivery_status}
             defaultTermsDays={settings?.default_payment_terms_days ?? 15}
+            paymentTerms={invoice.payment_terms}
             reminderChannel={settings?.reminder_channel ?? 'WHATSAPP'}
             remindersEnabled={settings?.reminders_enabled ?? false}
           />

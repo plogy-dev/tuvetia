@@ -1235,14 +1235,24 @@ export async function setInvoiceRemindersPaused(
  * falta stock cuando ya llegó, o callaría cuando ya se agotó. Se recalcula con `previewDraft`, la
  * MISMA función que valida al crear: una sola definición de qué merece aviso.
  */
+/**
+ * ── Y EL UMBRAL DE LAS 5 UVT VIAJA CON ELLOS (27-ago) ─────────────────────────────────────────
+ *
+ * `previewDraft` ya lo calculaba y esta función lo TIRABA: devolvía sólo `preview.warnings`. El
+ * resultado es que el aviso —«esta operación supera 5 UVT: si el cliente la exige, va factura
+ * electrónica y no tiquete POS»— aparecía en el carrito y NO en la pantalla donde se emite, que es
+ * la única donde todavía se puede cambiar el tipo de documento antes de quemar el consecutivo.
+ *
+ * Un aviso que llega un paso antes del que decide no es un aviso: es una nota al pie.
+ */
 export async function avisosDelBorrador(
   supabase: SupabaseClient,
   clinicId: string,
   invoice: InvoiceRow,
   lines: InvoiceLineRow[],
   now = new Date(),
-): Promise<ValidationIssue[]> {
-  if (invoice.status !== 'BORRADOR' || !invoice.payer_id) return [];
+): Promise<{ avisos: ValidationIssue[]; umbralPos: PosThresholdCheck | null }> {
+  if (invoice.status !== 'BORRADOR' || !invoice.payer_id) return { avisos: [], umbralPos: null };
   try {
     const preview = await previewDraft(
       supabase,
@@ -1263,10 +1273,10 @@ export async function avisosDelBorrador(
       },
       now,
     );
-    return preview.warnings;
+    return { avisos: preview.warnings, umbralPos: preview.posThreshold };
   } catch {
     // Un aviso que no se pudo calcular NO puede tumbar la pantalla del documento: el vet tiene que
     // poder abrir su borrador aunque el catálogo de un ítem haya desaparecido.
-    return [];
+    return { avisos: [], umbralPos: null };
   }
 }

@@ -21,6 +21,7 @@ import {
 } from './PaymentSection';
 import { InputMoneda } from '@/components/ui/input-moneda';
 import { textoDesdePesos } from '@/lib/moneda';
+import type { PaymentTerms } from '@/lib/supabase/types';
 
 /**
  * Acciones de la factura según su estado:
@@ -40,6 +41,7 @@ export function InvoiceActionsPanel({
   shareUrl,
   deliveryStatus,
   defaultTermsDays = 15,
+  paymentTerms = 'IMMEDIATE',
   reminderChannel = 'WHATSAPP',
   remindersEnabled = false,
 }: {
@@ -60,6 +62,13 @@ export function InvoiceActionsPanel({
   shareUrl?: string | null;
   deliveryStatus?: string;
   defaultTermsDays?: number;
+  /**
+   * Contado o crédito, tal como quedó en el carrito. Sin esto la emisión abría SIEMPRE en
+   * «Pagado ahora» e ignoraba lo que el vet ya había elegido un paso antes — y al emitir el
+   * servidor sobrescribe `payment_terms` con el resultado de acá, así que elegir «Crédito» y no
+   * tocar nada emitía la factura como pagada.
+   */
+  paymentTerms?: PaymentTerms;
   reminderChannel?: 'WHATSAPP' | 'EMAIL';
   remindersEnabled?: boolean;
 }) {
@@ -81,7 +90,7 @@ export function InvoiceActionsPanel({
   // no iba a emitir — y si el vet lo escribía en el campo, el servidor se lo rechazaba.
   const acreditableCents = Math.max(0, totalCents - creditedCents);
 
-  const [plan, setPlan] = useState<PaymentPlan>(() => makeDefaultPlan(defaultTermsDays));
+  const [plan, setPlan] = useState<PaymentPlan>(() => makeDefaultPlan(defaultTermsDays, paymentTerms));
   const [payMethod, setPayMethod] = useState<'EFECTIVO' | 'TRANSFERENCIA'>('EFECTIVO');
   const [payAmount, setPayAmount] = useState(''); // en pesos
   // ── EL CORREO SE PEDÍA CON `window.prompt` ────────────────────────────────────────────────────
@@ -96,6 +105,19 @@ export function InvoiceActionsPanel({
   // caso en que hay algo que preguntar.
   const [pidiendoCorreo, setPidiendoCorreo] = useState(false);
   const [correoManual, setCorreoManual] = useState('');
+  // ── LA FRICCIÓN ESTABA AL REVÉS ───────────────────────────────────────────────────────────────
+  //
+  //   Descartar borrador   reversible en la práctica, no toca el consecutivo   →  pedía confirmar
+  //   Emitir               IRREVERSIBLE, quema el consecutivo de la DIAN       →  no pedía nada
+  //
+  // El texto de abajo del panel ya decía «una factura emitida solo se corrige con nota crédito», o
+  // sea que la app sabía que era irreversible y aun así lo dejaba a un clic de distancia — el mismo
+  // clic con el que se venía de armar la cuenta.
+  //
+  // Las dos confirmaciones son en la tarjeta y no `window.confirm`: un diálogo del sistema no puede
+  // explicar qué se va a consumir, aparece fuera de contexto y en algunos navegadores no aparece.
+  // Es la misma forma de dos pasos que ya usa la caja de anular.
+  const [confirmando, setConfirmando] = useState<'emitir' | 'descartar' | null>(null);
 
   // wa.me: normaliza el teléfono a dígitos; celular colombiano sin indicativo → +57.
   function waHref(): string {
@@ -158,47 +180,103 @@ export function InvoiceActionsPanel({
             reminderChannel={reminderChannel}
             remindersEnabled={remindersEnabled}
           />
+          {/* El segundo paso de emitir. Dice QUÉ se consume y por qué no se deshace — que es lo
+              único que un `window.confirm` no puede hacer. */}
+          {confirmando === 'emitir' && (
+            <div className="space-y-2 rounded-lg border border-warn bg-surface-2 px-3 py-2.5 text-xs text-fg-muted">
+              <p className="leading-relaxed">
+                Al emitir, esta cuenta <strong className="text-fg">toma el próximo consecutivo</strong>{' '}
+                de la serie y se transmite. El número queda consumido pase lo que pase después: no se
+                recicla ni se puede reasignar, que es como la DIAN exige que se haga.
+              </p>
+              <p className="leading-relaxed">
+                A partir de ahí sólo se corrige con <strong className="text-fg">nota crédito</strong>.
+              </p>
+              <div className="flex flex-wrap items-center gap-2 pt-0.5">
+                <button
+                  type="button"
+                  disabled={isPending}
+                  onClick={() =>
+                    run(
+                      async () => {
+                        const planError = validatePlan(plan, totalCents);
+                        if (planError) return { ok: false, error: planError };
+                        const fields = planToActionFields(plan);
+                        const r = await issueInvoiceAction({
+                          invoiceId,
+                          outcome: fields.outcome,
+                          method: fields.method,
+                          amountCents: fields.amountCents,
+                          reference: fields.reference,
+                          dueDate: fields.dueDate,
+                          followupEnabled: fields.followupEnabled,
+                        });
+                        return r.ok
+                          ? { ok: true, msg: `Emitida como ${r.result.fullNumber}` }
+                          : { ok: false, error: r.error };
+                      },
+                      () => setConfirmando(null),
+                    )
+                  }
+                  className="inline-flex items-center gap-2 rounded-lg bg-brand px-4 py-2 text-sm font-medium text-on-brand hover:bg-brand-deep transition disabled:opacity-60"
+                >
+                  {isPending ? 'Emitiendo…' : 'Sí, emitir'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setConfirmando(null)}
+                  className="rounded-lg px-2 py-2 text-sm text-fg-faint hover:text-fg transition"
+                >
+                  Cancelar
+                </button>
+              </div>
+            </div>
+          )}
+          {/* El de descartar. Era el ÚNICO que confirmaba, y con un diálogo del sistema. */}
+          {confirmando === 'descartar' && (
+            <div className="flex flex-wrap items-center gap-2 rounded-lg border border-line bg-surface-2 px-3 py-2.5 text-xs text-fg-muted">
+              <span className="leading-relaxed">
+                Se borra la cuenta con sus líneas. No toca ningún consecutivo.
+              </span>
+              <button
+                type="button"
+                disabled={isPending}
+                onClick={() =>
+                  run(async () => {
+                    const r = await discardInvoiceDraft({ invoiceId });
+                    if (r.ok) {
+                      router.push('/dashboard/facturacion');
+                      return { ok: true };
+                    }
+                    return { ok: false, error: r.error };
+                  })
+                }
+                className="rounded-lg border border-line bg-surface px-3 py-1.5 text-sm text-warn hover:bg-surface transition disabled:opacity-60"
+              >
+                {isPending ? 'Descartando…' : 'Sí, descartar'}
+              </button>
+              <button
+                type="button"
+                onClick={() => setConfirmando(null)}
+                className="rounded-lg px-2 py-1.5 text-sm text-fg-faint hover:text-fg transition"
+              >
+                Cancelar
+              </button>
+            </div>
+          )}
           <div className="flex flex-wrap items-center gap-2">
             <button
               type="button"
-              disabled={isPending}
-              onClick={() =>
-                run(async () => {
-                  const planError = validatePlan(plan, totalCents);
-                  if (planError) return { ok: false, error: planError };
-                  const fields = planToActionFields(plan);
-                  const r = await issueInvoiceAction({
-                    invoiceId,
-                    outcome: fields.outcome,
-                    method: fields.method,
-                    amountCents: fields.amountCents,
-                    reference: fields.reference,
-                    dueDate: fields.dueDate,
-                    followupEnabled: fields.followupEnabled,
-                  });
-                  return r.ok
-                    ? { ok: true, msg: `Emitida como ${r.result.fullNumber}` }
-                    : { ok: false, error: r.error };
-                })
-              }
+              disabled={isPending || confirmando !== null}
+              onClick={() => setConfirmando('emitir')}
               className="inline-flex items-center gap-2 rounded-lg bg-brand px-4 py-2 text-sm font-medium text-on-brand hover:bg-brand-deep transition disabled:opacity-60"
             >
-              {isPending ? 'Emitiendo…' : 'Emitir'}
+              Emitir
             </button>
             <button
               type="button"
-              disabled={isPending}
-              onClick={() => {
-                if (!window.confirm('¿Descartar este borrador? No se puede deshacer.')) return;
-                run(async () => {
-                  const r = await discardInvoiceDraft({ invoiceId });
-                  if (r.ok) {
-                    router.push('/dashboard/facturacion');
-                    return { ok: true };
-                  }
-                  return { ok: false, error: r.error };
-                });
-              }}
+              disabled={isPending || confirmando !== null}
+              onClick={() => setConfirmando('descartar')}
               className="rounded-lg border border-line bg-surface px-4 py-2 text-sm text-fg-muted hover:bg-surface-2 hover:text-warn transition disabled:opacity-60"
             >
               Descartar borrador
