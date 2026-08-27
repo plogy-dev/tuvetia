@@ -139,3 +139,34 @@ describe("la barra avisa cuando esconde contenido", () => {
     expect(sidebar).not.toContain("scrollbar-width: thin")
   })
 })
+
+describe("la agenda no desborda la página", () => {
+  // Reporte 26-ago: «la agenda está completamente desbordada y toca hacer scroll down».
+  //
+  // No era un descuido sino un empate imposible: «Hoy» era `shrink-0` —no cede nunca— y la grilla
+  // tiene un piso de 420 px. Dos bloques que no ceden en una columna de alto acotado sólo pueden
+  // desbordar. La cuenta a 768 px de alto: 640 disponibles contra 771 pedidos.
+  //
+  // Lo que se vigila es CUÁL de los dos cede, que es la decisión. Los píxeles pueden cambiar.
+
+  it("«Hoy» puede encogerse — no vuelve a ser shrink-0", () => {
+    const hoy = leer("src", "components", "calendar", "dia-de-hoy.tsx")
+    expect(hoy).not.toContain("lg:shrink-0")
+    // Y cede hasta un piso, no hasta desaparecer: la cabecera y una fila.
+    expect(hoy).toMatch(/lg:min-h-\[\d+px\]/)
+  })
+
+  it("y su lista deja de medirse contra el viewport en pantalla grande", () => {
+    // `30svh` no sabe que la grilla de abajo ya reclamó sus 420 px. Dentro de una columna acotada
+    // el techo tiene que ser lo que le toque, no una fracción de la ventana.
+    const hoy = leer("src", "components", "calendar", "dia-de-hoy.tsx")
+    expect(hoy).toContain("lg:max-h-none")
+    expect(hoy).toContain("lg:flex-1")
+  })
+
+  it("la grilla conserva su piso: es la parte que no puede achicarse", () => {
+    // Si cediera ésta en vez de «Hoy», la semana quedaría sin alto para decir ni la hora.
+    const cal = leer("src", "components", "calendar", "appointment-calendar.tsx")
+    expect(cal).toMatch(/lg:min-h-\[\d+px\]/)
+  })
+})

@@ -55,10 +55,25 @@ export function DiaDeHoy({ citas, huecos }: { citas: CitaDeHoy[]; huecos: Hueco[
   if (filas.length === 0) return null
 
   return (
-    // `lg:shrink-0`: en la columna de alto acotado de la agenda, esta sección no puede dejarse
-    // aplastar por el calendario `flex-1` — su techo lo pone el scroll interno de abajo.
-    <section className="overflow-hidden rounded-xl border border-line bg-card lg:shrink-0">
-      <div className="flex items-center justify-between gap-4 border-b border-line px-4 py-2.5">
+    // ── «HOY» CEDE ESPACIO; ES LO QUE EVITA EL SCROLL DE PÁGINA ─────────────────────────────────
+    //
+    // Reporte 26-ago: «la agenda está completamente desbordada y toca hacer scroll down». No era un
+    // descuido, era un empate imposible: esta sección era `lg:shrink-0` —no cede nunca— y la grilla
+    // de abajo tiene un piso de 420 px. Con la lista de «Hoy» llena, la suma no cabía en un
+    // portátil y `appointment-calendar.tsx` lo daba por aceptado: «antes de dejar la grilla
+    // inusable, se prefiere devolverle unos px de scroll a la página».
+    //
+    // La cuenta, a 768 px de alto: 48 de cabecera + 16 del inset + 64 de padding dejan 640 para la
+    // columna. «Hoy» pedía hasta 271 (41 de su cabecera + 30svh de lista) y el calendario no baja
+    // de ~484 (su barra + los 420). Son 771 contra 640 — desbordaba por 131 px, siempre.
+    //
+    // EL ARREGLO NO ES UN NÚMERO MÁGICO NUEVO, es dejar que flexbox resuelva. Quitando `shrink-0`
+    // y poniendo un PISO propio (104 px, la cabecera y una fila), el algoritmo congela la grilla en
+    // su mínimo —que es la parte que de verdad no puede achicarse— y le da a «Hoy» lo que sobre. En
+    // una pantalla alta «Hoy» se ve entero; en un portátil se recorta a lo que quepa y el día
+    // completo sigue estando a un scroll DE LA LISTA. Que es lo que esta sección ya prometía.
+    <section className="flex min-h-0 flex-col overflow-hidden rounded-xl border border-line bg-card lg:min-h-[104px]">
+      <div className="flex shrink-0 items-center justify-between gap-4 border-b border-line px-4 py-2.5">
         <span className="text-[11px] font-semibold uppercase tracking-[0.08em] text-fg-faint">
           Hoy
         </span>
@@ -71,8 +86,13 @@ export function DiaDeHoy({ citas, huecos }: { citas: CitaDeHoy[]; huecos: Hueco[
 
       {/* Techo + scroll propio: un día lleno (10+ filas entre citas y huecos) crecía sin límite y
           el calendario —lo que esta pantalla existe para mostrar— quedaba entero bajo el pliegue.
-          El día se sigue viendo completo scrolleando LA LISTA, no la página. */}
-      <div className="max-h-[30svh] overflow-y-auto">
+          El día se sigue viendo completo scrolleando LA LISTA, no la página.
+
+          En `lg:` el techo deja de ser 30svh y pasa a ser LO QUE LE TOQUE a la sección: `flex-1` +
+          `min-h-0` dentro de una sección que ya cede. Medir contra el viewport era el error de
+          fondo — 30svh no sabe que la grilla de abajo ya reclamó 420 px. Fuera de `lg:` el techo
+          fijo se queda, porque ahí la página scrollea a propósito y no hay nada que repartir. */}
+      <div className="max-h-[30svh] overflow-y-auto lg:max-h-none lg:min-h-0 lg:flex-1">
       {filas.map((f) =>
         f.tipo === "cita" ? (
           <Fila key={f.cita.id}>
