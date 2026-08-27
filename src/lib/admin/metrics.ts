@@ -1,20 +1,52 @@
 // Métricas de plataforma para /admin — SOLO servidor (service_role: ve TODAS las clínicas).
-// Agregación en JS: a los volúmenes actuales (decenas/cientos de filas) es lo más simple y claro.
-// NOTA de escala: con >100 clínicas o >100k filas de logs, mover estas agregaciones a RPCs SQL.
+// Agregación en JS: a los volúmenes de la mayoría de estas tablas (decenas/cientos de filas) es lo
+// más simple y claro. `whatsapp_messages` ya se salió de ese rango (10.158 filas), así que las
+// lecturas PAGINAN; pasadas las 100k, mover estas agregaciones a RPCs SQL.
 
+import { paginar, TOPE } from "@/lib/admin/paginar"
 import { createAdminClient } from "@/lib/supabase/admin"
-
-const CAP = 10000 // guarda: si algún fetch llega al tope, las cifras serían parciales (se loguea)
 
 type Row = Record<string, unknown>
 
+/**
+ * Lee una tabla ENTERA, paginando a paso de mil.
+ *
+ * POR QUÉ NO ALCANZA CON PEDIR MUCHO, que es lo que hacía antes. Esto era
+ * `.limit(10000)` con esta guarda:
+ *
+ *     const CAP = 10000
+ *     if (rows.length === CAP) console.warn(`${table} alcanzó el tope — cifras parciales`)
+ *
+ * Y ESA COMPARACIÓN NO PODÍA SER CIERTA NUNCA. PostgREST tiene su propio `max-rows` de mil filas:
+ * pedir diez mil devuelve mil, sin error y sin aviso. O sea que `rows.length` valía 1000, la
+ * comparación contra 10000 daba falso, el aviso jamás salió — y el panel reportó mil mensajes de
+ * WhatsApp durante todo el tiempo que hubo diez mil (10.158 medidos contra el principal el
+ * 2026-08-27; el resto de las tablas que agrega este panel no pasa de 300 filas, por eso el
+ * problema se veía en una sola cifra y parecía plausible).
+ *
+ * EL ERROR DE FONDO, que es lo que hay que no volver a escribir: una guarda que compara contra lo
+ * que uno PIDIÓ no puede detectar un recorte impuesto por una capa de más abajo. Cuánto se pide no
+ * lo decide uno. La guarda honesta vive en `paginar.ts` y compara contra el tamaño de página, que
+ * es la cifra que esa capa sí puede devolver.
+ *
+ * El `.order("id")` es lo que hace estable la paginación —las catorce tablas de acá lo tienen—:
+ * sin un orden explícito Postgres no garantiza que la página 2 no repita filas de la 1, y el panel
+ * contaría dos veces unas y ninguna vez otras.
+ */
 async function fetchAll(table: string, columns: string): Promise<Row[]> {
   const admin = createAdminClient()
-  const { data, error } = await admin.from(table).select(columns).limit(CAP)
-  if (error) throw new Error(`admin metrics ${table}: ${error.message}`)
-  const rows = (data ?? []) as unknown as Row[]
-  if (rows.length === CAP) console.warn(`[admin] ${table} alcanzó el tope de ${CAP} filas — cifras parciales`)
-  return rows
+  const { filas, truncado, paginas } = await paginar<Row>(async (desde, hasta) => {
+    const { data, error } = await admin.from(table).select(columns).order("id").range(desde, hasta)
+    if (error) throw new Error(`admin metrics ${table}: ${error.message}`)
+    return (data ?? []) as unknown as Row[]
+  })
+  if (truncado) {
+    console.warn(
+      `[admin] ${table}: se cortó en ${filas.length} filas (${paginas} páginas) al llegar al tope de ${TOPE} ` +
+        `y la última página vino llena — las cifras de esta tabla son parciales, toca mover la agregación a SQL`,
+    )
+  }
+  return filas
 }
 
 /**
