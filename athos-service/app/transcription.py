@@ -42,6 +42,28 @@ def _settings_value(name: str, env: str, default: str = "") -> str:
     return str(getattr(get_settings(), name, "") or os.environ.get(env, default))
 
 
+def nombre_del_paciente(clinic_id: str, consultation_id: str) -> str | None:
+    """El nombre de la mascota de esta consulta, para reforzarlo en el reconocimiento de voz.
+
+    Es la palabra más repetida del audio y la que peor sale sin ayuda («Achira» → «Shira»,
+    26-ago). Falla ABIERTA a propósito: si la consulta no aparece o la base tose, se transcribe
+    sin el refuerzo — que es exactamente lo que pasaba antes de que esto existiera. Un nombre de
+    menos jamás puede costar una transcripción.
+    """
+    try:
+        rows = fetch_all(
+            "select p.name from public.consultations c "
+            "join public.patients p on p.id = c.patient_id "
+            "where c.clinic_id = %s and c.id = %s limit 1",
+            (clinic_id, consultation_id),
+        )
+        nombre = (rows[0]["name"] or "").strip() if rows else ""
+        return nombre or None
+    except Exception:  # noqa: BLE001 — ver arriba: el refuerzo nunca puede tumbar el camino
+        log.warning("no se pudo leer el nombre del paciente para el refuerzo de STT", exc_info=True)
+        return None
+
+
 def _load_audio_row(clinic_id: str, consultation_id: str) -> dict | None:
     rows = fetch_all(
         "select id, storage_path, duration_secs from public.consultation_audios "
@@ -140,7 +162,9 @@ def _call_grok(audio: bytes, mime: str = "audio/webm") -> dict[str, Any]:
     return _grok_a_payload_comun(cuerpo)
 
 
-def _transcribir_con_proveedor(audio: bytes, mime: str = "audio/webm") -> tuple[dict[str, Any], str, str]:
+def _transcribir_con_proveedor(
+    audio: bytes, mime: str = "audio/webm", nombre_paciente: str | None = None
+) -> tuple[dict[str, Any], str, str]:
     """Despacha al proveedor configurado. Devuelve (payload_forma_deepgram, provider, model).
 
     Con `STT_PROVIDER=grok`, Grok es el primario y Deepgram el RESPALDO automático: una consulta
@@ -159,10 +183,12 @@ def _transcribir_con_proveedor(audio: bytes, mime: str = "audio/webm") -> tuple[
                 raise
             log.warning("Grok STT falló (%s); transcribiendo con el respaldo Deepgram", e)
     model = _settings_value("stt_model", "STT_MODEL", "nova-2")
-    return _call_deepgram(audio, mime), "deepgram", model
+    return _call_deepgram(audio, mime, nombre_paciente), "deepgram", model
 
 
-def _call_deepgram(audio: bytes, mime: str = "audio/webm") -> dict[str, Any]:
+def _call_deepgram(
+    audio: bytes, mime: str = "audio/webm", nombre_paciente: str | None = None
+) -> dict[str, Any]:
     """Transcribe con Deepgram Nova: español, diarización, puntuación."""
     api_key = _settings_value("deepgram_api_key", "DEEPGRAM_API_KEY")
     if not api_key:
@@ -181,7 +207,7 @@ def _call_deepgram(audio: bytes, mime: str = "audio/webm") -> dict[str, Any]:
         ("punctuate", "true"),
         ("smart_format", "true"),
     ]
-    params += parametros_de_vocabulario(model)
+    params += parametros_de_vocabulario(model, nombre_paciente)
     headers = {"Authorization": f"Token {api_key}", "Content-Type": mime}
     with httpx.Client(timeout=300) as client:
         resp = client.post(DEEPGRAM_URL, params=params, headers=headers, content=audio)
@@ -281,7 +307,10 @@ def transcribe(consultation_id: str, clinic_id: str) -> dict[str, Any]:
     _set_consultation_status(clinic_id, consultation_id, "transcribing")
     try:
         raw = _download_audio(audio["storage_path"])
-        payload, provider, model = _transcribir_con_proveedor(raw)
+        # El nombre de la mascota entra como refuerzo por consulta — ver `nombre_del_paciente`.
+        payload, provider, model = _transcribir_con_proveedor(
+            raw, nombre_paciente=nombre_del_paciente(clinic_id, consultation_id)
+        )
         segments = build_segments(payload)
         alt = payload.get("results", {}).get("channels", [{}])[0].get("alternatives", [{}])[0]
         full_text = render_full_text(segments, fallback=alt.get("transcript", ""))

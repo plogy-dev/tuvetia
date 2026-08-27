@@ -84,16 +84,19 @@ export function PanelModoFantasma({
 
   return (
     <>
-      {/* El velo ATENÚA, no tapa: cierra al tocarlo y deja ver el contexto de abajo, que es la
-          diferencia entre un panel y un modal. No detiene la grabación — contraer y terminar son
-          cosas distintas, y confundirlas acá cortaría una consulta. */}
-      <button
-        type="button"
-        aria-label="Contraer la consulta"
-        onClick={alCerrar}
-        className="fixed inset-0 z-30 cursor-default bg-black/20"
-      />
+      {/* ── SIN VELO, Y ES LA SEGUNDA VEZ QUE EL CLIENTE LO PIDE ──────────────────────────────
+          Acá había un botón `fixed inset-0 bg-black/20`: un gris sobre LA PANTALLA ENTERA que
+          además interceptaba todos los clics. David lo señaló el 26-ago por la mañana
+          («quitarlo de fondo» — se interpretó otra cosa) y de nuevo por la noche, con captura:
+          el contorno gris del panel.
 
+          El velo contradecía las dos promesas de este mismo archivo: «cuelga del notch, NO cubre
+          la app» y «grabar no te saca de donde estás» — con el fondo atenuado y los clics
+          bloqueados, sí te sacaba. Un panel que atenúa lo de atrás es un modal con otro nombre.
+
+          El cierre por clic afuera no se pierde: vive en `notch-de-consulta.tsx` como un listener
+          de documento que no pinta nada ni bloquea nada — la app de atrás queda 100% usable con
+          el panel abierto, que es la idea entera del Modo Fantasma. */}
       <div
         // Cuelga del notch: lo posiciona el dock, y acá sólo se resuelve que los dos leen como una
         // sola pieza — el notch pierde su redondeo de abajo y esto no tiene borde arriba.

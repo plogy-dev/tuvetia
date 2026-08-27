@@ -145,6 +145,22 @@ export function NotchDeConsulta() {
   const enSuPropiaConsulta = Boolean(
     estado.consultaId && pathname === `/dashboard/consultas/${estado.consultaId}`,
   )
+
+  // CERRAR TOCANDO AFUERA, SIN VELO. El panel tenía un `fixed inset-0 bg-black/20` que atenuaba
+  // la pantalla entera y se comía todos los clics — el «contorno gris» que el cliente señaló dos
+  // veces el 26-ago. Un listener de documento hace lo mismo sin pintar ni bloquear nada: el
+  // PRIMER clic afuera cierra Y llega a su destino — cerrar el panel no debe costarle al vet el
+  // clic que estaba dando. `pointerdown` y no `click` para ganarle a cualquier stopPropagation.
+  useEffect(() => {
+    if (!abierto) return
+    const alTocarAfuera = (e: PointerEvent) => {
+      const caja = cajaRef.current
+      if (caja && !caja.contains(e.target as Node)) setAbierto(false)
+    }
+    document.addEventListener("pointerdown", alTocarAfuera)
+    return () => document.removeEventListener("pointerdown", alTocarAfuera)
+  }, [abierto])
+
   if (enSuPropiaConsulta) return null
 
   return (

@@ -35,6 +35,7 @@ from app.transcription import (
     _set_consultation_status,
     _settings_value,
     build_segments,
+    nombre_del_paciente,
     render_full_text,
 )
 
@@ -195,8 +196,13 @@ class DeepgramLiveSession:
 # Conexión con Deepgram
 # --------------------------------------------------------------------------------------------
 
-async def abrir_deepgram():
-    """Abre el socket con Deepgram Live. Función aparte para poder sustituirla en las pruebas."""
+async def abrir_deepgram(nombre_paciente: str | None = None):
+    """Abre el socket con Deepgram Live. Función aparte para poder sustituirla en las pruebas.
+
+    `nombre_paciente` refuerza el nombre de la mascota de ESTA consulta en el reconocimiento
+    («Achira» salía como «Shira», 26-ago) — ver `stt_vocabulario.parametros_de_vocabulario`.
+    Opcional con default para que los dobles de las pruebas sin argumentos sigan valiendo.
+    """
     from websockets.asyncio.client import connect
 
     api_key = _settings_value("deepgram_api_key", "DEEPGRAM_API_KEY")
@@ -207,7 +213,7 @@ async def abrir_deepgram():
     # misma clave una vez por término y un dict conservaría sólo el último.
     params = [(k, v) for k, v in LIVE_PARAMS.items() if k != "model"]
     params.insert(0, ("model", model))
-    params += parametros_de_vocabulario(model)
+    params += parametros_de_vocabulario(model, nombre_paciente)
     url = f"{DEEPGRAM_LIVE_URL}?{urlencode(params)}"
     return await connect(url, additional_headers={"Authorization": f"Token {api_key}"})
 
@@ -326,7 +332,8 @@ async def run_live_session(ws: Any, autenticar) -> None:
         return
 
     try:
-        dg = await abrir_deepgram()
+        # `nombre_del_paciente` falla abierta (devuelve None): el refuerzo jamás tumba el vivo.
+        dg = await abrir_deepgram(nombre_del_paciente(clinic_id, consultation_id))
     except Exception as e:  # noqa: BLE001
         log.warning("transcripción en vivo no disponible: %s", e)
         await _avisar_error(ws, f"no se pudo conectar con Deepgram: {e}")

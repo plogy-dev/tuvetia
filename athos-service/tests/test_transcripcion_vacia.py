@@ -27,7 +27,9 @@ def _sin_red(monkeypatch, payload):
                         lambda c, k: {"id": "aud-1", "storage_path": "p/x.webm", "file_size": 158656})
     monkeypatch.setattr(tr, "_download_audio", lambda ruta: b"audio")
     monkeypatch.setattr(tr, "_transcribir_con_proveedor",
-                        lambda raw, mime="audio/webm": (payload, "deepgram", "nova-2"))
+                        lambda raw, mime="audio/webm", **kw: (payload, "deepgram", "nova-2"))
+    # El refuerzo del nombre no puede tocar la base en un test: se anula explícito.
+    monkeypatch.setattr(tr, "nombre_del_paciente", lambda clinic, consulta: None)
     monkeypatch.setattr(tr, "_set_consultation_status",
                         lambda clinic, consulta, estado: estados.append(estado))
     monkeypatch.setattr(tr, "_insert_transcript",

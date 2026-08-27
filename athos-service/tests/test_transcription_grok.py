@@ -46,7 +46,7 @@ def _config(monkeypatch, valores: dict):
 
 def test_grok_primario_responde_y_se_persiste_como_grok(monkeypatch):
     _config(monkeypatch, {"stt_provider": "grok", "xai_api_key": "xai-x", "deepgram_api_key": "dg"})
-    monkeypatch.setattr(tr, "_call_grok", lambda audio, mime="audio/webm": tr._grok_a_payload_comun(GROK))
+    monkeypatch.setattr(tr, "_call_grok", lambda audio, mime="audio/webm", *a, **k: tr._grok_a_payload_comun(GROK))
     payload, provider, model = tr._transcribir_con_proveedor(b"audio")
     assert provider == "grok" and model == "grok-stt"
     assert payload["results"]["channels"]
@@ -62,7 +62,7 @@ def test_grok_caido_cae_a_deepgram(monkeypatch):
     llamado = {}
     monkeypatch.setattr(tr, "_call_grok", revienta)
     monkeypatch.setattr(tr, "_call_deepgram",
-                        lambda audio, mime="audio/webm": llamado.setdefault("dg", True) or {"results": {}})
+                        lambda audio, mime="audio/webm", *a, **k: llamado.setdefault("dg", True) or {"results": {}})
     payload, provider, model = tr._transcribir_con_proveedor(b"audio")
     assert llamado.get("dg") and provider == "deepgram" and model == "nova-2"
 
@@ -80,7 +80,7 @@ def test_grok_caido_sin_deepgram_propaga(monkeypatch):
 
 def test_proveedor_por_defecto_sigue_siendo_deepgram(monkeypatch):
     _config(monkeypatch, {"deepgram_api_key": "dg", "stt_model": "nova-2"})
-    monkeypatch.setattr(tr, "_call_deepgram", lambda audio, mime="audio/webm": {"results": {}})
+    monkeypatch.setattr(tr, "_call_deepgram", lambda audio, mime="audio/webm", *a, **k: {"results": {}})
     _, provider, _ = tr._transcribir_con_proveedor(b"audio")
     assert provider == "deepgram"
 
@@ -106,7 +106,7 @@ def test_grok_200_vacio_dispara_el_respaldo(monkeypatch):
     monkeypatch.setattr(tr.httpx, "Client", _Cliente)
     llamado = {}
     monkeypatch.setattr(tr, "_call_deepgram",
-                        lambda audio, mime="audio/webm": llamado.setdefault("dg", True) or {"results": {}})
+                        lambda audio, mime="audio/webm", *a, **k: llamado.setdefault("dg", True) or {"results": {}})
     _, provider, _ = tr._transcribir_con_proveedor(b"audio")
     assert llamado.get("dg") and provider == "deepgram"
 

@@ -104,3 +104,48 @@ def test_el_vivo_manda_el_vocabulario_en_la_url(monkeypatch):
     # Y sigue SIN `encoding` ni `sample_rate`: el navegador manda webm contenerizado y fijarlos
     # devuelve transcripciones vacías (está explicado en `LIVE_PARAMS`).
     assert not any(k in ("encoding", "sample_rate") for k, _ in query)
+
+
+# ── EL INCIDENTE «PROPOFOL» Y EL REFUERZO POR NOMBRE (26-ago, primera prueba real) ──────────────
+#
+# El vet dijo «probando, probando» y el transcript arrancó con «Propofol.» — un anestésico
+# inventado, casi seguro por el empuje de 1.5 sobre un parónimo. Y «Achira», el nombre de la
+# perra, salió «Shira» — el refuerzo global no puede saber nombres, pero el de ESTA consulta sí.
+
+
+def test_el_empuje_global_es_minimo_desde_el_incidente_propofol():
+    # Si alguien vuelve a subirlo, que este test lo obligue a leer el porqué: un fármaco que falta
+    # se nota y se corrige; uno inventado en la historia clínica se lee como dicho.
+    from app.stt_vocabulario import EMPUJE
+    assert EMPUJE == "1"
+
+
+def test_el_nombre_del_paciente_entra_con_empuje_propio():
+    pares = parametros_de_vocabulario("nova-2", nombre_paciente="Achira")
+    assert ("keywords", "Achira:3") in pares
+    # Y los términos globales siguen en 1.
+    assert ("keywords", "meloxicam:1") in pares
+
+
+def test_el_nombre_va_primero_y_sobrevive_al_tope():
+    # Con la lista global en el tope, lo que se recorta es la cola global — nunca el nombre.
+    pares = parametros_de_vocabulario("nova-2", nombre_paciente="Achira")
+    assert pares[0] == ("keywords", "Achira:3")
+    assert len(pares) <= TOPE
+
+
+def test_nombre_compuesto_entra_por_palabras_en_nova_2():
+    # `keywords` de nova-2 no acepta espacios; «de»/«la» no aportan y se filtran.
+    pares = parametros_de_vocabulario("nova-2", nombre_paciente="Rocky de la Torre")
+    valores = [v for _, v in pares]
+    assert "Rocky:3" in valores and "Torre:3" in valores
+    assert not any(v.startswith("de:") or v.startswith("la:") for v in valores)
+
+
+def test_en_nova_3_el_nombre_viaja_entero():
+    pares = parametros_de_vocabulario("nova-3", nombre_paciente="Rocky Balboa")
+    assert pares[0] == ("keyterm", "Rocky Balboa")
+
+
+def test_sin_nombre_todo_sigue_igual():
+    assert parametros_de_vocabulario("nova-2") == parametros_de_vocabulario("nova-2", None)

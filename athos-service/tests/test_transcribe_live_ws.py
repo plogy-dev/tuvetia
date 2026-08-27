@@ -73,7 +73,7 @@ def escenario(monkeypatch):
     dg = FakeDeepgram(CONVERSACION)
     guardado = {}
 
-    async def _abrir():
+    async def _abrir(nombre=None):
         return dg
 
     monkeypatch.setattr(st, "abrir_deepgram", _abrir)
@@ -165,7 +165,7 @@ def test_los_roles_no_se_invierten(escenario):
 
 def test_si_deepgram_no_conecta_manda_fallback(monkeypatch):
     """Sin Deepgram el veterinario NO puede quedarse sin transcripción: cae al lote."""
-    async def _explota():
+    async def _explota(nombre=None):
         raise RuntimeError("falta DEEPGRAM_API_KEY")
 
     monkeypatch.setattr(st, "abrir_deepgram", _explota)
@@ -186,7 +186,7 @@ def test_token_invalido_no_abre_sesion(monkeypatch):
 
     llamadas = []
     monkeypatch.setattr("app.main._auth_token", _rechaza)
-    monkeypatch.setattr(st, "abrir_deepgram", lambda: llamadas.append(1))
+    monkeypatch.setattr(st, "abrir_deepgram", lambda nombre=None: llamadas.append(1))
 
     with TestClient(app).websocket_connect("/athos/transcribe/live") as ws:
         ws.send_text(json.dumps(INIT))
@@ -205,7 +205,7 @@ def test_primer_mensaje_que_no_es_init_se_rechaza(monkeypatch):
 
 def test_sesion_muda_cae_al_lote(monkeypatch):
     """Silencio total: no hay nada que guardar y el lote debe encargarse."""
-    async def _abrir():
+    async def _abrir(nombre=None):
         return FakeDeepgram([])          # Deepgram no devuelve ni un Results
 
     monkeypatch.setattr(st, "abrir_deepgram", _abrir)

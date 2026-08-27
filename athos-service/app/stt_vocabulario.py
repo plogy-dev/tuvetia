@@ -29,9 +29,26 @@ global haría aparecer donde no corresponde.
 
 from __future__ import annotations
 
-# El empuje de Deepgram va de 0 a ~10. `1.5` es deliberadamente moderado: alcanza para que el
-# término gane contra su homófono común y no tanto como para inventarlo en audio ruidoso.
-EMPUJE = "1.5"
+# ── EL EMPUJE, BAJADO A 1 POR UN INCIDENTE REAL ─────────────────────────────────────────────────
+#
+# Arrancó en 1.5 «deliberadamente moderado». La primera prueba real (26-ago de noche) lo desmintió:
+# el vet dijo «probando, probando» y el transcript arrancó con «Propofol.» — un ANESTÉSICO inventado
+# en una historia clínica, casi seguro este mismo refuerzo empujando su término sobre un parónimo
+# («pro-ban-do» / «pro-po-fol»). Es exactamente el riesgo que este archivo ya advertía, y es el peor
+# de los dos errores posibles: un fármaco que falta se nota y se corrige; uno inventado se lee como
+# dicho.
+#
+# En 1, el término sigue en el diccionario de la sesión —que es la mitad del beneficio: el motor
+# SABE que «maropitant» puede aparecer— pero sin sobrepeso frente a lo que de verdad se oyó. Si la
+# precisión en fármacos reales sigue corta, el camino es subir el MODELO (STT_MODEL=nova-3 en
+# Railway, pendiente), no volver a subir esto.
+EMPUJE = "1"
+
+# El nombre del paciente sí lleva empuje de verdad (3): es la palabra MÁS probable de la consulta
+# entera —se repite decenas de veces— y equivocarla no inventa clínica, solo escribe mal un nombre
+# («probando a Shira» donde la perra se llama Achira, mismo incidente). El costo de un falso
+# positivo acá es cero comparado con un fármaco.
+EMPUJE_NOMBRE = "3"
 
 # Principios activos y presentaciones que se dictan en voz alta en una consulta.
 FARMACOS: tuple[str, ...] = (
@@ -84,7 +101,7 @@ TERMINOS: tuple[str, ...] = FARMACOS + PATOLOGIAS + CLINICOS
 TOPE = 100
 
 
-def parametros_de_vocabulario(model: str) -> list[tuple[str, str]]:
+def parametros_de_vocabulario(model: str, nombre_paciente: str | None = None) -> list[tuple[str, str]]:
     """Los pares (clave, valor) que le pasan el vocabulario al modelo de Deepgram.
 
     Deepgram cambió de parámetro entre generaciones y no son intercambiables: `nova-3` usa
@@ -94,8 +111,26 @@ def parametros_de_vocabulario(model: str) -> list[tuple[str, str]]:
 
     Se elige por el modelo configurado, así que subir `STT_MODEL` a `nova-3` en Railway migra
     también el vocabulario sin tocar código.
+
+    `nombre_paciente` es la personalización por consulta —la primera prueba real la pidió a
+    gritos: «Achira» salió como «Shira»—. Un refuerzo GLOBAL de nombres es imposible (cambian por
+    clínica y meterían falsos positivos en todas), pero el de ESTA consulta es la palabra más
+    probable del audio. Va PRIMERO, porque si la lista global llegara al tope, lo que se recorta
+    es la cola global y nunca el nombre.
     """
-    terminos = TERMINOS[:TOPE]
+    propios: list[str] = []
+    if nombre_paciente:
+        # Un nombre compuesto («Rocky Balboa») entra palabra por palabra en nova-2, que no acepta
+        # espacios en `keywords`. Se filtran sufijos cortos («de», «la») que no aportan.
+        propios = [p for p in nombre_paciente.strip().split() if len(p) >= 3]
+
+    terminos = (tuple(propios) + TERMINOS)[:TOPE]
     if model.strip().lower().startswith("nova-3"):
-        return [("keyterm", t) for t in terminos]
-    return [("keywords", f"{t}:{EMPUJE}") for t in terminos if " " not in t]
+        # nova-3 sí acepta frases: el nombre viaja entero, y el resto igual.
+        frases = ([nombre_paciente.strip()] if nombre_paciente else []) + list(TERMINOS)
+        return [("keyterm", t) for t in frases[:TOPE]]
+    return [
+        ("keywords", f"{t}:{EMPUJE_NOMBRE if t in propios else EMPUJE}")
+        for t in terminos
+        if " " not in t
+    ]
