@@ -33,7 +33,27 @@ CLINICAL_SYSTEM_PROMPT = (
     "práctica, si el cuadro es reconocible en la literatura, deberías citar al menos una fuente. "
     "Cita SOLO chunk_id presentes en la literatura entregada; nunca inventes fuentes. Deja "
     "`citations` en [] ÚNICAMENTE si NINGÚN chunk se relaciona con el cuadro clínico (hueco real de "
-    "literatura); solo en ese caso indícalo en el assessment.\n"
+    "literatura).\n\n"
+    # ── LA NOTA NO HABLA DE SÍ MISMA ───────────────────────────────────────────────────────────
+    #
+    # Acá decía «solo en ese caso indícalo en el assessment», y eso producía exactamente lo que el
+    # cliente llamó «poco profesional» (27-ago, con captura): el vet cerraba una consulta y la
+    # pantalla lo recibía con dos campos vacíos y dos llenos de negaciones — «No hay suficiente
+    # información…», «No es posible proponer un plan…» — más un marcador «[sin literatura
+    # suficiente]» repetido, que parece un error de sistema.
+    #
+    # La instrucción tenía sentido cuando la pantalla no avisaba nada. Hoy `lib/evidencia.ts`
+    # muestra la banda del juez arriba de la nota, con su explicación redactada para un veterinario.
+    # O sea que el modelo estaba DUPLICANDO ese aviso, peor escrito, y adentro de los campos
+    # clínicos — que es texto que ENTRA A LA HISTORIA si el vet aprueba.
+    #
+    # La regla queda al revés: los campos llevan clínica o no llevan nada. La advertencia de
+    # evidencia es de la interfaz, y va una sola vez.
+    "NUNCA expliques tus propias limitaciones dentro de la nota. No escribas frases como 'no hay "
+    "suficiente información', 'no es posible proponer', 'sin literatura suficiente' ni marcadores "
+    "entre corchetes que no sean un chunk_id. Si no podés afirmar nada en un campo, dejalo VACÍO "
+    "(\"\"): un campo vacío es una nota que el veterinario completa; una disculpa es texto que "
+    "tiene que borrar antes de escribir. El sistema ya le informa aparte del nivel de evidencia.\n"
     "Además, DENTRO del texto del assessment y del plan, marca cada afirmación respaldada con su "
     "referencia entre corchetes [chunk_id] inmediatamente después de la afirmación (el sistema la "
     "convertirá en numeración [n] para el veterinario).\n\n"
@@ -53,7 +73,16 @@ def _format_literature(literature: list[RetrievedChunk]) -> str:
     for c in literature:
         content = (c.content or "")[:_MAX_CHUNK_CHARS]
         lines.append(f"[{c.chunk_id}] fuente={c.source or '?'} loc={c.locator or '?'}\n{content}")
-    return "\n\n".join(lines) if lines else "(sin literatura suficiente)"
+    # SIN LITERATURA, UNA INSTRUCCIÓN — NO UN TOKEN CON FORMA DE DATO.
+    #
+    # Decía "(sin literatura suficiente)", y el modelo lo copiaba TAL CUAL adentro de la nota: la
+    # captura del cliente del 27-ago muestra «[sin literatura suficiente]» dos veces, entre
+    # corchetes, en los campos clínicos — leyéndose como una cita o como un error de sistema. Un
+    # relleno con pinta de contenido, puesto en la sección de literatura, invita justo a eso.
+    return "\n\n".join(lines) if lines else (
+        "No se recuperó literatura para este caso. Redactá lo que la transcripción sostenga y dejá "
+        "`citations` en []. NO menciones esta ausencia en el texto de la nota."
+    )
 
 
 def build_note_prompt(transcript: str, literature: list[RetrievedChunk], patient: PatientContext,
@@ -79,7 +108,20 @@ def build_note_prompt(transcript: str, literature: list[RetrievedChunk], patient
     """
     ficha = (f"- especie: {patient.species or '?'}; peso: {patient.weight_kg or '?'} kg; "
              f"edad: {patient.age_years or '?'} años")
-    alergias = ", ".join(severe_allergens) if severe_allergens else "ninguna conocida"
+    # LA ADVERTENCIA DE ALERGIAS SÓLO SE PIDE CUANDO HAY QUÉ ADVERTIR.
+    #
+    # La línea decía siempre «(ADVERTIR antes de cualquier plan)», también con la lista vacía, y el
+    # modelo obedecía: en la captura del 27-ago el plan terminaba con «Se recuerda advertir sobre
+    # alergias severas antes de cualquier intervención, aunque no se reportan conocidas en el
+    # paciente» — una advertencia sobre nada, en una nota que ya estaba vacía de clínica.
+    #
+    # El GATE de alergia severa NO se toca y sigue siendo determinístico (`allergy_gate.py`, regla
+    # nº3): esto es sólo qué se le pide al redactor cuando la ficha no tiene ninguna.
+    alergias = (
+        f"{', '.join(severe_allergens)} (ADVERTIR antes de cualquier plan)"
+        if severe_allergens
+        else "ninguna conocida (no hace falta mencionarlo en la nota)"
+    )
     # El cuaderno sólo aparece si tiene contenido: sin él, el prompt queda IDÉNTICO al de siempre y
     # las mediciones ya tomadas del Fantasma siguen siendo comparables.
     cuaderno = (
@@ -90,7 +132,7 @@ def build_note_prompt(transcript: str, literature: list[RetrievedChunk], patient
     user = (
         "CONTEXTO DEL PACIENTE:\n"
         f"{ficha}\n"
-        f"- alergias severas conocidas: {alergias} (ADVERTIR antes de cualquier plan)\n\n"
+        f"- alergias severas conocidas: {alergias}\n\n"
         f"{cuaderno}"
         "TRANSCRIPCIÓN DE LA CONSULTA:\n"
         f"{transcript.strip() or '(vacía)'}\n\n"
@@ -139,6 +181,40 @@ def _renumber_refs(text: str, idx: dict[str, int]) -> str:
     return _CHUNK_REF_RE.sub(repl, text)
 
 
+# ── LA RED, PORQUE EL PROMPT ES UNA INSTRUCCIÓN Y NO UNA GARANTÍA ───────────────────────────────
+#
+# El prompt ya le pide al modelo que no explique sus limitaciones dentro de la nota. Un prompt no
+# obliga: el 26-ago quedó medido en este mismo repo que pedir por prompt lo que se puede imponer por
+# código falla en una fracción de los casos (el guard de dosis existe por eso). Y acá la fracción que
+# falla es texto que ENTRA A LA HISTORIA CLÍNICA si el vet aprueba sin leer.
+#
+# Se recortan sólo frases que hablan DEL SISTEMA, nunca clínica. Por eso los patrones son literales
+# y anclados: «no es posible determinar la especie» es clínica y se queda; «no es posible proponer un
+# plan debido a la ausencia de literatura» es el sistema disculpándose y se va.
+#
+# Si el campo queda vacío, mejor: un campo vacío es una nota que el vet completa, y la pantalla ya
+# le informa del nivel de evidencia por su cuenta (`lib/evidencia.ts`).
+_DISCULPAS = re.compile(
+    r"(?:^|(?<=[.\n]))\s*[^.\n]*?"
+    r"(?:no hay (?:suficiente )?informaci[oó]n|no es posible (?:proponer|evaluar|determinar un)"
+    r"|sin literatura suficiente|no se recuper[oó] literatura"
+    r"|ausencia de (?:informaci[oó]n cl[ií]nica|literatura))"
+    r"[^.\n]*\.?",
+    re.IGNORECASE,
+)
+# El marcador que el modelo copiaba del relleno viejo, por si vuelve por otra vía.
+_MARCADOR = re.compile(r"\[\s*sin literatura suficiente\s*\]", re.IGNORECASE)
+
+
+def _sin_disculpas(texto: str) -> str:
+    """Saca del campo las frases en que el sistema habla de sí mismo. Ver el bloque de arriba."""
+    limpio = _MARCADOR.sub("", texto)
+    limpio = _DISCULPAS.sub("", limpio)
+    # Espacios y puntuación huérfana que deja el recorte.
+    limpio = re.sub(r"\s{2,}", " ", limpio).strip()
+    return re.sub(r"^[\s.;,]+", "", limpio).strip()
+
+
 def parse_note_response(text: str, literature: list[RetrievedChunk]) -> tuple[SOAP, list[Citation], bool]:
     """Parsea la respuesta del modelo y VERIFICA las citas contra la literatura recuperada
     (descarta fuentes inventadas). Además NUMERA las citas en el texto del SOAP ([n]) para que el
@@ -146,10 +222,10 @@ def parse_note_response(text: str, literature: list[RetrievedChunk]) -> tuple[SO
     data = _extract_json(text)
     s = data.get("soap") or {}
     soap = SOAP(
-        subjective=str(s.get("subjective", "")),
-        objective=str(s.get("objective", "")),
-        assessment=str(s.get("assessment", "")),
-        plan=str(s.get("plan", "")),
+        subjective=_sin_disculpas(str(s.get("subjective", ""))),
+        objective=_sin_disculpas(str(s.get("objective", ""))),
+        assessment=_sin_disculpas(str(s.get("assessment", ""))),
+        plan=_sin_disculpas(str(s.get("plan", ""))),
     )
     cited = [
         Citation(chunk_id=str(c["chunk_id"]), doc_id=str(c.get("doc_id", "")),

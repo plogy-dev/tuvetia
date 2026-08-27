@@ -71,7 +71,7 @@ export function avisoDeEvidencia(banda: BandaDeEvidencia): AvisoDeEvidencia {
       return {
         etiqueta: "Sin evidencia suficiente",
         advertencia:
-          "Athos no encontró literatura que respalde este cuadro y se abstuvo de citar antes que " +
+          "VetGPT no encontró literatura que respalde este cuadro y se abstuvo de citar antes que " +
           "inventar una fuente. La nota se redactó sólo a partir de la transcripción.",
         tono: "grave",
       }
