@@ -508,16 +508,20 @@ export function AppointmentCalendar({
     // grilla llene lo que queda de pantalla con scroll interno. SIN `lg:items-start`: las columnas
     // se estiran al alto de la fila (es lo que le da alto al `flex-1` del calendario); el panel no
     // cambia a la vista porque su contenido ya vive arriba y su raíz no pinta fondo.
-    // `lg:flex-1` SIN `lg:min-h-0`, y la diferencia es todo el arreglo del 27-ago.
     //
-    // `flex-1` sola crece para llenar lo que sobre —en una pantalla alta, la grilla se estira— pero
-    // NO se encoge por debajo de su contenido, porque un item de flex tiene `min-height: auto`.
-    // `min-h-0` es exactamente lo que anulaba esa protección: con él, la fila se apretaba hasta
-    // caber en el viewport y las dos columnas tenían que ponerse su propia barra para sobrevivir.
+    // ── EL `min-h-0` VUELVE, Y CONVIENE DEJAR ESCRITO POR QUÉ SE FUE ───────────────────────────
     //
-    // Sin `min-h-0` las dos cosas pasan a ser ciertas a la vez: sobra espacio y se reparte, falta y
-    // la fila crece hacia abajo. El scroll, cuando hace falta, lo pone el contenedor del panel.
-    <div className="flex flex-col gap-4 lg:flex-1 lg:flex-row lg:gap-5">
+    // El 27-ago se quitó para que la fila creciera en vez de apretarse: se estaban contando tres
+    // barras de desplazamiento en una pantalla, y las dos columnas se comprimían hasta necesitar la
+    // suya. El diagnóstico era bueno. El costo, no: sin `min-h-0` la fila crece siempre, la columna
+    // de la agenda crece con ella y el desplazamiento vuelve a la PÁGINA — el mismo defecto que el
+    // cliente reportó dos veces el 26-ago y que se cerró esa misma mañana.
+    //
+    // Las tres barras no se arreglan quitando el techo: se arreglan bajando los pisos y avisando.
+    // El de la grilla vuelve a 220 (abajo), el riel recupera su scroll CON degradado
+    // (`panel-de-agenda.tsx`), y «Hoy» ya tenía el suyo. Con eso la pantalla vuelve a caber en un
+    // portátil de 768 px, que es el único sitio donde esto se nota.
+    <div className="flex flex-col gap-4 lg:min-h-0 lg:flex-1 lg:flex-row lg:gap-5">
       <PanelDeAgenda
         fecha={date}
         onElegirFecha={(d) => {
@@ -645,13 +649,22 @@ export function AppointmentCalendar({
           A 220 px la grilla no queda inusable: `rbc-time-content` scrollea por dentro, que es lo
           que esta pantalla viene diciendo desde arriba — el scroll vive en la rejilla de horas y
           no en la página. */}
-      {/* EL PISO SUBE DE 220 A 480 px. Los 220 venían de cuando la fila se apretaba contra el
-          viewport: eran lo mínimo para que la grilla no quedara inusable, no una medida elegida.
-          Ahora que la fila crece en vez de encogerse, el piso puede ser el que de verdad hace
-          falta — 480 px son unas siete horas a los 72 px por hora que necesita una cita de media
-          hora para ser legible, o sea una jornada de mañana entera sin scrollear por dentro.
-          Sigue siendo un PISO y no una altura: en una pantalla alta, `flex-1` la estira más. */}
-      <div className="tuvetia-calendar h-[75svh] overflow-x-auto lg:h-auto lg:min-h-[480px] lg:flex-1">
+      {/* EL PISO VUELVE A 220, Y ES ARITMÉTICA, NO GUSTO. Subió a 480 el 27-ago con un argumento
+          razonable —480 px son siete horas a 72 px/hora, una jornada de mañana sin scrollear por
+          dentro— pero no cabe. La cuenta en el portátil de 1366×768 donde el cliente reporta:
+
+            768 − 48 de cabecera − 16 del inset  =  704 disponibles
+            64 de padding + 60 del aviso + 16 + 104 de «Hoy» + 16 + 480  =  740 MÍNIMO
+
+          Desborda por 36 px con «Hoy» en su piso, y por 200-400 en un día con citas. O sea que el
+          piso de 480 garantizaba la barra de página en todos los portátiles, siempre.
+
+          A 220 la suma da 480 contra 704 y sobran 224, que `flex-1` reparte: en un monitor normal la
+          grilla sigue midiendo 480 o mucho más. El piso sólo entra en juego cuando el espacio
+          escasea, que es exactamente cuando 480 dejaba de caber. Y a 220 la grilla no queda
+          inusable: `rbc-time-content` scrollea por dentro, que es lo que esta pantalla viene
+          diciendo desde arriba — el scroll vive en la rejilla de horas y no en la página. */}
+      <div className="tuvetia-calendar h-[75svh] overflow-x-auto lg:h-auto lg:min-h-[220px] lg:flex-1">
         <div className="h-full min-w-[700px]">
         <DnDCalendar
           localizer={localizer}

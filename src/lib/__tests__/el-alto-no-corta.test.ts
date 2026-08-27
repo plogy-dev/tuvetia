@@ -129,6 +129,46 @@ describe("los layouts del dashboard pasan el alto", () => {
   })
 })
 
+// ── Familia 4 · un piso que no cabe ──────────────────────────────────────────────────────────────
+
+/**
+ * El techo de cualquier `min-h-[Npx]`, y sale de una cuenta, no de un gusto.
+ *
+ * El portátil del cliente mide 768 px de alto. Descontando la cabecera (48) y el `m-2` del
+ * `SidebarInset` (16), al área de contenido le quedan **704**. De ahí, una pantalla típica ya gasta
+ * ~64 en su padding, ~60 en una franja de aviso y ~32 en dos huecos: quedan unos **550** para
+ * repartir entre TODOS los bloques con piso.
+ *
+ * Un solo piso de 320 se lleva el 58 % de eso y todavía deja lugar para un segundo bloque. Uno de
+ * 480 no: garantiza el desborde con cualquier hermano, en todos los portátiles, siempre.
+ *
+ * Y eso no es hipotético. El 27-ago la grilla de la agenda subió su piso de 220 a 480 con un
+ * argumento razonable —siete horas de jornada a 72 px por hora— y el resultado fue que la página
+ * volvió a desplazarse entera: 64 + 60 + 16 + 104 + 16 + 480 = 740 contra 704 disponibles. El
+ * cliente lo reportó con las mismas palabras de las dos veces anteriores.
+ */
+const TOPE_DE_PISO = 320
+
+describe("ningún piso en píxeles se come la pantalla", () => {
+  it("todo min-h-[Npx] cabe en el área de contenido de un portátil", () => {
+    const culpables: string[] = []
+    for (const ruta of tsx()) {
+      const texto = sinComentarios(readFileSync(join(RAIZ, ruta), "utf8"))
+      for (const { cls, linea } of clases(texto)) {
+        for (const m of cls.matchAll(/min-h-\[(\d+)px\]/g)) {
+          const px = Number(m[1])
+          if (px > TOPE_DE_PISO) culpables.push(`${ruta}:${linea} → min-h-[${px}px]`)
+        }
+      }
+    }
+    expect(
+      culpables,
+      `un piso mayor a ${TOPE_DE_PISO}px no deja lugar a sus hermanos en un portátil de 768: la ` +
+        "columna deja de repartirse, crece, y el desplazamiento vuelve a la página entera",
+    ).toEqual([])
+  })
+})
+
 // ── Familia 3 · texto de usuario que no parte ────────────────────────────────────────────────────
 
 describe("las burbujas de conversación parten el texto largo", () => {

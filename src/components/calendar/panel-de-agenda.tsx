@@ -25,6 +25,7 @@ import Link from "next/link"
 import { BellIcon, ChevronLeftIcon, ChevronRightIcon } from "lucide-react"
 
 import { cn } from "@/lib/utils"
+import { DESVANECER_AL_PIE, useHayMasAbajo } from "@/hooks/use-hay-mas-abajo"
 import { Button } from "@/components/ui/button"
 import {
   DIAS_DE_LA_SEMANA,
@@ -60,22 +61,34 @@ export function PanelDeAgenda({
   const [mes, setMes] = useState(() => `${seleccionada.slice(0, 7)}-01`)
   const dias = useMemo(() => grillaDelMes(mes), [mes])
   const hoy = isoEnBogota(new Date())
+  const { ref, hayMas } = useHayMasAbajo<HTMLElement>()
 
   return (
-    // `lg:min-h-0 lg:overflow-y-auto`: la agenda ahora acota su alto al viewport (ver
-    // calendario/page.tsx), así que si esta columna no cabe —muchos veterinarios en la lista—
-    // scrollea ella sola en vez de devolverle el scroll a la página entera.
-    // ── ESTA COLUMNA NO SCROLLEA: CRECE ────────────────────────────────────────────────────────
+    // ── ESTA COLUMNA SCROLLEA, Y AVISA QUE SCROLLEA ────────────────────────────────────────────
     //
-    // Tenía `lg:min-h-0 lg:overflow-y-auto`, o sea que se encogía por debajo de su contenido y se
-    // ponía su propia barra. El efecto: la lista de calendarios quedaba cortada a mitad de un
-    // nombre y el último veterinario no se veía. Reportado el 27-ago con captura — y esconder un
-    // vet en la pantalla donde se eligen los calendarios es esconder justo lo que se vino a elegir.
+    // El 27-ago se reportó, con captura, que la lista de calendarios quedaba cortada a mitad de un
+    // nombre y el último veterinario no se veía — esconder un vet en la pantalla donde se eligen
+    // los calendarios es esconder justo lo que se vino a elegir. Se arregló quitándole el scroll a
+    // esta columna para que creciera.
     //
-    // Ahora mide lo que mide su contenido. Si es más alto que la pantalla, quien scrollea es el
-    // contenedor del panel (`dashboard/layout.tsx`), que ya existe y deja quietas la cabecera y la
-    // barra lateral. Una barra menos, y ningún nombre cortado.
-    <aside className="flex w-full shrink-0 flex-col gap-4 lg:w-64">
+    // El diagnóstico era correcto y el arreglo tenía un costo que no se vio: sin `min-h-0`, la
+    // columna deja de encogerse, la fila entera crece, y el desplazamiento vuelve a la PÁGINA. Es
+    // exactamente el defecto que se había cerrado esa misma mañana y que el cliente ya había
+    // reportado dos veces («toda la página se mueve hacia abajo»). Una barra de panel por una barra
+    // de página es un mal cambio: la de panel mueve una lista, la de página mueve la agenda entera.
+    //
+    // El nombre cortado nunca fue «inalcanzable»: era «invisible que hay más». Así que vuelve el
+    // scroll Y entra la señal — el mismo degradado que la barra lateral usa desde el 26-ago por el
+    // mismo motivo (`hooks/use-hay-mas-abajo.ts`). Se apaga al llegar al final.
+    <aside
+      ref={ref}
+      style={
+        hayMas
+          ? { maskImage: DESVANECER_AL_PIE, WebkitMaskImage: DESVANECER_AL_PIE }
+          : undefined
+      }
+      className="flex w-full shrink-0 flex-col gap-4 lg:min-h-0 lg:w-64 lg:overflow-y-auto"
+    >
       {/* ── AVISOS ─────────────────────────────────────────────────────────────────────────────
           Se DICE el estado y se enlaza a donde se cambia; no se cambia acá. El interruptor real
           vive en Administración porque encenderlo decide que la clínica le escribe sola a sus

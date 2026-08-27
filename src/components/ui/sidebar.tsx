@@ -6,6 +6,7 @@ import { useRender } from "@base-ui/react/use-render"
 import { cva, type VariantProps } from "class-variance-authority"
 
 import { useIsMobile } from "@/hooks/use-mobile"
+import { DESVANECER_AL_PIE, useHayMasAbajo } from "@/hooks/use-hay-mas-abajo"
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -422,34 +423,12 @@ function SidebarSeparator({
  * Se apaga al llegar al final, así que cuando no hay nada más abajo no se ve nada.
  */
 function SidebarContent({ className, style, ...props }: React.ComponentProps<"div">) {
-  const ref = React.useRef<HTMLDivElement>(null)
-  const [hayMasAbajo, setHayMasAbajo] = React.useState(false)
-
-  React.useEffect(() => {
-    const el = ref.current
-    if (!el) return
-    // 4 px de tolerancia: los navegadores redondean `scrollHeight` y sin holgura el degradado
-    // parpadea al final del recorrido.
-    const medir = () =>
-      setHayMasAbajo(el.scrollHeight - el.scrollTop - el.clientHeight > 4)
-
-    medir()
-    el.addEventListener("scroll", medir, { passive: true })
-    // El alto del CONTENIDO cambia sin que cambie el del contenedor: el Historial se monta sólo en
-    // VetGPT y Modo Fantasma, y se pliega. Por eso hacen falta las dos observaciones — el tamaño
-    // del contenedor y las altas y bajas de sus hijos.
-    const ro = new ResizeObserver(medir)
-    ro.observe(el)
-    const mo = new MutationObserver(medir)
-    mo.observe(el, { childList: true, subtree: true })
-    return () => {
-      el.removeEventListener("scroll", medir)
-      ro.disconnect()
-      mo.disconnect()
-    }
-  }, [])
-
-  const desvanecer = "linear-gradient(to bottom, #000 calc(100% - 28px), transparent)"
+  // La medición vive en `hooks/use-hay-mas-abajo.ts` desde el 27-ago, porque hizo falta la MISMA
+  // señal en el riel de la agenda: allá se había resuelto el mismo problema —una lista cortada sin
+  // aviso— quitándole el scroll a la columna, y eso devolvió el desplazamiento a la página entera.
+  // El gancho es lo que hace que la próxima vez la respuesta sea avisar y no quitar.
+  const { ref, hayMas: hayMasAbajo } = useHayMasAbajo<HTMLDivElement>()
+  const desvanecer = DESVANECER_AL_PIE
 
   return (
     <div
