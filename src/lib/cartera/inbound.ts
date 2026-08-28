@@ -130,7 +130,13 @@ export async function classifyCarteraIntent(
 
 export interface CarteraInboundInput {
   channel: CommsChannel;
-  ownerId: string;
+  /**
+   * Nullable A PROPÓSITO: una venta de mostrador tiene pagador sin titular del CRM. El camino de
+   * correo mandaba `''` acá, `comm_messages.owner_id` es uuid → 22P02, el catch de arriba solo
+   * loguea y el CURSOR DEL HILO AVANZA IGUAL: ese "ya pagué" con comprobante no se volvía a
+   * procesar nunca — sin respuesta, sin tarea, sin registro (auditoría 28-ago).
+   */
+  ownerId: string | null;
   invoiceId: string;
   /** full_number visible de la factura. */
   invoiceNumber: string;
@@ -175,7 +181,7 @@ export async function executeCarteraInbound(
     .insert({
       clinic_id: clinicId,
       invoice_id: input.invoiceId,
-      owner_id: input.ownerId,
+      owner_id: input.ownerId || null,
       channel: input.channel,
       direction: 'ENTRANTE',
       to_address: null,
@@ -215,7 +221,8 @@ export async function executeCarteraInbound(
     });
   }
 
-  if (spec.revokeChannel) {
+  if (spec.revokeChannel && input.ownerId) {
+    // Sin titular no hay autorización que revocar; la tarea humana de abajo sigue abriéndose igual.
     await revokeAuthorization(supabase, clinicId, {
       ownerId: input.ownerId,
       channel: input.channel,

@@ -1,6 +1,6 @@
 "use client"
 
-import { use, useCallback, useEffect, useRef, useState } from "react"
+import { use, useCallback, useEffect, useMemo, useRef, useState } from "react"
 import Link from "next/link"
 import {
   Activity,
@@ -26,7 +26,7 @@ import { tituloDeLaConsulta } from "@/lib/consultas/titulo"
 import { Cockpit, type PestanaDelCockpit } from "@/components/athos/cockpit"
 import { InformeAlTitular } from "@/components/consultas/informe-al-titular"
 import { hayAlgoQueCobrar } from "@/lib/facturacion/lo-recetado"
-import { useConsultaViva } from "@/lib/consulta-viva/usar"
+import { useConsultaVivaDerivado } from "@/lib/consulta-viva/usar"
 import { useRouter } from "next/navigation"
 import { createClient } from "@/lib/supabase/client"
 import { parseTranscript } from "@/lib/transcript"
@@ -194,12 +194,14 @@ export default function NotaConsultaPage({ params }: { params: Promise<{ id: str
   // —guardando, transcribiendo— y la pantalla sólo cambia cuando de verdad hay algo que mostrar.
   // Y si no quiere esperar, «Minimizar» sigue ahí: el notch lo acompaña a donde vaya.
   const router = useRouter()
-  const consultaEnVivo = useConsultaViva()
+  // Suscripción SELECTIVA: la página sólo necesita la fase DE ESTA consulta. Con el hook completo,
+  // el tick del cronómetro (1/s) re-renderizaba la página entera durante cualquier grabación — y
+  // el parseTranscript de abajo re-parseaba una transcripción larga cada segundo.
+  const faseDeEsta = useConsultaVivaDerivado((e) => (e.consultaId === id ? e.fase : "ajena"))
   const [pestanaCockpit, setPestanaCockpit] = useState<PestanaDelCockpit>("consulta")
-  const esLaMia = consultaEnVivo.consultaId === id
-  const cerrandoEsta =
-    esLaMia && (consultaEnVivo.fase === "subiendo" || consultaEnVivo.fase === "transcribiendo")
-  const grabandoEsta = (esLaMia && consultaEnVivo.fase === "grabando") || cerrandoEsta
+  const esLaMia = faseDeEsta !== "ajena"
+  const cerrandoEsta = faseDeEsta === "subiendo" || faseDeEsta === "transcribiendo"
+  const grabandoEsta = faseDeEsta === "grabando" || cerrandoEsta
 
   const load = useCallback(async () => {
     const { data: c, error: cErr } = await supabase
@@ -468,7 +470,10 @@ export default function NotaConsultaPage({ params }: { params: Promise<{ id: str
   // desconocido, igual que el default de la columna: una nota vieja no puede volverse dudosa sola.
   const banda = bandaDeEvidencia(note?.evidence_level)
   const aviso = avisoDeEvidencia(banda)
-  const turns = parseTranscript(transcript)
+  // Memoizado por transcript: corre ANTES del early-return del cockpit, así que sin memo se
+  // re-parseaba la transcripción completa en cada render de la página.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const turns = useMemo(() => parseTranscript(transcript), [transcript])
   const pet = consultation?.patient
   const initial = (pet?.name ?? "?").charAt(0).toUpperCase()
 

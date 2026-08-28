@@ -46,14 +46,20 @@ export default async function OwnersPage({
   }
 
   // Guarda de escala: listado acotado; con más titulares se busca por nombre (paginación real: backlog).
-  const { data: owners, error: listError } = await query.order("full_name").limit(200)
-
-  // Titulares con consentimiento de grabación vigente (owner_scope, no revocado) -> muestran "Revocar".
-  const { data: consentRows } = await supabase
-    .from("consents")
-    .select("owner_scope, revoked_at, patient:patients(owner_id)")
-    .eq("owner_scope", true)
-    .is("revoked_at", null)
+  // En PARALELO con los consentimientos: eran dos round-trips seriales y el segundo no depende del
+  // primero — esta pantalla se re-renderiza entera en cada pausa de tecleo del buscador.
+  const [
+    { data: owners, error: listError },
+    // Titulares con consentimiento de grabación vigente (owner_scope, no revocado) -> "Revocar".
+    { data: consentRows },
+  ] = await Promise.all([
+    query.order("full_name").limit(200),
+    supabase
+      .from("consents")
+      .select("owner_scope, revoked_at, patient:patients(owner_id)")
+      .eq("owner_scope", true)
+      .is("revoked_at", null),
+  ])
   const consented = new Set(
     ((consentRows as { patient: { owner_id: string | null } | null }[] | null) ?? [])
       .map((c) => c.patient?.owner_id)

@@ -1,4 +1,4 @@
-import { endOfWeek, startOfWeek } from "date-fns"
+import { addDays, endOfWeek, startOfWeek } from "date-fns"
 
 import { sesionDelServidor } from "@/lib/supabase/sesion"
 import { AppointmentCalendarLazy as AppointmentCalendar } from "@/components/calendar/appointment-calendar-lazy"
@@ -30,10 +30,14 @@ const ESTADOS_VIVOS = new Set(["scheduled", "confirmed", "in_progress"])
 export default async function CalendarioPage() {
   const { supabase, user } = await sesionDelServidor()
 
-  // Rango inicial: semana actual (lun–dom). El cliente refetchea al navegar.
+  // Rango inicial: semana actual (lun–dom) CON un día de colchón a cada lado. El colchón no es
+  // adorno: `startOfWeek`/`endOfWeek` corren acá en UTC (Vercel), y la semana UTC termina a las
+  // 18:59 del domingo en Bogotá — sin él, la primera pintura perdía las citas del domingo por la
+  // noche, y `handleSaved` (que recarga con este mismo rango) hacía "desaparecer" una cita recién
+  // creada para esa franja. El cliente refetchea al navegar.
   const now = new Date()
-  const rangeStart = startOfWeek(now, { weekStartsOn: 1 })
-  const rangeEnd = endOfWeek(now, { weekStartsOn: 1 })
+  const rangeStart = addDays(startOfWeek(now, { weekStartsOn: 1 }), -1)
+  const rangeEnd = addDays(endOfWeek(now, { weekStartsOn: 1 }), 1)
 
 
   // clinic_id explícito para el selector de vets (defensa en profundidad, no solo RLS).
@@ -130,7 +134,11 @@ export default async function CalendarioPage() {
   const franjasHoy = todasLasFranjas.filter((f) => f.weekday === localWeekday(hoy))
 
   const citasDeHoy: CitaDeHoy[] = ((appts as unknown as AppointmentRow[] | null) ?? [])
-    .filter((a) => a.starts_at.slice(0, 10) === hoy && ESTADOS_VIVOS.has(a.status))
+    // La fecha se compara EN BOGOTÁ, no con el `slice(0,10)` del ISO (que es la fecha UTC): una
+    // cita de hoy a las 19:30 Bogotá tiene fecha UTC de mañana — desaparecía de «Hoy» y su franja
+    // se ofrecía como hueco libre (doble reserva). El mismo defecto que `bogotaTimeOf` ya evita
+    // dos líneas más abajo para la HORA.
+    .filter((a) => bogotaTodayISO(new Date(a.starts_at)) === hoy && ESTADOS_VIVOS.has(a.status))
     .map((a) => ({
       id: a.id,
       starts_at: a.starts_at,
@@ -149,7 +157,8 @@ export default async function CalendarioPage() {
     // Los huecos se calculan contra TODAS las citas vivas del día, no sólo las que se listan:
     // una cita cancelada libera el espacio, una confirmada no.
     ocupados: ((appts as unknown as AppointmentRow[] | null) ?? [])
-      .filter((a) => a.starts_at.slice(0, 10) === hoy && ESTADOS_VIVOS.has(a.status))
+      // En Bogotá, igual que arriba: comparar la fecha UTC dejaba «libres» las franjas de la noche.
+      .filter((a) => bogotaTodayISO(new Date(a.starts_at)) === hoy && ESTADOS_VIVOS.has(a.status))
       .map((a) => ({ starts_at: a.starts_at, ends_at: a.ends_at })),
   })
 

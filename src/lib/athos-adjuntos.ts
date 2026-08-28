@@ -77,8 +77,10 @@ async function extraerTextoPdf(file: File): Promise<{ texto: string; paginas: nu
   // PDF malicioso. En v6 el soporte de eval se ELIMINÓ del motor (la opción `isEvalSupported` ya
   // ni existe), que es defensa más fuerte que apagarlo. Acá solo se extrae texto.
   const tarea = pdfjs.getDocument({ data: await file.arrayBuffer() })
-  const doc = await tarea.promise
+  // `tarea.promise` va DENTRO del try: un PDF corrupto o con contraseña rechaza justo ahí, y con
+  // el await afuera el finally nunca corría — worker y tarea filtrados en cada reintento.
   try {
+    const doc = await tarea.promise
     const partes: string[] = []
     const hasta = Math.min(doc.numPages, MAX_PAGINAS_TEXTO)
     for (let i = 1; i <= hasta; i++) {
@@ -134,8 +136,15 @@ async function comprimirImagen(file: File): Promise<Blob> {
     canvas.height = Math.max(1, Math.round(bitmap.height * escala))
     const ctx = canvas.getContext("2d")
     if (!ctx) return file
-    ctx.drawImage(bitmap, 0, 0, canvas.width, canvas.height)
-    bitmap.close()
+    // Fondo blanco ANTES de dibujar: jpeg no tiene alfa, y un PNG con transparencia (captura de
+    // pantalla, logo del laboratorio) quedaba sobre NEGRO — a veces ilegible para la transcripción.
+    ctx.fillStyle = "#fff"
+    ctx.fillRect(0, 0, canvas.width, canvas.height)
+    try {
+      ctx.drawImage(bitmap, 0, 0, canvas.width, canvas.height)
+    } finally {
+      bitmap.close()
+    }
     const blob = await new Promise<Blob | null>((res) => canvas.toBlob(res, "image/jpeg", 0.82))
     // Si la compresión no ayudó (raro: un png chico puede crecer al pasar a jpeg), gana el menor.
     return blob && blob.size < file.size ? blob : file

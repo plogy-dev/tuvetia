@@ -5,7 +5,8 @@ import { es } from "date-fns/locale/es"
 
 import { loadPlatformMetrics, daysAgo, since } from "@/lib/admin/metrics"
 import { SectionCards } from "@/components/section-cards"
-import { ConsultationsChart } from "@/components/dashboard/consultations-chart"
+// La versión lazy: la NO-lazy metía recharts entero al chunk eager de esta ruta (auditoría 28-ago).
+import { ConsultationsChartLazy as ConsultationsChart } from "@/components/dashboard/consultations-chart-lazy"
 
 export const metadata = { title: "Admin · Tuvetia" }
 

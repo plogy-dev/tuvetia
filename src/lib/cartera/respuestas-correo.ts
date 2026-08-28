@@ -177,7 +177,9 @@ async function procesar(
 
     const inbound = await executeCarteraInbound(admin, clinicId, {
       channel: 'EMAIL',
-      ownerId: ownerId ?? '',
+      // Nullable de verdad: el `?? ''` viejo metía un uuid vacío → 22P02 → el correo se perdía
+      // para siempre (el cursor del hilo avanza aunque procesar falle). Ver CarteraInboundInput.
+      ownerId,
       invoiceId: factura.id,
       invoiceNumber: factura.full_number ?? '',
       shareToken: factura.share_token,

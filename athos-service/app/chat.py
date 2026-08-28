@@ -239,7 +239,12 @@ def _abstain(clinic_id: str, patient_id: str | None, gate: bool):
     nada recuperado) y el juez semántico (lo recuperado no sostiene la consulta)."""
     yield _sse({"type": "token", "text": ABSTAIN_MESSAGE})
     if patient_id:
-        log_message(clinic_id, None, patient_id, "assistant", ABSTAIN_MESSAGE)
+        # Best-effort: si la persistencia falla (PoolTimeout en la Micro), el `done` de abajo TIENE
+        # que salir igual — sin él, el front queda "pensando" para siempre con el texto ya emitido.
+        try:
+            log_message(clinic_id, None, patient_id, "assistant", ABSTAIN_MESSAGE)
+        except Exception:  # noqa: BLE001
+            log.warning("no se pudo persistir la abstención en athos_messages", exc_info=True)
     yield _sse({"type": "done", "citations": [], "allergy_gate_triggered": gate,
                 "insufficient_evidence": True, "evidence_level": EVIDENCE_NONE,
                 "ai_model": get_settings().llm_model})
@@ -478,9 +483,14 @@ def stream_answer(question: str, patient_id: str, clinic_id: str, user_id: str |
         # Se guarda lo que el vet DEBERÍA haber visto: sin la cifra de dosis que el gate tapó (si no,
         # reaparece como contexto en el próximo turno) y sin los marcadores de las fuentes que el
         # auditor descartó (si no, el hilo conserva citas que ya no tienen referencia detrás).
+        # Best-effort: la respuesta YA se emitió; si el insert falla (PoolTimeout de la Micro), el
+        # `done` de abajo tiene que salir igual o el front queda "pensando" para siempre.
         visto = answer if dosing_ok else redact_doses(answer)[0]
         visto = strip_markers(visto, fidelity.unfaithful)
-        log_message(clinic_id, None, patient_id, "assistant", visto)
+        try:
+            log_message(clinic_id, None, patient_id, "assistant", visto)
+        except Exception:  # noqa: BLE001
+            log.warning("no se pudo persistir la respuesta en athos_messages", exc_info=True)
     # Lo que el modelo afirma como EJECUTABLE (un fármaco, una cifra) sin citar y sin declararlo
     # criterio clínico. La regla 2 del prompt lo pide y el prompt no basta: medido, 30 casos en 34
     # respuestas. No se censura —que Athos diga que la doxiciclina es de elección para ehrlichiosis
@@ -497,9 +507,13 @@ def stream_answer(question: str, patient_id: str, clinic_id: str, user_id: str |
     # ya emitido pero cuya fuente el auditor descartó. El chat es streaming, así que el texto no se
     # puede reescribir hacia atrás — el front debería atenuarlos o quitarlos al recibir este evento.
     # `undeclared_claims` viaja igual y por la misma razón.
+    # `error` viaja también en el done "normal": un corte del proveedor a MITAD de stream marcaba
+    # errored y seguía — el vet veía media respuesta terminada en seco, indistinguible de una
+    # completa. Aditivo: el front que no lo mire no cambia; el que lo mire puede avisar.
     yield _sse({"type": "done", "citations": [c.model_dump() for c in citations],
                 "allergy_gate_triggered": gate, "insufficient_evidence": False,
                 "evidence_level": level, "ai_model": cascade.usado or get_settings().llm_model,
                 "unverified_sources": sorted(fidelity.unfaithful),
                 "undeclared_claims": undeclared,
-                "allergy_in_answer": alergenos_en_respuesta})
+                "allergy_in_answer": alergenos_en_respuesta,
+                "error": errored})

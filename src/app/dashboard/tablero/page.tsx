@@ -22,10 +22,10 @@ import { BotonDePersonalizar } from "@/components/dashboard/boton-de-personaliza
 import { NotasPorAprobar, type NotaEnBorrador } from "@/components/dashboard/notas-por-aprobar"
 import { disposicionEfectiva, visibles, type Guardado } from "@/lib/tablero/widgets"
 import { ventasPorTipo } from "@/lib/tablero/ventas-por-tipo"
-import { VentasDelMes } from "@/components/dashboard/ventas-del-mes"
+import { VentasDelMesLazy as VentasDelMes } from "@/components/dashboard/donas-lazy"
 import { pacientesPorEspecie } from "@/lib/tablero/pacientes-por-especie"
-import { PacientesPorEspecie } from "@/components/dashboard/pacientes-por-especie"
-import { CumplimientoDeVentas } from "@/components/dashboard/cumplimiento-de-ventas"
+import { PacientesPorEspecieLazy as PacientesPorEspecie } from "@/components/dashboard/donas-lazy"
+import { CumplimientoDeVentasLazy as CumplimientoDeVentas } from "@/components/dashboard/donas-lazy"
 import {
   metricaDe,
   metricasAPintar,
@@ -57,6 +57,10 @@ function weeklySeries(dates: string[]): { label: string; count: number }[] {
 
 export default async function DashboardPage() {
   const { supabase, user } = await sesionDelServidor()
+  // Disparada YA, awaiteada recién en el JSX del riel: costó 443ms medidos (ver layout.tsx) y
+  // esperarla al final de todas las tandas se la sumaba ENTERA a la pantalla de entrada en cada
+  // navegación suave (el disparo del layout no corre ahí).
+  const progresoPromise = progresoDeConfiguracion()
 
   const now = new Date()
   // ── LOS CORTES DE «HOY» Y «MES» SON DE BOGOTÁ, NO DEL PROCESO ─────────────────────────────
@@ -182,15 +186,34 @@ export default async function DashboardPage() {
   const metricasElegidas = metricasAPintar(metricasDeLaPersona, facturacionActiva)
   const encendida = (id: IdDeMetrica) => metricasElegidas.some((m) => m.id === id)
 
-  // ── SEGUNDA OLA: sólo lo que alguien encendió ────────────────────────────────────────────────
+  // LA DISPOSICIÓN se resuelve ACÁ (sus dos orígenes vienen de la primera ola) porque la segunda
+  // ola también la necesita: qué donas/anillos se piden depende de qué bloques están visibles.
+  const guardadoPropio =
+    (preferencia as { data: { widgets: Guardado } | null } | { data: null }).data?.widgets ?? null
+  const guardadoDeLaClinica =
+    (defaultDeLaClinica as { data: { widgets: Guardado } | null } | { data: null }).data?.widgets ??
+    null
+  const disposicion = disposicionEfectiva(guardadoPropio, guardadoDeLaClinica)
+  const donaVisible =
+    facturacionActiva && disposicion.some((w) => w.id === "ventas" && w.visible)
+  const especiesVisible = disposicion.some((w) => w.id === "especies" && w.visible)
+  const cumplimientoVisible =
+    facturacionActiva && disposicion.some((w) => w.id === "cumplimiento" && w.visible)
+  const ventanaAnterior = ventanaDelMesAnterior(now, monthStart)
+
+  // ── SEGUNDA OLA: sólo lo que alguien encendió — y TODA JUNTA ─────────────────────────────────
   //
   // Va aparte de la ola grande de arriba a propósito. Estas consultas existen únicamente para las
-  // cifras OPCIONALES, así que pedirlas siempre sería cobrarle siete consultas por carga a la
-  // mayoría —que no encendió ninguna— para pintar nada. `null` cuando está apagada, y abajo se
-  // saltea.
+  // cifras OPCIONALES, así que pedirlas siempre sería cobrarle consultas por carga a la mayoría
+  // —que no encendió ninguna— para pintar nada. `null` cuando está apagada, y abajo se saltea.
   //
   // Las cuatro de fábrica siguen en la ola de arriba: son `count` con `head: true`, de las más
   // baratas que hay, y hacerlas condicionales enredaría la lectura a cambio de casi nada.
+  //
+  // Y ES UNA SOLA `Promise.all`: métricas opcionales, comparación del mes pasado, dona de ventas,
+  // dona de especies y anillo de cumplimiento eran CINCO awaits seriales que solo dependían de la
+  // primera ola — cinco round-trips a Supabase, uno detrás de otro, en la pantalla que más se abre
+  // (auditoría 28-ago: ~150-400ms evitables por carga).
   const [
     consultasHoy,
     citasHoy,
@@ -199,6 +222,12 @@ export default async function DashboardPage() {
     vacunas,
     facturadoMes,
     porCobrar,
+    consultasMesAnterior,
+    facturadoMesAnterior,
+    lineasDelMes,
+    filasDeEspecie,
+    metaDeVentas,
+    ventasParaElAnillo,
   ] = await Promise.all([
     encendida("consultas-hoy")
       ? supabase.from("consultations").select("*", { count: "exact", head: true }).gte("started_at", inicioDeHoy.toISOString())
@@ -238,22 +267,8 @@ export default async function DashboardPage() {
       // el tablero inflaba la cartera y contradecía a la pantalla de Cartera.
       ? supabase.from("invoices").select("balance_cents").eq("status", "EMITIDA")
       : null,
-  ])
-
-  const sumaDe = (r: { data: unknown } | null, campo: (f: Record<string, number>) => number) =>
-    ((r?.data as Record<string, number>[] | null) ?? []).reduce((s, f) => s + campo(f), 0)
-
-  // ── CONTRA LA MISMA ALTURA DEL MES PASADO (26-ago) ──────────────────────────────────────────
-  //
-  // La insignia con la flecha que pidió David. La ventana la calcula `comparacion.ts` y no esta
-  // pantalla: es la parte que se equivoca en silencio —comparar contra el mes anterior COMPLETO
-  // daría una caída garantizada del 1 al 28— y por eso vive en un módulo puro y con test.
-  //
-  // Sólo para las cifras del MES, y sólo si están encendidas: son dos consultas y no se pagan para
-  // pintar nada. «Pacientes» no lleva insignia a propósito — es un acumulado, y su variación
-  // mensual sería siempre positiva y siempre irrelevante.
-  const ventanaAnterior = ventanaDelMesAnterior(now, monthStart)
-  const [consultasMesAnterior, facturadoMesAnterior] = await Promise.all([
+    // ── Contra la misma altura del mes pasado (26-ago): la insignia con la flecha que pidió
+    // David. La ventana la calcula `comparacion.ts` (módulo puro con test), no esta pantalla.
     encendida("consultas-mes")
       ? supabase
           .from("consultations")
@@ -269,7 +284,40 @@ export default async function DashboardPage() {
           .gte("issued_at", ventanaAnterior.desde)
           .lte("issued_at", ventanaAnterior.hasta)
       : null,
+    // ── La dona de ventas (25-ago): la única consulta que trae FILAS del mes. El `!inner` hace
+    // que el filtro por factura EMITIDA recorte las líneas de verdad.
+    donaVisible
+      ? supabase
+          .from("invoice_lines")
+          .select("total_cents, item:catalog_items(item_type), invoice:invoices!inner(status, issued_at)")
+          .eq("invoice.status", "EMITIDA")
+          .gte("invoice.issued_at", monthStart.toISOString())
+      : Promise.resolve({ data: null }),
+    // ── La dona de especies (26-ago): solo especies, tope 2.000 (holgado para el principal).
+    especiesVisible
+      ? supabase.from("patients").select("species").limit(2000)
+      : Promise.resolve({ data: null }),
+    // ── El anillo de cumplimiento (26-ago): la meta vive en `clinics` (0094).
+    cumplimientoVisible && clinicId
+      ? supabase
+          .from("clinics")
+          .select("meta_ventas_mensual_cents")
+          .eq("id", clinicId)
+          .maybeSingle()
+      : Promise.resolve({ data: null }),
+    // Lo vendido se REUSA cuando la pastilla «facturado-mes» ya lo pidió (misma ola): solo se
+    // vuelve a pedir si el anillo está visible con la pastilla apagada.
+    cumplimientoVisible && !encendida("facturado-mes")
+      ? supabase
+          .from("invoices")
+          .select("total_cents")
+          .eq("status", "EMITIDA")
+          .gte("issued_at", monthStart.toISOString())
+      : Promise.resolve(null),
   ])
+
+  const sumaDe = (r: { data: unknown } | null, campo: (f: Record<string, number>) => number) =>
+    ((r?.data as Record<string, number>[] | null) ?? []).reduce((s, f) => s + campo(f), 0)
 
   const TITULO_COMPARACION = "frente a la misma altura del mes pasado"
   /** La variación ya lista para la pastilla, o `null` si no se puede calcular honestamente. */
@@ -333,82 +381,14 @@ export default async function DashboardPage() {
     timeZone: "America/Bogota",
   })
 
-  // LA DISPOSICIÓN DE ESTA PERSONA, reconciliada con los widgets que existen HOY (0072). Un id
-  // viejo se ignora y uno nuevo aparece al final: la preferencia guardada es una foto del día que
-  // se guardó, y el código sigue cambiando.
-  //
-  // Y SI NO ARMÓ EL SUYO, entra con el de la clínica (0075). Cuál rige lo decide la función pura,
-  // no esta pantalla: acá sólo se le pasan los dos orígenes.
-  const guardadoPropio =
-    (preferencia as { data: { widgets: Guardado } | null } | { data: null }).data?.widgets ?? null
-  const guardadoDeLaClinica =
-    (defaultDeLaClinica as { data: { widgets: Guardado } | null } | { data: null }).data?.widgets ??
-    null
-  const disposicion = disposicionEfectiva(guardadoPropio, guardadoDeLaClinica)
-
-  // ── LA DONA DE VENTAS (25-ago) ──────────────────────────────────────────────────────────────
-  //
-  // Sólo si el bloque está visible Y la facturación activa: es la única consulta del tablero que
-  // trae FILAS (las líneas del mes) y no un count, así que no se paga sin razón. El `!inner` en el
-  // embed hace que el filtro por la factura EMITIDA y por el mes recorte las líneas de verdad —
-  // sin él, PostgREST devuelve la línea con `invoice: null` en vez de excluirla.
-  const donaVisible =
-    facturacionActiva && disposicion.some((w) => w.id === "ventas" && w.visible)
-  const lineasDelMes = donaVisible
-    ? await supabase
-        .from("invoice_lines")
-        .select("total_cents, item:catalog_items(item_type), invoice:invoices!inner(status, issued_at)")
-        .eq("invoice.status", "EMITIDA")
-        .gte("invoice.issued_at", monthStart.toISOString())
-    : { data: null }
   const dona = ventasPorTipo(
     ((lineasDelMes.data as unknown as
       | { total_cents: number; item: { item_type: string | null } | null }[]
       | null) ?? []).map((l) => ({ total_cents: l.total_cents, item_type: l.item?.item_type ?? null })),
   )
-
-  // ── LA DONA DE ESPECIES (26-ago) ────────────────────────────────────────────────────────────
-  //
-  // Sólo si el bloque está visible, igual que la de ventas: trae FILAS y no un `count`, así que no
-  // se paga cuando nadie la mira. Se piden nada más las especies —ni nombres ni ids—: es lo único
-  // que el agrupador necesita, y el tope de 2.000 cubre con holgura a la clínica más grande del
-  // principal (76 pacientes hoy). Si alguna llega a rozarlo, esto pasa a ser un `group by` en una
-  // vista; contar a mano miles de filas por carga no se sostendría.
-  const especiesVisible = disposicion.some((w) => w.id === "especies" && w.visible)
-  const filasDeEspecie = especiesVisible
-    ? await supabase.from("patients").select("species").limit(2000)
-    : { data: null }
   const especies = pacientesPorEspecie(
     ((filasDeEspecie.data as { species: string | null }[] | null) ?? []),
   )
-
-  // ── EL ANILLO DE CUMPLIMIENTO (26-ago) ──────────────────────────────────────────────────────
-  //
-  // La meta vive en `clinics` (0094) y sólo se pide si el bloque está a la vista: es una fila, pero
-  // la regla del tablero es que ningún bloque apagado cueste una consulta.
-  //
-  // LO VENDIDO SE REUSA CUANDO YA SE PIDIÓ. La pastilla «facturado-mes» trae exactamente las mismas
-  // filas, así que con las dos cosas encendidas se pediría dos veces lo mismo. Cuando la pastilla
-  // está apagada el anillo tiene que traérselas igual — el bloque no puede depender de que otra
-  // cifra distinta esté encendida, o se apagaría solo sin decir por qué.
-  const cumplimientoVisible =
-    facturacionActiva && disposicion.some((w) => w.id === "cumplimiento" && w.visible)
-  const [metaDeVentas, ventasParaElAnillo] = await Promise.all([
-    cumplimientoVisible && clinicId
-      ? supabase
-          .from("clinics")
-          .select("meta_ventas_mensual_cents")
-          .eq("id", clinicId)
-          .maybeSingle()
-      : Promise.resolve({ data: null }),
-    cumplimientoVisible && !facturadoMes
-      ? supabase
-          .from("invoices")
-          .select("total_cents")
-          .eq("status", "EMITIDA")
-          .gte("issued_at", monthStart.toISOString())
-      : Promise.resolve(null),
-  ])
   const vendidoEsteMesCents = sumaDe(facturadoMes ?? ventasParaElAnillo, (f) => f.total_cents ?? 0)
 
   // El día del mes EN BOGOTÁ, que es contra lo que se juzga el ritmo. Con la fecha del servidor en
@@ -426,7 +406,7 @@ export default async function DashboardPage() {
     riel: {
       // EL RIEL DE CONFIGURACIÓN. Estuvo un tiempo en la pantalla de Athos, cuando ésa era la
       // puerta de entrada; volvió acá cuando el Dashboard volvió a ser lo primero que se ve.
-      nodo: <RielConfiguracion progreso={await progresoDeConfiguracion()} />,
+      nodo: <RielConfiguracion progreso={await progresoPromise} />,
       ancho: "lg:col-span-5",
     },
     metricas: { nodo: <PastillasDelTablero pastillas={metrics} />, ancho: "lg:col-span-5" },

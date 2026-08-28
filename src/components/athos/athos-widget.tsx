@@ -40,9 +40,16 @@ export function AthosWidget() {
   const burbujaRef = useRef<HTMLButtonElement>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
 
+  // La clave de hilo de los chats GENERALES del widget (sin paciente). Sin ella, esas filas se
+  // guardaban con `thread_key null` y `patient_id null`: el historial las salta, el sidebar las
+  // filtra y «ocultar» no puede tocarlas — conversaciones persistidas que ninguna superficie
+  // volvía a mostrar. Mismo formato `g<ts>` que el asistente, así entran al historial normal.
+  const [claveWidget] = useState(() => `g${Date.now()}`)
   const { messages, sendMessage, status } = useChat({
     id: "athos-widget",
     transport,
+    // Agrupa los chunks del SSE: un render por token re-parseaba el hilo entero en cada llegada.
+    experimental_throttle: 60,
     onError: (e) => toast.error(`VetGPT no pudo responder: ${e.message}`),
   })
   const busy = status === "submitted" || status === "streaming"
@@ -59,7 +66,12 @@ export function AthosWidget() {
   const { pedirPro, ventana } = useModalPro("athos")
 
   useEffect(() => {
-    if (abierto) hiloRef.current?.scrollTo({ top: hiloRef.current.scrollHeight })
+    const el = hiloRef.current
+    if (!abierto || !el) return
+    // Solo re-anclar si el vet YA estaba abajo: forzar el scroll en cada token le impedía subir a
+    // releer mientras la respuesta seguía llegando.
+    const cercaDelFondo = el.scrollHeight - el.scrollTop - el.clientHeight < 160
+    if (cercaDelFondo) el.scrollTo({ top: el.scrollHeight })
   }, [messages, status, abierto])
 
   // Al abrir, el foco entra al composer; al cerrar, vuelve a la burbuja. Sin trampa de foco: el
@@ -100,9 +112,18 @@ export function AthosWidget() {
     // widget ya las conoce —las pinta abajo, en "Estás en {ctx.descripcion}"— pero al agente le
     // mandaba nada más el `patientId`, que es `null` en cinco de las ocho. Parado en la agenda o en
     // una factura, VetGPT no sabía dónde estaba.
+    // Con paciente en contexto el hilo sigue siendo el del paciente (continuidad con el asistente);
+    // sin paciente, la clave del widget evita las filas huérfanas con thread_key null.
     void sendMessage(
       { text: t },
-      { body: { patientId: ctx!.patientId, contexto: ctx!.contexto, source: "widget" } },
+      {
+        body: {
+          patientId: ctx!.patientId,
+          contexto: ctx!.contexto,
+          source: "widget",
+          ...(ctx!.patientId ? {} : { conversationKey: claveWidget }),
+        },
+      },
     )
   }
 

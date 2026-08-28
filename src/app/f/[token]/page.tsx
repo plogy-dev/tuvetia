@@ -106,15 +106,25 @@ export default async function FacturaPublicaPage({ params }: { params: Promise<{
         .select("description, qty, unit, unit_price_cents, discount_cents, total_cents")
         .eq("invoice_id", invoice.id)
         .order("position", { ascending: true }),
+      // `billing_payers`, NO `owners`: `invoices.payer_id` referencia al pagador de facturación
+      // (ver `ensurePayerForOwner`), que tiene id PROPIO. Buscándolo en `owners` el bloque
+      // «Cliente» no se pintaba JAMÁS en la página que se manda por correo y WhatsApp — la factura
+      // llegaba sin decir a nombre de quién es. Y `clinic_id` explícito: esta consulta corre con
+      // service_role, sin él una colisión de UUIDs mostraría a una persona de otra clínica.
       invoice.payer_id
-        ? admin.from("owners").select("full_name").eq("id", invoice.payer_id).maybeSingle()
+        ? admin
+            .from("billing_payers")
+            .select("name")
+            .eq("id", invoice.payer_id)
+            .eq("clinic_id", invoice.clinic_id)
+            .maybeSingle()
         : Promise.resolve({ data: null }),
     ])
 
   const clinic = clinicRow as { name: string; phone: string | null; email: string | null; address: string | null; city: string | null } | null
   const settings = settingsRow as { fiscal_name: string | null; fiscal_id_type: string | null; fiscal_id_number: string | null; fiscal_address: string | null } | null
   const lines = (lineRows as Line[] | null) ?? []
-  const payer = payerRow as { full_name: string } | null
+  const payer = payerRow ? { full_name: (payerRow as { name: string }).name } : null
 
   const anulada = invoice.status === "ANULADA"
   const pagada = !anulada && invoice.balance_cents <= 0

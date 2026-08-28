@@ -5,7 +5,7 @@
 // RLS de la BD aísla por clínica; las mutaciones de refs pasan por RPC (create/update_appointment),
 // mover/redimensionar por UPDATE directo (solo cambia horas → seguro bajo RLS).
 
-import { useCallback, useMemo, useState, type ComponentType } from "react"
+import { useCallback, useMemo, useRef, useState, type ComponentType } from "react"
 import {
   Calendar,
   dateFnsLocalizer,
@@ -304,6 +304,43 @@ export function AppointmentCalendar({
     [loadRange],
   )
 
+  // ── SALTOS PROGRAMÁTICOS: la recarga corre por NUESTRA cuenta ─────────────────────────────────
+  //
+  // react-big-calendar solo dispara `onRangeChange` desde sus handlers INTERNOS (Hoy/flechas y su
+  // propio cambio de vista). Cuando `date`/`view` cambian por props —el salto del mini calendario,
+  // o el botón «Programador», que ni siquiera es una vista de la librería— no avisa nada, y la
+  // grilla abría un día/mes EN BLANCO con citas reales detrás (reporte 28-ago). Se recarga un
+  // colchón de mes ± 1 semana: cubre el destino de cualquiera de las cinco vistas y para una
+  // clínica son decenas de filas, no un costo.
+  const saltarA = useCallback(
+    (d: Date) => {
+      const start = new Date(d)
+      start.setDate(1)
+      start.setDate(start.getDate() - 7)
+      start.setHours(0, 0, 0, 0)
+      const end = new Date(d)
+      end.setMonth(end.getMonth() + 1, 1)
+      end.setDate(end.getDate() + 7)
+      end.setHours(23, 59, 59, 999)
+      setRange({ start, end })
+      void loadRange(start, end)
+    },
+    [loadRange],
+  )
+  const dateRef = useRef(date)
+  dateRef.current = date
+  // TODO cambio de vista pasa por acá, no por la librería: «programador» no existe para RBC — su
+  // `handleViewChange` lo rechazaba contra `views` y el botón quedaba MUERTO (y de paso lanzaba un
+  // TypeError buscando `views["programador"].range`). Interceptar en el toolbar propio es lo único
+  // que hace alcanzable esa vista; para las demás, mismo camino + recarga propia (ver `saltarA`).
+  const cambiarVista = useCallback(
+    (v: View) => {
+      setView(v)
+      saltarA(dateRef.current)
+    },
+    [saltarA],
+  )
+
   const handleSelectSlot = useCallback(
     (slot: SlotInfo) => {
       const end =
@@ -341,7 +378,15 @@ export function AppointmentCalendar({
   )
 
   const move = useCallback(
-    async ({ event, start, end }: EventInteractionArgs<CalendarEvent>) => {
+    async ({ event, start, end, isAllDay }: EventInteractionArgs<CalendarEvent>) => {
+      // Soltar en la franja «todo el día» escribía medianoche-a-medianoche SIN marcar `sin_hora`:
+      // un bloque de 24 horas que tapaba la columna y estiraba la grilla — los dos defectos que
+      // `toEvent`/`rangoVisible` vinieron a arreglar, reintroducidos por un gesto de 5 mm.
+      if (isAllDay && !event.allDay) {
+        toast.info("Para dejar la cita sin hora fija, abrila y marcá «Sin hora».")
+        void loadRange(range.start, range.end)
+        return
+      }
       const s = new Date(start)
       const e = new Date(end)
       setEvents((prev) => prev.map((ev) => (ev.id === event.id ? { ...ev, start: s, end: e } : ev)))
@@ -356,9 +401,34 @@ export function AppointmentCalendar({
       }
       // Arrastrar sólo cambió la hora: se re-empuja el evento pero sin ventana — no es un
       // acto de agendar y frenar al vet con un diálogo por cada arrastre sería insufrible.
-      void pushAlCalendario(event.id)
+      // Lo que ya no se descarta es el RESULTADO: si el push falla (token vencido, Composio caído),
+      // el Google/Outlook del vet y la invitación del titular siguen diciendo la hora VIEJA — y
+      // nadie se enteraba. Silencio solo cuando salió bien.
+      void pushAlCalendario(event.id).then((r) => {
+        if (!r.ok && r.motivo) {
+          toast.warning(`La cita se movió, pero el calendario externo no se actualizó: ${r.motivo}`)
+        }
+      })
+      // La regla de `cuando-avisar` existe porque «el vet mueve la cita del martes al jueves y el
+      // titular se sigue guiando por el martes» — y el arrastre es LA manera de mover una cita.
+      // Pero un WhatsApp automático por cada ajuste fino sería spam: un toast con acción deja el
+      // aviso a un clic, e ignorarlo no manda nada.
+      const a = event.resource
+      if (a.owner_id && !a.es_bloqueo) {
+        toast.info("Cita movida. El titular todavía tiene la hora anterior.", {
+          action: {
+            label: "Avisar por WhatsApp",
+            onClick: () =>
+              void confirmarAlTitular(event.id).then((r) =>
+                r.ok
+                  ? toast.success(`Aviso enviado${r.destino ? ` a ${r.destino}` : ""}`)
+                  : toast.warning(`No se pudo avisar: ${r.motivo ?? "sin canal disponible"}`),
+              ),
+          },
+        })
+      }
     },
-    [supabase, range, loadRange, pushAlCalendario],
+    [supabase, range, loadRange, pushAlCalendario, confirmarAlTitular],
   )
 
   /**
@@ -477,8 +547,10 @@ export function AppointmentCalendar({
   // Programador) y hay que resaltar contra el de la app.
   const componentes = useMemo(
     () => ({
+      // `onView` es el NUESTRO, no el de la librería: RBC valida contra sus `views` y
+      // «programador» no existe ahí — con su handler el botón no hacía nada (ver `cambiarVista`).
       toolbar: (props: ToolbarProps<CalendarEvent, object>) => (
-        <CalendarToolbar {...props} view={view} />
+        <CalendarToolbar {...props} view={view} onView={cambiarVista} />
       ),
       week: { header: DayColumnHeader, event: EventContent },
       // El MISMO render de evento para la vista Día (y el Programador, que se dibuja con ella):
@@ -487,7 +559,7 @@ export function AppointmentCalendar({
       day: { event: EventContent },
       agenda: { event: AgendaEventContent },
     }),
-    [view],
+    [view, cambiarVista],
   )
 
   // LAS COLUMNAS DEL PROGRAMADOR, acotadas a los calendarios que estén encendidos en el panel.
@@ -530,6 +602,9 @@ export function AppointmentCalendar({
           // interesa ese día. Desde Mes no se toca, que ahí el gesto natural es seguir viendo el
           // mes con el día resaltado.
           if (view === Views.WEEK) setView(Views.DAY)
+          // Cambio por props = RBC no dispara onRangeChange: sin esta recarga el salto abría el
+          // día EN BLANCO con citas reales detrás (reporte 28-ago).
+          saltarA(d)
         }}
         vets={vets}
         vetsVisibles={vetsVisibles}

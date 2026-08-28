@@ -29,6 +29,7 @@ from dataclasses import dataclass, field
 from typing import Any
 from urllib.parse import urlencode
 
+from app.db import fetch_all
 from app.stt_vocabulario import parametros_de_vocabulario
 from app.transcription import (
     _insert_transcript,
@@ -40,6 +41,16 @@ from app.transcription import (
 )
 
 log = logging.getLogger(__name__)
+
+
+def _consulta_de_la_clinica(clinic_id: str, consultation_id: str) -> bool:
+    """¿La consulta pertenece a la clínica autenticada? El `consultation_id` viene del navegador y
+    con service_role la FK no filtra por tenant — sin esto, un id ajeno insertaba un transcript
+    apuntando a la consulta de otra clínica (regla 7 del CLAUDE.md)."""
+    return bool(fetch_all(
+        "select 1 from public.consultations where clinic_id = %s and id = %s limit 1",
+        (clinic_id, consultation_id),
+    ))
 
 # Parámetros de la conexión con Deepgram Live. `interim_results` es lo que permite pintar texto
 # mientras el veterinario habla; sin eso el "en vivo" no se distingue del lote.
@@ -319,13 +330,23 @@ async def run_live_session(ws: Any, autenticar) -> None:
     estado: dict[str, Any] = {"bytes": 0, "audio_id": None, "finalizar": False, "desconectado": False}
 
     try:
-        init = json.loads((await ws.receive()).get("text") or "{}")
+        # Timeout en el init: sin él, un socket que se abre y no manda nada queda retenido para
+        # siempre SIN autenticar — acumulación gratuita de conexiones anónimas.
+        init = json.loads((await asyncio.wait_for(ws.receive(), timeout=10)).get("text") or "{}")
         if init.get("type") != "init":
             raise ValueError("el primer mensaje debe ser init")
         # El token viaja en el cuerpo, NO en la query string: las URLs quedan en los logs de acceso
         # del proxy y un JWT ahí es una credencial filtrada.
-        _user_id, clinic_id = autenticar(init.get("token") or "", init.get("clinic_id") or "")
+        # `to_thread`: la verificación va por red (JWKS frío + query a profiles) y esto es una
+        # corrutina — inline congelaría TODAS las sesiones en vivo y los SSE del proceso.
+        _user_id, clinic_id = await asyncio.to_thread(
+            autenticar, init.get("token") or "", init.get("clinic_id") or "")
         consultation_id = init["consultation_id"]
+        # La consulta tiene que ser DE ESTA clínica (regla 7: service_role + clinic_id explícito).
+        # El camino por lotes ya lo exige (`_load_audio_row` filtra por clinic_id); el vivo insertaba
+        # el transcript con el consultation_id que mandara el navegador, sin mirar de quién era.
+        if not await asyncio.to_thread(_consulta_de_la_clinica, clinic_id, consultation_id):
+            raise ValueError("la consulta no pertenece a esta clínica")
     except Exception as e:  # noqa: BLE001
         await _avisar_error(ws, f"no se pudo iniciar la sesión: {e}")
         await ws.close()
@@ -333,14 +354,16 @@ async def run_live_session(ws: Any, autenticar) -> None:
 
     try:
         # `nombre_del_paciente` falla abierta (devuelve None): el refuerzo jamás tumba el vivo.
-        dg = await abrir_deepgram(nombre_del_paciente(clinic_id, consultation_id))
+        dg = await abrir_deepgram(await asyncio.to_thread(nombre_del_paciente, clinic_id, consultation_id))
     except Exception as e:  # noqa: BLE001
         log.warning("transcripción en vivo no disponible: %s", e)
-        await _avisar_error(ws, f"no se pudo conectar con Deepgram: {e}")
+        # Al navegador va un aviso FIJO: el texto de la excepción es interno (nombres de variables
+        # de entorno, detalles de red) y el estándar del lote es no filtrarlo en el detail.
+        await _avisar_error(ws, "no se pudo conectar con el motor de transcripción en vivo")
         await ws.close()
         return
 
-    _set_consultation_status(clinic_id, consultation_id, "transcribing")
+    await asyncio.to_thread(_set_consultation_status, clinic_id, consultation_id, "transcribing")
     await ws.send_json({"type": "ready"})
 
     try:
@@ -357,7 +380,7 @@ async def run_live_session(ws: Any, autenticar) -> None:
                 recepcion.cancel()
 
         if estado["desconectado"]:
-            _set_consultation_status(clinic_id, consultation_id, "open")
+            await asyncio.to_thread(_set_consultation_status, clinic_id, consultation_id, "open")
             return
 
         await ws.send_json({"type": "stopped", "estable": sesion.texto_estable,
@@ -366,7 +389,7 @@ async def run_live_session(ws: Any, autenticar) -> None:
         if not sesion.tiene_contenido:
             # Silencio total o Deepgram no devolvió nada: que lo resuelva el lote.
             await _avisar_error(ws, "la sesión en vivo no capturó texto")
-            _set_consultation_status(clinic_id, consultation_id, "open")
+            await asyncio.to_thread(_set_consultation_status, clinic_id, consultation_id, "open")
             await ws.close()
             return
 
@@ -377,16 +400,18 @@ async def run_live_session(ws: Any, autenticar) -> None:
                 raise ValueError("se esperaba finalize")
             estado["audio_id"] = control.get("audio_id")
 
-        resultado = persist_live_transcript(clinic_id, consultation_id, estado["audio_id"], sesion)
+        resultado = await asyncio.to_thread(
+            persist_live_transcript, clinic_id, consultation_id, estado["audio_id"], sesion)
         await ws.send_json({
             "type": "saved",
             "transcript_id": resultado["transcript_id"],
             "full_text": resultado["full_text"],
         })
-    except Exception as e:  # noqa: BLE001
+    except Exception:  # noqa: BLE001
         log.exception("sesión de transcripción en vivo fallida")
-        _set_consultation_status(clinic_id, consultation_id, "open")
-        await _avisar_error(ws, str(e))
+        await asyncio.to_thread(_set_consultation_status, clinic_id, consultation_id, "open")
+        # Detalle FIJO al navegador: `str(e)` puede traer texto interno (psycopg, rutas, env).
+        await _avisar_error(ws, "la sesión en vivo falló; el audio se transcribe por lotes")
     finally:
         try:
             await ws.close()

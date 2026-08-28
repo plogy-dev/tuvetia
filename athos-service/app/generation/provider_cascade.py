@@ -148,11 +148,15 @@ class ProviderCascade:
     de que este módulo existiera.
     """
 
-    def __init__(self, task: str, model: str | None = None):
+    def __init__(self, task: str, model: str | None = None, timeout: float | None = None):
         self.task = task
         # `model` fuerza el modelo del primario (lo usan los auditores, que eligen el suyo). En ese
         # caso el primario es el forzado y la cascada queda como alternativa detrás.
         self.model_forzado = model
+        # Tope HTTP por candidato. El LIVIANO corre en caminos que el vet ESPERA (distilación,
+        # juez) o que fallan abiertas (auditores): 20s de tope evita que un proveedor colgado
+        # cueste los 120s del redactor — la alternativa de la cascada entra 6x antes.
+        self.timeout = timeout if timeout is not None else (20.0 if task == LIVIANO else None)
         self.usado: str | None = None      # "modelo@proveedor" que respondió; para trazabilidad
 
     @staticmethod
@@ -177,7 +181,7 @@ class ProviderCascade:
         for i, (modelo, proveedor) in enumerate(cadena):
             t0 = time.monotonic()
             try:
-                texto = LLMClient(model=modelo, provider=proveedor).complete(
+                texto = LLMClient(model=modelo, provider=proveedor, timeout=self.timeout).complete(
                     system, user, max_tokens=max_tokens)
                 self.usado = self._etiqueta(modelo, proveedor)
                 _ultimo_usado.set(self.usado)
@@ -216,7 +220,7 @@ class ProviderCascade:
         for i, (modelo, proveedor) in enumerate(cadena):
             emitido = False
             try:
-                for trozo in LLMClient(model=modelo, provider=proveedor).stream(
+                for trozo in LLMClient(model=modelo, provider=proveedor, timeout=self.timeout).stream(
                         system, user, max_tokens=max_tokens, history=history):
                     emitido = True
                     yield trozo

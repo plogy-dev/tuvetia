@@ -14,7 +14,10 @@ from app.config import get_settings
 # Pools de conexión (uno por DB). Antes, cada fetch_all/execute abría una conexión NUEVA (handshake
 # TCP+TLS+auth por red): un solo /athos/chat abría ~10 en serie antes del primer token. El pool
 # reusa conexiones -> el coste por query baja a ~0. Se crean perezosos y se reusan por proceso.
-_CONN_KWARGS = {"row_factory": dict_row, "options": "-c statement_timeout=15000"}
+# connect_timeout: sin él, libpq espera el timeout de TCP del SO (~2 min) ante una DB que no
+# responde — y como los handlers síncronos comparten threadpool, eso congela el servicio entero.
+_CONN_KWARGS = {"row_factory": dict_row, "options": "-c statement_timeout=15000",
+                "connect_timeout": 5}
 _pool: ConnectionPool | None = None
 _corpus_pool: ConnectionPool | None = None
 
@@ -91,14 +94,14 @@ def get_conn() -> psycopg.Connection:
     """
     _vetar_principal_en_tests(get_settings().database_url)
     return psycopg.connect(_exigir_url(get_settings().database_url, "DATABASE_URL"), row_factory=dict_row,
-                           options="-c statement_timeout=15000")
+                           options="-c statement_timeout=15000", connect_timeout=10)
 
 
 def get_corpus_conn() -> psycopg.Connection:
     """Conexión NUEVA a la DB del CORPUS/glosario (global, sin datos de paciente). Puede ser un
     proyecto distinto al principal. El hot-path usa fetch_all_corpus/execute_corpus (pool)."""
     return psycopg.connect(_exigir_url(get_settings().corpus_db_url, "CORPUS_DATABASE_URL"), row_factory=dict_row,
-                           options="-c statement_timeout=15000")
+                           options="-c statement_timeout=15000", connect_timeout=10)
 
 
 def fetch_all(sql: str, params: tuple = ()) -> list[dict]:

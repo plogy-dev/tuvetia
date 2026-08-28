@@ -18,6 +18,10 @@ export function SearchBar({
   const [value, setValue] = useState(defaultValue)
 
   useEffect(() => {
+    // Si el valor no cambió respecto a la URL, no hay nada que navegar: el efecto dispara también
+    // al MONTAR, y ese replace a la misma URL costaba un render completo del server component en
+    // cada visita a la página (auditoría 28-ago).
+    if (value === (searchParams.get("q") ?? "")) return
     const timeout = setTimeout(() => {
       const params = new URLSearchParams(searchParams.toString())
       if (value) {
