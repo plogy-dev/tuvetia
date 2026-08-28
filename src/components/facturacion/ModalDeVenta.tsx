@@ -29,7 +29,7 @@ import { useRouter } from "next/navigation"
 import { X } from "lucide-react"
 
 export function ModalDeVenta({
-  titulo = "Nueva venta",
+  titulo = "Nueva cuenta",
   children,
 }: {
   titulo?: string

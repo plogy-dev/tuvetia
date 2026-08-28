@@ -97,21 +97,34 @@ describe("el menú de ventas no manda a una pantalla con otro nombre", () => {
   })
 })
 
-describe("el botón de registrar una venta lleva a «Nueva venta»", () => {
-  // No está en el menú —es la acción principal de la cabecera— así que se comprueba aparte. Su
-  // pantalla se llamaba «Nueva cuenta», y a ella llegan además «Crear la primera factura» y
-  // «Facturar lo recetado» desde la consulta.
-  it("la pantalla de /facturacion/nueva se titula «Nueva venta»", () => {
+describe("la pantalla de la venta se llama «Nueva cuenta», como en OkVet", () => {
+  /**
+   * ── ACÁ ME EQUIVOQUÉ, Y OKVET ME CORRIGIÓ ────────────────────────────────────────────────────
+   *
+   * El 27-ago razoné que «Registrar venta» llevando a una pantalla titulada «Nueva cuenta» era una
+   * incoherencia —tres rótulos, un destino— y la renombré a «Nueva venta».
+   *
+   * Está mal. Abierto OkVet ese mismo día: su botón dice **«Registrar venta»** y abre un modal
+   * titulado **«Nueva cuenta»**. Exactamente el par que yo había «arreglado». La incoherencia es de
+   * OkVet, y copiarla es el objetivo: el pedido del cliente fue copia exacta, y el motivo es que los
+   * veterinarios ya saben usar OkVet — cada diferencia, aunque sea una mejora, es algo que
+   * reaprenden.
+   *
+   * O sea que la regla no es «que todo se llame igual»: es «que se llame como en OkVet». Cuando las
+   * dos chocan, gana OkVet.
+   *
+   * Este cerrojo existe para que el próximo que vea la incoherencia lea esto antes de arreglarla.
+   */
+  it("se titula «Nueva cuenta» y no «Nueva venta»", () => {
     const titulos = titulosDe(join(RAIZ, "src", "app", "dashboard", "facturacion", "nueva", "page.tsx"))
-    expect(titulos).toContain("Nueva venta")
-    expect(titulos).not.toContain("Nueva cuenta")
+    expect(titulos).toContain("Nueva cuenta")
   })
 
   it("el modal dice lo mismo que la página", () => {
     // La misma ruta se ve como modal (navegación en cliente) o como página (recarga, enlace
-    // pegado). Si cada una se titula distinto, es la misma pantalla con dos nombres.
+    // pegado). En OkVet también es un modal — `modal-xxl`, abierto desde el libro de ventas.
     const modal = leer("src", "app", "dashboard", "facturacion", "@modal", "(.)nueva", "page.tsx")
-    expect(modal).toContain('titulo="Nueva venta"')
+    expect(modal).toContain('titulo="Nueva cuenta"')
   })
 })
 
