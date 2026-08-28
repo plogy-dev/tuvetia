@@ -1,0 +1,19 @@
+{
+  "permissions": {
+    "allow": [
+      "mcp__supabase__execute_sql",
+      "mcp__supabase__query_logs",
+      "mcp__supabase__get_advisors",
+      "mcp__supabase__get_project_url",
+      "mcp__claude-in-chrome__tabs_context_mcp",
+      "mcp__claude-in-chrome__get_page_text",
+      "mcp__claude-in-chrome__read_page",
+      "Bash(npx tsc --noEmit)",
+      "Bash(npm test)",
+      "Bash(npm run verify)",
+      "Bash(npm run lint)",
+      "Bash(npm run typecheck)",
+      "Bash(npm run test:componentes)"
+    ]
+  }
+}
