@@ -18,6 +18,22 @@
 import type { AthosContexto } from "@/lib/athos-context/derivar"
 
 /**
+ * Los seis pasos del alta, con el mismo texto que ve el vet en la barra de progreso.
+ *
+ * Copiado a mano de `PASOS` en `welcome-wizard.tsx` y no importado: ese archivo es un componente de
+ * cliente con `useState`, `toast` y Supabase, y este módulo es puro a propósito —se prueba con una
+ * tabla de casos, sin montar nada—. Un cerrojo comprueba que las dos listas no se separen.
+ */
+const PASOS_DEL_ALTA = [
+  "Clínica",
+  "Horarios",
+  "Servicios",
+  "Primer paciente",
+  "Ejemplo",
+  "Equipo",
+] as const
+
+/**
  * La línea que se agrega al bloque «Contexto runtime» del system prompt.
  *
  * Devuelve `null` cuando no hay nada útil que decir — el chat de Athos a pantalla completa y la
@@ -71,6 +87,30 @@ export function contextoParaElPrompt(c: AthosContexto): string | null {
             "en vez de suponerlo."
         : "El vet está en VENTAS (facturación). No tenés herramientas de facturación: si la pregunta " +
             "es sobre una factura concreta, pedile los datos."
+
+    // ── EL ALTA, PEDIDO DE LUCIANO: «que sepa también dónde estás parado» ──────────────────────
+    //
+    // Es el contexto donde saberlo cambia MÁS la respuesta, y es justo donde no llegaba: el chat del
+    // alta ya recibía el paso, pero sólo para mover una tarjeta de texto fijo — «el chat no lo usa»,
+    // decía su propio comentario.
+    //
+    // Y lo que más importa no es el nombre del paso: es que DURANTE EL ALTA LA CLÍNICA ESTÁ VACÍA.
+    // Sin eso, el modelo llama a `list_appointments_on_day` o a `get_patient_summary`, le vuelve
+    // nada, y contesta que no encontró información — la primera impresión del producto es un
+    // asistente que no sabe nada de una clínica que todavía no existe. Con la advertencia puede
+    // decir «todavía no hay, se cargan en este paso», que es la respuesta correcta.
+    case "onboarding": {
+      const paso = PASOS_DEL_ALTA[c.paso] ?? "la configuración"
+      return (
+        `El vet está CONFIGURANDO su clínica por primera vez, en el paso «${paso}» ` +
+        `(${c.paso + 1} de ${PASOS_DEL_ALTA.length}). ` +
+        "Si pregunta «esto para qué sirve» o «qué pongo acá» sin decir dónde, habla de ESE paso. " +
+        "OJO: la clínica está recién creada, así que casi todo está vacío — si una herramienta te " +
+        "devuelve cero pacientes, cero citas o cero servicios, eso NO es un error ni un dato que " +
+        "reportar: es que todavía no se cargaron. Decilo así y explicá en qué paso se cargan. " +
+        "No lo mandes a pantallas del panel que todavía no puede abrir: se sale del alta al terminar."
+      )
+    }
 
     case "general":
       return null

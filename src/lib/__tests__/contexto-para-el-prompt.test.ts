@@ -5,6 +5,9 @@
 // `null` en cinco de las ocho. Estos tests fijan qué se dice de cada una, y sobre todo qué NO se
 // dice: nombrar una herramienta que no existe no vuelve al modelo más capaz, lo vuelve más
 // propenso a inventar.
+import { readFileSync } from "node:fs"
+import { join } from "node:path"
+
 import { describe, expect, it } from "vitest"
 
 import { derivarContexto } from "@/lib/athos-context/derivar"
@@ -115,5 +118,74 @@ describe("todas las pantallas están contempladas", () => {
     for (const r of rutas) {
       expect(desdeLaRuta(r), r).not.toBeUndefined()
     }
+  })
+})
+
+describe("el alta: el modelo sabe en qué paso está parado el vet", () => {
+  /**
+   * ── PEDIDO DE LUCIANO (27-ago): «que el Athos sepa también dónde estás parado» ────────────────
+   *
+   * El chat del alta YA recibía el paso, pero sólo para mover una tarjeta de texto fijo. Lo decía el
+   * comentario de su propia prop: «Mueve la tarjeta contextual; el chat no lo usa». Al modelo le
+   * llegaba `source: "onboarding"` y nada más.
+   *
+   * Es además el único contexto que NO sale de la ruta: `/bienvenida` es una sola URL con seis pasos
+   * guardados en estado de React, así que `derivarContexto` no puede verlo y viaja por el canal
+   * opcional.
+   */
+  it("nombra el paso y cuántos son", () => {
+    const linea = contextoParaElPrompt({ tipo: "onboarding", paso: 1 })!
+    expect(linea).toContain("Horarios")
+    expect(linea).toContain("2 de 6")
+  })
+
+  it("los seis pasos dan una línea, y ninguna dice «la configuración»", () => {
+    // El respaldo `?? "la configuración"` existe para un índice fuera de rango. Si apareciera con un
+    // paso válido, sería que las dos listas se separaron.
+    for (let paso = 0; paso < 6; paso++) {
+      const linea = contextoParaElPrompt({ tipo: "onboarding", paso })
+      expect(linea, `paso ${paso}`).toBeTruthy()
+      expect(linea, `paso ${paso}`).not.toContain("paso «la configuración»")
+    }
+  })
+
+  it("avisa que la clínica está vacía, que es lo que de verdad cambia la respuesta", () => {
+    // Sin esto el modelo llama a una herramienta, le vuelve cero, y contesta que no encontró
+    // información — la primera impresión del producto es un asistente que no sabe nada de una
+    // clínica que todavía no existe.
+    const linea = contextoParaElPrompt({ tipo: "onboarding", paso: 0 })!
+    expect(linea.toLowerCase()).toContain("vac")
+    expect(linea).toMatch(/no es un error|todavía no se cargaron/i)
+  })
+
+  it("un índice fuera de rango no rompe ni miente", () => {
+    const linea = contextoParaElPrompt({ tipo: "onboarding", paso: 99 })
+    expect(linea).toBeTruthy()
+    expect(linea).toContain("la configuración")
+  })
+})
+
+describe("los pasos del alta no se desincronizan del wizard", () => {
+  // `para-el-prompt.ts` copia `PASOS` a mano porque el wizard es un componente de cliente con
+  // estado, toasts y Supabase, y este módulo es puro a propósito. La copia es la decisión correcta;
+  // que se separe en silencio, no. Son las MISMAS seis etiquetas que el vet ve en la barra de
+  // progreso, así que si allá se reordena un paso, acá el modelo nombraría el equivocado.
+  it("las seis etiquetas son idénticas y están en el mismo orden", () => {
+    const wizard = readFileSync(
+      join(process.cwd(), "src", "components", "onboarding", "welcome-wizard.tsx"),
+      "utf8",
+    )
+    const m = /const PASOS = \[([^\]]+)\]/.exec(wizard)
+    expect(m, "no se pudo leer PASOS del wizard").not.toBeNull()
+    const delWizard = [...m![1].matchAll(/"([^"]+)"/g)].map((x) => x[1])
+
+    const prompt = readFileSync(
+      join(process.cwd(), "src", "lib", "athos-context", "para-el-prompt.ts"),
+      "utf8",
+    )
+    const p = /const PASOS_DEL_ALTA = \[([\s\S]*?)\]/.exec(prompt)
+    const delPrompt = [...p![1].matchAll(/"([^"]+)"/g)].map((x) => x[1])
+
+    expect(delPrompt).toEqual(delWizard)
   })
 })

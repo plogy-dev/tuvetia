@@ -103,7 +103,13 @@ export function OnboardingAthos({
     // Ya no miente: la 0057 amplió el CHECK de `athos_actions.source`. Antes mandaba "chat" porque
     // sólo se admitía chat|inbox|auto, y con dos superficies mintiendo (ésta y el widget) "chat"
     // dejaba de significar nada.
-    void sendMessage({ text: t }, { body: { patientId: null, source: "onboarding" } })
+    // EL PASO VIAJA AL MODELO, no sólo a la tarjeta. Pedido de Luciano: «que sepa también dónde
+    // estás parado». Hasta acá `paso` movía únicamente el texto fijo de `TarjetaDePaso` — el
+    // comentario de su prop lo decía: «el chat no lo usa».
+    void sendMessage(
+      { text: t },
+      { body: { patientId: null, source: "onboarding", contexto: { tipo: "onboarding", paso } } },
+    )
   }
 
   return (

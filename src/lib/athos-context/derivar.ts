@@ -22,6 +22,18 @@ export type AthosContexto =
   | { tipo: "agenda" }
   | { tipo: "comunicaciones" }
   | { tipo: "facturacion"; facturaId: string | null }
+  /**
+   * El alta, con el paso en el que está parado el vet.
+   *
+   * NO SALE DE LA RUTA, y es el único que no. `/bienvenida` es una sola URL con seis pasos adentro
+   * —el wizard los guarda en estado de React—, así que `derivarContexto` no puede verlo: llega por
+   * el canal opcional que este archivo ya deja abierto para los casos que el router no alcanza.
+   *
+   * `paso` es el índice en `PASOS` de `welcome-wizard.tsx`. Si allá se reordena, esto se actualiza a
+   * mano — igual que las tarjetas contextuales, y por el mismo motivo: son seis y no vale una
+   * abstracción.
+   */
+  | { tipo: "onboarding"; paso: number }
   | { tipo: "general" }
 
 // Un uuid v4 tal como los genera Postgres. Se valida la FORMA antes de tratar un segmento como id:
@@ -111,6 +123,8 @@ export function describirContexto(c: AthosContexto): string {
       return "las conversaciones con titulares"
     case "facturacion":
       return c.facturaId ? "una factura" : "facturación"
+    case "onboarding":
+      return "la configuración de tu clínica"
     case "general":
       return "la plataforma"
   }
