@@ -15,6 +15,7 @@ import {
 import { getBillingSettings } from '@/lib/facturacion/queries';
 import { InvoiceActionsPanel } from '@/components/facturacion/InvoiceActionsPanel';
 import { avisosDelBorrador } from '@/lib/facturacion/invoices';
+import { estadoDeCobroVisible } from '@/lib/facturacion/domain/invoice-status';
 import { TD, TD_NUM, TH, TH_DER } from '@/components/facturacion/densidad';
 import { FollowupActions } from '@/components/cartera/FollowupActions';
 import { PageShell } from '@/components/ui/page-shell';
@@ -136,7 +137,15 @@ export default async function FacturaDetallePage({
           <FiscalBadge status={invoice.fiscal_status} />
           {invoice.status === 'EMITIDA' && (
             <>
-              <CollectionBadge status={invoice.collection_status} />
+              {/* Derivado al leer: la columna guardada sólo se refresca cuando pasa un EVENTO, y
+                  vencerse no lo es. Misma regla que en Cartera y en el libro de ventas. */}
+              <CollectionBadge
+                status={estadoDeCobroVisible(
+                  invoice.collection_status,
+                  { dueDate: invoice.due_date, balanceCents: invoice.balance_cents },
+                  new Date(),
+                )}
+              />
               <DeliveryBadge status={invoice.delivery_status} />
               <FollowupBadge status={invoice.followup_status} />
             </>

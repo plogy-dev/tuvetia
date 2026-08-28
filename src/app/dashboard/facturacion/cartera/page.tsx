@@ -12,6 +12,7 @@ import {
 } from '@/lib/cartera/queries';
 import { formatCOP, fmtDate, fmtDateTime } from '@/lib/facturacion/format';
 import { computeAging } from '@/lib/facturacion/domain/aging';
+import { estadoDeCobroVisible } from '@/lib/facturacion/domain/invoice-status';
 import { CollectionBadge, FollowupBadge } from '@/components/facturacion/badges';
 import { HumanTasksPanel, type TaskItem } from '@/components/cartera/HumanTasksPanel';
 import { RunSweepButton } from '@/components/cartera/RunSweepButton';
@@ -178,7 +179,17 @@ export default async function CarteraPage() {
                       </td>
                       <td className="px-3 py-2">
                         <div className="flex flex-wrap items-center gap-1">
-                          <CollectionBadge status={r.collection_status} />
+                          {/* El MISMO `now` con el que se armaron los tramos de antigüedad, unas
+                              líneas arriba. Si la insignia y el tramo usaran relojes distintos
+                              podrían volver a discrepar, que es exactamente el defecto que esto
+                              cierra: el KPI decía «vencida» y esta insignia, «Pendiente de pago». */}
+                          <CollectionBadge
+                            status={estadoDeCobroVisible(
+                              r.collection_status,
+                              { dueDate: r.due_date, balanceCents: r.balance_cents },
+                              now,
+                            )}
+                          />
                           <FollowupBadge status={r.followup_status} />
                         </div>
                       </td>
