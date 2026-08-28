@@ -124,7 +124,7 @@ export function StatCard({
     <Contenedor
       {...(onVer ? { type: "button", onClick: onVer } : {})}
       className={cn(
-        "group/stat @container/stat relative flex flex-col rounded-2xl border border-line bg-card p-6 text-left",
+        "group/stat @container/stat relative flex min-h-[8.5rem] flex-col rounded-2xl border border-line bg-card p-6 text-left",
         onVer &&
           "transition-colors hover:bg-brand-soft focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none",
         className,
@@ -140,7 +140,7 @@ export function StatCard({
       {onVer && (
         <span
           aria-hidden
-          className="absolute right-4 top-4 grid size-8 place-items-center rounded-full border border-line text-fg-faint transition-colors group-hover/stat:border-brand group-hover/stat:text-brand-text"
+          className="absolute top-4 right-4 grid size-8 place-items-center rounded-full border border-line text-fg-faint transition-colors group-hover/stat:border-brand group-hover/stat:text-brand-text @[42rem]/stat:size-10"
         >
           <ArrowUpRight className="size-4" />
         </span>
@@ -157,7 +157,7 @@ export function StatCard({
         {icono && tono ? (
           <span
             aria-hidden
-            className="grid size-9 shrink-0 place-items-center rounded-[10px] [&_svg]:size-[18px]"
+            className="grid size-9 shrink-0 place-items-center rounded-[10px] [&_svg]:size-[18px] @[42rem]/stat:size-11 @[42rem]/stat:rounded-xl @[42rem]/stat:[&_svg]:size-[22px]"
             style={{ background: `color-mix(in oklab, ${tono} 13%, transparent)`, color: tono }}
           >
             {icono}
@@ -165,55 +165,64 @@ export function StatCard({
         ) : null}
         <div className="min-w-0 flex-1">
           {/* EL TÍTULO ES UN TÍTULO. 15px semibold en la display, no un rótulo gris de 13. */}
-          <p className="font-display text-[15px] font-semibold leading-tight tracking-[-0.01em] text-balance text-fg">
+          <p className="font-display text-[17px] leading-[1.15] font-bold tracking-[-0.02em] text-balance text-fg @[18rem]/stat:text-[19px] @[24rem]/stat:text-[22px] @[42rem]/stat:text-[26px]">
             {label}
           </p>
           {subtitulo ? (
-            <p className="mt-0.5 text-[12.5px] leading-snug text-fg-muted">{subtitulo}</p>
+            <p className="mt-0.5 text-[13px] leading-snug text-fg-muted @[24rem]/stat:text-[14px] @[42rem]/stat:text-[15px]">
+              {subtitulo}
+            </p>
           ) : null}
         </div>
       </div>
 
-      {/* La cifra y su variación en la MISMA línea, con la insignia apoyada en la base del número:
-          es una propiedad de esa cifra, no un dato aparte. */}
-      <p className="mt-3 flex flex-wrap items-baseline gap-2.5">
-        {/* EL TAMAÑO LO DECIDE EL ANCHO DE LA TARJETA, no el de la ventana.
-            Con 34px fijos, «COP 4.320.000» parte en dos líneas en cuanto la columna baja de unos
-            300px —cuatro tarjetas en un portátil— y arrastra la insignia a un renglón propio. Con
-            `@container` la cifra se achica sola donde no cabe y llega a su tamaño de referencia
-            donde sí. Medido renderizando la tarjeta a varios anchos, no estimado. */}
-        <span className="font-display text-[26px] leading-[1.05] font-bold tracking-[-0.035em] tabular-nums text-fg @[17rem]/stat:text-[30px] @[20rem]/stat:text-[34px]">
-          {value}
+      {/* EL ORDEN ES EL DE LA CAPTURA: insignia arriba, cifra abajo.
+          En OkVet la píldora de variación no va apoyada al lado del número: va SOBRE él, en su
+          propio renglón. Cambia más de lo que parece — con la insignia al lado, el número tiene
+          que compartir el ancho y nunca puede crecer del todo; encima de él, la cifra se queda con
+          la línea entera y es lo primero que se lee, que es de lo que se trata una tarjeta de
+          métrica. Es además lo que hace que la fila de tarjetas tenga un pulso vertical parejo. */}
+      {variacion && (
+        // PÍLDORA SÓLIDA con texto blanco, como la captura.
+        //
+        // El color sale de los PRIMITIVOS (`--tv-mint-500`, `--tv-red-500`) y no de `--ok` /
+        // `--danger`, que es lo que se usaría por reflejo. El motivo es de contraste: en oscuro
+        // esos dos tokens se aclaran —`--ok` pasa a menta 300— y el blanco encima deja de leerse.
+        // Los primitivos «nunca se reasignan» (así los declara `globals.css`) y estos dos pasos
+        // cargan blanco con holgura en los dos temas.
+        <span
+          title={variacion.titulo}
+          className="mt-3 inline-flex w-fit items-center gap-1 rounded-full px-2 py-0.5 text-[11.5px] font-semibold tabular-nums text-white @[24rem]/stat:px-2.5 @[24rem]/stat:py-1 @[24rem]/stat:text-[13px]"
+          style={{ background: variacion.sube ? "var(--tv-mint-500)" : "var(--tv-red-500)" }}
+        >
+          {variacion.sube ? (
+            <TrendingUp className="size-3 @[24rem]/stat:size-3.5" aria-hidden />
+          ) : (
+            <TrendingDown className="size-3 @[24rem]/stat:size-3.5" aria-hidden />
+          )}
+          {variacion.pct > 0 ? "+" : ""}
+          {variacion.pct}%
+          <span className="sr-only"> {variacion.titulo}</span>
         </span>
-        {variacion && (
-          // PÍLDORA SÓLIDA con texto blanco, como la captura.
-          //
-          // El color sale de los PRIMITIVOS (`--tv-mint-500`, `--tv-red-500`) y no de `--ok` /
-          // `--danger`, que es lo que se usaría por reflejo. El motivo es de contraste: en oscuro
-          // esos dos tokens se aclaran —`--ok` pasa a menta 300— y el blanco encima deja de
-          // leerse. Los primitivos «nunca se reasignan» (así los declara `globals.css`), y estos
-          // dos pasos cargan blanco con holgura en los dos temas, que es lo que necesita una
-          // píldora sólida que no puede cambiar de forma según el modo.
-          <span
-            title={variacion.titulo}
-            className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11.5px] font-semibold tabular-nums text-white"
-            style={{
-              background: variacion.sube ? "var(--tv-mint-500)" : "var(--tv-red-500)",
-            }}
-          >
-            {variacion.sube ? (
-              <TrendingUp className="size-3" aria-hidden />
-            ) : (
-              <TrendingDown className="size-3" aria-hidden />
-            )}
-            {variacion.pct > 0 ? "+" : ""}
-            {variacion.pct}%
-            <span className="sr-only"> {variacion.titulo}</span>
-          </span>
-        )}
+      )}
+      {/* LA CIFRA MANDA, y escala con el ancho de la TARJETA, no con el de la ventana.
+          La grilla de métricas es `repeat(auto-fit, minmax(220px, 1fr))`: las tarjetas se estiran
+          sin techo. En un navegador al 50% de zoom —el que usa el cliente, viewport de ~3.000px
+          CSS— cada tarjeta mide unos 756px, y una cifra topada se lee como una caja blanca vacía
+          con algo escrito en la esquina. Ése fue el reporte: «se sigue viendo muy AI».
+          El escalón de base se queda chico a propósito: con 220px de tarjeta, «COP 4.320.000» no
+          entra más grande sin partirse en dos líneas. Medido a 220, 380, 756 y 1.045px. */}
+      <p
+        className={`font-display font-bold leading-[1] tracking-[-0.04em] tabular-nums text-fg ${
+          variacion ? "mt-1.5" : "mt-3"
+        } text-[26px] @[15rem]/stat:text-[30px] @[18rem]/stat:text-[36px] @[24rem]/stat:text-[44px] @[32rem]/stat:text-[54px] @[42rem]/stat:text-[62px]`}
+      >
+        {value}
       </p>
       {sub ? (
-        <p className="mt-2 flex items-center gap-1.5 text-[13px] text-fg-muted">{sub}</p>
+        <p className="mt-2 flex items-center gap-1.5 text-[13px] text-fg-muted @[42rem]/stat:text-[15px]">
+          {sub}
+        </p>
       ) : null}
     </Contenedor>
   )
