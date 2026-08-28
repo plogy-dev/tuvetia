@@ -10,7 +10,7 @@ export function ConsultationsChart({ data }: { data: { label: string; count: num
   return (
     <div className="flex h-full flex-col rounded-xl border border-line-soft bg-panel p-4">
       <div className="mb-3">
-        <div className="flex items-center gap-1.5 text-sm font-semibold">
+        <div className="flex items-center gap-1.5 font-display text-[17px] font-semibold leading-tight tracking-[-0.01em] text-fg">
           {/* El icono lleva el MISMO tono que las barras y que la pastilla de consultas: es la
               identidad del dominio clínico en todo el tablero, no un adorno por panel. */}
           <Stethoscope aria-hidden className="size-4" style={{ color: "var(--chart-1)" }} />

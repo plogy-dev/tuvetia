@@ -25,7 +25,7 @@ export function PacientesPorEspecie({ datos }: { datos: EspeciePaciente[] }) {
   return (
     <div className="flex h-full flex-col rounded-xl border border-line-soft bg-panel p-4">
       <div className="mb-3">
-        <div className="flex items-center gap-1.5 text-sm font-semibold">
+        <div className="flex items-center gap-1.5 font-display text-[17px] font-semibold leading-tight tracking-[-0.01em] text-fg">
           {/* El violeta de «pacientes», el mismo de su pastilla — identidad por dominio. */}
           <PawPrint aria-hidden className="size-4" style={{ color: "var(--chart-3)" }} />
           Pacientes por especie
@@ -63,7 +63,7 @@ export function PacientesPorEspecie({ datos }: { datos: EspeciePaciente[] }) {
                   data={datos.map((d) => ({ name: d.etiqueta, value: d.total }))}
                   dataKey="value"
                   nameKey="name"
-                  innerRadius={55}
+                  innerRadius={48}
                   outerRadius={80}
                   paddingAngle={2}
                   stroke="var(--panel)"
