@@ -115,9 +115,15 @@ describe("la factura pública no filtra", () => {
     // Es el dato de una persona real que ni siquiera abrió sesión, y el enlace se reenvía por
     // WhatsApp. Su correo, su teléfono y su documento no tienen nada que hacer en una URL que
     // cualquiera puede abrir.
-    const consultaOwners = /from\("owners"\)\s*\.select\(\s*"([^"]+)"/.exec(FUENTE)
-    expect(consultaOwners, "no se encontró la consulta de owners").not.toBeNull()
-    expect(consultaOwners![1].split(",").map((c) => c.trim())).toEqual(["full_name"])
+    //
+    // La tabla es `billing_payers` desde el 28-ago: `invoices.payer_id` referencia al PAGADOR de
+    // facturación (id propio), no a `owners` — buscándolo en `owners` el bloque «Cliente» no se
+    // pintaba jamás. La garantía de privacidad es la misma: una sola columna, el nombre.
+    const consultaPagador = /from\("billing_payers"\)\s*\.select\(\s*"([^"]+)"/.exec(FUENTE)
+    expect(consultaPagador, "no se encontró la consulta de billing_payers").not.toBeNull()
+    expect(consultaPagador![1].split(",").map((c) => c.trim())).toEqual(["name"])
+    // Y el filtro por clínica tiene que seguir ahí: la consulta corre con service_role.
+    expect(FUENTE).toMatch(/from\("billing_payers"\)[\s\S]{0,200}eq\("clinic_id", invoice\.clinic_id\)/)
   })
 
   it("NUNCA sirve las columnas internas de la factura", () => {

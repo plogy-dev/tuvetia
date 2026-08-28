@@ -36,7 +36,19 @@ vi.mock("ai", () => ({
   tool: (t: unknown) => t,
 }))
 
-vi.mock("@/lib/athos-agent/tools", () => ({ buildAthosTools: () => ({}) }))
+// Con claves REALES: el test del subconjunto de tools filtra sobre esto — un {} vacío haría pasar
+// la aserción "no viaja update_appointment" sin probar nada.
+vi.mock("@/lib/athos-agent/tools", () => ({
+  buildAthosTools: () => ({
+    search_whatsapp_conversation: {},
+    get_owner_by_phone: {},
+    list_available_slots: {},
+    send_whatsapp_message: {},
+    create_appointment: {},
+    update_appointment: {},
+    update_patient_record: {},
+  }),
+}))
 vi.mock("@/lib/athos-agent/model", () => ({
   agentModel: () => ({ model: "modelo-falso", modelId: "modelo-falso" }),
 }))
@@ -107,6 +119,53 @@ describe("POST /api/athos/suggest-reply", () => {
     expect(body.draft).toBe("Claro, te esperamos el martes.")
     expect(body.action_id).toBe("a-1")
     expect(generateTextMock).toHaveBeenCalledOnce()
+  })
+
+  // EL CASO DEL 28-AGO: el titular pide cambiar la hora de la cita, el modelo se enreda con una
+  // tool y generateText LANZA — el vet se quedaba con "no se pudo generar la sugerencia" y el
+  // mensaje sin responder. El reintento mínimo (leer + proponer, sin investigación) lo rescata.
+  it("si el primer intento lanza, reintenta y devuelve el borrador del segundo", async () => {
+    contarMensajes.mockResolvedValue({ count: 3 })
+    generateTextMock
+      .mockRejectedValueOnce(new Error("Invalid tool input"))
+      .mockResolvedValueOnce({
+        steps: [
+          {
+            toolCalls: [{ toolName: "send_whatsapp_message", input: { body: "Claro, te la cambiamos a las 4:00 pm." } }],
+            toolResults: [{ toolName: "send_whatsapp_message", output: { action_id: "a-2" } }],
+          },
+        ],
+      })
+
+    const res = await pedir()
+    const body = (await res.json()) as { draft: string; action_id: string }
+
+    expect(res.status).toBe(200)
+    expect(body.draft).toBe("Claro, te la cambiamos a las 4:00 pm.")
+    expect(body.action_id).toBe("a-2")
+    expect(generateTextMock).toHaveBeenCalledTimes(2)
+  })
+
+  it("desde Sugerir no viajan tools de escritura de agenda: el modelo no puede irse por esa rama", async () => {
+    contarMensajes.mockResolvedValue({ count: 3 })
+    generateTextMock.mockResolvedValue({
+      steps: [
+        {
+          toolCalls: [{ toolName: "send_whatsapp_message", input: { body: "ok" } }],
+          toolResults: [{ toolName: "send_whatsapp_message", output: { action_id: "a-1" } }],
+        },
+      ],
+    })
+    await pedir()
+    const { tools, system } = generateTextMock.mock.calls[0][0] as {
+      tools: Record<string, unknown>
+      system: string
+    }
+    expect(Object.keys(tools)).not.toContain("update_appointment")
+    expect(Object.keys(tools)).not.toContain("create_appointment")
+    // Y el prompt le dice qué hacer con un cambio de cita: responder que se gestiona, no gestionarlo.
+    expect(system).toMatch(/cambiar o cancelar una cita/i)
+    expect(system).toMatch(/NO intentes cambiar la cita/i)
   })
 
   it("el modelo corre pero no propone: 502 con una salida accionable", async () => {

@@ -110,15 +110,49 @@ export async function POST(req: Request) {
     },
   }
 
+  // Desde "Sugerir" el agente SOLO investiga y propone el MENSAJE — nada de tools de escritura
+  // (create/update_appointment, fichas). Dos razones, las dos vistas en producción el 28-ago con
+  // un titular pidiendo cambiar la hora de su cita: (1) el modelo se iba por la rama de agendar y
+  // quemaba los pasos del loop sin llegar jamás a send_whatsapp_message — el vet veía "no se pudo
+  // generar la sugerencia"; (2) una acción de agenda propuesta desde acá queda invisible: la
+  // bandeja solo sabe mostrar el borrador del mensaje, no aprobaciones de citas. El cambio real de
+  // la cita se hace en la agenda o pidiéndoselo a VetGPT en el chat (ese camino ya funciona).
+  const todas = buildAthosTools(supabase, ctx)
+  const SOLO_SUGERIR = new Set([
+    "search_whatsapp_conversation", "get_owner_by_phone", "search_patients", "get_patient_summary",
+    "list_appointments_on_day", "get_clinic_hours", "list_available_slots", "list_vaccine_boosters",
+    "search_consultations", "send_whatsapp_message",
+  ])
+  const tools = Object.fromEntries(Object.entries(todas).filter(([k]) => SOLO_SUGERIR.has(k)))
+  const system = `${ATHOS_AGENT_SYSTEM_PROMPT}\n\n# Tarea puntual\n\nEstás en la bandeja de WhatsApp. Lee la conversación con search_whatsapp_conversation (teléfono: ${digitsPhone}) y, si ayuda, identifica al titular con get_owner_by_phone y consulta horarios/cupos reales. Luego PROPONE exactamente UNA respuesta con send_whatsapp_message (to_phone: ${digitsPhone}${owner_id ? `, owner_id: ${owner_id}` : ""}). Si el titular pide cambiar o cancelar una cita, tu respuesta confirma que el equipo gestiona el cambio (verifica cupos con list_available_slots si aplica) — NO intentes cambiar la cita tú: desde esta pantalla solo se propone el mensaje. Tono WhatsApp: 1-3 frases, cálido, sin markdown. Nunca diagnósticos ni dosis por chat; nunca inventes horarios o precios — si no los tienes por tools, no los menciones.${owner_name ? ` El titular se llama ${owner_name}.` : ""}`
+  const turnos = [{ role: "user" as const, content: "Sugiere la respuesta para esta conversación." }]
+
   try {
-    const result = await generateText({
-      model: elegido.model,
-      system: `${ATHOS_AGENT_SYSTEM_PROMPT}\n\n# Tarea puntual\n\nEstás en la bandeja de WhatsApp. Lee la conversación con search_whatsapp_conversation (teléfono: ${digitsPhone}) y, si ayuda, identifica al titular con get_owner_by_phone y consulta horarios/cupos reales. Luego PROPONE exactamente UNA respuesta con send_whatsapp_message (to_phone: ${digitsPhone}${owner_id ? `, owner_id: ${owner_id}` : ""}). Tono WhatsApp: 1-3 frases, cálido, sin markdown. Nunca diagnósticos ni dosis por chat; nunca inventes horarios o precios — si no los tienes por tools, no los menciones.${owner_name ? ` El titular se llama ${owner_name}.` : ""}`,
-      messages: [{ role: "user", content: "Sugiere la respuesta para esta conversación." }],
-      tools: buildAthosTools(supabase, ctx),
-      stopWhen: stepCountIs(5),
-      maxOutputTokens: 600,
-    })
+    let result
+    try {
+      result = await generateText({
+        model: elegido.model,
+        system,
+        messages: turnos,
+        tools,
+        stopWhen: stepCountIs(6),
+        maxOutputTokens: 600,
+      })
+    } catch (e) {
+      // El tool-calling de DeepSeek es flojo (ver model.ts): un input malformado a una tool hace
+      // LANZAR a generateText y el vet se quedaba sin nada con el caso todavía sin responder. Un
+      // reintento sin investigación (solo leer la conversación + proponer) rescata el borrador.
+      console.error("athos/suggest-reply: primer intento falló; reintento mínimo:", e)
+      result = await generateText({
+        model: elegido.model,
+        system: `${system}\n\nIMPORTANTE: responde YA con send_whatsapp_message usando solo lo que dice la conversación; no investigues nada más.`,
+        messages: turnos,
+        tools: Object.fromEntries(Object.entries(todas).filter(([k]) =>
+          k === "search_whatsapp_conversation" || k === "send_whatsapp_message")),
+        stopWhen: stepCountIs(3),
+        maxOutputTokens: 600,
+      })
+    }
 
     // `totalUsage` (todos los pasos del loop), no `usage` (sólo el último): con `stepCountIs(5)` el
     // último paso es una fracción del gasto. Best-effort — `registrarUso` no lanza.

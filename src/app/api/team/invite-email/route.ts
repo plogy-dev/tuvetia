@@ -6,6 +6,7 @@ import { clinicaDeLaSesion } from "@/lib/api/clinica-de-la-sesion"
 import { getAppBaseUrl } from "@/lib/base-url"
 import { loadClinicSender, sendTransactionalEmail } from "@/lib/email/transactional"
 import { maquetarCorreo } from "@/lib/email/maqueta"
+import { bogotaDate } from "@/lib/date-utils"
 
 // Envío de la invitación de equipo por correo, **a pedido del admin** (botón "Enviar invitación").
 //
@@ -92,7 +93,9 @@ export async function POST(req: Request) {
       parrafos: [
         "Hola,",
         invita,
-        `El enlace vence en 7 días. Si todavía no tenés cuenta, vas a poder crearla con este mismo correo (${invitation.email}) y volver para aceptar.`,
+        // El plazo REAL, desde `expires_at` — el "7 días" fijo mentía al reenviar el correo al
+        // día 5: los 7 corren desde que se CREÓ la invitación, no desde cada envío.
+        `El enlace vence el ${bogotaDate(invitation.expires_at)}. Si todavía no tenés cuenta, vas a poder crearla con este mismo correo (${invitation.email}) y volver para aceptar.`,
       ],
       boton: { texto: "Aceptá la invitación", url: link },
       pie: ["Si no esperabas esta invitación, podés ignorar este correo."],

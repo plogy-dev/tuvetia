@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useMemo, useRef, useState } from "react"
-import { useChat } from "@ai-sdk/react"
+import { Chat, useChat } from "@ai-sdk/react"
 import {
   DefaultChatTransport,
   getStaticToolName,
@@ -52,6 +52,29 @@ const GENERAL = "__general__" // valor del selector para "Consulta general (sin 
 // Transport único hacia el agente VetGPT (/api/athos/agent, Vercel AI SDK). El patientId NO va
 // aquí: cambia con el selector, así que viaja en el body de cada sendMessage.
 const transport = new DefaultChatTransport({ api: "/api/athos/agent" })
+
+// ── UN `Chat` VIVO POR HILO, no uno nuevo por cambio de `id` ────────────────────────────────────
+//
+// En esta versión del SDK, `useChat` RECREA el objeto Chat cada vez que cambia el `id`, sembrándolo
+// solo con el prop `messages` de ese render. Eso producía la pérdida reportable con dos clics:
+// mandar mensajes en «Consulta general», elegir un paciente, volver a general → el hilo aparecía
+// VACÍO (los mensajes seguían en la base, pero la siembra venía de props cargadas al entrar a la
+// página). Con el mapa, volver a un hilo de la misma sesión recupera su instancia con TODO lo
+// hablado — incluida una respuesta que terminó de llegar mientras se miraba otro hilo.
+//
+// El mapa vive a nivel de módulo (sobrevive a los remontajes de la página) y crece con los hilos
+// visitados en la sesión: decenas de objetos chicos, no un costo. Un reload limpia y resiembra
+// desde el servidor, que vuelve a ser la verdad.
+const chatsVivos = new Map<string, Chat<UIMessage>>()
+
+function chatDe(id: string, semilla: UIMessage[], onError: (e: Error) => void): Chat<UIMessage> {
+  let c = chatsVivos.get(id)
+  if (!c) {
+    c = new Chat<UIMessage>({ id, transport, messages: semilla, onError })
+    chatsVivos.set(id, c)
+  }
+  return c
+}
 
 // Etiquetas en español de las tools de LECTURA. Se usan MIENTRAS la tool corre ("Consultando X…")
 // y para nombrar el fallo si algo sale mal — no para dejar constancia cuando sale bien.
@@ -423,15 +446,20 @@ export function Assistant({
   // persistido. Los hilos de paciente no llevan clave: un paciente tiene UNA conversación
   // continua por diseño.
   const { messages, sendMessage, status, error, stop, regenerate } = useChat({
-    id: patientId === GENERAL ? `athos-${claveDeHilo}` : `athos-${patientId}`,
-    messages:
+    // La instancia viene del mapa (ver `chatsVivos`): volver a un hilo de esta sesión conserva lo
+    // hablado; la semilla del servidor solo aplica la PRIMERA vez que se visita cada hilo.
+    chat: chatDe(
+      patientId === GENERAL ? `athos-${claveDeHilo}` : `athos-${patientId}`,
       patientId === GENERAL
         ? hiloGeneral?.key === claveDeHilo
           ? hiloGeneral.messages
           : []
         : (threads[patientId] ?? []),
-    transport,
-    onError: (e) => toast.error(`No se pudo consultar a VetGPT: ${e.message}`),
+      (e) => toast.error(`No se pudo consultar a VetGPT: ${e.message}`),
+    ),
+    // Un render por CHUNK del SSE (decenas por segundo) re-parseaba el hilo entero — con 30+
+    // turnos, el tecleo del stream se sentía a saltos. 60ms agrupa los chunks sin que se note.
+    experimental_throttle: 60,
   })
 
   const busy = status === "submitted" || status === "streaming"
@@ -442,7 +470,12 @@ export function Assistant({
   const { pedirPro, ventana } = useModalPro("athos")
 
   useEffect(() => {
-    threadRef.current?.scrollTo({ top: threadRef.current.scrollHeight })
+    const el = threadRef.current
+    if (!el) return
+    // Solo re-anclar si el vet YA estaba abajo: forzar el scroll en cada token le impedía subir a
+    // releer la respuesta anterior mientras la nueva seguía llegando.
+    const cercaDelFondo = el.scrollHeight - el.scrollTop - el.clientHeight < 160
+    if (cercaDelFondo) el.scrollTo({ top: el.scrollHeight })
   }, [messages, status])
 
   const patient = patients.find((p) => p.id === patientId)
@@ -639,7 +672,10 @@ export function Assistant({
             detectado={detectado}
             hayConversacion={messages.length > 0}
             onElegir={(id) => {
-              void stop() // si había un stream en curso, córtalo antes de resetear
+              // SIN `stop()`: con el mapa de `chatsVivos`, el stream en curso sigue llegando a SU
+              // instancia retenida y el turno se persiste al terminar (el abort hacía que el server
+              // no guardara NI la pregunta NI la respuesta parcial — el intercambio se esfumaba de
+              // la vista Y de la base). Al volver a ese hilo, la respuesta está completa.
               setPatientId(id ?? GENERAL) // el cambio de id de useChat cambia el hilo
             }}
           />

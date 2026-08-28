@@ -212,19 +212,28 @@ export function AthosSidebarSection() {
       return
     }
     // La marca del ocultado viaja al "Deshacer": restaura SOLO este borrado, no los chats del
-    // mismo hilo que se ocultaron en borrados anteriores (auditoría 26-ago).
+    // mismo hilo que se ocultaron en borrados anteriores (auditoría 26-ago). Si la marca no llegó
+    // (respuesta ilegible), NO se ofrece deshacer: un restaurar SIN marca es sin filtro — resucita
+    // también ocultados históricos, que es justo el bug que la marca vino a cerrar.
     const { marca } = (await res.json().catch(() => ({}))) as { marca?: string }
     toast(`«${item.titulo}» eliminado del historial`, {
-      action: {
-        label: "Deshacer",
-        onClick: () => {
-          void fetch("/api/athos/chats/ocultar", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ accion: "restaurar", marca, ...cuerpo }),
-          }).then(() => setRefresco((r) => r + 1))
-        },
-      },
+      action: marca
+        ? {
+            label: "Deshacer",
+            onClick: () => {
+              void fetch("/api/athos/chats/ocultar", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ accion: "restaurar", marca, ...cuerpo }),
+              })
+                .then((r) => {
+                  if (!r.ok) throw new Error(`HTTP ${r.status}`)
+                  setRefresco((n) => n + 1)
+                })
+                .catch(() => toast.error("No se pudo restaurar el chat — reintentá desde el historial."))
+            },
+          }
+        : undefined,
     })
     // Si era el chat ABIERTO, quedarse mirándolo sería seguir chateando en un hilo "eliminado":
     // se abre uno nuevo.
