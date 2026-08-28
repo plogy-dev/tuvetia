@@ -17,6 +17,23 @@ from app.embeddings import _tls_context
 
 GOOGLE_BASE_URL = "https://generativelanguage.googleapis.com/v1beta/openai"
 
+# Un solo cliente HTTP por proceso (keep-alive): abrir un httpx.Client POR LLAMADA pagaba el
+# handshake TCP+TLS (~100-300ms) en cada una, y un chat hace 4-5 (distil, redacción, juez,
+# fidelidad). httpx.Client es thread-safe; el timeout va POR PETICIÓN (cada tarea trae el suyo).
+# La caché va POR CLASE: los tests monkeypatchean `httpx.Client` con un fake distinto cada uno,
+# y una instancia cacheada entre tests (o del cliente real) rompería el aislamiento.
+_http = None
+_http_cls = None
+
+
+def _http_client():
+    global _http, _http_cls
+    import httpx
+    if _http is None or _http_cls is not httpx.Client:
+        _http = httpx.Client(verify=_tls_context(), timeout=120)
+        _http_cls = httpx.Client
+    return _http
+
 
 class RespuestaVaciaError(RuntimeError):
     """El proveedor respondió 200 pero sin contenido utilizable (vacío, solo razonamiento, o
@@ -27,8 +44,13 @@ class RespuestaVaciaError(RuntimeError):
 
 class LLMClient:
     def __init__(self, model: str | None = None, provider: str | None = None,
-                 base_url: str | None = None, api_key: str | None = None):
+                 base_url: str | None = None, api_key: str | None = None,
+                 timeout: float | None = None):
         s = get_settings()
+        # 120s es el tope del REDACTOR. Las tareas livianas del camino crítico (distilación, juez)
+        # pasan uno corto: un proveedor colgado no puede costar 120s de primer token (auditoría
+        # 28-ago) — la degradación de cada llamador (glosario solo, falla abierta) es más barata.
+        self.timeout = 120.0 if timeout is None else timeout
         self.provider = (provider or s.llm_provider or "anthropic").lower()
         self.model = model or s.llm_model
         if self.provider == "google":
@@ -89,6 +111,9 @@ class LLMClient:
             self._client = anthropic.Anthropic(
                 api_key=self.api_key,
                 http_client=DefaultHttpxClient(verify=_tls_context()),
+                # Sin esto, el SDK usa su default (~10 min): como alternativa de cascada podía
+                # colgar una petición mucho más que los 120s del resto de proveedores.
+                timeout=self.timeout,
             )
         return self._client
 
@@ -122,23 +147,22 @@ class LLMClient:
                 {"role": "user", "content": user}]
 
     def _openai_complete(self, system: str, user: str, max_tokens: int) -> str:
-        import httpx
-        with httpx.Client(verify=_tls_context(), timeout=120) as client:
-            r = client.post(
-                f"{self.base_url}/chat/completions",
-                headers={"Authorization": f"Bearer {self.api_key}"},
-                # thinking desactivado: los modelos v4 razonan ~30s antes del `content`; sin esto el
-                # chat "se congela" y el JSON del Phantom gasta el presupuesto en 'thinking'. Equivale
-                # al viejo deepseek-chat (no-razonador), la base validada en el golden.
-                # Va por `_extra_body` porque Gemini rechaza ese parámetro con HTTP 400.
-                json={"model": self.model, "max_tokens": max_tokens, "stream": False,
-                      **self._extra_body(),
-                      "messages": self._openai_messages(system, user)},
-            )
-            if r.status_code >= 400:
-                # Incluye el cuerpo (motivo real del proveedor: modelo inválido, contexto, etc.).
-                raise RuntimeError(f"LLM {self.model} HTTP {r.status_code}: {r.text[:400]}")
-            data = r.json()
+        r = _http_client().post(
+            f"{self.base_url}/chat/completions",
+            headers={"Authorization": f"Bearer {self.api_key}"},
+            # thinking desactivado: los modelos v4 razonan ~30s antes del `content`; sin esto el
+            # chat "se congela" y el JSON del Phantom gasta el presupuesto en 'thinking'. Equivale
+            # al viejo deepseek-chat (no-razonador), la base validada en el golden.
+            # Va por `_extra_body` porque Gemini rechaza ese parámetro con HTTP 400.
+            json={"model": self.model, "max_tokens": max_tokens, "stream": False,
+                  **self._extra_body(),
+                  "messages": self._openai_messages(system, user)},
+            timeout=self.timeout,
+        )
+        if r.status_code >= 400:
+            # Incluye el cuerpo (motivo real del proveedor: modelo inválido, contexto, etc.).
+            raise RuntimeError(f"LLM {self.model} HTTP {r.status_code}: {r.text[:400]}")
+        data = r.json()
         # Ignora `reasoning_content` (solo el `content` final -> JSON limpio para el Phantom).
         choice = (data.get("choices") or [{}])[0]
         content = (choice.get("message") or {}).get("content") or ""
@@ -158,9 +182,7 @@ class LLMClient:
     def _openai_stream(self, system: str, user: str, max_tokens: int, history):
         import json
 
-        import httpx
-        with httpx.Client(verify=_tls_context(), timeout=120) as client:
-            with client.stream(
+        with _http_client().stream(
                 "POST", f"{self.base_url}/chat/completions",
                 headers={"Authorization": f"Bearer {self.api_key}"},
                 # thinking desactivado: sin esto el primer token del chat tarda ~30s (razonamiento).
@@ -168,7 +190,8 @@ class LLMClient:
                 json={"model": self.model, "max_tokens": max_tokens, "stream": True,
                       **self._extra_body(),
                       "messages": self._openai_messages(system, user, history)},
-            ) as r:
+                timeout=self.timeout,
+        ) as r:
                 if r.status_code >= 400:
                     body = r.read().decode("utf-8", "replace")[:400]
                     raise RuntimeError(f"LLM {self.model} HTTP {r.status_code}: {body}")

@@ -25,8 +25,8 @@ def test_openai_complete_arma_payload_y_parsea_content(monkeypatch):
         def __exit__(self, *a):
             return False
 
-        def post(self, url, headers=None, json=None):
-            captured.update(url=url, headers=headers, json=json)
+        def post(self, url, headers=None, json=None, timeout=None):
+            captured.update(url=url, headers=headers, json=json, timeout=timeout)
             return FakeResp()
 
     monkeypatch.setattr(httpx, "Client", FakeClient)
@@ -46,6 +46,8 @@ def test_openai_complete_arma_payload_y_parsea_content(monkeypatch):
     # dejaba 209 pruebas en verde mientras DeepSeek volvía a razonar ~30 s antes del primer token
     # (auditoría 2026-07-30: el test que decía fijar el cuerpo solo probaba el helper aislado).
     assert j["thinking"] == {"type": "disabled"}
+    # El timeout viaja POR PETICIÓN (el cliente es compartido/keep-alive): default del redactor.
+    assert captured["timeout"] == 120.0
 
 
 def test_google_complete_no_manda_thinking(monkeypatch):
@@ -68,7 +70,7 @@ def test_google_complete_no_manda_thinking(monkeypatch):
         def __exit__(self, *a):
             return False
 
-        def post(self, url, headers=None, json=None):
+        def post(self, url, headers=None, json=None, timeout=None):
             captured.update(url=url, headers=headers, json=json)
             return FakeResp()
 
@@ -109,7 +111,7 @@ def test_respuesta_vacia_o_cortada_levanta(monkeypatch):
             def __exit__(self, *a):
                 return False
 
-            def post(self, url, headers=None, json=None):
+            def post(self, url, headers=None, json=None, timeout=None):
                 return FakeResp()
 
         monkeypatch.setattr(httpx, "Client", FakeClient)
@@ -151,7 +153,7 @@ def test_openai_stream_yields_content_e_ignora_reasoning_y_pasa_historial(monkey
         def __exit__(self, *a):
             return False
 
-        def stream(self, method, url, headers=None, json=None):
+        def stream(self, method, url, headers=None, json=None, timeout=None):
             captured.update(method=method, url=url, json=json)
             return FakeStreamCtx()
 

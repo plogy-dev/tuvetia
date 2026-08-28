@@ -57,7 +57,10 @@ def distill_query(text: str, species: str | None) -> tuple[list[str], list[str]]
 
     try:
         user = f"ESPECIE: {species or '?'}\nCONSULTA:\n{(text or '').strip()[:4000]}"
-        raw = LLMClient(model=get_settings().llm_light_model).complete(
+        # timeout=10: el chat y /retrieve ESPERAN esta llamada (p50 medido ~4s). Con el default de
+        # 120s, un proveedor colgado costaba 120s de primer token; a los 10s se degrada al glosario,
+        # que es exactamente el respaldo que este except ya implementa.
+        raw = LLMClient(model=get_settings().llm_light_model, timeout=10).complete(
             _DISTILL_SYSTEM, user, max_tokens=400)
         data = _extract_json(raw)
         concepts = [str(c).strip() for c in (data.get("concepts") or []) if str(c).strip()]

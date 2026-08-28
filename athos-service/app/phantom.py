@@ -13,7 +13,7 @@ from fastapi import HTTPException
 from psycopg.types.json import Json
 
 from app.config import get_settings
-from app.db import fetch_all, get_conn
+from app.db import fetch_all
 from app.generation.citation_fidelity import check_fidelity, drop_and_renumber
 from app.generation.condition_alerts import detect_conditions, explain_conditions
 from app.generation.dose_guard import patient_data_complete, redact_doses
@@ -112,12 +112,11 @@ def _insert_note(clinic_id, consultation_id, transcript_id, soap, citations,
         cols.append("evidence_level")
         vals.append("%s")
         params.append(evidence_level)
-    with get_conn() as conn, conn.cursor() as cur:
-        cur.execute(f"insert into public.clinical_notes ({', '.join(cols)}) "
-                    f"values ({', '.join(vals)}) returning id", params)
-        note_id = cur.fetchone()["id"]
-        conn.commit()
-    return str(note_id)
+    # Por el POOL, no get_conn(): una conexión nueva por nota son ~200-500ms de TCP+TLS+SCRAM
+    # contra Supabase, y en un Micro el churn de conexiones directas compite con PostgREST/Auth.
+    filas = fetch_all(f"insert into public.clinical_notes ({', '.join(cols)}) "
+                      f"values ({', '.join(vals)}) returning id", tuple(params))
+    return str(filas[0]["id"])
 
 
 def suggest(consultation_id: str, clinic_id: str, user_id: str | None = None) -> PhantomSuggestResponse:
@@ -224,6 +223,14 @@ def suggest(consultation_id: str, clinic_id: str, user_id: str | None = None) ->
     # Alertas de condición: detección determinística (desde el assessment) + panel "afectaciones en
     # este paciente" (una llamada LLM, grounded en la literatura; degrada a sin-detail si falla).
     alerts = explain_conditions(detect_conditions(soap.assessment, patient), patient, literature)
+    # Regla nº4 TAMBIÉN acá: el `detail` lo redacta la IA apoyada en literatura que SÍ trae cifras,
+    # se persiste en clinical_notes.alerts y llega al vet igual que el plan — pero corría DESPUÉS
+    # de la redacción del SOAP y salía sin tapar (auditoría 28-ago). El prompt de condition_alerts
+    # ya pide "sin dosis"; el prompt no se cumple solo (medido, ver dose_guard).
+    if not patient_data_complete(patient.species, patient.weight_kg, patient.age_years):
+        for a in alerts:
+            if a.detail:
+                a.detail = redact_doses(a.detail)[0]
     # Quién generó DE VERDAD la nota: con la cascada el modelo puede variar por petición, y la nota
     # que el veterinario firma no puede registrar un modelo que no la escribió. `modelo_usado` es la
     # etiqueta que dejó la última generación (la de generate_note, que corre justo antes); si ninguna
@@ -240,8 +247,14 @@ def suggest(consultation_id: str, clinic_id: str, user_id: str | None = None) ->
     note_id = _insert_note(clinic_id, consultation_id, transcript_id, soap, citations,
                            gate_triggered, model, ai_at, alerts, evidence_level)
     soap_text = f"S: {soap.subjective}\nO: {soap.objective}\nA: {soap.assessment}\nP: {soap.plan}"
-    log_answer(clinic_id, retrieval_id, note_id, soap_text,
-               [c.model_dump() for c in citations], insufficient, gate_triggered, model)
+    # Best-effort: la nota YA está insertada. Si la traza falla y esto lanzara, el endpoint
+    # devolvería 500 con el draft creado → el Phantom de Pipe reintenta → borradores duplicados
+    # para la misma consulta. La traza no vale un duplicado en la historia clínica.
+    try:
+        log_answer(clinic_id, retrieval_id, note_id, soap_text,
+                   [c.model_dump() for c in citations], insufficient, gate_triggered, model)
+    except Exception as e:  # noqa: BLE001 — trazabilidad best-effort, la nota es lo que importa
+        log.error("rag_answer_log falló para la nota %s (la nota quedó bien): %s", note_id, e)
 
     return PhantomSuggestResponse(
         note_id=note_id, status="draft", soap=soap,

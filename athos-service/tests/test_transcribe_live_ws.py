@@ -78,6 +78,7 @@ def escenario(monkeypatch):
 
     monkeypatch.setattr(st, "abrir_deepgram", _abrir)
     monkeypatch.setattr(st, "_set_consultation_status", lambda *a, **k: None)
+    monkeypatch.setattr(st, "_consulta_de_la_clinica", lambda *a, **k: True)
     monkeypatch.setattr(st, "_settings_value", lambda *a, **k: "nova-2")
 
     def _insert(clinic_id, consultation_id, audio_id, full_text, segments, model):
@@ -170,6 +171,7 @@ def test_si_deepgram_no_conecta_manda_fallback(monkeypatch):
 
     monkeypatch.setattr(st, "abrir_deepgram", _explota)
     monkeypatch.setattr(st, "_set_consultation_status", lambda *a, **k: None)
+    monkeypatch.setattr(st, "_consulta_de_la_clinica", lambda *a, **k: True)
     monkeypatch.setattr("app.main._auth_token", lambda token, clinic: ("u-1", "c-1"))
 
     with TestClient(app).websocket_connect("/athos/transcribe/live") as ws:
@@ -177,7 +179,9 @@ def test_si_deepgram_no_conecta_manda_fallback(monkeypatch):
         msg = ws.receive_json()
     assert msg["type"] == "error"
     assert msg["fallback"] is True
-    assert "DEEPGRAM_API_KEY" in msg["detalle"]
+    # El detalle es FIJO: el texto de la excepción es interno (nombres de env vars, red) y no
+    # se filtra al navegador — auditoría 28-ago.
+    assert "DEEPGRAM_API_KEY" not in msg["detalle"]
 
 
 def test_token_invalido_no_abre_sesion(monkeypatch):
@@ -195,6 +199,21 @@ def test_token_invalido_no_abre_sesion(monkeypatch):
     assert llamadas == [], "no se debe abrir Deepgram sin autenticar"
 
 
+def test_consulta_de_otra_clinica_se_rechaza(monkeypatch):
+    """Regla 7: el consultation_id viene del navegador y service_role no filtra por tenant —
+    una consulta ajena no puede abrir sesión (ni insertar un transcript apuntando a ella)."""
+    llamadas = []
+    monkeypatch.setattr("app.main._auth_token", lambda t, c: ("u-1", "c-1"))
+    monkeypatch.setattr(st, "_consulta_de_la_clinica", lambda *a, **k: False)
+    monkeypatch.setattr(st, "abrir_deepgram", lambda nombre=None: llamadas.append(1))
+
+    with TestClient(app).websocket_connect("/athos/transcribe/live") as ws:
+        ws.send_text(json.dumps(INIT))
+        msg = ws.receive_json()
+    assert msg["type"] == "error" and msg["fallback"] is True
+    assert llamadas == [], "no se debe abrir Deepgram para una consulta ajena"
+
+
 def test_primer_mensaje_que_no_es_init_se_rechaza(monkeypatch):
     monkeypatch.setattr("app.main._auth_token", lambda t, c: ("u-1", "c-1"))
     with TestClient(app).websocket_connect("/athos/transcribe/live") as ws:
@@ -210,6 +229,7 @@ def test_sesion_muda_cae_al_lote(monkeypatch):
 
     monkeypatch.setattr(st, "abrir_deepgram", _abrir)
     monkeypatch.setattr(st, "_set_consultation_status", lambda *a, **k: None)
+    monkeypatch.setattr(st, "_consulta_de_la_clinica", lambda *a, **k: True)
     monkeypatch.setattr("app.main._auth_token", lambda t, c: ("u-1", "c-1"))
 
     with TestClient(app).websocket_connect("/athos/transcribe/live") as ws:

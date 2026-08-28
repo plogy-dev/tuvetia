@@ -16,7 +16,7 @@ from fastapi import HTTPException
 from psycopg.types.json import Json
 
 from app.config import get_settings
-from app.db import fetch_all, get_conn
+from app.db import execute, fetch_all
 from app.speaker_roles import infer_vet_speaker, label_for
 from app.stt_vocabulario import parametros_de_vocabulario
 
@@ -66,7 +66,7 @@ def nombre_del_paciente(clinic_id: str, consultation_id: str) -> str | None:
 
 def _load_audio_row(clinic_id: str, consultation_id: str) -> dict | None:
     rows = fetch_all(
-        "select id, storage_path, duration_secs from public.consultation_audios "
+        "select id, storage_path, duration_secs, file_size from public.consultation_audios "
         "where clinic_id = %s and consultation_id = %s and storage_path is not null "
         "order by created_at desc limit 1",
         (clinic_id, consultation_id),
@@ -256,26 +256,23 @@ def render_full_text(segments: list[dict[str, Any]], fallback: str = "") -> str:
 
 def _insert_transcript(clinic_id, consultation_id, audio_id, full_text, segments, model,
                        provider: str = "deepgram") -> str:
-    with get_conn() as conn, conn.cursor() as cur:
-        cur.execute(
-            "insert into public.transcripts "
-            "(clinic_id, consultation_id, audio_id, full_text, segments, stt_provider, stt_model, language) "
-            "values (%s,%s,%s,%s,%s,%s,%s,'es') returning id",
-            (clinic_id, consultation_id, audio_id, full_text, Json(segments), provider, model),
-        )
-        transcript_id = cur.fetchone()["id"]
-        conn.commit()
-    return str(transcript_id)
+    # Por el POOL: get_conn() abría una conexión nueva (~200-500ms de TCP+TLS+SCRAM) por insert,
+    # y /transcribe la pagaba 3-4 veces por request entre el insert y los updates de estado.
+    filas = fetch_all(
+        "insert into public.transcripts "
+        "(clinic_id, consultation_id, audio_id, full_text, segments, stt_provider, stt_model, language) "
+        "values (%s,%s,%s,%s,%s,%s,%s,'es') returning id",
+        (clinic_id, consultation_id, audio_id, full_text, Json(segments), provider, model),
+    )
+    return str(filas[0]["id"])
 
 
 def _set_consultation_status(clinic_id: str, consultation_id: str, status: str) -> None:
-    with get_conn() as conn, conn.cursor() as cur:
-        cur.execute(
-            "update public.consultations set status = %s, updated_at = now() "
-            "where clinic_id = %s and id = %s",
-            (status, clinic_id, consultation_id),
-        )
-        conn.commit()
+    execute(
+        "update public.consultations set status = %s, updated_at = now() "
+        "where clinic_id = %s and id = %s",
+        (status, clinic_id, consultation_id),
+    )
 
 
 def transcribe(consultation_id: str, clinic_id: str) -> dict[str, Any]:
@@ -332,7 +329,17 @@ def transcribe(consultation_id: str, clinic_id: str) -> dict[str, Any]:
         _set_consultation_status(clinic_id, consultation_id, "open")
         raise
 
-    _set_consultation_status(clinic_id, consultation_id, "generating_note")
+    # El transcript YA está insertado: si este update falla (hipo transitorio de la Micro), un 500
+    # acá haría reintentar al front → re-transcribir → doble costo y doble fila. Un reintento y,
+    # si persiste, se loguea y se responde igual — el transcript es la fuente de verdad.
+    try:
+        _set_consultation_status(clinic_id, consultation_id, "generating_note")
+    except Exception:  # noqa: BLE001
+        try:
+            _set_consultation_status(clinic_id, consultation_id, "generating_note")
+        except Exception as e:  # noqa: BLE001
+            log.error("no se pudo pasar la consulta %s a generating_note (transcript %s OK): %s",
+                      consultation_id, transcript_id, e)
     return {
         "transcript_id": transcript_id,
         "full_text": full_text,
