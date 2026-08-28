@@ -65,6 +65,8 @@ export function NewConsultationDrawer({
     setPatientId("")
     setBusqueda("")
     setError(null)
+    // `loading` también: era lo que hacía que cerrar y reabrir el cajón NO recuperara el botón.
+    setLoading(false)
   }
 
   async function handleOpenChange(nextOpen: boolean) {
@@ -116,6 +118,22 @@ export function NewConsultationDrawer({
     setPatientsLoading(false)
   }
 
+  // TODO EL CUERPO VA EN UN `try/finally`, Y NO ES ADORNO.
+  //
+  // David, 28-ago: «hay cosas que sirven una vez o dos y después fallan … consultas». Este botón
+  // era el caso. `loading` gobierna su `disabled` (más abajo) y los cuatro caminos de salida lo
+  // apagaban A MANO; cualquier EXCEPCIÓN se los saltaba todos y lo dejaba en `true`.
+  //
+  // Y sí hay una excepción posible, aunque no lo parezca: `supabase.auth.getUser()` LANZA.
+  // `_getUser` sólo convierte a `{ data, error }` lo que es `isAuthError`; todo lo demás se
+  // propaga. Entre eso está el timeout del lock de Navigator, que se disputa ENTRE PESTAÑAS y en la
+  // rotación del token — o sea que no falla en el primer uso, falla en el tercero. Los builders de
+  // PostgREST no lanzan (devuelven `{ error }`), así que el único punto de rechazo es `auth`.
+  //
+  // Lo que lo volvía PERMANENTE es que este cajón vive en la barra lateral (`nav-main.tsx`), dentro
+  // del layout del dashboard: no se desmonta al navegar. Sin desmontaje no hay estado nuevo, así que
+  // el botón quedaba muerto con la rueda girando hasta recargar. Y `resetForm()` tampoco lo tocaba,
+  // así que cerrar y reabrir el cajón no lo recuperaba.
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     setError(null)
@@ -124,60 +142,64 @@ export function NewConsultationDrawer({
       return
     }
     setLoading(true)
-    const supabase = createClient()
+    try {
+      const supabase = createClient()
 
-    const {
-      data: { user },
-    } = await supabase.auth.getUser()
-    if (!user) {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser()
+      if (!user) {
+        setError("No se encontró tu sesión.")
+        return
+      }
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("clinic_id")
+        .eq("id", user.id)
+        .single()
+      if (!profile?.clinic_id) {
+        setError("Tu perfil no tiene una clínica asociada.")
+        return
+      }
+
+      const patient = patients?.find((p) => p.id === patientId)
+      const { data: created, error: insertError } = await supabase
+        .from("consultations")
+        .insert({
+          clinic_id: profile.clinic_id,
+          patient_id: patientId,
+          owner_id: patient?.owner_id ?? null,
+          vet_id: user.id,
+          status: "open",
+        })
+        .select("id")
+        .single()
+
+      if (insertError || !created) {
+        setError(insertError?.message ?? "No se pudo crear la consulta.")
+        return
+      }
+
+      toast.success("Consulta iniciada")
+      setOpen(false)
+      resetForm()
+      // `?grabar=1` — la consulta se acaba de crear PARA grabar, así que la pantalla arranca sola.
+      //
+      // El cliente lo pidió así: «le doy iniciar consulta … y me la inicia ahí mismo». Antes había que
+      // llegar, encontrar el panel plegable de grabación y darle a un segundo botón; ese paso no
+      // decidía nada — nadie crea una consulta para no grabarla.
+      //
+      // NO se salta el consentimiento: la pantalla llama al mismo `iniciar()` de siempre, que si el
+      // titular no lo dio todavía muestra el panel para que lo lea. Lo que se quita es el clic, no el
+      // gate legal.
+      router.push(`/dashboard/consultas/${created.id}?grabar=1`)
+    } catch (err) {
+      // Un rechazo dejaba al vet mirando una rueda que no explicaba nada. Ahora se nombra.
+      setError((err as Error)?.message ?? "No se pudo iniciar la consulta.")
+    } finally {
+      // En `finally` y no al final del cuerpo: es lo único que devuelve el botón pase lo que pase.
       setLoading(false)
-      setError("No se encontró tu sesión.")
-      return
     }
-    const { data: profile } = await supabase
-      .from("profiles")
-      .select("clinic_id")
-      .eq("id", user.id)
-      .single()
-    if (!profile?.clinic_id) {
-      setLoading(false)
-      setError("Tu perfil no tiene una clínica asociada.")
-      return
-    }
-
-    const patient = patients?.find((p) => p.id === patientId)
-    const { data: created, error: insertError } = await supabase
-      .from("consultations")
-      .insert({
-        clinic_id: profile.clinic_id,
-        patient_id: patientId,
-        owner_id: patient?.owner_id ?? null,
-        vet_id: user.id,
-        status: "open",
-      })
-      .select("id")
-      .single()
-
-    if (insertError || !created) {
-      setLoading(false)
-      setError(insertError?.message ?? "No se pudo crear la consulta.")
-      return
-    }
-
-    setLoading(false)
-    toast.success("Consulta iniciada")
-    setOpen(false)
-    resetForm()
-    // `?grabar=1` — la consulta se acaba de crear PARA grabar, así que la pantalla arranca sola.
-    //
-    // El cliente lo pidió así: «le doy iniciar consulta … y me la inicia ahí mismo». Antes había que
-    // llegar, encontrar el panel plegable de grabación y darle a un segundo botón; ese paso no
-    // decidía nada — nadie crea una consulta para no grabarla.
-    //
-    // NO se salta el consentimiento: la pantalla llama al mismo `iniciar()` de siempre, que si el
-    // titular no lo dio todavía muestra el panel para que lo lea. Lo que se quita es el clic, no el
-    // gate legal.
-    router.push(`/dashboard/consultas/${created.id}?grabar=1`)
   }
 
   return (

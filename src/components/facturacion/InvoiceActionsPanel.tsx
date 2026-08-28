@@ -148,6 +148,19 @@ export function InvoiceActionsPanel({
     );
   }
 
+  // EL `try/catch` NO ES DEFENSIVO: ES LO QUE DEVUELVE LOS BOTONES.
+  //
+  // David, 28-ago: «botones en general» dejan de responder después de un uso o dos. Si la promesa
+  // de `startTransition(async …)` RECHAZA, React nunca cierra la transición: `isPending` se queda
+  // en `true` y todos los botones colgados de él quedan `disabled` hasta recargar la página.
+  //
+  // Los server actions ya atrapan lo suyo, pero un rechazo de TRANSPORTE ocurre fuera de ellos:
+  // sesión vencida, red caída, o —el más probable acá— un id de Server Action que ya no existe
+  // porque se desplegó mientras la pestaña estaba abierta (`deploymentId` en `next.config.ts`
+  // existe justamente porque eso pasó ocho veces en un día).
+  //
+  // Acá pesa más que en ningún otro panel: OCHO botones cuelgan de este mismo `isPending`, así que
+  // un solo rechazo los apagaba todos de una vez — emitir, descartar, cobrar, anular, los envíos.
   function run(
     fn: () => Promise<{ ok: boolean; error?: string; msg?: string }>,
     alExito?: () => void,
@@ -155,14 +168,18 @@ export function InvoiceActionsPanel({
     setError(null);
     setNotice(null);
     startTransition(async () => {
-      const r = await fn();
-      if (!r.ok) {
-        setError(r.error ?? 'Error inesperado');
-        return;
+      try {
+        const r = await fn();
+        if (!r.ok) {
+          setError(r.error ?? 'Error inesperado');
+          return;
+        }
+        if (r.msg) setNotice(r.msg);
+        alExito?.();
+        router.refresh();
+      } catch (e) {
+        setError((e as Error)?.message ?? 'No se pudo completar la acción.');
       }
-      if (r.msg) setNotice(r.msg);
-      alExito?.();
-      router.refresh();
     });
   }
 

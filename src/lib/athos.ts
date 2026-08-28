@@ -100,6 +100,27 @@ export async function athosChat(
   handlers: ChatHandlers,
   signal?: AbortSignal,
 ): Promise<void> {
+  // SIEMPRE SE LLAMA A UN HANDLER TERMINAL, O A NINGUNO A PROPÓSITO.
+  //
+  // David, 28-ago: «nuevos chats … el athos … sirven una vez o dos y después fallan».
+  //
+  // Esta función tenía DOS salidas mudas. El bucle corta con `break` cuando el stream termina, y
+  // si el servidor cerró sin haber mandado `{"type":"done"}` —proxy que corta, timeout, error a
+  // mitad de stream, o un último evento incompleto que se queda en `buffer`— no se llamaba ni a
+  // `onDone` ni a `onError`. La promesa RESOLVÍA BIEN y quien esperaba se quedaba esperando para
+  // siempre: el `loading` del hilo no se apagaba, la burbuja seguía con el cursor parpadeando, y
+  // la guarda `if (!q || loading) return` bloqueaba toda pregunta posterior. Sólo se salía
+  // recargando — que es exactamente el síntoma reportado.
+  //
+  // El aborto es la excepción y sigue siendo mudo: ahí la salida es deliberada (el componente se
+  // fue, o se canceló), y no hay nada que avisarle a nadie.
+  let terminado = false
+  const terminar = (avisar: () => void) => {
+    if (terminado) return
+    terminado = true
+    avisar()
+  }
+  let reader: ReadableStreamDefaultReader<Uint8Array> | null = null
   try {
     const res = await fetch(`${ATHOS_URL}/athos/chat`, {
       method: "POST",
@@ -113,7 +134,7 @@ export async function athosChat(
     })
     if (!res.ok || !res.body) throw new Error(`VetGPT respondió ${res.status}`)
 
-    const reader = res.body.getReader()
+    reader = res.body.getReader()
     const decoder = new TextDecoder()
     let buffer = ""
     for (;;) {
@@ -128,11 +149,26 @@ export async function athosChat(
         const payload = JSON.parse(line.slice(5).trim())
         if (payload.type === "warning") handlers.onWarning?.(payload.text)
         else if (payload.type === "token") handlers.onToken?.(payload.text)
-        else if (payload.type === "done") handlers.onDone?.(payload)
+        else if (payload.type === "done") terminar(() => handlers.onDone?.(payload))
       }
     }
   } catch (e) {
-    if ((e as Error)?.name !== "AbortError") handlers.onError?.(e)
+    // Un aborto no es un fallo: se marca como terminado para que el `finally` no invente un error.
+    if ((e as Error)?.name === "AbortError") terminado = true
+    else terminar(() => handlers.onError?.(e))
+  } finally {
+    // Soltar el lector: sin esto el cuerpo de la respuesta queda bloqueado hasta que lo junte el
+    // recolector, y en un hilo largo eso son varias respuestas colgadas a la vez.
+    try {
+      reader?.releaseLock()
+    } catch {
+      /* ya estaba suelto o el stream murió con el documento: no hay nada que rescatar */
+    }
+    // La red de contención: si se llegó hasta acá sin `done` y sin excepción, el stream se cortó
+    // en silencio. Se dice, en vez de dejar al vet mirando un cursor que no avanza nunca.
+    terminar(() =>
+      handlers.onError?.(new Error("La respuesta de VetGPT se cortó antes de terminar.")),
+    )
   }
 }
 

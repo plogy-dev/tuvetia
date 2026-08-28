@@ -139,10 +139,17 @@ export function InformeAlTitular({
     return true
   }
 
+  // Los tres botones de entrega comparten `entregando`. `enviarPorWhatsApp` ya lo reponía en un
+  // `finally`; estos dos lo hacían a mano, y `registrar()` llama a `auth.getUser()`, que LANZA.
+  // Un rechazo dejaba los tres deshabilitados hasta cerrar y reabrir el diálogo.
   async function entregarPdf() {
     setEntregando(true)
-    const ok = await registrar("pdf")
-    setEntregando(false)
+    let ok = false
+    try {
+      ok = await registrar("pdf")
+    } finally {
+      setEntregando(false)
+    }
     if (!ok) return
     window.open(`/dashboard/consultas/${consultaId}/informe`, "_blank", "noopener")
     toast.success("Informe entregado — se abrió la vista para guardarlo como PDF")
@@ -152,8 +159,12 @@ export function InformeAlTitular({
   async function copiar() {
     if (!informe) return
     setEntregando(true)
-    const ok = await registrar("clipboard")
-    setEntregando(false)
+    let ok = false
+    try {
+      ok = await registrar("clipboard")
+    } finally {
+      setEntregando(false)
+    }
     if (!ok) return
     try {
       await navigator.clipboard.writeText(comoTextoPlano(informe))

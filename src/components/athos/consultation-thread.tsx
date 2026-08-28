@@ -56,26 +56,31 @@ export function ConsultationThread({
       { role: "user", content: q },
       { role: "assistant", content: "", streaming: true },
     ])
-    await athosChat(
-      { question: q, patientId, clinicId },
-      {
-        onWarning: (t) => patchLast((m) => ({ ...m, warning: t })),
-        onToken: (t) => patchLast((m) => ({ ...m, content: m.content + t })),
-        onDone: (d) => {
-          patchLast((m) => ({ ...m, citations: d.citations, streaming: false }))
-          setLoading(false)
+    // `try/finally` aunque `athosChat` prometa no lanzar: el que promete es otro archivo, y lo
+    // que se juega acá es que el botón vuelva. El `finally` es lo único que no depende de que el
+    // camino de arriba se haya portado bien.
+    try {
+      await athosChat(
+        { question: q, patientId, clinicId },
+        {
+          onWarning: (t) => patchLast((m) => ({ ...m, warning: t })),
+          onToken: (t) => patchLast((m) => ({ ...m, content: m.content + t })),
+          onDone: (d) => patchLast((m) => ({ ...m, citations: d.citations, streaming: false })),
+          onError: (e) => {
+            patchLast((m) => ({
+              ...m,
+              content: m.content || "No se pudo consultar a VetGPT.",
+              streaming: false,
+            }))
+            toast.error(`No se pudo consultar a VetGPT: ${(e as Error)?.message ?? e}`)
+          },
         },
-        onError: (e) => {
-          patchLast((m) => ({
-            ...m,
-            content: m.content || "No se pudo consultar a VetGPT.",
-            streaming: false,
-          }))
-          toast.error(`No se pudo consultar a VetGPT: ${(e as Error)?.message ?? e}`)
-          setLoading(false)
-        },
-      },
-    )
+      )
+    } finally {
+      setLoading(false)
+      // Y que no quede una burbuja con el cursor parpadeando si se salió por un camino mudo.
+      patchLast((m) => (m.streaming ? { ...m, streaming: false } : m))
+    }
   }
 
   return (
