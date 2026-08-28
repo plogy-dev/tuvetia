@@ -2,7 +2,10 @@
  * A quién puede escribirle ATHOS por WhatsApp.
  *
  * LA REGLA: el WhatsApp es de la clínica, así que **el veterinario le escribe a quien quiera**.
- * Athos sólo a titulares registrados.
+ * Athos sólo a titulares registrados **o a números que le hayan escrito a la clínica** (28-ago,
+ * pedido del cliente: «que le responda a todo el mundo»). RESPONDER no es INICIAR: el número de
+ * un entrante se legitimó solo. Lo que el incidente del 21-ago prohíbe —iniciar conversación con
+ * números que el modelo eligió— sigue prohibido.
  *
  * LO QUE ESTOS TESTS PROTEGEN son los dos errores posibles, que duelen en direcciones opuestas:
  *
@@ -20,7 +23,26 @@
 
 import { describe, expect, it } from "vitest"
 
-import { claveDeTelefono, esDestinoRegistrado } from "@/lib/whatsapp/destino-permitido"
+import {
+  athosPuedeEscribirA,
+  claveDeTelefono,
+  esDestinoRegistrado,
+} from "@/lib/whatsapp/destino-permitido"
+
+// Doble de Supabase con las dos tablas del camino: titulares y mensajes entrantes. Thenable,
+// como en `cupos-por-vet.test.ts`: el builder es encadenable y awaitable a la vez.
+function adminFalso(opts: { titulares: string[]; hayEntrante: boolean }) {
+  function nodo() {
+    const self: Record<string, unknown> = {}
+    for (const m of ["select", "eq", "not", "ilike", "limit"]) self[m] = () => self
+    // El único maybeSingle del camino es el de whatsapp_messages.
+    self.maybeSingle = async () => ({ data: opts.hayEntrante ? { id: "m1" } : null, error: null })
+    self.then = (r: (v: unknown) => unknown) =>
+      Promise.resolve({ data: opts.titulares.map((phone) => ({ phone })), error: null }).then(r)
+    return self
+  }
+  return { from: () => nodo() } as never
+}
 
 describe("la clave con la que se comparan los teléfonos", () => {
   it("son los últimos 10 dígitos", () => {
@@ -80,6 +102,33 @@ describe("a quién puede escribirle Athos", () => {
   // largo cualquiera que incluyera esos dígitos en el medio pasaría.
   it("compara por el final, no por 'contiene'", () => {
     expect(esDestinoRegistrado("3244669300", ["3244669300999"])).toBe(false)
+  })
+})
+
+describe("la segunda puerta: responderle a quien escribió", () => {
+  // El caso del negocio: un cliente NUEVO pregunta el horario. No está cargado como titular —
+  // con la regla vieja, el modo automático redactaba la respuesta y la guarda la tiraba a la
+  // basura. El desconocido quedaba en visto.
+  it("un desconocido que LE ESCRIBIÓ a la clínica recibe respuesta", async () => {
+    const admin = adminFalso({ titulares: [], hayEntrante: true })
+    expect(await athosPuedeEscribirA(admin, "c1", "3199998877")).toBe(true)
+  })
+
+  // Y el incidente del 21-ago sigue cerrado: sin entrante y sin registro, no hay envío.
+  it("un número que JAMÁS escribió y no es titular sigue bloqueado", async () => {
+    const admin = adminFalso({ titulares: ["3105551234"], hayEntrante: false })
+    expect(await athosPuedeEscribirA(admin, "c1", "3199998877")).toBe(false)
+  })
+
+  it("un titular registrado pasa aunque nunca haya escrito", async () => {
+    const admin = adminFalso({ titulares: ["+57 310 555 1234"], hayEntrante: false })
+    expect(await athosPuedeEscribirA(admin, "c1", "3105551234")).toBe(true)
+  })
+
+  it("la basura sin dígitos no entra por ninguna puerta", async () => {
+    // Ni con un entrante en la tabla: un destino sin clave no compara contra nada.
+    const admin = adminFalso({ titulares: [], hayEntrante: true })
+    expect(await athosPuedeEscribirA(admin, "c1", "123")).toBe(false)
   })
 })
 

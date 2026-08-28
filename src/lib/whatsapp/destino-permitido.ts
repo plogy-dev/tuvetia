@@ -3,7 +3,20 @@
 // ── LA REGLA, EN UNA LÍNEA ──────────────────────────────────────────────────────────────────────
 //
 // El WhatsApp es de la clínica: **el veterinario le escribe a quien quiera**. Athos, no — Athos sólo
-// a números que estén registrados como titulares de la clínica.
+// a titulares registrados **o a números que le hayan escrito a la clínica**.
+//
+// ── POR QUÉ SE ABRIÓ A «QUIEN HAYA ESCRITO» (28-ago, pedido del cliente) ────────────────────────
+//
+// «Que le responda a todo el mundo siempre y cuando estén activas las comunicaciones.» Y tiene
+// razón para el caso que importa: un cliente NUEVO que le escribe a la clínica preguntando el
+// horario no está cargado como titular todavía — con la regla vieja, el modo automático redactaba
+// la respuesta y la guarda la tiraba a la basura. El desconocido quedaba en visto, que es la peor
+// primera impresión posible para el negocio.
+//
+// Lo que NO cambia es lo que motivó la guarda: RESPONDER no es INICIAR. El número de un entrante
+// se legitimó solo — esa persona le escribió a la clínica. El peligro del incidente era el otro
+// camino: un payload torcido eligiendo números de la nada. Ese camino sigue cerrado: un número que
+// jamás escribió sigue exigiendo estar cargado como titular.
 //
 // ── POR QUÉ ─────────────────────────────────────────────────────────────────────────────────────
 //
@@ -80,8 +93,9 @@ export class DestinoNoRegistrado extends ErrorQueElVetPuedeResolver {
   readonly destino: string
   constructor(destino: string) {
     super(
-      "Athos sólo puede escribirle a titulares registrados de la clínica, y ese número no lo está. " +
-        "Cargalo como titular y volvé a intentar — o escribile vos desde la bandeja.",
+      "Athos sólo puede escribirle a titulares registrados o a números que le hayan escrito a la " +
+        "clínica, y ese número no es ninguna de las dos cosas. Cargalo como titular y volvé a " +
+        "intentar — o escribile vos desde la bandeja.",
       400,
     )
     this.name = "DestinoNoRegistrado"
@@ -92,24 +106,46 @@ export class DestinoNoRegistrado extends ErrorQueElVetPuedeResolver {
 /**
  * ¿Athos puede escribirle a este número?
  *
- * Se traen los teléfonos de los titulares de la clínica y se comparan normalizados: `owners.phone`
- * viene con formato en la mayoría de los casos, así que no se puede filtrar en SQL sin normalizar
- * la columna primero — y eso es una migración, no una guarda.
+ * Dos puertas, y con UNA alcanza:
+ *
+ *  1. Es un titular registrado. Se traen los teléfonos y se comparan normalizados: `owners.phone`
+ *     viene con formato en la mayoría de los casos, así que no se puede filtrar en SQL sin
+ *     normalizar la columna primero — y eso es una migración, no una guarda.
+ *  2. Ese número LE ESCRIBIÓ a la clínica alguna vez (hay un entrante suyo en
+ *     `whatsapp_messages`). Acá sí se filtra en SQL: `wa_phone_from` guarda dígitos pelados, así
+ *     que un `ilike` por los últimos 10 es exacto. Y se consulta la BASE, no se le cree al
+ *     llamador: un "es una respuesta" declarado en un parámetro sería un agujero — cualquier
+ *     payload podría declararlo.
+ *
+ * El orden es el barato primero cuando hay pocos titulares, pero se resuelven en paralelo: son dos
+ * lecturas chicas y este camino corre dentro del webhook.
  */
 export async function athosPuedeEscribirA(
   admin: SupabaseClient,
   clinicId: string,
   destino: string,
 ): Promise<boolean> {
-  if (!claveDeTelefono(destino)) return false
+  const clave = claveDeTelefono(destino)
+  if (!clave) return false
 
-  const { data: titulares } = await admin
-    .from("owners")
-    .select("phone")
-    .eq("clinic_id", clinicId)
-    .not("phone", "is", null)
-    .limit(TOPE_TITULARES)
+  const [{ data: titulares }, { data: entrante }] = await Promise.all([
+    admin
+      .from("owners")
+      .select("phone")
+      .eq("clinic_id", clinicId)
+      .not("phone", "is", null)
+      .limit(TOPE_TITULARES),
+    admin
+      .from("whatsapp_messages")
+      .select("id")
+      .eq("clinic_id", clinicId)
+      .eq("direction", "inbound")
+      .ilike("wa_phone_from", `%${clave}`)
+      .limit(1)
+      .maybeSingle(),
+  ])
 
+  if (entrante) return true
   return esDestinoRegistrado(
     destino,
     ((titulares as { phone: string | null }[] | null) ?? []).map((o) => o.phone ?? ""),

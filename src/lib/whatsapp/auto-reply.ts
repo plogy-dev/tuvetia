@@ -268,10 +268,11 @@ CITAS — tienes herramientas, úsalas en vez de prometer de memoria:
       return
     }
 
-    // ESTO ES ATHOS ESCRIBIENDO, aunque sea una respuesta. Si quien escribió no está cargado como
-    // titular, la guarda lo frena y cae al catch de abajo: no sale la respuesta automática y el
-    // mensaje queda en la bandeja para que lo conteste una persona. Es el resultado correcto — a un
-    // desconocido que le escribe a la clínica lo atiende alguien, no un bot.
+    // ESTO ES ATHOS ESCRIBIENDO, y pasa por la guarda de destinos. Desde el 28-ago la guarda
+    // reconoce dos puertas: titular registrado, o un número que le haya escrito a la clínica —
+    // y éste es siempre lo segundo, porque estamos RESPONDIENDO a su entrante. O sea que un
+    // desconocido que pregunta el horario ya recibe su respuesta; lo que sigue cerrado es que
+    // Athos INICIE conversación con un número que nunca escribió.
     const { waMessageId: sentId, message } = await sendWhatsAppText(clinicId, fromPhone, text, {
       ownerId: owner?.id ?? null,
       sentBy: null,
