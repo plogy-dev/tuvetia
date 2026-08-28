@@ -194,6 +194,16 @@ def _borrar_clinicas(*ids: str) -> None:
     facturación, que agrega nueve cadenas `restrict`— vive en
     `athos-service/supabase/mantenimiento/borrar_una_clinica.sql`.
     """
+    # El import va acá dentro, como en `seeded_tenants`: `app.db` abre conexión al importarse y
+    # arriba del archivo obligaría a tener base para recolectar los tests.
+    #
+    # FALTABA, y esto no compilaba en tiempo de ejecución: `ruff` lo marcó como F821 «Undefined name
+    # get_conn». `pytest` pasaba igual porque sin `.env` los tests que usan esta fixture se saltan,
+    # así que el teardown nunca se ejecutaba — o sea que la limpieza escrita para que no se
+    # acumularan clínicas de prueba habría reventado en su primera línea la primera vez que corriera
+    # con base. Encontrado por la auditoría del repo del 27-ago.
+    from app.db import get_conn
+
     with get_conn() as conn, conn.cursor() as cur:
         for tabla in ("allergies", "patients", "owners"):
             cur.execute(f"delete from public.{tabla} where clinic_id = any(%s)", (list(ids),))

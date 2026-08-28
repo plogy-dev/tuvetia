@@ -72,5 +72,5 @@ def test_NUNCA_escribe_una_key():
     # Y sí dice si hay o no hay, que es lo único que se necesita saber.
     # En CUALQUIER línea, no en la última: la línea de STT (auditoría 26-ago) va después de la
     # de credenciales y el índice posicional se volvió frágil.
-    assert any("llm=sí" in l for l in resumen(_config()))
-    assert any("llm=NO" in l for l in resumen(_config(llm_api_key="")))
+    assert any("llm=sí" in linea for linea in resumen(_config()))
+    assert any("llm=NO" in linea for linea in resumen(_config(llm_api_key="")))
