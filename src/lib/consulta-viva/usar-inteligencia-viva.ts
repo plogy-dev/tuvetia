@@ -86,6 +86,9 @@ export function useInteligenciaViva(activo: boolean): InteligenciaViva & { visto
   })
   const enVuelo = useRef(false)
   const consultaRef = useRef<string | null>(null)
+  // El aborto vive en un ref y NO en la cleanup del efecto que dispara. Ver el bloque largo de
+  // abajo: era el defecto que dejaba las notas en vivo mudas para siempre.
+  const corteRef = useRef<AbortController | null>(null)
 
   const { fase, pausada, segundos, estable, consultaId, pacienteId, motivo } = estado
 
@@ -125,6 +128,7 @@ export function useInteligenciaViva(activo: boolean): InteligenciaViva & { visto
     setVivo((v) => ({ ...v, pensando: true }))
 
     const corte = new AbortController()
+    corteRef.current = corte
     void athosLive({
       consultationId: consultaId,
       patientId: pacienteId,
@@ -155,25 +159,55 @@ export function useInteligenciaViva(activo: boolean): InteligenciaViva & { visto
             disparos.current[NOTAS.nombre].disparos + disparos.current[SUGERENCIAS.nombre].disparos,
         }))
       })
-      .catch(() => {
+      .catch((e: unknown) => {
         // EN SILENCIO, a propósito. El vet está atendiendo; un aviso de error cada quince segundos
         // es peor que la función que falla. Igual se cuenta el disparo: reintentar en bucle contra
         // un proveedor caído es la forma más cara de no arreglar nada.
-        disparos.current[cadencia.nombre] = trasDisparar(
-          momento,
-          textoAnalizado,
-          disparos.current[cadencia.nombre],
-        )
+        //
+        // UN ABORTO NO SE CUENTA. Es la otra mitad del defecto: el intento no llegó al proveedor,
+        // no produjo nada y no costó nada. Contarlo gastaba el techo de la consulta con llamadas
+        // que nadie hizo, y a los 12 «intentos» las notas en vivo quedaban mudas sin haber escrito
+        // una sola línea.
+        if ((e as Error)?.name !== "AbortError") {
+          disparos.current[cadencia.nombre] = trasDisparar(
+            momento,
+            textoAnalizado,
+            disparos.current[cadencia.nombre],
+          )
+        }
         setVivo((v) => ({ ...v, pensando: false }))
       })
       .finally(() => {
         enVuelo.current = false
       })
 
-    return () => corte.abort()
+    // ── ACÁ NO VA UNA CLEANUP QUE ABORTE, Y ES EL ARREGLO ────────────────────────────────────
+    //
+    // Había un `return () => corte.abort()`. Con `segundos` en las dependencias —que es lo que
+    // hace latir el efecto, una vez por segundo— React corría esa cleanup EN CADA TICK: la llamada
+    // salía, y un segundo después su propio efecto la mataba. Ninguna nota en vivo llegaba nunca.
+    //
+    // Peor todavía: el `.catch` de arriba contaba igual el disparo, así que cada aborto gastaba
+    // techo. Con `maxPorConsulta: 12` en notas y 4 en sugerencias, a los doce segundos útiles el
+    // panel quedaba mudo para el resto de la consulta, mostrando «Escuchando la consulta…» sobre
+    // un contador agotado. Es el «funciona un par de veces y después nada» de esta superficie.
+    //
+    // El aborto sigue existiendo, pero donde corresponde: al desmontar o al cambiar de consulta
+    // (el efecto de abajo). Mientras la MISMA consulta sigue grabando, una llamada en vuelo se
+    // deja terminar — para eso está `enVuelo`, que ya impide que se solapen dos.
     // `segundos` es la dependencia que hace latir esto: cambia una vez por segundo y en cada tick se
     // vuelve a preguntar si toca. El disparador es quien decide, no este efecto.
   }, [activo, fase, pausada, segundos, estable, consultaId, pacienteId, motivo])
+
+  // El único aborto legítimo: la consulta cambió, o el árbol se fue. Separado del efecto que
+  // dispara para que su cadencia de un segundo no lo arrastre.
+  useEffect(() => {
+    return () => {
+      corteRef.current?.abort()
+      corteRef.current = null
+      enVuelo.current = false
+    }
+  }, [consultaId])
 
   // Lo llama la pestaña de sugerencias al abrirse: mirar la alerta es lo que la apaga.
   const vistoLaAlerta = useCallback(() => {

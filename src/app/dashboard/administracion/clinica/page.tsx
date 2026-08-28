@@ -226,7 +226,10 @@ export default async function ConfiguracionDeLaClinicaPage({
             />
           </div>
 
-          <div className="rounded-xl border bg-card p-4">
+          {/* `id` + `scroll-mt`: es el destino del enlace «Encender» del panel de la agenda.
+              Sin el margen de scroll, el ancla deja la tarjeta pegada al borde de arriba y debajo
+              de la cabecera fija. */}
+          <div id="avisos-de-citas" className="scroll-mt-24 rounded-xl border bg-card p-4">
             <div className="mb-3 flex items-center gap-2 text-sm font-semibold">
               <CalendarClock className="size-4 text-muted-foreground" /> Avisos de citas
               <HelpTip>

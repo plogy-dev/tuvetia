@@ -29,7 +29,7 @@ export function UpcomingAppointments({ appointments }: { appointments: UpcomingA
   return (
     <div className="flex h-full flex-col rounded-xl border border-line-soft bg-panel">
       <div className="flex items-center justify-between border-b px-4 py-3">
-        <div className="flex items-center gap-2 text-sm font-semibold">
+        <div className="flex items-center gap-2 font-display text-[17px] font-semibold leading-tight tracking-[-0.01em] text-fg">
           {/* El azul de la agenda — el mismo de las pastillas de citas. */}
           <CalendarClock aria-hidden className="size-4" style={{ color: "var(--chart-5)" }} /> Próximas citas
         </div>

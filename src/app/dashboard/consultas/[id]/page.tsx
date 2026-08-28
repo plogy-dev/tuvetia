@@ -365,16 +365,24 @@ export default function NotaConsultaPage({ params }: { params: Promise<{ id: str
     }
   }
 
+  // `saving` y `approving` gobiernan el `disabled` de sus botones, así que su reposición va en un
+  // `finally`: cualquier excepción los dejaba en `true` y el botón muerto hasta recargar la
+  // página. Es el mismo defecto que el de «Iniciar consulta» (28-ago).
   async function save() {
     if (!note) return
     setSaving(true)
-    const { error } = await supabase
-      .from("clinical_notes")
-      .update({ ...soap, updated_at: new Date().toISOString() })
-      .eq("id", note.id)
-    setSaving(false)
-    if (error) toast.error(`No se pudo guardar: ${error.message}`)
-    else toast.success("Cambios guardados")
+    try {
+      const { error } = await supabase
+        .from("clinical_notes")
+        .update({ ...soap, updated_at: new Date().toISOString() })
+        .eq("id", note.id)
+      if (error) toast.error(`No se pudo guardar: ${error.message}`)
+      else toast.success("Cambios guardados")
+    } catch (e) {
+      toast.error(`No se pudo guardar: ${(e as Error)?.message ?? e}`)
+    } finally {
+      setSaving(false)
+    }
   }
 
   async function approve() {
@@ -389,41 +397,58 @@ export default function NotaConsultaPage({ params }: { params: Promise<{ id: str
       return
     }
     setApproving(true)
-    const {
-      data: { user },
-    } = await supabase.auth.getUser()
-    const { error } = await supabase
-      .from("clinical_notes")
-      .update({
-        ...soap,
-        status: "approved",
-        approved_by: user?.id,
-        approved_at: new Date().toISOString(),
-        // La constancia de que se revisó la alergia va en la MISMA escritura que la aprobación: si
-        // fueran dos, entre una y otra habría un instante con la nota firmada y sin constancia.
-        ...(note.allergy_gate_triggered ? { allergy_acknowledged_at: new Date().toISOString() } : {}),
-      })
-      .eq("id", note.id)
-    if (error) {
+    try {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser()
+      const { error } = await supabase
+        .from("clinical_notes")
+        .update({
+          ...soap,
+          status: "approved",
+          approved_by: user?.id,
+          approved_at: new Date().toISOString(),
+          // La constancia de que se revisó la alergia va en la MISMA escritura que la aprobación: si
+          // fueran dos, entre una y otra habría un instante con la nota firmada y sin constancia.
+          ...(note.allergy_gate_triggered ? { allergy_acknowledged_at: new Date().toISOString() } : {}),
+        })
+        .eq("id", note.id)
+      if (error) {
+        toast.error(`No se pudo aprobar: ${error.message}`)
+        return
+      }
+      // Cierra el ciclo: la nota entró a la historia -> consulta 'completed'.
+      // (open->transcribing->generating_note lo pone el backend en /athos/transcribe;
+      //  aquí nuestro flujo del Phantom la lleva a 'completed' al aprobar. Ver seam en la bitácora.)
+      await supabase
+        .from("consultations")
+        .update({
+          status: "completed",
+          ended_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", id)
+      toast.success("Nota aprobada y añadida a la historia clínica")
+      await load()
+    } catch (e) {
+      toast.error(`No se pudo aprobar: ${(e as Error)?.message ?? e}`)
+    } finally {
       setApproving(false)
-      toast.error(`No se pudo aprobar: ${error.message}`)
-      return
     }
-    // Cierra el ciclo: la nota entró a la historia -> consulta 'completed'.
-    // (open->transcribing->generating_note lo pone el backend en /athos/transcribe;
-    //  aquí nuestro flujo del Phantom la lleva a 'completed' al aprobar. Ver seam en la bitácora.)
-    await supabase
-      .from("consultations")
-      .update({
-        status: "completed",
-        ended_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-      })
-      .eq("id", id)
-    setApproving(false)
-    toast.success("Nota aprobada y añadida a la historia clínica")
-    await load()
   }
+
+  // ── ESTE `useMemo` VA ARRIBA DE LOS EARLY-RETURN, Y NO ES UN DETALLE DE ESTILO ─────────────
+  //
+  // Estaba más abajo, después de los `return` de «cargando» y «no se pudo cargar». Un hook después
+  // de un return condicional NO se ejecuta en los renders que salen antes, así que React ve un
+  // número distinto de hooks entre un render y el siguiente y LANZA: «Rendered more hooks than
+  // during the previous render». Y pasa en el camino normal, no en uno raro — la pantalla empieza
+  // en `loading` y sale de ahí en cuanto `load()` responde.
+  //
+  // El comentario original decía que corría «ANTES del early-return del cockpit», y contra ése sí
+  // estaba antes; los dos de carga se agregaron después y quedaron por encima sin que nadie lo
+  // notara. Subirlo lo pone antes de los tres.
+  const turns = useMemo(() => parseTranscript(transcript), [transcript])
 
   if (loading) {
     return (
@@ -458,10 +483,6 @@ export default function NotaConsultaPage({ params }: { params: Promise<{ id: str
   // desconocido, igual que el default de la columna: una nota vieja no puede volverse dudosa sola.
   const banda = bandaDeEvidencia(note?.evidence_level)
   const aviso = avisoDeEvidencia(banda)
-  // Memoizado por transcript: corre ANTES del early-return del cockpit, así que sin memo se
-  // re-parseaba la transcripción completa en cada render de la página.
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  const turns = useMemo(() => parseTranscript(transcript), [transcript])
   const pet = consultation?.patient
   const initial = (pet?.name ?? "?").charAt(0).toUpperCase()
 

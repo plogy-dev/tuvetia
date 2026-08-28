@@ -169,11 +169,14 @@ export function PaymentSection({
   const altLabel = reminderChannel === 'WHATSAPP' ? 'correo (Gmail)' : 'WhatsApp';
 
   return (
-    <div className="space-y-3">
+    // `@container/pago`: las tres tarjetas se reparten según el ancho DE ESTE PANEL, no del
+    // navegador. Con `sm:` —que mide la ventana— el panel de una pantalla partida seguía pidiendo
+    // tres columnas aunque midiera 380 px, y ahí es donde los rótulos se salían de la tarjeta.
+    <div className="@container/pago space-y-3">
       <label className="block text-xs font-medium text-fg-muted">Forma de pago</label>
 
       {/* Las tres realidades del pago, como opciones de primera clase */}
-      <div className="grid gap-2 sm:grid-cols-3">
+      <div className="grid gap-2 @sm/pago:grid-cols-3">
         {OPTIONS.map(({ value, label, hint, Icon }) => (
           <button
             key={value}
@@ -186,9 +189,15 @@ export function PaymentSection({
                 : 'border-line bg-surface hover:bg-surface-2'
             }`}
           >
-            <span className="flex items-center gap-2 text-sm font-medium text-fg">
-              <Icon className="size-4 shrink-0" aria-hidden />
-              {label}
+            {/* EL RÓTULO VA EN SU PROPIO `span` CON `min-w-0`, y no suelto.
+                Un nodo de texto suelto dentro de un flex es un elemento anónimo con
+                `min-width: auto`: no puede encogerse por debajo de su contenido mínimo —el ancho
+                de la palabra más larga— así que «Pendiente» se salía de la tarjeta y la tarjeta lo
+                recortaba a «Pendient». `break-words` cubre el caso extremo en que ni la palabra
+                sola entra. `items-start` porque con dos líneas el icono centrado queda flotando. */}
+            <span className="flex items-start gap-2 text-sm font-medium text-fg">
+              <Icon className="mt-px size-4 shrink-0" aria-hidden />
+              <span className="min-w-0 break-words">{label}</span>
             </span>
             <span className="mt-0.5 block text-xs text-fg-faint">{hint}</span>
           </button>

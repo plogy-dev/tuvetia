@@ -30,16 +30,30 @@ export function CategoryManager({ categories }: { categories: CatalogCategoryRow
   // El orden reordenable excluye la default.
   const orderable = categories.filter((c) => !c.is_default && !c.archived_at);
 
+  // EL `try/catch` NO ES DEFENSIVO: ES LO QUE DEVUELVE LOS BOTONES.
+  //
+  // David, 28-ago: «botones en general» dejan de responder después de un uso o dos. Si la promesa
+  // de `startTransition(async …)` RECHAZA, React nunca cierra la transición: `isPending` se queda
+  // en `true` y todos los botones colgados de él quedan `disabled` hasta recargar la página.
+  //
+  // Los server actions ya atrapan lo suyo, pero un rechazo de TRANSPORTE ocurre fuera de ellos:
+  // sesión vencida, red caída, o —el más probable acá— un id de Server Action que ya no existe
+  // porque se desplegó mientras la pestaña estaba abierta (`deploymentId` en `next.config.ts`
+  // existe justamente porque eso pasó ocho veces en un día).
   function run(fn: () => Promise<{ ok: boolean; error?: string }>, after?: () => void) {
     setError(null);
     startTransition(async () => {
-      const r = await fn();
-      if (!r.ok) {
-        setError(r.error ?? 'Error');
-        return;
+      try {
+        const r = await fn();
+        if (!r.ok) {
+          setError(r.error ?? 'Error');
+          return;
+        }
+        after?.();
+        router.refresh();
+      } catch (e) {
+        setError((e as Error)?.message ?? 'No se pudo completar la acción.');
       }
-      after?.();
-      router.refresh();
     });
   }
 

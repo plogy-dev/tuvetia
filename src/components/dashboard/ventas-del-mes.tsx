@@ -29,7 +29,7 @@ export function VentasDelMes({ datos }: { datos: VentaPorTipo[] }) {
   return (
     <div className="flex h-full flex-col rounded-xl border border-line-soft bg-panel p-4">
       <div className="mb-3">
-        <div className="flex items-center gap-1.5 text-sm font-semibold">
+        <div className="flex items-center gap-1.5 font-display text-[17px] font-semibold leading-tight tracking-[-0.01em] text-fg">
           {/* Mismo tono que las pastillas de plata: la identidad del dominio, panel a panel. */}
           <Banknote aria-hidden className="size-4" style={{ color: "var(--chart-4)" }} />
           Ventas del mes por tipo
@@ -64,7 +64,7 @@ export function VentasDelMes({ datos }: { datos: VentaPorTipo[] }) {
                   data={datos.map((d) => ({ name: d.etiqueta, value: d.totalCents }))}
                   dataKey="value"
                   nameKey="name"
-                  innerRadius={55}
+                  innerRadius={48}
                   outerRadius={80}
                   paddingAngle={2}
                   stroke="var(--panel)"

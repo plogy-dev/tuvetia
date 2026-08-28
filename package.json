@@ -10,7 +10,8 @@
     "test": "vitest run",
     "test:e2e": "vitest run --config vitest.e2e.config.mts",
     "adversarios": "vitest run --config vitest.adversarios.config.mts",
-    "verify": "npx tsc --noEmit && npm run lint && npm test"
+    "verify": "npx tsc --noEmit && npm run lint && npm test && npm run test:componentes",
+    "test:componentes": "vitest run --config vitest.componentes.config.mts"
   },
   "dependencies": {
     "@ai-sdk/anthropic": "^3.0.103",
@@ -56,6 +57,7 @@
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
+    "@testing-library/react": "^16.3.3",
     "@types/node": "^20",
     "@types/papaparse": "^5.5.2",
     "@types/react": "^19",
@@ -63,6 +65,7 @@
     "@types/react-dom": "^19",
     "eslint": "^9",
     "eslint-config-next": "16.2.12",
+    "jsdom": "^29.1.1",
     "tailwindcss": "^4",
     "typescript": "^5",
     "vitest": "^4.1.10"

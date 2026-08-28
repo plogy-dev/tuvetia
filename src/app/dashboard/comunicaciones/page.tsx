@@ -10,7 +10,18 @@ export const metadata = { title: "Comunicaciones · Tuvetia" }
 
 // Bandeja de WhatsApp de la clínica. Los mensajes llegan por el webhook de Kapso a
 // whatsapp_messages (RLS por clínica); el envío sale por /api/whatsapp/send.
-export default async function ComunicacionesPage() {
+export default async function ComunicacionesPage({
+  searchParams,
+}: {
+  // `?para=<dígitos>&texto=<mensaje>` — con esto otras pantallas (hoy: «Enviar por WhatsApp» de
+  // una factura emitida) pueden abrir la bandeja en la conversación correcta y con el mensaje ya
+  // escrito, en vez de mandar al vet a WhatsApp Web fuera de la app.
+  searchParams: Promise<{ para?: string; texto?: string }>
+}) {
+  const { para, texto } = await searchParams
+  const soloDigitos = (para ?? "").replace(/D/g, "")
+  const paraNormalizado =
+    soloDigitos.length === 10 && soloDigitos.startsWith("3") ? `57${soloDigitos}` : soloDigitos || null
   const supabase = await createClient()
 
   const [{ data: integ }, { data: msgs, error: msgsError }, { data: owners }] = await Promise.all([
@@ -89,10 +100,14 @@ export default async function ComunicacionesPage() {
           Avisos a titulares
         </Link>
       </div>
+      {/* El teléfono se normaliza en el servidor y no en la bandeja: lo que llega por la URL viene
+          de afuera, y la bandeja compara contra dígitos. */}
       <WhatsappInbox
         initialMessages={((msgs as InboxMessage[] | null) ?? []).slice().reverse()}
         owners={(owners as InboxOwner[] | null) ?? []}
         clinicPhone={integration?.phone_number ?? ""}
+        contactoInicial={paraNormalizado}
+        borradorInicial={texto ?? null}
       />
     </>
   )

@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useTransition } from 'react';
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { AlertTriangle, Ban, Check, Mail, MessageCircle, Printer } from 'lucide-react';
 import {
@@ -119,7 +120,15 @@ export function InvoiceActionsPanel({
   // Es la misma forma de dos pasos que ya usa la caja de anular.
   const [confirmando, setConfirmando] = useState<'emitir' | 'descartar' | null>(null);
 
-  // wa.me: normaliza el teléfono a dígitos; celular colombiano sin indicativo → +57.
+  // A LA BANDEJA DE COMUNICACIONES, NO A `wa.me`.
+  //
+  // David, 28-ago: «abre whatsapp web y no comunicaciones; debería llegar a comunicaciones con el
+  // formato». `wa.me` abría el WhatsApp personal de quien estuviera en el navegador, no el número
+  // de la clínica, y ese mensaje no quedaba en `whatsapp_messages`: la factura figuraba como no
+  // entregada aunque el titular la hubiera recibido. El texto se arma igual que antes; lo que
+  // cambia es a dónde va.
+  //
+  // Normaliza el teléfono a dígitos; celular colombiano sin indicativo → +57.
   function waHref(): string {
     const digitsRaw = (payerPhone ?? '').replace(/\D/g, '');
     const digits =
@@ -129,7 +138,10 @@ export function InvoiceActionsPanel({
     const monto = ` por ${formatCOP(totalCents)}`;
     const link = shareUrl ? `\n\nPuedes verla aquí: ${shareUrl}` : '';
     const text = encodeURIComponent(`${saludo}te comparto ${doc}${monto}.${link}`);
-    return digits ? `https://wa.me/${digits}?text=${text}` : `https://wa.me/?text=${text}`;
+    // Sin teléfono se abre igual: la bandeja deja elegir el contacto y el borrador ya está escrito.
+    return digits
+      ? `/dashboard/comunicaciones?para=${digits}&texto=${text}`
+      : `/dashboard/comunicaciones?texto=${text}`;
   }
 
   /** Manda la factura a la dirección escrita a mano, y cierra el campo si salió. */
@@ -148,6 +160,19 @@ export function InvoiceActionsPanel({
     );
   }
 
+  // EL `try/catch` NO ES DEFENSIVO: ES LO QUE DEVUELVE LOS BOTONES.
+  //
+  // David, 28-ago: «botones en general» dejan de responder después de un uso o dos. Si la promesa
+  // de `startTransition(async …)` RECHAZA, React nunca cierra la transición: `isPending` se queda
+  // en `true` y todos los botones colgados de él quedan `disabled` hasta recargar la página.
+  //
+  // Los server actions ya atrapan lo suyo, pero un rechazo de TRANSPORTE ocurre fuera de ellos:
+  // sesión vencida, red caída, o —el más probable acá— un id de Server Action que ya no existe
+  // porque se desplegó mientras la pestaña estaba abierta (`deploymentId` en `next.config.ts`
+  // existe justamente porque eso pasó ocho veces en un día).
+  //
+  // Acá pesa más que en ningún otro panel: OCHO botones cuelgan de este mismo `isPending`, así que
+  // un solo rechazo los apagaba todos de una vez — emitir, descartar, cobrar, anular, los envíos.
   function run(
     fn: () => Promise<{ ok: boolean; error?: string; msg?: string }>,
     alExito?: () => void,
@@ -155,14 +180,18 @@ export function InvoiceActionsPanel({
     setError(null);
     setNotice(null);
     startTransition(async () => {
-      const r = await fn();
-      if (!r.ok) {
-        setError(r.error ?? 'Error inesperado');
-        return;
+      try {
+        const r = await fn();
+        if (!r.ok) {
+          setError(r.error ?? 'Error inesperado');
+          return;
+        }
+        if (r.msg) setNotice(r.msg);
+        alExito?.();
+        router.refresh();
+      } catch (e) {
+        setError((e as Error)?.message ?? 'No se pudo completar la acción.');
       }
-      if (r.msg) setNotice(r.msg);
-      alExito?.();
-      router.refresh();
     });
   }
 
@@ -372,15 +401,15 @@ export function InvoiceActionsPanel({
               <Mail className="size-4" aria-hidden />
               {deliveryStatus === 'NO_ENVIADA' ? 'Enviar por email' : 'Reenviar por email'}
             </button>
-            <a
+            {/* Navegación interna y en la MISMA pestaña: es una pantalla de Tuvetia, no un sitio
+                de afuera. Abrirla en otra pestaña era coherente con `wa.me`; con la bandeja no. */}
+            <Link
               href={waHref()}
-              target="_blank"
-              rel="noreferrer"
               className="inline-flex items-center gap-2 rounded-lg border border-ok/50 bg-surface px-4 py-2 text-sm font-medium text-ok hover:bg-surface-2 transition"
             >
               <MessageCircle className="size-4" aria-hidden />
               Enviar por WhatsApp
-            </a>
+            </Link>
             <a
               href={`/dashboard/facturacion/${invoiceId}/imprimir`}
               target="_blank"
