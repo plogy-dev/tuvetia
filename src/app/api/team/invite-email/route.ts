@@ -5,6 +5,7 @@ import { createAdminClient } from "@/lib/supabase/admin"
 import { clinicaDeLaSesion } from "@/lib/api/clinica-de-la-sesion"
 import { getAppBaseUrl } from "@/lib/base-url"
 import { loadClinicSender, sendTransactionalEmail } from "@/lib/email/transactional"
+import { maquetarCorreo } from "@/lib/email/maqueta"
 
 // Envío de la invitación de equipo por correo, **a pedido del admin** (botón "Enviar invitación").
 //
@@ -71,24 +72,35 @@ export async function POST(req: Request) {
     const clinica = sender.displayName
 
     const subject = `Te invitaron a ${clinica} en Tuvetia`
-    const text = [
-      "Hola,",
-      "",
-      quienInvita
-        ? `${quienInvita} te invitó a unirte al equipo de ${clinica} en Tuvetia.`
-        : `Te invitaron a unirte al equipo de ${clinica} en Tuvetia.`,
-      "",
-      "Aceptá la invitación acá:",
-      link,
-      "",
-      `El enlace vence en 7 días. Si todavía no tenés cuenta, vas a poder crearla con este mismo correo (${invitation.email}) y volver para aceptar.`,
-      "",
-      "Si no esperabas esta invitación, podés ignorar este correo.",
-    ].join("\n")
+    // La frase que abre el correo se reusa como preheader: es justo lo que la bandeja tiene que
+    // mostrar al lado del asunto, y un resumen aparte sería otra redacción más que sincronizar.
+    const invita = quienInvita
+      ? `${quienInvita} te invitó a unirte al equipo de ${clinica} en Tuvetia.`
+      : `Te invitaron a unirte al equipo de ${clinica} en Tuvetia.`
+
+    // EL ENLACE ES EL CORREO. Va como botón —la única acción que este mensaje pide— y la maqueta
+    // escribe además su dirección debajo, en texto. Las dos cosas hacen falta: el `href` solo no
+    // sobrevive a la versión en texto plano (que se deriva de este HTML), y hay clientes que comen
+    // el botón o no dejan tocarlo. Un enlace que no se puede copiar deja al invitado sin camino, y
+    // el enlace es justamente el camino garantizado de este flujo.
+    //
+    // Nada de esto se escapa a mano: `maquetarCorreo` escapa todo lo que recibe. Hacerlo acá además
+    // dejaría el nombre de la clínica escrito como `Cl&#39;nica` en la pantalla del invitado.
+    const html = maquetarCorreo({
+      titulo: `Te invitaron a ${clinica}`,
+      preheader: invita,
+      parrafos: [
+        "Hola,",
+        invita,
+        `El enlace vence en 7 días. Si todavía no tenés cuenta, vas a poder crearla con este mismo correo (${invitation.email}) y volver para aceptar.`,
+      ],
+      boton: { texto: "Aceptá la invitación", url: link },
+      pie: ["Si no esperabas esta invitación, podés ignorar este correo."],
+    })
 
     const result = await sendTransactionalEmail(
       p.clinic_id,
-      { to: invitation.email, subject, text },
+      { to: invitation.email, subject, html },
       sender,
     )
 

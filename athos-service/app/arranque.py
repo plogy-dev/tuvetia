@@ -24,7 +24,7 @@ log = logging.getLogger(__name__)
 
 #: Proveedores cuya key propia se comprueba aparte de la general (`LLM_API_KEY`).
 KEYS = ("llm_api_key", "anthropic_api_key", "gemini_api_key", "embedding_api_key", "deepgram_api_key",
-        "xai_api_key")
+        "groq_api_key")
 
 
 def _si_no(v: object) -> str:
@@ -46,7 +46,7 @@ def resumen(s) -> list[str]:
     lineas.append("cascada — " + (" · ".join(puestas) if puestas else "sin configurar (se usa el cliente de siempre)"))
 
     lineas.append("credenciales — " + " ".join(f"{k.replace('_api_key', '')}={_si_no(getattr(s, k, ''))}" for k in KEYS))
-    # STT (auditoría 26-ago): tras la migración a Grok, el proveedor de transcripción es una
+    # STT (auditoría 26-ago): tras la migración a Groq, el proveedor de transcripción es una
     # decisión de negocio — el arranque tiene que decir cuál quedó activo, no dejarlo a adivinar.
     lineas.append(f"stt — proveedor: {getattr(s, 'stt_provider', 'deepgram')}"
                   f" · modelo deepgram: {getattr(s, 'stt_model', 'nova-2')}")
@@ -80,19 +80,19 @@ def advertencias(s) -> list[str]:
     if not getattr(s, "embedding_api_key", ""):
         avisos.append("sin key de embeddings: el Tier 2 vectorial queda fuera y el retrieval degrada")
 
-    # STT (auditoría 26-ago): la trampa espejo de la de redacción — STT_PROVIDER=grok sin
-    # XAI_API_KEY (o sin NINGUNA key de STT) deja la transcripción muerta con /health en verde.
+    # STT (auditoría 26-ago): la trampa espejo de la de redacción — STT_PROVIDER=groq sin
+    # GROQ_API_KEY (o sin NINGUNA key de STT) deja la transcripción muerta con /health en verde.
     stt = str(getattr(s, "stt_provider", "deepgram") or "").strip().lower()
-    if stt == "grok" and not getattr(s, "xai_api_key", ""):
-        avisos.append("STT_PROVIDER=grok sin XAI_API_KEY: toda transcripción irá directo al respaldo "
+    if stt in ("groq", "grok") and not getattr(s, "groq_api_key", ""):
+        avisos.append("STT_PROVIDER=groq sin GROQ_API_KEY: toda transcripción irá directo al respaldo "
                       "Deepgram (o fallará si tampoco hay DEEPGRAM_API_KEY)")
-    if not getattr(s, "xai_api_key", "") and not getattr(s, "deepgram_api_key", ""):
-        avisos.append("sin NINGUNA key de STT (ni xai ni deepgram): la transcripción de consultas va "
+    if not getattr(s, "groq_api_key", "") and not getattr(s, "deepgram_api_key", ""):
+        avisos.append("sin NINGUNA key de STT (ni groq ni deepgram): la transcripción de consultas va "
                       "a fallar, pero /health seguirá en verde")
-    # EL HUECO QUE DEJÓ LA MIGRACIÓN A GROK, y el que probablemente explica el reporte de David del
-    # 26-ago («no hay transcripción en vivo»): el streaming es DEEPGRAM-ONLY sin importar
-    # STT_PROVIDER —Grok live exige Opus crudo y el navegador graba WebM contenerizado (ver
-    # `config.py`)—. Así que con XAI_API_KEY puesta y DEEPGRAM_API_KEY ausente, los lotes funcionan
+    # EL HUECO QUE DEJA LA MIGRACIÓN DEL BATCH A GROQ, y el que probablemente explica el reporte de
+    # David del 26-ago («no hay transcripción en vivo»): el streaming es DEEPGRAM-ONLY sin importar
+    # STT_PROVIDER —Groq no ofrece streaming en vivo de Whisper (ver `config.py`)—. Así que con
+    # GROQ_API_KEY puesta y DEEPGRAM_API_KEY ausente, los lotes funcionan
     # perfecto, /health está en verde, y el vivo muere en cada consulta. El front lo tapaba con un
     # `console.info`, que es como estuvo invisible hasta que lo notó el cliente.
     if not getattr(s, "deepgram_api_key", ""):

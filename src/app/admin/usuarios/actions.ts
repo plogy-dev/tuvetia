@@ -17,6 +17,7 @@ import { isPlatformAdmin } from "@/lib/platform-admin"
 import { sendPlatformEmail } from "@/lib/email/platform-sender"
 import { TOPE_ENVIO_MASIVO } from "@/lib/admin/limites"
 import { huecos } from "@/lib/email/plantillas"
+import { maquetarCorreo, parrafosDeTexto } from "@/lib/email/maqueta"
 
 const EnvioSchema = z.object({
   to: z.string().email("El correo del destinatario no es válido"),
@@ -125,6 +126,51 @@ async function adminActual(): Promise<{ id: string; email: string } | null> {
   return { id: user.id, email: user.email }
 }
 
+// ── El correo, maquetado ──────────────────────────────────────────────────────────────────────
+//
+// EL TEXTO SE MAQUETA ACÁ Y NO EN LAS PLANTILLAS. Lo que el admin escribe y revisa —en el textarea
+// del panel, en la vista previa que firma antes de mandar— es texto plano; la envoltura de marca se
+// pone recién en el envío. El porqué está escrito en `lib/email/plantillas.ts`.
+//
+// Ese texto lo redacta una persona en un textarea, así que es contenido no confiable por
+// definición: pasa entero por `maquetarCorreo`, que escapa todo lo que recibe. No se escapa acá
+// además, o el destinatario leería las entidades en pantalla.
+
+/** Más largo que esto la bandeja lo corta igual; cortarlo acá al menos deja puntos suspensivos. */
+const LARGO_PREHEADER = 140
+
+/**
+ * El renglón que la bandeja muestra al lado del asunto.
+ *
+ * No se repite el asunto —ya está a la vista, y repetirlo gasta el único renglón de contexto que la
+ * bandeja regala— ni se toma el primer párrafo a secas: en las cuatro plantillas ese párrafo es
+ * "Hola,". Se busca el primero que diga algo.
+ */
+function resumenParaLaBandeja(parrafos: string[], asunto: string): string {
+  const util = parrafos.find((p) => p.length > 20) ?? parrafos[0] ?? asunto
+  const plano = util.replace(/\s+/g, " ").trim()
+  return plano.length > LARGO_PREHEADER ? `${plano.slice(0, LARGO_PREHEADER).trimEnd()}…` : plano
+}
+
+/**
+ * El aviso de plataforma, maquetado.
+ *
+ * NO LLEVA ENLACE DE BAJA, y no es un olvido: el alcance de este panel son avisos OPERATIVOS a
+ * usuarios del producto (ver el bloque del masivo, más abajo). El día que se mande algo comercial
+ * hace falta base legal bajo la Ley 1581, registro de consentimiento y baja — las tres, no sólo el
+ * enlace — y ninguna de las tres está construida.
+ */
+function correoDePlataforma(subject: string, text: string): string {
+  const parrafos = parrafosDeTexto(text)
+  return maquetarCorreo({
+    // El asunto hace de encabezado: es lo que el destinatario acaba de leer en la bandeja, y verlo
+    // repetido arriba del cuerpo es lo que confirma que abrió lo que creía abrir.
+    titulo: subject,
+    preheader: resumenParaLaBandeja(parrafos, subject),
+    parrafos,
+  })
+}
+
 /**
  * Envío INDIVIDUAL desde la fila del usuario.
  *
@@ -146,7 +192,7 @@ export async function enviarCorreoPlataforma(input: {
   }
   const { to, subject, text } = parsed.data
 
-  const res = await sendPlatformEmail({ to, subject, text })
+  const res = await sendPlatformEmail({ to, subject, html: correoDePlataforma(subject, text) })
 
   // Traza: a quién, qué y cuándo. `audit_logs.clinic_id` es nullable, que es justo lo que hace
   // falta para un envío de plataforma (no pertenece a ninguna clínica).
@@ -266,13 +312,19 @@ export async function enviarCorreoMasivo(input: {
   const fallidos: { email: string; error: string }[] = []
   let enviados = 0
 
+  // UNA sola vez, fuera del bucle: el cuerpo es idéntico para los doce destinatarios (no hay
+  // personalización — los huecos ya se rellenaron antes de llegar acá). Armarlo adentro sería
+  // repetir el mismo trabajo por cada envío, dentro del bucle que ya pelea con el reloj de la
+  // función, y abriría la puerta a que dos destinatarios recibieran cuerpos distintos.
+  const html = correoDePlataforma(subject, text)
+
   for (const [i, to] of destinatarios.entries()) {
     if (i > 0) await new Promise((r) => setTimeout(r, MS_ENTRE_ENVIOS))
 
-    let res = await sendPlatformEmail({ to, subject, text })
+    let res = await sendPlatformEmail({ to, subject, html })
     if (!res.ok && res.transient) {
       await new Promise((r) => setTimeout(r, MS_ENTRE_ENVIOS * 2))
-      res = await sendPlatformEmail({ to, subject, text })
+      res = await sendPlatformEmail({ to, subject, html })
     }
 
     if (res.ok) enviados++

@@ -17,8 +17,10 @@ import { resendApiKey, sendViaResend, type ResendResult } from "./resend"
 export type PlatformEmailInput = {
   to: string
   subject: string
-  text: string
-  html?: string | null
+  /** El correo maquetado. Se arma con `maquetarCorreo` — ver el porqué en `resend.ts`. */
+  html: string
+  /** La alternativa en texto. Si no viene, se deriva del `html`. */
+  text?: string | null
 }
 
 /** Remitente de plataforma. Comparte el dominio verificado con el transaccional. */
@@ -47,7 +49,8 @@ export async function sendPlatformEmail(input: PlatformEmailInput): Promise<Rese
     from: platformFrom(),
     to: input.to,
     subject: input.subject,
-    text: input.text,
-    html: input.html ?? null,
+    html: input.html,
+    // `text` va sólo si el que llama lo trajo: en `undefined`, el transporte lo deriva del HTML.
+    ...(input.text ? { text: input.text } : {}),
   })
 }

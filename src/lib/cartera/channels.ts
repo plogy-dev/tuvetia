@@ -17,6 +17,7 @@ import 'server-only';
 // Nunca decide A QUIÉN ni CUÁNDO contactar (eso es del gate Ley 2300 en el
 // dominio): solo materializa el envío que el despachador ya autorizó.
 
+import { maquetarCorreo, parrafosDeTexto } from '@/lib/email/maqueta';
 import { resendApiKey } from '@/lib/email/resend';
 import { sendTransactionalEmail, transactionalFrom } from '@/lib/email/transactional';
 import { buildMessageId } from '@/lib/email/threading';
@@ -27,6 +28,39 @@ import { SimulatedMessaging, type MessagingPort, type OutboundMessage, type Send
 
 function fail(error: string, transient = false): SendResult {
   return { ok: false, provider: 'REAL', providerMessageId: null, status: 'FALLIDO', error, transient };
+}
+
+/** La primera dirección web del texto. El `)` queda afuera para no comerse el de "(pague en …)". */
+const URL_EN_EL_TEXTO = /https?:\/\/[^\s<>"')]+/;
+
+/**
+ * Separa el enlace de pago del texto del recordatorio, para poder dibujarlo como botón.
+ *
+ * El cuerpo llega redactado por la CLÍNICA (`{link}` ya reemplazado, ver `cartera/plantillas.ts`),
+ * así que el enlace viene metido dentro de la frase y no como un campo aparte. En correo eso es un
+ * problema: el titular tiene que apretar algo, no copiar una dirección de una oración.
+ *
+ * SÓLO SE SACA DEL TEXTO SI CIERRA EL MENSAJE, que es la forma de las cinco plantillas por defecto
+ * y de casi todo lo que se escribe («Pague aquí: <enlace>»). Si el enlace está en el medio de una
+ * oración, el texto queda intacto y el botón se agrega igual: mostrar la dirección dos veces es
+ * feo, pero cortarle la frase a un mensaje de cobranza —que la clínica redactó y del que responde
+ * ante la Ley 2300— es peor.
+ */
+function separarEnlaceDePago(body: string): { cuerpo: string; url: string | null } {
+  const m = body.match(URL_EN_EL_TEXTO);
+  if (!m || m.index === undefined) return { cuerpo: body, url: null };
+  // El punto final de la oración no es parte de la dirección.
+  const url = m[0].replace(/[.,;:!?]+$/, '');
+  const resto = body.slice(m.index + url.length);
+  const cierraElMensaje = /^[\s.,;:!?]*$/.test(resto);
+  return { cuerpo: cierraElMensaje ? body.slice(0, m.index).trimEnd() : body, url };
+}
+
+/** Lo que la bandeja muestra al lado del asunto: el arranque del propio recordatorio. */
+function primerasPalabras(texto: string): string {
+  const linea = texto.replace(/\s+/g, ' ').trim();
+  if (linea.length <= 140) return linea;
+  return `${linea.slice(0, 139).replace(/\s+\S*$/, '')}…`;
 }
 
 export class RealMessaging implements MessagingPort {
@@ -78,7 +112,9 @@ export class RealMessaging implements MessagingPort {
    * recordatorio.
    *
    * El asunto y el cuerpo llegan ya redactados en `msg`: este adaptador NO decide qué decir, ni a
-   * quién, ni cuándo — eso es del gate de la Ley 2300 en el dominio.
+   * quién, ni cuándo — eso es del gate de la Ley 2300 en el dominio. Lo único que hace con el texto
+   * es MAQUETARLO: las mismas palabras, dentro de la envoltura de marca y con el enlace de pago
+   * como botón. Nada se reescribe.
    */
   private async sendEmail(msg: OutboundMessage): Promise<SendResult> {
     // Message-ID propio: es la raíz del hilo y lo que permite reconocer la respuesta del titular
@@ -88,10 +124,28 @@ export class RealMessaging implements MessagingPort {
       transactionalFrom(),
       `${Date.now()}`,
     );
+
+    const subject = msg.subject?.trim() || 'Recordatorio de pago';
+    // EL TEXTO DE LA CLÍNICA ES DATO, NO HTML. Lo escribe un vet en la pantalla de plantillas de
+    // recordatorio y puede traer cualquier carácter; entra como párrafos y `maquetarCorreo` lo
+    // escapa. Concatenarlo crudo en el HTML sería dejar que un `<` de una plantilla desarme el
+    // correo, y peor, que lo escrito en una pantalla de configuración termine siendo marcado.
+    //
+    // Los saltos de línea de la plantilla se respetan: línea en blanco parte párrafo, salto simple
+    // queda como corte de línea dentro del párrafo.
+    const { cuerpo, url } = separarEnlaceDePago(msg.body);
+    const parrafos = parrafosDeTexto(cuerpo);
+    const html = maquetarCorreo({
+      titulo: subject,
+      preheader: primerasPalabras(parrafos[0] ?? subject),
+      parrafos,
+      boton: url ? { texto: 'Ver y pagar la factura', url } : null,
+    });
+
     const r = await sendTransactionalEmail(this.clinicId, {
       to: msg.to,
-      subject: msg.subject?.trim() || 'Recordatorio de pago',
-      text: msg.body,
+      subject,
+      html,
       messageId,
     });
     if (!r.ok) return fail(r.error ?? 'Error de envío de correo', r.transient ?? false);

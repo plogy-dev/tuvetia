@@ -95,71 +95,52 @@ def _download_audio(storage_path: str) -> bytes:
     return resp.content
 
 
-XAI_STT_URL = "https://api.x.ai/v1/stt"
+# Groq (con Q — Groq Inc., no confundir con Grok de xAI: el 27-ago se aclaró que el cliente quería
+# ESTE). Sirve Whisper por API OpenAI-compatible, rapidísimo y barato (~US$0,04/hora el turbo).
+GROQ_STT_URL = "https://api.groq.com/openai/v1/audio/transcriptions"
+GROQ_STT_MODEL_DEFAULT = "whisper-large-v3-turbo"
 
 
-def _grok_a_payload_comun(grok: dict[str, Any]) -> dict[str, Any]:
-    """Adapta la respuesta de Grok STT a la FORMA de Deepgram que ya habla todo el módulo.
+def _groq_a_payload_comun(groq: dict[str, Any]) -> dict[str, Any]:
+    """Adapta la respuesta de Groq/Whisper a la FORMA de Deepgram que ya habla todo el módulo.
 
-    Grok devuelve {text, language, duration, words:[{text,start,end,speaker?}]}; Deepgram anida en
-    results.channels[].alternatives[]. Adaptar acá — y no reescribir build_segments/render_full_text
-    y sus tests — mantiene UNA sola ruta de armado de segmentos e inferencia de roles para los dos
-    proveedores: lo que está probado sigue probado.
+    LO QUE WHISPER NO TRAE: hablantes. No diariza — así que acá NO se inventan speakers: el payload
+    va sin `words`, `build_segments` devuelve vacío y `render_full_text` cae al texto plano. El
+    transcript queda como un párrafo SIN las etiquetas Veterinario:/Titular: — honesto, en vez de
+    rotular todo el diálogo como si lo hubiera dicho una sola persona. La diarización sigue viva en
+    el respaldo Deepgram y es el tradeoff conocido de este proveedor (precio vs. hablantes).
     """
-    def _speaker(v) -> int:
-        # Coacción defensiva: el formato del campo no está verificado end-to-end (la cuenta aún no
-        # tiene créditos). Un "0" como string revienta `s["speaker"] + 1` aguas abajo con un 500
-        # DESPUÉS de que el proveedor respondió bien — la transcripción pagada se tiraría.
-        try:
-            return int(v)
-        except (TypeError, ValueError):
-            return 0
-
-    words = [
-        {
-            "word": w.get("text", ""),
-            "punctuated_word": w.get("text", ""),
-            "start": w.get("start", 0.0),
-            "end": w.get("end", 0.0),
-            "speaker": _speaker(w.get("speaker", 0)),
-        }
-        for w in (grok.get("words") or [])
-    ]
     return {
         "results": {
-            "channels": [{"alternatives": [{"transcript": grok.get("text", ""), "words": words}]}]
+            "channels": [{"alternatives": [{"transcript": (groq.get("text") or "").strip(), "words": []}]}]
         }
     }
 
 
-def _call_grok(audio: bytes, mime: str = "audio/webm") -> dict[str, Any]:
-    """Transcribe con Grok STT (xAI): español, diarización. Devuelve el payload YA adaptado.
-
-    El multipart exige `file` AL FINAL (regla documentada de su API). Sin parámetro de modelo:
-    xAI expone un único endpoint /v1/stt.
-    """
-    api_key = _settings_value("xai_api_key", "XAI_API_KEY")
+def _call_groq(audio: bytes, mime: str = "audio/webm") -> dict[str, Any]:
+    """Transcribe con Groq (Whisper): español. Devuelve el payload YA adaptado."""
+    api_key = _settings_value("groq_api_key", "GROQ_API_KEY")
     if not api_key:
-        log.error("falta XAI_API_KEY con STT_PROVIDER=grok: la transcripción no puede correr")
+        log.error("falta GROQ_API_KEY con STT_PROVIDER=groq: la transcripción no puede correr")
         raise HTTPException(status_code=500, detail="la transcripción no está configurada en el servidor")
+    modelo = _settings_value("groq_stt_model", "GROQ_STT_MODEL", GROQ_STT_MODEL_DEFAULT)
     ext = (mime.split("/") + ["webm"])[1].split(";")[0]
-    data = {"language": "es", "diarize": "true", "format": "true"}
-    files = {"file": (f"audio.{ext}", audio, mime)}  # httpx serializa los campos data antes del file
+    data = {"model": modelo, "language": "es", "response_format": "json", "temperature": "0"}
+    files = {"file": (f"audio.{ext}", audio, mime)}
     headers = {"Authorization": f"Bearer {api_key}"}
     with httpx.Client(timeout=300) as client:
-        resp = client.post(XAI_STT_URL, data=data, files=files, headers=headers)
+        resp = client.post(GROQ_STT_URL, data=data, files=files, headers=headers)
     if resp.status_code != 200:
         # Igual que con Deepgram: el detail llega al toast del vet — el cuerpo crudo, al log.
-        log.error("Grok STT respondió %s: %s", resp.status_code, resp.text[:500])
+        log.error("Groq STT respondió %s: %s", resp.status_code, resp.text[:500])
         raise HTTPException(status_code=502, detail=f"no se pudo transcribir el audio ({resp.status_code})")
     cuerpo = resp.json()
-    # Un 200 VACÍO también es un fallo (auditoría 26-ago): sin esto, `{}` o `{"text":""}` pasaba el
-    # adaptador, se insertaba un transcript en blanco y la grabación real se perdía EN SILENCIO —
-    # exactamente lo que el respaldo a Deepgram existe para impedir. Lanzar acá lo activa.
-    if not (cuerpo.get("text") or "").strip() and not cuerpo.get("words"):
-        log.error("Grok STT respondió 200 sin contenido: %s", str(cuerpo)[:300])
+    # Un 200 VACÍO también es un fallo (auditoría 26-ago): sin esto se insertaba un transcript en
+    # blanco y la grabación real se perdía EN SILENCIO — lanzar acá activa el respaldo Deepgram.
+    if not (cuerpo.get("text") or "").strip():
+        log.error("Groq STT respondió 200 sin contenido: %s", str(cuerpo)[:300])
         raise HTTPException(status_code=502, detail="no se pudo transcribir el audio (respuesta vacía)")
-    return _grok_a_payload_comun(cuerpo)
+    return _groq_a_payload_comun(cuerpo)
 
 
 def _transcribir_con_proveedor(
@@ -167,21 +148,23 @@ def _transcribir_con_proveedor(
 ) -> tuple[dict[str, Any], str, str]:
     """Despacha al proveedor configurado. Devuelve (payload_forma_deepgram, provider, model).
 
-    Con `STT_PROVIDER=grok`, Grok es el primario y Deepgram el RESPALDO automático: una consulta
-    grabada no se puede perder porque el proveedor nuevo esté caído o sin créditos — ese es el
-    mismo principio de toda cascada de proveedores del servicio. Sin key de Deepgram, el fallo de
-    Grok se propaga tal cual (no hay red de seguridad que fingir).
+    Con `STT_PROVIDER=groq`, Groq/Whisper es el primario y Deepgram el RESPALDO automático: una
+    consulta grabada no se puede perder porque el proveedor nuevo esté caído o sin cupo — el mismo
+    principio de toda cascada de proveedores del servicio. Sin key de Deepgram, el fallo de Groq se
+    propaga tal cual (no hay red de seguridad que fingir).
     """
-    # .strip(): un "grok " con espacio en Railway caía a Deepgram EN SILENCIO, anulando la
-    # migración de costos sin que nadie lo notara (auditoría 26-ago).
+    # .strip(): un valor con espacio en Railway caía a Deepgram EN SILENCIO (auditoría 26-ago).
+    # `grok` se acepta como alias de transición: fue el valor puesto en Railway durante la confusión
+    # Grok/Groq del 26-27-ago, y un deploy a mitad de camino no debe apagar el cambio en silencio.
     proveedor = _settings_value("stt_provider", "STT_PROVIDER", "deepgram").strip().lower()
-    if proveedor == "grok":
+    if proveedor in ("groq", "grok"):
         try:
-            return _call_grok(audio, mime), "grok", "grok-stt"
+            modelo = _settings_value("groq_stt_model", "GROQ_STT_MODEL", GROQ_STT_MODEL_DEFAULT)
+            return _call_groq(audio, mime), "groq", modelo
         except Exception as e:  # noqa: BLE001 — el respaldo existe justo para el fallo imprevisto
             if not _settings_value("deepgram_api_key", "DEEPGRAM_API_KEY"):
                 raise
-            log.warning("Grok STT falló (%s); transcribiendo con el respaldo Deepgram", e)
+            log.warning("Groq STT falló (%s); transcribiendo con el respaldo Deepgram", e)
     model = _settings_value("stt_model", "STT_MODEL", "nova-2")
     return _call_deepgram(audio, mime, nombre_paciente), "deepgram", model
 

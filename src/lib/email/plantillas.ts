@@ -11,6 +11,21 @@
 // existe y por eso el servidor RECHAZA un texto que todavía tenga marcas — no alcanza con que la
 // interfaz lo deshabilite: la server action es un endpoint y se puede llamar sin pasar por ella.
 //
+// LAS PLANTILLAS SON TEXTO, Y SE MAQUETAN AL ENVIAR. Acá no hay una sola etiqueta HTML aunque desde
+// hoy todo el correo de Tuvetia salga maquetado (`lib/email/maqueta.ts`), y es una decisión, no una
+// deuda: lo que devuelve `rellenar()` NO va derecho al destinatario. Cae en un textarea donde quien
+// redacta lo edita, y se muestra tal cual en la vista previa que firma antes de mandar.
+//
+// Devolver HTML desde acá tendría dos costos concretos. Uno, un admin editando `<p style="…">` a
+// mano para corregir una coma. Dos —el que rompe algo— `huecos()` tendría que buscar `{{…}}` dentro
+// de atributos y entidades: un `{{fecha}}` escapado dentro de un `href` ya no es el mismo string
+// que el que se ve en pantalla, y el mensaje de error terminaría nombrando huecos de un texto que
+// nadie escribió.
+//
+// La envoltura se pone UNA vez, en el envío (`admin/usuarios/actions.ts`), sobre el texto ya
+// rellenado. Así la vista previa sigue mostrando exactamente la cadena que el servidor valida, que
+// es la propiedad que sostiene este módulo entero.
+//
 // ALCANCE: avisos OPERATIVOS a usuarios del producto (mantenimiento, incidencias, novedades,
 // recordatorios de configuración). No hay plantillas comerciales, y no es un olvido: eso exige base
 // legal bajo la Ley 1581, enlace de baja y registro de consentimiento, y nada de eso está

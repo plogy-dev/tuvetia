@@ -13,6 +13,7 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import { getAppBaseUrl } from '@/lib/base-url';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { buildMessageId } from '@/lib/email/threading';
+import { maquetarCorreo, parrafosDeTexto } from '@/lib/email/maqueta';
 import { loadClinicSender, sendTransactionalEmail, transactionalFrom } from '@/lib/email/transactional';
 import { markInvoiceDeliveryFailed, markInvoiceSent } from './invoices';
 
@@ -80,19 +81,29 @@ export async function sendInvoiceByEmail(
   // repetir el id — el RFC lo exige y hay servidores que rechazan el duplicado.
   const messageId = buildMessageId(invoice.id, transactionalFrom(), String(Date.now()));
 
+  // El correo va MAQUETADO (ver `@/lib/email/maqueta`). La versión en texto plano no se escribe
+  // acá: la deriva el transporte del mismo HTML, así no puede quedar diciendo otra cosa.
+  //
+  // El mensaje del vet entra como DATO —la maqueta lo escapa—: es texto libre de un formulario y
+  // un `<` suelto no puede desarmarle el correo al cliente que lo recibe.
   const saludo = input.message?.trim();
-  const text = [
-    saludo || 'Le compartimos su factura.',
-    '',
-    fullNumber ? `Factura: ${fullNumber}` : '',
-    `Puede verla y pagarla acá: ${publicUrl}`,
-    '',
-    'Si tiene alguna duda, puede responder a este correo.',
-  ]
-    .filter(Boolean)
-    .join('\n');
+  const html = maquetarCorreo({
+    titulo: subject,
+    // El enlace de pago es lo único que el cliente necesita saber desde la bandeja.
+    preheader: fullNumber
+      ? `Su factura ${fullNumber} ya se puede ver y pagar en línea`
+      : 'Su factura ya se puede ver y pagar en línea',
+    parrafos: parrafosDeTexto(saludo || 'Le compartimos su factura.'),
+    datos: fullNumber ? [{ etiqueta: 'Factura', valor: fullNumber }] : null,
+    // UNA sola acción: ver y pagar. El número de factura ya está en el bloque de datos, así que la
+    // línea "Factura: FV-…" del texto anterior no se pierde, cambia de lugar.
+    boton: { texto: 'Ver y pagar la factura', url: publicUrl },
+    // Va al pie y no al cuerpo porque es una nota al margen, no parte del mensaje del vet — y
+    // porque el Reply-To de este correo apunta a la clínica, que es lo que la frase promete.
+    pie: ['Si tiene alguna duda, puede responder a este correo.'],
+  });
 
-  const result = await sendTransactionalEmail(clinicId, { to, subject, text, messageId }, sender);
+  const result = await sendTransactionalEmail(clinicId, { to, subject, html, messageId }, sender);
 
   if (!result.ok) {
     // Ya no se marca `email_integrations` en error: el fallo es de Resend o del dominio de Tuvetia,

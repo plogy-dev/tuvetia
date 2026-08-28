@@ -112,6 +112,51 @@ describe('canal de correo de cartera', () => {
     expect(r.transient).toBe(false);
   });
 
+  it('el recordatorio sale MAQUETADO, no en texto plano', async () => {
+    // Hasta hoy este canal pasaba `text: msg.body` y el titular recibía un correo de cobranza sin
+    // marca ni botón — el que más se parece a un spam automático justo cuando hay plata en juego.
+    await new RealMessaging('clinic-a').send(MSG);
+    const enviado = enviados[0] as { html: string; text?: string | null };
+    expect(enviado.html).toContain('<table');
+    expect(enviado.html).toContain('Tenés una factura pendiente.');
+    // El texto plano NO se escribe acá: lo deriva el transporte del mismo HTML.
+    expect(enviado.text).toBeUndefined();
+  });
+
+  it('el texto de la plantilla de la clínica va ESCAPADO, no crudo', async () => {
+    // El cuerpo lo escribe un vet en la pantalla de plantillas de recordatorio: es dato, no marcado.
+    // Pegado crudo, un `<` de una plantilla desarma el correo de todos los titulares de esa clínica.
+    await new RealMessaging('clinic-a').send({
+      ...MSG,
+      body: 'Su factura <b>FV-1</b> & el "saldo" vencieron.',
+    });
+    const { html } = enviados[0] as { html: string };
+    expect(html).toContain('&lt;b&gt;FV-1&lt;/b&gt;');
+    expect(html).not.toContain('<b>FV-1</b>');
+    expect(html).toContain('&amp;');
+  });
+
+  it('el enlace de pago se vuelve BOTÓN y no queda suelto en medio de la frase', async () => {
+    // Las plantillas traen el `{link}` metido en la oración. En un correo eso deja al titular
+    // copiando una dirección a mano en vez de apretar algo.
+    await new RealMessaging('clinic-a').send({
+      ...MSG,
+      body: 'Le recordamos su factura FV-1. Pague aquí: https://app.tuvetia.co/f/tok-1',
+    });
+    const { html } = enviados[0] as { html: string };
+    expect(html).toContain('href="https://app.tuvetia.co/f/tok-1"');
+    expect(html).toContain('Ver y pagar la factura');
+    // La frase queda entera, sin la dirección repetida colgando del final.
+    expect(html).toContain('Pague aquí:');
+    expect(html.match(/Le recordamos su factura FV-1\. Pague aquí: https/)).toBeNull();
+  });
+
+  it('un recordatorio sin enlace no inventa un botón', async () => {
+    await new RealMessaging('clinic-a').send(MSG);
+    const { html } = enviados[0] as { html: string };
+    expect(html).not.toContain('Ver y pagar la factura');
+  });
+
   it('un destino vacío se rechaza antes de tocar el transporte', async () => {
     const r = await new RealMessaging('clinic-a').send({ ...MSG, to: '  ' });
     expect(r.ok).toBe(false);

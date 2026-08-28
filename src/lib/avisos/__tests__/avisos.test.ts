@@ -33,22 +33,43 @@ const AUDIENCIA = sinComentarios("src/lib/avisos/audiencia.ts")
 const ENVIO = sinComentarios("src/lib/avisos/envio.ts")
 const ACTIONS = sinComentarios("src/lib/avisos/actions.ts")
 
+/**
+ * El pie es una lista de líneas de la maqueta, no un texto suelto. Se aplana como lo hace el
+ * correo: la línea con enlace muestra la dirección ADEMÁS de ponerla en el `href`, que es lo único
+ * que sobrevive a la versión en texto plano.
+ */
+const pieAplanado = (base: string, token: string) =>
+  pieDeBaja(base, token)
+    .map((l) => (typeof l === "string" ? l : `${l.texto} ${l.url}`))
+    .join("\n")
+
 describe("el pie de baja", () => {
   it("lleva el enlace propio del titular", () => {
-    const pie = pieDeBaja("https://tuvetia.co", "abc-123")
-    expect(pie).toContain("https://tuvetia.co/baja/abc-123")
+    expect(pieAplanado("https://tuvetia.co", "abc-123")).toContain(
+      "https://tuvetia.co/baja/abc-123",
+    )
+  })
+
+  it("el enlace de baja se VE, no sólo se puede apretar", () => {
+    // Un `href` desaparece al derivar el texto plano del correo. Si la baja viviera sólo ahí, quien
+    // lee en modo texto se quedaría sin la revocación que le da la Ley 1581.
+    const enlace = pieDeBaja("https://tuvetia.co", "abc-123").find((l) => typeof l !== "string")
+    expect(enlace).toEqual({
+      texto: expect.stringContaining("date de baja"),
+      url: "https://tuvetia.co/baja/abc-123",
+    })
   })
 
   it("aguanta una base con barra al final sin duplicarla", () => {
-    expect(pieDeBaja("https://tuvetia.co/", "t")).toContain("https://tuvetia.co/baja/t")
-    expect(pieDeBaja("https://tuvetia.co/", "t")).not.toContain("co//baja")
+    expect(pieAplanado("https://tuvetia.co/", "t")).toContain("https://tuvetia.co/baja/t")
+    expect(pieAplanado("https://tuvetia.co/", "t")).not.toContain("co//baja")
   })
 
   it("DICE QUE LA BAJA NO AFECTA LAS FACTURAS", () => {
     // Es la distinción que sostiene todo: darse de baja de los avisos no puede dar de baja de la
     // cobranza, que es la relación contractual y tiene su propio régimen. Si el correo no lo dice,
     // el titular se da de baja creyendo que apaga todo.
-    expect(pieDeBaja("https://x.co", "t")).toContain("facturas")
+    expect(pieAplanado("https://x.co", "t")).toContain("facturas")
   })
 
   it("va en TODOS los correos, no sólo en el primero", () => {
