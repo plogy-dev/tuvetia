@@ -26,6 +26,14 @@ export type FotoDeLaConsulta = {
   status: string | null | undefined
   hayTranscripcion: boolean
   hayNota: boolean
+  /**
+   * Se INTENTÓ transcribir y quedó una fila, pero sin una sola palabra.
+   *
+   * Es distinto de «todavía no hay transcripción»: acá el audio se subió, el proveedor contestó y
+   * lo que contestó fue nada. Sin este dato las dos situaciones se ven iguales desde afuera, que es
+   * exactamente lo que dejó cuatro consultas muertas.
+   */
+  transcripcionVacia?: boolean
 }
 
 /**
@@ -38,4 +46,41 @@ export type FotoDeLaConsulta = {
  */
 export function laNotaSePideSola(foto: FotoDeLaConsulta): boolean {
   return foto.status === "generating_note" && foto.hayTranscripcion && !foto.hayNota
+}
+
+/**
+ * La grabación terminó y no capturó ni una palabra: no hay nada que resumir.
+ *
+ * ── EL AGUJERO QUE DEJARON LOS TRES ARREGLOS ANTERIORES ───────────────────────────────────────
+ *
+ * Éste es el CUARTO paso sobre el mismo atasco, y los tres anteriores lo esquivaron sin verlo:
+ * dos cambiaron la etiqueta y el tercero automatizó la generación al abrir. Pero la automatización
+ * se apoya en `laNotaSePideSola`, que exige `hayTranscripcion` — y una transcripción VACÍA no
+ * cuenta. Con toda la razón: pedirle un SOAP a un texto en blanco es lo que producía las notas que
+ * se disculpaban por no tener información.
+ *
+ * El problema es lo que pasa después: la condición se apaga, nadie genera nada, el estado no se
+ * mueve, y la lista sigue prometiendo «se genera al abrirla». Se puede abrir cien veces y no pasa
+ * nada. Medido el 27-ago: de las nueve consultas colgadas, CUATRO son de éstas — con audio de 6 a
+ * 26 segundos y una fila de transcripción en blanco detrás.
+ *
+ * Y la pantalla remataba el callejón ofreciendo «Generar sugerencia a partir de la transcripción»:
+ * un botón que no puede funcionar, sin decir nunca por qué.
+ *
+ * ── POR QUÉ ES UNA FUNCIÓN Y NO UN `if` EN LA PANTALLA ────────────────────────────────────────
+ *
+ * Porque es la MISMA foto que decide si la nota se pide sola, y las dos ramas tienen que repartirse
+ * el mismo espacio sin dejar hueco: o se genera, o se dice por qué no. Un `if` suelto en el render
+ * se desincroniza del otro en el primer cambio.
+ *
+ * `athos-service` ya no crea nuevas —desde el 27-ago una transcripción vacía es un fallo y no un
+ * éxito sin palabras (`test_transcripcion_vacia.py`)— pero las que quedaron sólo salen por acá.
+ */
+export function laGrabacionNoCapturoNada(foto: FotoDeLaConsulta): boolean {
+  return (
+    foto.status === "generating_note" &&
+    !foto.hayNota &&
+    !foto.hayTranscripcion &&
+    foto.transcripcionVacia === true
+  )
 }

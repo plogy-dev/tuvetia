@@ -7,8 +7,9 @@ import { MovementsExport } from '@/components/facturacion/MovementsExport';
 import { TrLink } from '@/components/ui/TrLink';
 import { FormularioDeFiltros } from "@/components/ui/formulario-de-filtros"
 import { PageShell } from '@/components/ui/page-shell';
+import { ModuloInactivo } from "@/components/facturacion/modulo-inactivo";
 
-export const metadata = { title: "Movimientos de inventario · Tuvetia" }
+export const metadata = { title: "Salidas y reservas · Tuvetia" }
 
 
 export const dynamic = 'force-dynamic';
@@ -61,16 +62,7 @@ export default async function MovimientosPage({
 
   if (!active) {
     return (
-      <PageShell>
-        <h1 className="text-2xl font-semibold tracking-tight text-fg">Movimientos</h1>
-        <p className="mt-4 rounded-xl border border-line bg-surface-2 px-4 py-3 text-sm text-fg-muted">
-          El módulo no está activo.{' '}
-          <Link href="/dashboard/facturacion/configuracion" className="underline underline-offset-2">
-            Configúralo primero
-          </Link>
-          .
-        </p>
-      </PageShell>
+      <ModuloInactivo titulo="Salidas y reservas" />
     );
   }
 
@@ -133,15 +125,15 @@ export default async function MovimientosPage({
     <PageShell>
       <header>
         <Link
-          href="/dashboard/facturacion/inventario"
+          href="/dashboard/facturacion"
           className="mb-3 inline-flex items-center gap-1 text-xs text-fg-faint hover:text-fg"
         >
           <ArrowLeft className="size-3.5" aria-hidden />
-          Inventario
+          Ventas
         </Link>
         <h1 className="flex items-center gap-2 text-2xl font-semibold tracking-tight text-fg">
           <ArrowLeftRight className="size-6 text-fg-muted" aria-hidden />
-          Movimientos y salidas
+          Salidas y reservas
         </h1>
         <p className="mt-1 text-sm text-fg-faint">
           Historial completo de entradas y salidas. La existencia siempre es la suma

@@ -964,6 +964,15 @@ export async function getDashboardKpis(
       .eq('clinic_id', clinicId)
       .eq('status', 'EMITIDA')
       .gt('balance_cents', 0)
+      // ⚠️ ESTE FILTRO DEVUELVE CERO SIEMPRE, y es la misma trampa que se arregló el 27-ago en las
+      // tres pantallas: `collection_status` sólo se escribe cuando pasa un EVENTO, y vencerse no lo
+      // es, así que ninguna fila llega nunca a `VENCIDA` por sí sola.
+      //
+      // Hoy no le hace daño a nadie porque `getDashboardKpis` ya no la usa ninguna pantalla —las
+      // cifras viven en Ingresos y egresos, que las calcula por su cuenta— pero queda escrito acá
+      // porque el día que alguien reviva esta función se llevaría el defecto puesto. Lo correcto es
+      // traer `due_date` y contar con `daysOverdue`, igual que `computeAging` y
+      // `estadoDeCobroVisible`.
       .eq('collection_status', 'VENCIDA'),
     supabase
       .from('invoices')

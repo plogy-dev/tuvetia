@@ -12,11 +12,13 @@ import {
 } from '@/lib/cartera/queries';
 import { formatCOP, fmtDate, fmtDateTime } from '@/lib/facturacion/format';
 import { computeAging } from '@/lib/facturacion/domain/aging';
+import { estadoDeCobroVisible } from '@/lib/facturacion/domain/invoice-status';
 import { CollectionBadge, FollowupBadge } from '@/components/facturacion/badges';
 import { HumanTasksPanel, type TaskItem } from '@/components/cartera/HumanTasksPanel';
 import { RunSweepButton } from '@/components/cartera/RunSweepButton';
 import { TrLink } from '@/components/ui/TrLink';
 import { PageShell } from '@/components/ui/page-shell';
+import { ModuloInactivo } from "@/components/facturacion/modulo-inactivo";
 
 export const metadata = { title: "Cartera · Tuvetia" }
 
@@ -32,15 +34,10 @@ export default async function CarteraPage() {
   const settings = await getBillingSettings(supabase, clinicId);
   if (settings?.module_status !== 'ACTIVO') {
     return (
-      <PageShell width="narrow">
-        <h1 className="text-2xl font-semibold text-fg">Cartera</h1>
-        <p className="mt-4 rounded-xl border border-line bg-surface p-6 text-sm text-fg-muted">
-          Activa el módulo de facturación para gestionar la cartera.{' '}
-          <Link href="/dashboard/facturacion" className="underline underline-offset-2">
-            Ir a Facturación
-          </Link>
-        </p>
-      </PageShell>
+      // Antes tenía su propio texto y mandaba a Ventas, que es donde el vet ya estaba: el enlace
+      // devolvía al punto de partida sin acercarlo a activar nada. Ahora comparte el bloque con las
+      // otras cuatro pantallas — flecha para volver Y enlace a Configuración, que es lo que resuelve.
+      <ModuloInactivo titulo="Cartera" detalle="Seguimiento de recaudo bajo la Ley 2300 de 2023." />
     );
   }
 
@@ -82,7 +79,7 @@ export default async function CarteraPage() {
         className="inline-flex items-center gap-1 text-xs text-fg-faint hover:text-fg"
       >
         <ArrowLeft className="size-3.5" aria-hidden />
-        Facturación
+        Ventas
       </Link>
       {/* `items-end` como el resto de las cabeceras del módulo: con `items-center` la acción de la
           derecha se centraba contra el bloque ENTERO de título + descripción, así que flotaba a
@@ -177,12 +174,22 @@ export default async function CarteraPage() {
                       </td>
                       <td className="px-3 py-2 text-fg-muted">{r.payer?.name ?? '—'}</td>
                       <td className="px-3 py-2 text-fg-muted">{fmtDate(r.due_date)}</td>
-                      <td className="px-3 py-2 text-right font-medium text-fg">
+                      <td className="px-3 py-2 text-right font-medium tabular-nums text-fg">
                         {formatCOP(r.balance_cents)}
                       </td>
                       <td className="px-3 py-2">
                         <div className="flex flex-wrap items-center gap-1">
-                          <CollectionBadge status={r.collection_status} />
+                          {/* El MISMO `now` con el que se armaron los tramos de antigüedad, unas
+                              líneas arriba. Si la insignia y el tramo usaran relojes distintos
+                              podrían volver a discrepar, que es exactamente el defecto que esto
+                              cierra: el KPI decía «vencida» y esta insignia, «Pendiente de pago». */}
+                          <CollectionBadge
+                            status={estadoDeCobroVisible(
+                              r.collection_status,
+                              { dueDate: r.due_date, balanceCents: r.balance_cents },
+                              now,
+                            )}
+                          />
                           <FollowupBadge status={r.followup_status} />
                         </div>
                       </td>
@@ -235,7 +242,7 @@ function Kpi({ label, value, tone }: { label: string; value: string; tone?: 'war
   return (
     <div className="rounded-xl border border-line bg-surface px-4 py-3">
       <div className="text-xs text-fg-faint">{label}</div>
-      <div className={`mt-0.5 text-lg font-semibold ${tone === 'warn' ? 'text-warn' : 'text-fg'}`}>
+      <div className={`mt-0.5 text-lg font-semibold tabular-nums ${tone === 'warn' ? 'text-warn' : 'text-fg'}`}>
         {value}
       </div>
     </div>
@@ -256,7 +263,7 @@ function AgingCell({
     <div className="rounded-xl border border-line bg-surface px-3 py-2.5">
       <div className="text-[11.5px] font-medium text-fg-faint">{label}</div>
       <div
-        className={`mt-0.5 text-base font-semibold ${active && tone === 'warn' ? 'text-warn' : 'text-fg'}`}
+        className={`mt-0.5 text-base font-semibold tabular-nums ${active && tone === 'warn' ? 'text-warn' : 'text-fg'}`}
       >
         {formatCOP(bucket.amountCents)}
       </div>

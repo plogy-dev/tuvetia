@@ -17,8 +17,9 @@ import { InventorySearch } from '@/components/facturacion/InventorySearch';
 import { ImportBatchesList } from '@/components/facturacion/ImportBatchesList';
 import { PageShell } from '@/components/ui/page-shell';
 import type { ImportBatchRow } from '@/lib/supabase/types';
+import { ModuloInactivo } from "@/components/facturacion/modulo-inactivo";
 
-export const metadata = { title: "Inventario · Tuvetia" }
+export const metadata = { title: "Existencias · Tuvetia" }
 
 
 export const dynamic = 'force-dynamic';
@@ -47,7 +48,7 @@ function Kpi({ label, value, tone }: { label: string; value: string; tone?: 'war
     <div className="rounded-xl border border-line bg-surface px-4 py-3">
       <p className="text-[11.5px] font-medium text-fg-faint">{label}</p>
       <p
-        className={`mt-1 text-lg font-semibold ${
+        className={`mt-1 text-lg font-semibold tabular-nums ${
           tone === 'warn' ? 'text-warn' : tone === 'ok' ? 'text-ok' : 'text-fg'
         }`}
       >
@@ -73,16 +74,7 @@ export default async function InventarioPage({
 
   if (!active) {
     return (
-      <PageShell>
-        <h1 className="text-2xl font-semibold tracking-tight text-fg">Inventario</h1>
-        <p className="mt-4 rounded-xl border border-line bg-surface-2 px-4 py-3 text-sm text-fg-muted">
-          El módulo no está activo.{' '}
-          <Link href="/dashboard/facturacion/configuracion" className="underline underline-offset-2">
-            Configúralo primero
-          </Link>
-          .
-        </p>
-      </PageShell>
+      <ModuloInactivo titulo="Existencias" />
     );
   }
 
@@ -154,9 +146,9 @@ export default async function InventarioPage({
             className="mb-3 inline-flex items-center gap-1 text-xs text-fg-faint hover:text-fg"
           >
             <ArrowLeft className="size-3.5" aria-hidden />
-            Facturación
+            Ventas
           </Link>
-          <h1 className="text-2xl font-semibold tracking-tight text-fg">Inventario</h1>
+          <h1 className="text-2xl font-semibold tracking-tight text-fg">Existencias</h1>
           <p className="mt-1 text-sm text-fg-faint">
             Existencias derivadas de los movimientos — nunca se editan a mano.
           </p>
@@ -167,7 +159,7 @@ export default async function InventarioPage({
             className="inline-flex items-center gap-2 rounded-lg border border-line bg-surface px-3 py-2 text-sm text-fg-muted hover:bg-surface-2 hover:text-fg transition"
           >
             <BookOpen className="size-4" aria-hidden />
-            Catálogo
+            Productos y servicios
           </Link>
           <Link
             href="/dashboard/facturacion/compras"
@@ -181,7 +173,7 @@ export default async function InventarioPage({
             className="inline-flex items-center gap-2 rounded-lg border border-line bg-surface px-3 py-2 text-sm text-fg-muted hover:bg-surface-2 hover:text-fg transition"
           >
             <ArrowLeftRight className="size-4" aria-hidden />
-            Movimientos
+            Salidas y reservas
           </Link>
           {/* BAJAR EL INVENTARIO A EXCEL. Es un <a> y no un botón con JS porque la respuesta es
               un archivo: así anda el click derecho, "abrir en otra pestaña" y la descarga no
@@ -290,8 +282,8 @@ export default async function InventarioPage({
                     <td className="px-3 py-2.5 text-fg-muted">
                       {TYPE_LABELS[i.item_type] ?? i.item_type}
                     </td>
-                    <td className="px-3 py-2.5 text-right text-fg">{formatCOP(i.price_cents)}</td>
-                    <td className="px-3 py-2.5 text-right text-fg-muted">
+                    <td className="px-3 py-2.5 text-right tabular-nums text-fg">{formatCOP(i.price_cents)}</td>
+                    <td className="px-3 py-2.5 text-right tabular-nums text-fg-muted">
                       {i.track_stock ? `${stock ?? 0} ${i.use_unit}` : '—'}
                     </td>
                     <td className="px-5 py-2.5 text-xs">
@@ -321,7 +313,7 @@ export default async function InventarioPage({
               href="/dashboard/facturacion/inventario/movimientos"
               className="text-xs text-fg-faint underline-offset-2 hover:text-fg hover:underline"
             >
-              Ver todos
+              Ver salidas y reservas
             </Link>
           </div>
           <ul className="divide-y divide-line rounded-xl border border-line bg-surface text-sm">
@@ -334,7 +326,7 @@ export default async function InventarioPage({
                   {MOVEMENT_LABELS[m.movement_type] ?? m.movement_type}
                 </span>
                 <span
-                  className={`w-20 shrink-0 text-right font-medium ${m.qty >= 0 ? 'text-ok' : 'text-warn'}`}
+                  className={`w-20 shrink-0 text-right font-medium tabular-nums ${m.qty >= 0 ? 'text-ok' : 'text-warn'}`}
                 >
                   {m.qty >= 0 ? '+' : ''}
                   {m.qty}

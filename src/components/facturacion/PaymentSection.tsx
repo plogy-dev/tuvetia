@@ -14,6 +14,7 @@ import { formatCOP } from '@/lib/facturacion/domain/money';
 import { holidaySet } from '@/lib/facturacion/domain/holidays';
 import { nextAllowedTime } from '@/lib/facturacion/domain/reminders';
 import type { PaymentOutcome } from '@/lib/facturacion/domain/types';
+import type { PaymentTerms } from '@/lib/supabase/types';
 
 export type PaymentPlan = {
   outcome: PaymentOutcome;
@@ -36,9 +37,30 @@ export function defaultDueDate(termsDays: number, from = new Date()): string {
   return bogota.toISOString().slice(0, 10);
 }
 
-export function makeDefaultPlan(termsDays: number): PaymentPlan {
+/**
+ * El plan con el que abre la emisión.
+ *
+ * ── `terminos` NO ES DECORATIVO: SIN ÉL, EL CARRITO MENTÍA ────────────────────────────────────
+ *
+ * El carrito tiene un select rotulado «Forma de pago» con Contado / Crédito
+ * (`InvoiceCart.tsx`), y esta pantalla tiene OTRO control con el MISMO rótulo —«Forma de pago»,
+ * Pagado ahora / Pendiente / Abono parcial—. Hasta el 27-ago el segundo ignoraba al primero: esta
+ * función arrancaba siempre en `PAGADO_AHORA`, y al emitir el servidor sobrescribe
+ * `payment_terms` según el resultado elegido acá (`invoices.ts`).
+ *
+ * O sea que elegir «Crédito» en el carrito y no tocar nada en la emisión emitía la factura COMO
+ * PAGADA. El control existía, se podía cambiar, y no hacía absolutamente nada — que es peor que no
+ * tenerlo, porque el vet cree que ya lo dijo.
+ *
+ * Con `terminos`, «Crédito» abre la emisión en «Pendiente de pago» con su fecha de vencimiento. No
+ * decide por el vet —los tres botones siguen ahí y puede cambiarlos— pero deja de contradecirlo.
+ */
+export function makeDefaultPlan(
+  termsDays: number,
+  terminos: PaymentTerms = 'IMMEDIATE',
+): PaymentPlan {
   return {
-    outcome: 'PAGADO_AHORA',
+    outcome: terminos === 'CREDIT' ? 'PENDIENTE' : 'PAGADO_AHORA',
     method: 'EFECTIVO',
     reference: '',
     amountPesos: '',

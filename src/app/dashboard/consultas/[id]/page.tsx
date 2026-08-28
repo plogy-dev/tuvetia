@@ -12,6 +12,8 @@ import {
   ExternalLink,
   FileText,
   Loader2,
+  Mic,
+  MicOff,
   Receipt,
   Save,
   Sparkles,
@@ -29,7 +31,7 @@ import { useRouter } from "next/navigation"
 import { createClient } from "@/lib/supabase/client"
 import { parseTranscript } from "@/lib/transcript"
 import { ConsultationRecorder } from "@/components/consultation-recorder"
-import { laNotaSePideSola } from "@/lib/consultas/nota-sola"
+import { laGrabacionNoCapturoNada, laNotaSePideSola } from "@/lib/consultas/nota-sola"
 import { Cuaderno } from "@/components/athos/cuaderno"
 import { ConsultationThread } from "@/components/athos/consultation-thread"
 import { renderInline, tramosIndivisibles } from "@/components/athos/rich-text"
@@ -151,6 +153,9 @@ export default function NotaConsultaPage({ params }: { params: Promise<{ id: str
   const [loading, setLoading] = useState(true)
   const [loadError, setLoadError] = useState(false)
   const [generating, setGenerating] = useState(false)
+  // La grabación volvió sin una palabra. Se calcula en `load()` con la misma foto que decide
+  // si la nota se pide sola, para que las dos ramas no puedan desincronizarse.
+  const [sinVoz, setSinVoz] = useState(false)
   // Un solo intento automático de nota por visita — ver el comentario en load().
   const autoPedida = useRef(false)
   const [saving, setSaving] = useState(false)
@@ -280,7 +285,12 @@ export default function NotaConsultaPage({ params }: { params: Promise<{ id: str
       status: (c as unknown as Consultation).status,
       hayTranscripcion: Boolean((t as { full_text: string | null } | null)?.full_text),
       hayNota: Boolean(n),
+      // La fila de transcripción EXISTE pero llegó en blanco. Sin distinguirlo, este caso se ve
+      // igual que «todavía no hay transcripción» y cae en el mismo silencio: la nota no se pide
+      // (con razón: no hay qué resumir) y nada más ocurre nunca.
+      transcripcionVacia: Boolean(t) && !(t as { full_text: string | null } | null)?.full_text,
     }
+    setSinVoz(laGrabacionNoCapturoNada(foto))
     if (laNotaSePideSola(foto) && !autoPedida.current) {
       autoPedida.current = true
       void generate(c as unknown as Consultation)
@@ -298,6 +308,39 @@ export default function NotaConsultaPage({ params }: { params: Promise<{ id: str
     // eslint-disable-next-line react-hooks/set-state-in-effect
     load()
   }, [load])
+
+  /**
+   * Devuelve la consulta a `open` y abre el panel de grabación.
+   *
+   * ── POR QUÉ TOCA EL ESTADO Y NO SÓLO ABRE EL PANEL ────────────────────────────────────────
+   *
+   * Porque si no, la consulta sigue colgada en `generating_note` para siempre y la LISTA sigue
+   * prometiendo «Nota pendiente — se genera al abrirla», que es justo lo que no va a pasar. Las
+   * nueve consultas colgadas del 27-ago llevaban hasta seis días así.
+   *
+   * `open` es literalmente lo que es: no hay audio útil, no hay transcripción, no hay nota — la
+   * consulta está como antes de grabar. El estado no se estaba moviendo porque nadie tenía a quién
+   * pedírselo: el backend sólo avanza al transcribir, y transcribir ya ocurrió y salió vacío.
+   *
+   * LO DECIDE EL VET, con un clic, y no pasa solo al abrir: escribirle el estado a alguien que sólo
+   * vino a mirar es cambiarle un dato sin que lo pida. Acá el clic ya dice «voy a grabar otra vez».
+   */
+  async function volverAGrabar() {
+    setSinVoz(false)
+    setCaptureOpen(true)
+    const { error } = await supabase
+      .from("consultations")
+      .update({ status: "open", updated_at: new Date().toISOString() })
+      .eq("id", id)
+    if (error) {
+      // No se traga: si el estado no se movió, la consulta va a volver a aparecer colgada mañana y
+      // el vet tiene que saber por qué. Grabar sigue siendo posible — el panel ya está abierto.
+      toast.error(`Se abrió el panel, pero no se pudo reabrir la consulta: ${error.message}`)
+      return
+    }
+    autoPedida.current = false
+    await load()
+  }
 
   async function generate(fila?: Consultation) {
     const c = fila ?? consultation
@@ -424,7 +467,10 @@ export default function NotaConsultaPage({ params }: { params: Promise<{ id: str
   if (grabandoEsta) {
     return (
       // El cockpit NO fuerza superficie oscura — ver el comentario del return principal.
-      <div className="flex flex-1 flex-col">
+      // `min-h-0` porque el Cockpit reparte su alto con `flex-1` y scrollea por dentro: sin él este
+      // envoltorio no baja de su contenido y los paneles pierden su scroll. Es la pantalla donde
+      // menos se puede perder contenido — es la que está abierta con el micrófono grabando.
+      <div className="flex min-h-0 flex-1 flex-col">
         <Cockpit
           pestana={pestanaCockpit}
           alCambiarPestana={setPestanaCockpit}
@@ -715,7 +761,7 @@ export default function NotaConsultaPage({ params }: { params: Promise<{ id: str
                       {t.who === "vet" ? "Veterinario" : "Titular"}
                     </span>
                     <div
-                      className={`max-w-[88%] rounded-2xl px-3 py-2 text-sm ${
+                      className={`max-w-[88%] break-words rounded-2xl px-3 py-2 text-sm ${
                         t.who === "vet"
                           ? "rounded-br-sm bg-primary text-primary-foreground"
                           : "rounded-bl-sm border bg-background"
@@ -760,7 +806,34 @@ export default function NotaConsultaPage({ params }: { params: Promise<{ id: str
           )}
         </div>
 
-        {!note ? (
+        {!note && sinVoz ? (
+          /* ── LA GRABACIÓN NO CAPTURÓ NADA ────────────────────────────────────────────────────
+             Acá caían cuatro de las nueve consultas colgadas del 27-ago, y era un callejón perfecto:
+             la nota no se pide sola —con razón, no hay qué resumir— así que el estado nunca se movía,
+             y esta misma pantalla ofrecía «Generar sugerencia A PARTIR DE LA TRANSCRIPCIÓN», o sea un
+             botón que no podía funcionar, sin decir jamás por qué. La lista, mientras tanto, seguía
+             prometiendo «se genera al abrirla».
+             Ahora se dice qué pasó, se dan las causas probables —son las tres que explican un audio
+             de 6 a 26 segundos en blanco— y se ofrece la única acción que sirve: grabar otra vez. */
+          <div className="flex flex-col items-center gap-4 px-4 py-14 text-center">
+            <MicOff className="size-8 text-warn" />
+            <div className="max-w-md">
+              <p className="font-medium">La grabación no capturó voz</p>
+              <p className="mt-1 text-sm text-muted-foreground">
+                El audio se subió y se transcribió, pero volvió sin una sola palabra. No hay nada que
+                resumir, así que no se puede generar la nota — no es que esté pendiente.
+              </p>
+              <p className="mt-2 text-sm text-muted-foreground">
+                Suele ser el micrófono en silencio, un permiso que el navegador no dio, o que la
+                grabación se cortó a los pocos segundos.
+              </p>
+            </div>
+            <Button variant="outline" onClick={volverAGrabar} disabled={generating}>
+              <Mic className="size-4" />
+              Grabar de nuevo
+            </Button>
+          </div>
+        ) : !note ? (
           <div className="flex flex-col items-center gap-4 px-4 py-14 text-center">
             <Sparkles className="size-8 text-muted-foreground" />
             <div>

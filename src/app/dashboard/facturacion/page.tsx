@@ -17,6 +17,7 @@ import {
   getUnsentIssuedCount,
 } from '@/lib/facturacion/queries';
 import { formatCOP, fmtDate, fmtDateTime } from '@/lib/facturacion/format';
+import { estadoDeCobroVisible } from '@/lib/facturacion/domain/invoice-status';
 import { terminoBuscable } from '@/lib/facturacion/busqueda-de-ventas';
 import { CONTROL, TD, TD_NUM, TH, TH_DER } from '@/components/facturacion/densidad';
 import {
@@ -589,7 +590,17 @@ export default async function FacturacionPage({ searchParams }: { searchParams: 
                           <FiscalBadge status={i.fiscal_status} />
                           {i.status === 'EMITIDA' && (
                             <>
-                              <CollectionBadge status={i.collection_status} />
+                              {/* Vencer no es un evento, así que la columna guardada nunca dice
+                                  «Vencida» sola. Se deriva al leer, con la misma regla y el mismo
+                                  reloj que los tramos de antigüedad de Cartera — ver
+                                  `domain/invoice-status.ts`. */}
+                              <CollectionBadge
+                                status={estadoDeCobroVisible(
+                                  i.collection_status,
+                                  { dueDate: i.due_date, balanceCents: i.balance_cents },
+                                  now,
+                                )}
+                              />
                               <DeliveryBadge status={i.delivery_status} />
                             </>
                           )}

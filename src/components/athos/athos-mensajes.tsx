@@ -62,7 +62,7 @@ export function AthosMensajes({
             // Y EN SUPERFICIE, NO EN MENTA. Era `bg-primary`, o sea el verde pleno del sistema, que
             // es el color de ACCIÓN: lo usan los botones primarios. Gastarlo en cada turno del vet
             // lo devalúa y compite con lo único que ahí hay que mirar, que es la respuesta.
-            <div className="max-w-[80%] whitespace-pre-wrap rounded-[14px] rounded-br-[4px] bg-surface-2 px-3.5 py-2.5 text-[13.5px] leading-normal text-fg">
+            <div className="max-w-[80%] break-words whitespace-pre-wrap rounded-[14px] rounded-br-[4px] bg-surface-2 px-3.5 py-2.5 text-[13.5px] leading-normal text-fg">
               {m.parts.map((p, i) => (p.type === "text" ? <span key={i}>{p.text}</span> : null))}
             </div>
           ) : (

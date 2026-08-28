@@ -230,7 +230,7 @@ export default async function NuevaFacturaPage({
                 className="mb-3 inline-flex items-center gap-1 text-xs text-fg-faint hover:text-fg"
               >
                 <ArrowLeft className="size-3.5" aria-hidden />
-                Facturación
+                Ventas
               </Link>
               <h1 className="text-2xl font-semibold tracking-tight text-fg">Nueva cuenta</h1>
             </>

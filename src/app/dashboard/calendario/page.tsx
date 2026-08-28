@@ -158,12 +158,17 @@ export default async function CalendarioPage() {
     // `h-svh`) y el scroll vive en el área de contenido, así que este `flex-1 min-h-0` reparte
     // espacio de verdad. Acá hubo un `lg:h-[calc(...)]` un día — el parche que sostuvo esta
     // pantalla mientras la raíz seguía en `min-h-svh`. Se retira con la raíz arreglada.
-    // `lg:flex-1` SIN `lg:min-h-0`: la pantalla llena lo que sobra, pero no se aprieta por debajo
-    // de su contenido. Con `min-h-0`, «Hoy» + el panel + la grilla se comprimían para caber en el
-    // viewport y cada uno terminaba con su propia barra de desplazamiento — tres barras para una
-    // pantalla. El scroll, cuando de verdad hace falta, ya lo pone el contenedor de
-    // `dashboard/layout.tsx`, que deja quietas la cabecera y la barra lateral.
-    <div className="flex flex-col gap-4 p-[clamp(16px,3vw,32px)] lg:flex-1">
+    // `lg:min-h-0` ES LO QUE HACE QUE ESTA PANTALLA QUEPA. Se quitó el 27-ago para que la columna
+    // creciera en vez de apretarse —se estaban contando tres barras de desplazamiento— y el efecto
+    // fue devolverle el desplazamiento a la página entera: sin él, la columna no baja de su
+    // contenido y arrastra al contenedor de scroll del panel. Es el defecto que el cliente reportó
+    // dos veces el 26-ago y una tercera esa misma tarde, con las mismas palabras: «toda la página
+    // se mueve hacia abajo».
+    //
+    // Las tres barras eran un problema real y se atacaron por donde correspondía: bajando los pisos
+    // (la grilla vuelve de 480 a 220) y AVISANDO donde hay más (el riel recupera su scroll con
+    // degradado). Un techo que acota no es lo mismo que un piso que no cabe.
+    <div className="flex flex-col gap-4 p-[clamp(16px,3vw,32px)] lg:min-h-0 lg:flex-1">
       {/* SIN <h1> ACÁ, y es a propósito. Le puse uno `sr-only` en el PR #98 dando por hecho que la
           pantalla se quedaba sin encabezado, porque `page.tsx` no tenía ninguno. Medido después en
           producción: sí lo tiene — `AppointmentCalendar` renderiza <h1>Calendario</h1>. Con el mío

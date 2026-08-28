@@ -199,7 +199,10 @@ export function TiraClinica({
     // Plegada queda el rótulo y el número —"3 pendientes"—, que es lo que responde "¿tengo algo?"
     // sin obligar a leer nada. Desplegada, el detalle. Y la preferencia se recuerda: quien la abre
     // una vez la quiere abierta, y quien la cierra no quiere que vuelva sola en cada navegación.
-    <div className="mx-auto flex w-full max-w-[780px] flex-col rounded-lg border border-line-soft text-xs xl:hidden">
+    // `shrink-0`: en VetGPT esta tira es hermana del hilo dentro de una columna con
+    // `overflow-hidden`. Sin esto, en una ventana baja cedía alto junto con el compositor y se
+    // recortaba a media línea. El que tiene que ceder es el hilo, que lleva su propio scroll.
+    <div className="mx-auto flex w-full max-w-[780px] shrink-0 flex-col rounded-lg border border-line-soft text-xs xl:hidden">
       <button
         type="button"
         onClick={alternar}

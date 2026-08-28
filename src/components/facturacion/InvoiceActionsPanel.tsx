@@ -21,6 +21,7 @@ import {
 } from './PaymentSection';
 import { InputMoneda } from '@/components/ui/input-moneda';
 import { textoDesdePesos } from '@/lib/moneda';
+import type { PaymentTerms } from '@/lib/supabase/types';
 
 /**
  * Acciones de la factura según su estado:
@@ -40,6 +41,7 @@ export function InvoiceActionsPanel({
   shareUrl,
   deliveryStatus,
   defaultTermsDays = 15,
+  paymentTerms = 'IMMEDIATE',
   reminderChannel = 'WHATSAPP',
   remindersEnabled = false,
 }: {
@@ -60,6 +62,13 @@ export function InvoiceActionsPanel({
   shareUrl?: string | null;
   deliveryStatus?: string;
   defaultTermsDays?: number;
+  /**
+   * Contado o crédito, tal como quedó en el carrito. Sin esto la emisión abría SIEMPRE en
+   * «Pagado ahora» e ignoraba lo que el vet ya había elegido un paso antes — y al emitir el
+   * servidor sobrescribe `payment_terms` con el resultado de acá, así que elegir «Crédito» y no
+   * tocar nada emitía la factura como pagada.
+   */
+  paymentTerms?: PaymentTerms;
   reminderChannel?: 'WHATSAPP' | 'EMAIL';
   remindersEnabled?: boolean;
 }) {
@@ -81,9 +90,34 @@ export function InvoiceActionsPanel({
   // no iba a emitir — y si el vet lo escribía en el campo, el servidor se lo rechazaba.
   const acreditableCents = Math.max(0, totalCents - creditedCents);
 
-  const [plan, setPlan] = useState<PaymentPlan>(() => makeDefaultPlan(defaultTermsDays));
+  const [plan, setPlan] = useState<PaymentPlan>(() => makeDefaultPlan(defaultTermsDays, paymentTerms));
   const [payMethod, setPayMethod] = useState<'EFECTIVO' | 'TRANSFERENCIA'>('EFECTIVO');
   const [payAmount, setPayAmount] = useState(''); // en pesos
+  // ── EL CORREO SE PEDÍA CON `window.prompt` ────────────────────────────────────────────────────
+  //
+  // Un diálogo del sistema operativo en medio de una app: sin el tipo de campo correcto —así que en
+  // el teléfono sale el teclado equivocado—, sin validación, sin poder pegar y corregir con calma,
+  // sin recordar lo escrito si se cierra, y bloqueando la pestaña entera mientras está abierto. Y
+  // en algunos navegadores directamente no aparece.
+  //
+  // Acá es un campo en la misma tarjeta: se ve lo que se escribe, se corrige, y el botón dice a
+  // dónde va a salir. Se abre SÓLO cuando el pagador no tiene correo en su ficha, que es el único
+  // caso en que hay algo que preguntar.
+  const [pidiendoCorreo, setPidiendoCorreo] = useState(false);
+  const [correoManual, setCorreoManual] = useState('');
+  // ── LA FRICCIÓN ESTABA AL REVÉS ───────────────────────────────────────────────────────────────
+  //
+  //   Descartar borrador   reversible en la práctica, no toca el consecutivo   →  pedía confirmar
+  //   Emitir               IRREVERSIBLE, quema el consecutivo de la DIAN       →  no pedía nada
+  //
+  // El texto de abajo del panel ya decía «una factura emitida solo se corrige con nota crédito», o
+  // sea que la app sabía que era irreversible y aun así lo dejaba a un clic de distancia — el mismo
+  // clic con el que se venía de armar la cuenta.
+  //
+  // Las dos confirmaciones son en la tarjeta y no `window.confirm`: un diálogo del sistema no puede
+  // explicar qué se va a consumir, aparece fuera de contexto y en algunos navegadores no aparece.
+  // Es la misma forma de dos pasos que ya usa la caja de anular.
+  const [confirmando, setConfirmando] = useState<'emitir' | 'descartar' | null>(null);
 
   // wa.me: normaliza el teléfono a dígitos; celular colombiano sin indicativo → +57.
   function waHref(): string {
@@ -96,6 +130,22 @@ export function InvoiceActionsPanel({
     const link = shareUrl ? `\n\nPuedes verla aquí: ${shareUrl}` : '';
     const text = encodeURIComponent(`${saludo}te comparto ${doc}${monto}.${link}`);
     return digits ? `https://wa.me/${digits}?text=${text}` : `https://wa.me/?text=${text}`;
+  }
+
+  /** Manda la factura a la dirección escrita a mano, y cierra el campo si salió. */
+  function mandarCorreoManual() {
+    const dest = correoManual.trim();
+    if (!dest) return;
+    run(
+      async () => {
+        const r = await sendInvoiceEmailAction({ invoiceId, to: dest });
+        return r.ok ? { ok: true, msg: `Enviada a ${r.to}` } : { ok: false, error: r.error };
+      },
+      () => {
+        setPidiendoCorreo(false);
+        setCorreoManual('');
+      },
+    );
   }
 
   function run(
@@ -130,47 +180,103 @@ export function InvoiceActionsPanel({
             reminderChannel={reminderChannel}
             remindersEnabled={remindersEnabled}
           />
+          {/* El segundo paso de emitir. Dice QUÉ se consume y por qué no se deshace — que es lo
+              único que un `window.confirm` no puede hacer. */}
+          {confirmando === 'emitir' && (
+            <div className="space-y-2 rounded-lg border border-warn bg-surface-2 px-3 py-2.5 text-xs text-fg-muted">
+              <p className="leading-relaxed">
+                Al emitir, esta cuenta <strong className="text-fg">toma el próximo consecutivo</strong>{' '}
+                de la serie y se transmite. El número queda consumido pase lo que pase después: no se
+                recicla ni se puede reasignar, que es como la DIAN exige que se haga.
+              </p>
+              <p className="leading-relaxed">
+                A partir de ahí sólo se corrige con <strong className="text-fg">nota crédito</strong>.
+              </p>
+              <div className="flex flex-wrap items-center gap-2 pt-0.5">
+                <button
+                  type="button"
+                  disabled={isPending}
+                  onClick={() =>
+                    run(
+                      async () => {
+                        const planError = validatePlan(plan, totalCents);
+                        if (planError) return { ok: false, error: planError };
+                        const fields = planToActionFields(plan);
+                        const r = await issueInvoiceAction({
+                          invoiceId,
+                          outcome: fields.outcome,
+                          method: fields.method,
+                          amountCents: fields.amountCents,
+                          reference: fields.reference,
+                          dueDate: fields.dueDate,
+                          followupEnabled: fields.followupEnabled,
+                        });
+                        return r.ok
+                          ? { ok: true, msg: `Emitida como ${r.result.fullNumber}` }
+                          : { ok: false, error: r.error };
+                      },
+                      () => setConfirmando(null),
+                    )
+                  }
+                  className="inline-flex items-center gap-2 rounded-lg bg-brand px-4 py-2 text-sm font-medium text-on-brand hover:bg-brand-deep transition disabled:opacity-60"
+                >
+                  {isPending ? 'Emitiendo…' : 'Sí, emitir'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setConfirmando(null)}
+                  className="rounded-lg px-2 py-2 text-sm text-fg-faint hover:text-fg transition"
+                >
+                  Cancelar
+                </button>
+              </div>
+            </div>
+          )}
+          {/* El de descartar. Era el ÚNICO que confirmaba, y con un diálogo del sistema. */}
+          {confirmando === 'descartar' && (
+            <div className="flex flex-wrap items-center gap-2 rounded-lg border border-line bg-surface-2 px-3 py-2.5 text-xs text-fg-muted">
+              <span className="leading-relaxed">
+                Se borra la cuenta con sus líneas. No toca ningún consecutivo.
+              </span>
+              <button
+                type="button"
+                disabled={isPending}
+                onClick={() =>
+                  run(async () => {
+                    const r = await discardInvoiceDraft({ invoiceId });
+                    if (r.ok) {
+                      router.push('/dashboard/facturacion');
+                      return { ok: true };
+                    }
+                    return { ok: false, error: r.error };
+                  })
+                }
+                className="rounded-lg border border-line bg-surface px-3 py-1.5 text-sm text-warn hover:bg-surface transition disabled:opacity-60"
+              >
+                {isPending ? 'Descartando…' : 'Sí, descartar'}
+              </button>
+              <button
+                type="button"
+                onClick={() => setConfirmando(null)}
+                className="rounded-lg px-2 py-1.5 text-sm text-fg-faint hover:text-fg transition"
+              >
+                Cancelar
+              </button>
+            </div>
+          )}
           <div className="flex flex-wrap items-center gap-2">
             <button
               type="button"
-              disabled={isPending}
-              onClick={() =>
-                run(async () => {
-                  const planError = validatePlan(plan, totalCents);
-                  if (planError) return { ok: false, error: planError };
-                  const fields = planToActionFields(plan);
-                  const r = await issueInvoiceAction({
-                    invoiceId,
-                    outcome: fields.outcome,
-                    method: fields.method,
-                    amountCents: fields.amountCents,
-                    reference: fields.reference,
-                    dueDate: fields.dueDate,
-                    followupEnabled: fields.followupEnabled,
-                  });
-                  return r.ok
-                    ? { ok: true, msg: `Emitida como ${r.result.fullNumber}` }
-                    : { ok: false, error: r.error };
-                })
-              }
+              disabled={isPending || confirmando !== null}
+              onClick={() => setConfirmando('emitir')}
               className="inline-flex items-center gap-2 rounded-lg bg-brand px-4 py-2 text-sm font-medium text-on-brand hover:bg-brand-deep transition disabled:opacity-60"
             >
-              {isPending ? 'Emitiendo…' : 'Emitir'}
+              Emitir
             </button>
             <button
               type="button"
-              disabled={isPending}
-              onClick={() => {
-                if (!window.confirm('¿Descartar este borrador? No se puede deshacer.')) return;
-                run(async () => {
-                  const r = await discardInvoiceDraft({ invoiceId });
-                  if (r.ok) {
-                    router.push('/dashboard/facturacion');
-                    return { ok: true };
-                  }
-                  return { ok: false, error: r.error };
-                });
-              }}
+              disabled={isPending || confirmando !== null}
+              onClick={() => setConfirmando('descartar')}
               className="rounded-lg border border-line bg-surface px-4 py-2 text-sm text-fg-muted hover:bg-surface-2 hover:text-warn transition disabled:opacity-60"
             >
               Descartar borrador
@@ -248,13 +354,14 @@ export function InvoiceActionsPanel({
               type="button"
               disabled={isPending}
               onClick={() => {
-                const dest = payerEmail ?? window.prompt('Email del cliente:') ?? '';
-                if (!dest) return;
+                // Sin correo en la ficha, se abre el campo de acá abajo en vez de un diálogo del
+                // sistema. Con correo, sale directo: no hay nada que preguntar.
+                if (!payerEmail) {
+                  setPidiendoCorreo(true);
+                  return;
+                }
                 run(async () => {
-                  const r = await sendInvoiceEmailAction({
-                    invoiceId,
-                    to: payerEmail ? null : dest,
-                  });
+                  const r = await sendInvoiceEmailAction({ invoiceId, to: null });
                   return r.ok
                     ? { ok: true, msg: `Enviada a ${r.to}` }
                     : { ok: false, error: r.error };
@@ -284,6 +391,59 @@ export function InvoiceActionsPanel({
               Imprimir / PDF
             </a>
           </div>
+
+          {/* El campo que reemplaza al `window.prompt`. Aparece bajo la fila de botones, en la
+              misma tarjeta, para que se vea a qué dirección va a salir antes de apretar. */}
+          {pidiendoCorreo && (
+            <div className="space-y-2 rounded-lg border border-line bg-surface-2 px-3 py-2.5">
+              <label
+                htmlFor="correo-de-envio"
+                className="block text-xs font-medium text-fg-muted"
+              >
+                Este cliente no tiene correo en su ficha. ¿A dónde la mandamos?
+              </label>
+              <div className="flex flex-wrap items-center gap-2">
+                <input
+                  id="correo-de-envio"
+                  type="email"
+                  inputMode="email"
+                  autoComplete="email"
+                  autoFocus
+                  value={correoManual}
+                  onChange={(e) => setCorreoManual(e.target.value)}
+                  onKeyDown={(e) => {
+                    // Enter manda, que es lo que espera cualquiera que acaba de escribir un correo.
+                    // No hay `<form>` que lo haga solo: esta tarjeta vive dentro del panel, y
+                    // meterla en un form anidaría con los de arriba.
+                    if (e.key === 'Enter' && correoManual.trim() && !isPending) {
+                      e.preventDefault();
+                      mandarCorreoManual();
+                    }
+                  }}
+                  placeholder="titular@correo.com"
+                  className="min-w-0 flex-1 rounded-lg border border-line bg-surface px-3 py-2 text-sm text-fg placeholder:text-fg-faint outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
+                />
+                <button
+                  type="button"
+                  disabled={isPending || !correoManual.trim()}
+                  onClick={mandarCorreoManual}
+                  className="inline-flex items-center gap-2 rounded-lg bg-brand px-4 py-2 text-sm font-medium text-on-brand hover:bg-brand-deep transition disabled:opacity-60"
+                >
+                  {isPending ? 'Enviando…' : 'Enviar'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setPidiendoCorreo(false)}
+                  className="rounded-lg px-2 py-2 text-sm text-fg-faint hover:text-fg transition"
+                >
+                  Cancelar
+                </button>
+              </div>
+              <p className="text-[11.5px] text-fg-faint">
+                Se manda sólo esta vez. Para que quede guardado, agregalo en la ficha del titular.
+              </p>
+            </div>
+          )}
 
           {/* ── Anular con nota crédito ──────────────────────────────────────────────────────
               Es la ÚNICA forma de corregir una factura emitida, y hasta el 23-ago no existía: la
@@ -444,6 +604,31 @@ export function InvoiceActionsPanel({
             )}
           </div>
         </>
+      )}
+
+      {/* ── LAS DOS RAMAS QUE FALTABAN ────────────────────────────────────────────────────────
+          Este panel sólo tenía `BORRADOR` y `EMITIDA`. Con la factura anulada o a medio emitir se
+          pintaba el «Acciones» de arriba y NADA debajo: una tarjeta con un título y aire, que es la
+          peor forma de fallar porque no se distingue de una que todavía está cargando.
+
+          Y no son estados raros: `EMITIENDO` es el que queda si el proveedor fiscal se cae después
+          de que el consecutivo ya se asignó —está previsto y documentado en `invoices.ts`, la
+          emisión es tolerante a fallos a propósito— y `ANULADA` es el destino de toda nota crédito
+          total. */}
+      {status === 'ANULADA' && (
+        <p className="text-xs leading-relaxed text-fg-muted">
+          Esta factura está <strong className="text-fg">anulada</strong> con nota crédito. No admite
+          pagos ni envíos: su consecutivo queda consumido y no se reutiliza, que es como la DIAN
+          exige que se haga. Si hay que volver a cobrar, se registra una venta nueva.
+        </p>
+      )}
+      {status === 'EMITIENDO' && (
+        <p className="text-xs leading-relaxed text-fg-muted">
+          La emisión quedó a medio camino: el consecutivo ya se asignó pero no se pudo cerrar el
+          documento. <strong className="text-fg">No la vuelvas a emitir</strong> — el número ya está
+          consumido y reemitir crearía un segundo documento. Recargá en un momento; si sigue igual,
+          avisale al equipo con el número de esta factura.
+        </p>
       )}
 
       {error && (

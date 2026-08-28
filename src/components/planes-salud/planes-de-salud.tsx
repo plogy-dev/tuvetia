@@ -222,7 +222,7 @@ export function PlanesDeSalud({
               />
             </div>
 
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-2 gap-3 [&>*]:min-w-0">
               <div className="grid gap-1.5">
                 <Label htmlFor="plan-precio">Precio</Label>
                 <Input

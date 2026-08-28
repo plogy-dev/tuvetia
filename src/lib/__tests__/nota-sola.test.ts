@@ -16,7 +16,7 @@ import { join } from "node:path"
 
 import { describe, expect, it } from "vitest"
 
-import { laNotaSePideSola } from "@/lib/consultas/nota-sola"
+import { laGrabacionNoCapturoNada, laNotaSePideSola } from "@/lib/consultas/nota-sola"
 
 describe("cuándo se pide sola", () => {
   it("transcrita y sin nota: se pide", () => {
@@ -48,6 +48,85 @@ describe("cuándo se pide sola", () => {
   })
 })
 
+describe("una grabación en blanco no se queda callada", () => {
+  /**
+   * ── LA CUARTA VUELTA SOBRE EL MISMO ATASCO ───────────────────────────────────────────────────
+   *
+   * Los tres arreglos anteriores —dos de etiqueta, uno de automatización— dejaron el mismo hueco:
+   * la automatización se apoya en `laNotaSePideSola`, que exige transcripción, y una transcripción
+   * VACÍA no cuenta. Con razón: pedirle un SOAP a un texto en blanco es lo que producía las notas
+   * que se disculpaban por no tener información.
+   *
+   * Pero al apagarse la condición no quedaba NADA: ni nota, ni error, ni cambio de estado, y la
+   * lista siguiendo con «se genera al abrirla». Medido el 27-ago: cuatro de las nueve colgadas eran
+   * de éstas, con audio de 6 a 26 segundos y una fila de transcripción en blanco detrás.
+   *
+   * Las dos ramas tienen que cubrir todo el espacio: o se genera, o se dice por qué no.
+   */
+  it("audio subido, transcripción en blanco: se nombra la situación", () => {
+    const foto = {
+      status: "generating_note",
+      hayTranscripcion: false,
+      hayNota: false,
+      transcripcionVacia: true,
+    }
+    expect(laGrabacionNoCapturoNada(foto)).toBe(true)
+    // Y sigue SIN pedirse la nota: no hay nada que resumir. Las dos cosas a la vez es el arreglo.
+    expect(laNotaSePideSola(foto)).toBe(false)
+  })
+
+  it("no se confunde con «todavía no se transcribió»", () => {
+    // Sin fila de transcripción el flujo sigue su curso: el backend todavía puede escribirla.
+    expect(
+      laGrabacionNoCapturoNada({
+        status: "generating_note",
+        hayTranscripcion: false,
+        hayNota: false,
+        transcripcionVacia: false,
+      }),
+    ).toBe(false)
+  })
+
+  it("con texto de verdad no aplica: eso se genera", () => {
+    const foto = {
+      status: "generating_note",
+      hayTranscripcion: true,
+      hayNota: false,
+      transcripcionVacia: false,
+    }
+    expect(laGrabacionNoCapturoNada(foto)).toBe(false)
+    expect(laNotaSePideSola(foto)).toBe(true)
+  })
+
+  it("con nota ya hecha no se anuncia ningún fallo", () => {
+    expect(
+      laGrabacionNoCapturoNada({
+        status: "generating_note",
+        hayTranscripcion: false,
+        hayNota: true,
+        transcripcionVacia: true,
+      }),
+    ).toBe(false)
+  })
+
+  it("las dos ramas son excluyentes y cubren el estado entero", () => {
+    // Lo que dejó las cuatro muertas fue justamente un hueco entre las dos. Se recorren las cuatro
+    // combinaciones posibles dentro de `generating_note` sin nota: ninguna puede quedar sin rama, y
+    // ninguna puede caer en las dos.
+    for (const hayTranscripcion of [true, false]) {
+      for (const transcripcionVacia of [true, false]) {
+        const foto = { status: "generating_note", hayNota: false, hayTranscripcion, transcripcionVacia }
+        const genera = laNotaSePideSola(foto)
+        const avisa = laGrabacionNoCapturoNada(foto)
+        expect(genera && avisa, `ambas para ${JSON.stringify(foto)}`).toBe(false)
+        // El único hueco legítimo es «todavía no hay fila»: ahí el backend sigue trabajando.
+        const esperandoAlBackend = !hayTranscripcion && !transcripcionVacia
+        expect(genera || avisa || esperandoAlBackend, `hueco en ${JSON.stringify(foto)}`).toBe(true)
+      }
+    }
+  })
+})
+
 describe("la pantalla de consulta la usa de verdad", () => {
   const fuente = readFileSync(
     join("src", "app", "dashboard", "consultas", "[id]", "page.tsx"),
@@ -74,5 +153,39 @@ describe("la pantalla de consulta la usa de verdad", () => {
 
   it("y el botón manual sigue existiendo como reintento", () => {
     expect(fuente).toContain("Generar sugerencia (Modo Fantasma)")
+  })
+})
+
+describe("y la pantalla saca a la consulta del limbo", () => {
+  const fuente = readFileSync(
+    join("src", "app", "dashboard", "consultas", "[id]", "page.tsx"),
+    "utf8",
+  )
+    .replace(/\{\/\*[\s\S]*?\*\/\}/g, "")
+    .replace(/\/\*[\s\S]*?\*\//g, "")
+    .replace(/\/\/.*$/gm, "")
+
+  it("distingue la grabación en blanco en vez de ofrecer un botón que no puede funcionar", () => {
+    // Antes, con transcripción vacía, la pantalla ofrecía «Generar sugerencia A PARTIR DE LA
+    // TRANSCRIPCIÓN»: la única acción disponible era la que no podía servir.
+    expect(fuente).toContain("laGrabacionNoCapturoNada(")
+    expect(fuente).toContain("La grabación no capturó voz")
+  })
+
+  it("«Grabar de nuevo» devuelve el estado a open, y no sólo abre el panel", () => {
+    // Sin esto la consulta sigue colgada en `generating_note` para siempre y la LISTA sigue
+    // prometiendo «se genera al abrirla». Las nueve del 27-ago llevaban hasta seis días así.
+    const i = fuente.indexOf("async function volverAGrabar")
+    expect(i, "no existe la salida: la consulta se queda colgada").toBeGreaterThan(-1)
+    const cuerpo = fuente.slice(i, i + 700)
+    expect(cuerpo).toContain('status: "open"')
+    expect(cuerpo).toContain("from(\"consultations\")")
+  })
+
+  it("y si ese cambio de estado falla, se dice", () => {
+    // Un fallo silencioso acá devuelve exactamente el defecto: la consulta reaparece colgada
+    // mañana y nadie sabe por qué.
+    const i = fuente.indexOf("async function volverAGrabar")
+    expect(fuente.slice(i, i + 900)).toContain("toast.error")
   })
 })

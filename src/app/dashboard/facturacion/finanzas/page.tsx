@@ -21,8 +21,9 @@ import { FinanceBars } from '@/components/facturacion/FinanceBars';
 import { FinanceTable, type FinanceItem } from '@/components/facturacion/FinanceTable';
 import { FormularioDeFiltros } from "@/components/ui/formulario-de-filtros"
 import { PageShell } from '@/components/ui/page-shell';
+import { ModuloInactivo } from "@/components/facturacion/modulo-inactivo";
 
-export const metadata = { title: "Finanzas · Tuvetia" }
+export const metadata = { title: "Ingresos y egresos · Tuvetia" }
 
 
 export const dynamic = 'force-dynamic';
@@ -67,16 +68,7 @@ export default async function FinanzasPage({
 
   if (!active) {
     return (
-      <PageShell>
-        <h1 className="text-2xl font-semibold tracking-tight text-fg">Ingresos y egresos</h1>
-        <p className="mt-4 rounded-xl border border-line bg-surface-2 px-4 py-3 text-sm text-fg-muted">
-          El módulo no está activo.{' '}
-          <Link href="/dashboard/facturacion/configuracion" className="underline underline-offset-2">
-            Configúralo primero
-          </Link>
-          .
-        </p>
-      </PageShell>
+      <ModuloInactivo titulo="Ingresos y egresos" />
     );
   }
 
@@ -198,7 +190,7 @@ export default async function FinanzasPage({
           className="mb-3 inline-flex items-center gap-1 text-xs text-fg-faint hover:text-fg"
         >
           <ArrowLeft className="size-3.5" aria-hidden />
-          Facturación
+          Ventas
         </Link>
         <h1 className="flex items-center gap-2 text-2xl font-semibold tracking-tight text-fg">
           <Wallet className="size-6 text-fg-muted" aria-hidden />

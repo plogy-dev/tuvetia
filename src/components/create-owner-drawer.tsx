@@ -132,7 +132,15 @@ export function CreateOwnerDrawer({
                 required
               />
             </Field>
-            <div className="grid grid-cols-2 gap-4">
+            {/* `[&>*]:min-w-0` — el cinturón de las filas de dos columnas dentro de un cajón.
+                Los items de una grilla son `min-width: auto`, o sea que NO ENCOGEN por debajo del
+                ancho mínimo de su contenido: un `input[type=date]`, un select con una opción larga o
+                una etiqueta de una sola palabra ancha empujan la fila fuera del cajón, que en móvil
+                ocupa la pantalla entera. Quitando ese piso, la fila reparte mitad y mitad y el
+                control encoge. El razonamiento largo, con la cuenta de píxeles, está en
+                `create-patient-drawer.tsx` — acá se aplica a las siete filas que faltaban
+                (auditoría de UI, 27-ago). */}
+            <div className="grid grid-cols-2 gap-4 [&>*]:min-w-0">
               <Field>
                 <FieldLabel htmlFor="owner-phone-full">Teléfono</FieldLabel>
                 <Input
@@ -152,7 +160,7 @@ export function CreateOwnerDrawer({
                 />
               </Field>
             </div>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-2 gap-4 [&>*]:min-w-0">
               <Field>
                 <FieldLabel htmlFor="owner-document">Documento</FieldLabel>
                 <Input

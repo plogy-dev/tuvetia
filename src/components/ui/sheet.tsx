@@ -72,7 +72,9 @@ function SheetContent({
           >
             <XIcon
             />
-            <span className="sr-only">Close</span>
+            {/* En español, como su hermano `dialog.tsx`. Era «Close»: lo único que un lector de
+                pantalla anuncia de este botón, en una app que por lo demás está entera en español. */}
+            <span className="sr-only">Cerrar</span>
           </SheetPrimitive.Close>
         )}
       </SheetPrimitive.Popup>

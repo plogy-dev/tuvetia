@@ -16,6 +16,8 @@ import {
 import { composioConfigurado, estadoConexion } from "@/lib/composio/correo"
 import { HelpTip } from "@/components/help-tip"
 import { InstalarApp } from "@/components/movil/instalar-app"
+import QRCode from "qrcode"
+import { getAppBaseUrl } from "@/lib/base-url"
 import { PageHeader, PageShell } from "@/components/ui/page-shell"
 import { TabNav, TabNavLink } from "@/components/ui/tab-nav"
 import { ROLES_LEGIBLES } from "@/lib/roles"
@@ -57,6 +59,20 @@ export default async function ConfiguracionDeLaClinicaPage({
   const { tab } = await searchParams
   // Una pestaña inventada cae en la primera y no en una pantalla en blanco.
   const activa: PestanaId = PESTANAS.some((p) => p.id === tab) ? (tab as PestanaId) : "general"
+
+  // ── EL QR PARA SALTAR AL TELÉFONO ───────────────────────────────────────────────────────────
+  //
+  // Instalar la app se hace DESDE el teléfono, y esta pantalla se lee sentado en el computador:
+  // ahí no hay pasos que dar, sólo una forma de llegar al otro dispositivo. El SVG se genera acá,
+  // en el servidor, y baja como marcado — así `qrcode` (que ya usa la ruta de impresión de
+  // facturas) no entra al bundle del cliente por una imagen que se mira una vez.
+  //
+  // Un fallo generándolo NO puede tumbar Configuración: la tarjeta tiene su texto alternativo.
+  const qrDeLaApp = await QRCode.toString(getAppBaseUrl(), {
+    type: "svg",
+    margin: 0,
+    width: 112,
+  }).catch(() => null)
 
   const { supabase, user } = await sesionDelServidor()
 
@@ -270,7 +286,7 @@ export default async function ConfiguracionDeLaClinicaPage({
             <div className="mb-2 flex items-center gap-2 text-sm font-semibold">
               <Smartphone className="size-4 text-muted-foreground" /> Tuvetia en tu teléfono
             </div>
-            <InstalarApp />
+            <InstalarApp qrSvg={qrDeLaApp} />
           </div>
 
           <div className="rounded-xl border bg-card p-4">

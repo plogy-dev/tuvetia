@@ -31,11 +31,11 @@ export default async function ComprasPage() {
       <header className="flex flex-wrap items-end justify-between gap-4">
         <div>
           <Link
-            href="/dashboard/facturacion/inventario"
+            href="/dashboard/facturacion"
             className="mb-3 inline-flex items-center gap-1 text-xs text-fg-faint hover:text-fg"
           >
             <ArrowLeft className="size-3.5" aria-hidden />
-            Inventario
+            Ventas
           </Link>
           <h1 className="flex items-center gap-2 text-2xl font-semibold tracking-tight text-fg">
             <ShoppingCart className="size-6 text-fg-muted" aria-hidden />

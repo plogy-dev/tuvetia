@@ -60,11 +60,16 @@ function iniciales(nombre: string) {
 /** `etiqueta ··· valor`, la misma gramática del riel y de la tarjeta de acción. */
 function Dato({ etiqueta, valor }: { etiqueta: string; valor: string | null }) {
   return (
-    <div className="flex flex-col gap-0.5">
+    // `min-w-0` + `break-words`: acá se pintan correo, documento y dirección, o sea texto que
+    // escribió alguien y puede no tener un solo espacio. Un correo largo ensanchaba la celda del
+    // grid —su `auto` mide el min-content— y con él la ficha entera.
+    <div className="flex min-w-0 flex-col gap-0.5">
       <dt className="text-[11px] font-semibold uppercase tracking-[0.08em] text-fg-faint">
         {etiqueta}
       </dt>
-      <dd className="text-sm">{valor?.trim() ? valor : <span className="text-fg-faint">—</span>}</dd>
+      <dd className="break-words text-sm">
+        {valor?.trim() ? valor : <span className="text-fg-faint">—</span>}
+      </dd>
     </div>
   )
 }

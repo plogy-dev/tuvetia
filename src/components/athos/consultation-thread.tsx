@@ -113,7 +113,7 @@ export function ConsultationThread({
               <span className="px-1 text-[10px] font-bold uppercase tracking-wide text-muted-foreground">
                 Veterinario
               </span>
-              <div className="max-w-[92%] rounded-2xl rounded-br-sm bg-primary px-3 py-2 text-sm text-primary-foreground">
+              <div className="max-w-[92%] break-words rounded-2xl rounded-br-sm bg-primary px-3 py-2 text-sm text-primary-foreground">
                 {msg.content}
               </div>
             </div>
@@ -128,7 +128,7 @@ export function ConsultationThread({
                   <span>{msg.warning}</span>
                 </div>
               )}
-              <div className="max-w-[95%] rounded-2xl rounded-bl-sm border bg-secondary px-3 py-2 text-sm leading-relaxed">
+              <div className="max-w-[95%] break-words rounded-2xl rounded-bl-sm border bg-secondary px-3 py-2 text-sm leading-relaxed">
                 {splitBlocks(msg.content).map((blk, j) => (
                   <div key={j} className={j > 0 ? "mt-2" : undefined}>
                     {blk.bullet && (

@@ -188,7 +188,7 @@ export function FormularioDePago({
                   required
                 />
               </Field>
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-2 gap-3 [&>*]:min-w-0">
                 <Field>
                   <FieldLabel htmlFor="tarjeta-vence">Vence</FieldLabel>
                   <Input

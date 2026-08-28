@@ -3,8 +3,9 @@
 ── POR QUÉ EXISTE ──────────────────────────────────────────────────────────────────────────────
 
 David, 26-ago, probando el Modo Fantasma: *"la transcripción no está tan precisa, toca ver si esto
-puede mejorar"*. Al revisar las tres llamadas a STT del servicio —lote con Grok, lote con Deepgram
-y el vivo— ninguna pasaba una sola palabra de vocabulario. El motor entraba a una consulta
+puede mejorar"*. Al revisar las tres llamadas a STT del servicio —lote con el primario (entonces
+Grok/xAI, hoy Groq/Whisper), lote con Deepgram y el vivo— ninguna pasaba una sola palabra de
+vocabulario. El motor entraba a una consulta
 veterinaria colombiana con `language: "es"` a secas y nada más.
 
 Eso explica el patrón que se ve en los transcripts reales: la gramática sale bien y los NOMBRES

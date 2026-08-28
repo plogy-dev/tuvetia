@@ -103,7 +103,13 @@ export function OnboardingAthos({
     // Ya no miente: la 0057 amplió el CHECK de `athos_actions.source`. Antes mandaba "chat" porque
     // sólo se admitía chat|inbox|auto, y con dos superficies mintiendo (ésta y el widget) "chat"
     // dejaba de significar nada.
-    void sendMessage({ text: t }, { body: { patientId: null, source: "onboarding" } })
+    // EL PASO VIAJA AL MODELO, no sólo a la tarjeta. Pedido de Luciano: «que sepa también dónde
+    // estás parado». Hasta acá `paso` movía únicamente el texto fijo de `TarjetaDePaso` — el
+    // comentario de su prop lo decía: «el chat no lo usa».
+    void sendMessage(
+      { text: t },
+      { body: { patientId: null, source: "onboarding", contexto: { tipo: "onboarding", paso } } },
+    )
   }
 
   return (
@@ -183,8 +189,16 @@ export function OnboardingAthos({
           rows={1}
           className="max-h-28 min-h-9 resize-none text-sm"
         />
-        <Button size="icon" onClick={() => enviar(input)} disabled={busy || !input.trim()}>
-          <SendHorizontal className="size-4" />
+        {/* `aria-label` — es un botón de sólo icono, así que sin esto no tiene NINGÚN nombre
+            accesible: un lector de pantalla lo anuncia como «botón» a secas y no hay forma de saber
+            que es el de enviar. El icono va `aria-hidden` para que no intente leerlo como contenido. */}
+        <Button
+          size="icon"
+          onClick={() => enviar(input)}
+          disabled={busy || !input.trim()}
+          aria-label="Enviar mensaje a VetGPT"
+        >
+          <SendHorizontal className="size-4" aria-hidden />
         </Button>
       </div>
     </aside>

@@ -74,7 +74,21 @@ export async function POST(req: Request) {
 
     return NextResponse.json({ setup_url: setupUrl })
   } catch (e) {
-    // Sin KAPSO_API_KEY (u otro fallo de Kapso) devolvemos el motivo — el front lo muestra en un toast.
-    return NextResponse.json({ error: (e as Error).message }, { status: 503 })
+    // ── SE DISTINGUE «NO ESTÁ HABILITADO» DE «FALLÓ» ──────────────────────────────────────────
+    //
+    // Las dos cosas caían acá con el mismo 503 y el front las contaba igual: un toast rojo que se va
+    // en unos segundos. Pero no son lo mismo para quien está del otro lado. Un fallo de Kapso se
+    // reintenta; una instalación sin `KAPSO_API_KEY` no se arregla apretando otra vez, y el vet se
+    // quedaba tocando «Conectar WhatsApp» sin saber que no había nada que conectar.
+    //
+    // Pesa más de lo que parece: Comunicaciones ES esa pantalla mientras WhatsApp no esté conectado.
+    //
+    // `no_habilitado` es lo que deja a la interfaz decirlo distinto — y es el mismo reparto que ya
+    // hace `comunicaciones/correo/page.tsx` con Composio: «falta que conectes tu cuenta», que tiene
+    // botón, contra «esto todavía no está activo acá», que no tiene botón porque no hay nada que el
+    // vet pueda apretar.
+    const mensaje = (e as Error).message
+    const noHabilitado = !process.env.KAPSO_API_KEY
+    return NextResponse.json({ error: mensaje, no_habilitado: noHabilitado }, { status: 503 })
   }
 }

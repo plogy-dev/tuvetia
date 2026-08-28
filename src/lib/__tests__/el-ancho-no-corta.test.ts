@@ -114,22 +114,29 @@ describe("la barra avisa cuando esconde contenido", () => {
   //
   // Lo que se protege acá es la señal, no los píxeles: recortar alto no cierra esto porque cada
   // monitor mide distinto.
+  // LA MEDICIÓN SE MUDÓ A UN GANCHO el 27-ago, y no por prolijidad: hizo falta la MISMA señal en el
+  // riel de la agenda. Allá el mismo problema —una lista cortada sin aviso de que había más— se
+  // había resuelto QUITÁNDOLE el scroll a la columna, y eso devolvió el desplazamiento a la página
+  // entera. El gancho es lo que hace que la próxima vez la respuesta sea avisar y no quitar.
+  const gancho = leer("src", "hooks", "use-hay-mas-abajo.ts")
   const sidebar = leer("src", "components", "ui", "sidebar.tsx")
+  const riel = leer("src", "components", "calendar", "panel-de-agenda.tsx")
 
   it("mide el desborde de verdad, no lo adivina con una media query", () => {
     // El alto disponible NO es el de la ventana: la barra tiene cabecera y pie anclados (el pie,
     // desde el 26-ago, sólo la cuenta). Una media query acertaría en un monitor y fallaría en el
     // resto.
-    expect(sidebar).toContain("scrollHeight")
-    expect(sidebar).toContain("clientHeight")
+    expect(gancho).toContain("scrollHeight")
+    expect(gancho).toContain("clientHeight")
   })
 
   it("se entera cuando el contenido cambia de alto, no sólo el contenedor", () => {
     // El Historial se monta sólo en VetGPT y Modo Fantasma, y se pliega: el contenido crece y
     // encoge sin que el contenedor cambie de tamaño. Con sólo ResizeObserver la señal se queda
-    // pegada en el estado anterior.
-    expect(sidebar).toContain("ResizeObserver")
-    expect(sidebar).toContain("MutationObserver")
+    // pegada en el estado anterior. Y en el riel de la agenda pasa lo mismo cuando entra un
+    // veterinario nuevo a la clínica.
+    expect(gancho).toContain("ResizeObserver")
+    expect(gancho).toContain("MutationObserver")
   })
 
   it("la señal es una máscara, no una barra del sistema", () => {
@@ -137,6 +144,15 @@ describe("la barra avisa cuando esconde contenido", () => {
     // Y sobre todo: no es la barra gris que el cliente pidió sacar.
     expect(sidebar).toContain("maskImage")
     expect(sidebar).not.toContain("scrollbar-width: thin")
+  })
+
+  it("el riel de la agenda avisa igual que la barra, en vez de renunciar a su scroll", () => {
+    // El 27-ago el riel perdió `overflow-y-auto` para que no cortara nombres. Sin el techo, la fila
+    // de la agenda dejó de acotarse y volvió la barra de PÁGINA — que es el defecto que el cliente
+    // ya había reportado dos veces. La respuesta correcta a «esconde contenido» es la señal, no
+    // quitar el contenedor que lo acota.
+    expect(riel).toContain("overflow-y-auto")
+    expect(riel).toContain("maskImage")
   })
 })
 

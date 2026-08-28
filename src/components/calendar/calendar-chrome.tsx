@@ -152,7 +152,10 @@ export function EventContent({ event, title }: EventProps<CalendarEvent>) {
 
   if (minutos < 40) {
     return (
-      <div className="flex h-full items-center gap-1.5 overflow-hidden px-1.5 text-left leading-none text-white">
+      // SIN `text-white`: el color lo HEREDA del bloque, y ahí lo decide la claridad del fondo
+      // (`eventPropGetter` → `lib/agenda/tinta.ts`). Fijarlo acá era lo que dejaba ilegibles las
+      // citas de fondo claro — casi todas en tema oscuro, y en claro las de laboratorio e imágenes.
+      <div className="flex h-full items-center gap-1.5 overflow-hidden px-1.5 text-left leading-none">
         <span className="shrink-0 text-[10.5px] font-medium tabular-nums opacity-90">
           {formatCompactTime(event.start)}
         </span>
@@ -162,7 +165,8 @@ export function EventContent({ event, title }: EventProps<CalendarEvent>) {
   }
 
   return (
-    <div className="flex h-full flex-col overflow-hidden px-2 py-1 text-left leading-tight text-white">
+    // Igual que arriba: la letra la hereda del bloque, que ya sabe si su fondo es claro u oscuro.
+    <div className="flex h-full flex-col overflow-hidden px-2 py-1 text-left leading-tight">
       <span className="truncate font-medium">{title}</span>
       <span className="truncate text-[11px] tabular-nums opacity-90">{rango}</span>
     </div>

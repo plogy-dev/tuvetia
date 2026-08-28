@@ -138,10 +138,26 @@ export function WelcomeWizard({
     setBusy(true)
     const { error } = await supabase.rpc("mark_setup_completed")
     if (error) {
-      // Si esto falla, el vet volvería a ver el wizard al recargar. Se dice, no se traga.
-      toast.error(`No se pudo cerrar la configuración: ${error.message}`)
-      setBusy(false)
-      return
+      // ── UN REINTENTO ANTES DE DEJARLO ENCERRADO ─────────────────────────────────────────────
+      //
+      // Acá había sólo el toast y el `return`, y eso dejaba al vet ATRAPADO: `dashboard/layout.tsx`
+      // manda a `/bienvenida` mientras falte `setup_completed_at`, así que el único camino a la app
+      // pasa por esta llamada. Si falla —red intermitente, un token vencido— el vet leía el error,
+      // apretaba otra vez y volvía a leerlo, sin ninguna otra puerta.
+      //
+      // El reintento es lo primero porque el fallo más probable de un RPC suelto es transitorio. Si
+      // el segundo también falla, ya no es transitorio y hay que decirlo con esas palabras: el toast
+      // se queda hasta que lo cierren —no se va solo a los cuatro segundos— y nombra la salida real,
+      // que es recargar. La llamada es idempotente, así que reintentar no cuesta nada.
+      const segundo = await supabase.rpc("mark_setup_completed")
+      if (segundo.error) {
+        toast.error("No se pudo cerrar la configuración", {
+          description: `${segundo.error.message}. Recargá la página y tocá «Terminar» otra vez; lo que configuraste ya quedó guardado.`,
+          duration: Infinity,
+        })
+        setBusy(false)
+        return
+      }
     }
     router.push("/dashboard")
     router.refresh()
@@ -532,7 +548,7 @@ export function WelcomeWizard({
               placeholder="+57 300 123 4567"
             />
           </Field>
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-2 gap-3 [&>*]:min-w-0">
             <Field>
               <FieldLabel htmlFor="pet-name">Nombre de la mascota</FieldLabel>
               <Input

@@ -65,6 +65,10 @@ export function WhatsappSettings({
   const [busy, setBusy] = useState(false)
   // Flujo Evolution (QR embebido + consentimiento de integración no oficial)
   const [qr, setQr] = useState<string | null>(null)
+  // El servidor no tiene la integración configurada. Sólo se sabe al intentar conectar —la clave
+  // vive en el servidor y no se filtra al cliente—, así que arranca en falso y lo enciende la
+  // respuesta del endpoint.
+  const [noHabilitado, setNoHabilitado] = useState(false)
   const [needsConsent, setNeedsConsent] = useState(evolutionEnabled && initialStatus === "none")
   const [consentChecked, setConsentChecked] = useState(false)
   const checked = useRef(false)
@@ -199,7 +203,16 @@ export function WhatsappSettings({
     setBusy(true)
     try {
       const res = await fetch("/api/whatsapp/connect", { method: "POST" })
-      const json = (await res.json()) as { setup_url?: string; error?: string }
+      const json = (await res.json()) as { setup_url?: string; error?: string; no_habilitado?: boolean }
+      // «No está habilitado en esta instalación» NO es un toast. Un toast dice «fallá y volvé a
+      // intentar», y acá no hay nada que reintentar: sin `KAPSO_API_KEY` en el servidor el botón no
+      // va a funcionar nunca. Se queda escrito en la pantalla y el botón desaparece, que es lo que
+      // ya hace Correo cuando Composio no está configurado.
+      if (res.status === 503 && json.no_habilitado) {
+        setNoHabilitado(true)
+        setBusy(false)
+        return
+      }
       if (!res.ok || !json.setup_url) throw new Error(json.error ?? `HTTP ${res.status}`)
       window.location.href = json.setup_url // el QR vive en la página hosteada de Kapso
     } catch (e) {
@@ -382,7 +395,25 @@ export function WhatsappSettings({
           </Button>
         </div>
       )}
-      {!qr && (
+      {/* ── LO QUE ANTES ERA UN TOAST QUE SE IBA ────────────────────────────────────────────────
+          Sin la integración configurada en el servidor, el vet apretaba «Conectar WhatsApp», veía
+          un mensaje rojo unos segundos y volvía a un botón idéntico al de antes. Nada le decía que
+          no era él: apretaba otra vez, y otra. Esto se queda escrito y retira el botón, porque no
+          hay nada que él pueda hacer — es la misma distinción que hace Correo con Composio. */}
+      {noHabilitado && (
+        <div className="flex flex-col gap-2 rounded-lg border border-line bg-surface-2 px-3 py-2.5 text-xs text-fg-muted">
+          <p>
+            <b className="text-fg">WhatsApp todavía no está habilitado en esta instalación.</b> No es
+            algo que puedas configurar vos: cuando quede lista, vas a poder conectar el número desde
+            acá sin hacer nada más.
+          </p>
+          <p>
+            Mientras tanto el resto de Tuvetia funciona igual, y los recordatorios de cita se pueden
+            mandar por correo.
+          </p>
+        </div>
+      )}
+      {!qr && !noHabilitado && (
         <div className="flex flex-wrap items-center gap-2">
           <Button onClick={connect} disabled={busy || (evolutionEnabled && needsConsent && !consentChecked)}>
             {busy ? <Loader2 className="size-4 animate-spin" /> : <QrCode className="size-4" />}

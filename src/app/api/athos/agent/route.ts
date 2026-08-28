@@ -57,6 +57,9 @@ const BodySchema = z.object({
       z.object({ tipo: z.literal("agenda") }),
       z.object({ tipo: z.literal("comunicaciones") }),
       z.object({ tipo: z.literal("facturacion"), facturaId: z.string().uuid().nullable() }),
+      // El alta no sale de la ruta —`/bienvenida` es una URL con seis pasos adentro— así que el
+      // paso viaja acá. Se acota a 0-5: es un índice, y lo que llega del navegador no se cree.
+      z.object({ tipo: z.literal("onboarding"), paso: z.number().int().min(0).max(5) }),
       z.object({ tipo: z.literal("general") }),
     ])
     .nullable()

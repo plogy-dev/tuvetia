@@ -376,7 +376,7 @@ export function CreateAppointmentDrawer({
               {ownerMismatch && <FieldDescription className="text-destructive">{ownerMismatch}</FieldDescription>}
             </Field>
             )}
-            <div className={esBloqueo ? "grid grid-cols-1 gap-4" : "grid grid-cols-2 gap-4"}>
+            <div className={esBloqueo ? "grid grid-cols-1 gap-4" : "grid grid-cols-2 gap-4 [&>*]:min-w-0"}>
               {!esBloqueo && (
               <Field>
                 <FieldLabel htmlFor="appt-owner">Titular</FieldLabel>

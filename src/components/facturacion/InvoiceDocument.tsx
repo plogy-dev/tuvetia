@@ -209,6 +209,13 @@ export const INVOICE_DOC_STYLES = `
     font-size: 0.9rem; font-weight: 500; cursor: pointer;
   }
   .print-button:hover { opacity: 0.9; }
+  /* La salida de la pestaña nueva. Va primero en la barra y en tono secundario: el diálogo de
+     impresión ya se abrió solo, así que quien sigue leyendo esta fila es el que NO venía a imprimir. */
+  .print-toolbar-volver {
+    color: var(--ink-soft); font-size: 0.9rem; text-decoration: none;
+    padding: 0.6rem 0.75rem 0.6rem 0; white-space: nowrap;
+  }
+  .print-toolbar-volver:hover { color: var(--ink); text-decoration: underline; }
   .print-toolbar-help { margin: 0; color: var(--ink-soft); font-size: 0.85rem; }
 
   .public-note {
@@ -254,13 +261,13 @@ export const INVOICE_DOC_STYLES = `
     color: var(--ink-faint); border-bottom: 1px solid var(--line); padding: 0.4rem 0.5rem;
   }
   .lines td { border-bottom: 1px solid #eee; padding: 0.45rem 0.5rem; vertical-align: top; }
-  .lines .num { text-align: right; white-space: nowrap; }
+  .lines .num { text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
 
   .totals { display: flex; justify-content: flex-end; margin-top: 0.75rem; }
   .totals dl { margin: 0; min-width: 240px; }
   .totals dl div { display: flex; justify-content: space-between; gap: 2rem; padding: 0.15rem 0.5rem; }
   .totals dt { color: var(--ink-soft); }
-  .totals dd { margin: 0; }
+  .totals dd { margin: 0; font-variant-numeric: tabular-nums; }
   .totals .grand { border-top: 2px solid var(--ink); margin-top: 0.3rem; padding-top: 0.4rem; font-weight: 700; font-size: 1.05rem; }
 
   .doc-footer {

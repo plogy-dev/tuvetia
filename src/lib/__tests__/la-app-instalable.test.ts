@@ -99,3 +99,82 @@ describe("el alcance lite dice, no esconde", () => {
     expect(login).toContain('autoComplete="one-time-code"')
   })
 })
+
+describe("las instrucciones de instalar no se rompen antes del paso 2", () => {
+  /**
+   * ── «NO ES CLARO AÚN» (Felipe, 27-ago) ────────────────────────────────────────────────────────
+   *
+   * Tres cosas hacían fallar al vet ANTES de llegar al segundo paso, y ninguna se decía:
+   *
+   *   1. El primer paso lo mandaba a abrir la URL EN LA QUE YA ESTABA leyendo.
+   *   2. En iPhone fuera de Safari no hay nada que hacer —«Añadir a pantalla de inicio» no existe
+   *      en Chrome ni Firefox de iOS— y eso viajaba entre paréntesis. Seguía los tres pasos, no
+   *      encontraba el botón, y concluía que la app no funciona.
+   *   3. Nadie contaba que al abrir el icono la app pide entrar otra vez. Eso se lee como que la
+   *      instalación falló.
+   */
+  const tarjeta = readFileSync(
+    join(process.cwd(), "src", "components", "movil", "instalar-app.tsx"),
+    "utf8",
+  )
+  const sinComentarios = tarjeta
+    .replace(/\{\/\*[\s\S]*?\*\/\}/g, "")
+    .replace(/\/\*[\s\S]*?\*\//g, "")
+    .replace(/^\s*\/\/.*$/gm, "")
+
+  it("distingue Safari de los otros navegadores de iPhone", () => {
+    // En iOS todos los navegadores usan WebKit y dicen «Safari» en su UA: lo que los delata es su
+    // propia marca. Sin esto, Chrome de iPhone recibe pasos que no puede seguir.
+    expect(sinComentarios).toMatch(/CriOS/)
+    expect(sinComentarios).toMatch(/FxiOS/)
+    expect(sinComentarios).toContain("ios-otro")
+  })
+
+  it("y en ese caso NO da pasos: avisa", () => {
+    const i = sinComentarios.indexOf('plataforma === "ios-otro"')
+    expect(i, "no existe la rama del navegador equivocado").toBeGreaterThan(-1)
+    const rama = sinComentarios.slice(i, i + 900)
+    expect(rama).toMatch(/sólo Safari|solo Safari/i)
+    // Lo importante es que no cargue la culpa en el producto: es una limitación de iOS.
+    expect(rama).toMatch(/de iOS|limitación de Tuvetia/i)
+  })
+
+  it("ningún paso empieza mandando a abrir la URL en la que ya estás", () => {
+    // El vet lee esto DESDE el teléfono, en la app. «Abrí tuvetia.vercel.app» ya está cumplido, y
+    // leerlo hace dudar de si uno está en el lugar correcto.
+    const i = sinComentarios.indexOf("const PASOS")
+    const bloque = sinComentarios.slice(i, sinComentarios.indexOf("}", sinComentarios.indexOf("android:")) + 400)
+    expect(bloque).not.toMatch(/Abrí .*\.app|Abrí .*\.com/)
+  })
+
+  it("cada paso dice DÓNDE está el botón, no sólo cuál es", () => {
+    // «Tocá el botón Compartir» no ayuda a quien no sabe cuál es. El `donde` es el arreglo.
+    expect(sinComentarios).toMatch(/donde\?: string/)
+    expect(sinComentarios).toMatch(/barra de ABAJO/i)
+  })
+
+  it("dice qué pasa al abrir el icono la primera vez", () => {
+    // La app instalada abre en su propia sesión: no hereda la del navegador.
+    expect(sinComentarios).toMatch(/c[oó]digo de seis d[ií]gitos/i)
+  })
+
+  it("desde el computador no da pasos que no se pueden seguir ahí", () => {
+    const i = sinComentarios.indexOf('plataforma === "escritorio"')
+    expect(i, "no existe la rama de escritorio").toBeGreaterThan(-1)
+    expect(sinComentarios.slice(i, i + 900)).toMatch(/desde el tel[eé]fono/i)
+  })
+
+  it("el QR lo genera el servidor, no el cliente", () => {
+    // `qrcode` pesa; meterlo al bundle por una imagen que se mira una vez sería caro. La tarjeta lo
+    // recibe ya renderizado.
+    expect(sinComentarios).toMatch(/qrSvg\?: string \| null/)
+    expect(sinComentarios).not.toMatch(/from ["']qrcode["']/)
+    const pagina = readFileSync(
+      join(process.cwd(), "src", "app", "dashboard", "administracion", "clinica", "page.tsx"),
+      "utf8",
+    )
+    expect(pagina).toMatch(/QRCode\.toString\(/)
+    // Y un fallo generándolo no puede tumbar Configuración entera.
+    expect(pagina).toMatch(/\.catch\(\(\) => null\)/)
+  })
+})

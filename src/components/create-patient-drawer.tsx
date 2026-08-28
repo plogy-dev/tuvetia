@@ -305,7 +305,7 @@ export function CreatePatientDrawer({
                 required
               />
             </Field>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-2 gap-4 [&>*]:min-w-0">
               <Field>
                 <FieldLabel htmlFor="patient-species">Especie</FieldLabel>
                 <Input
@@ -434,7 +434,7 @@ export function CreatePatientDrawer({
                     required={ownerId === NEW_OWNER}
                   />
                 </Field>
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-2 gap-4 [&>*]:min-w-0">
                   <Field>
                     <FieldLabel htmlFor="owner-phone">Teléfono</FieldLabel>
                     <Input
