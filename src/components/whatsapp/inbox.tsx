@@ -181,16 +181,38 @@ export function WhatsappInbox({
   initialMessages,
   owners,
   clinicPhone,
+  contactoInicial,
+  borradorInicial,
 }: {
   initialMessages: InboxMessage[]
   owners: InboxOwner[]
   clinicPhone: string
+  /** Contacto con el que abrir la conversación, en dígitos. Viene de `?para=` en la URL.
+   *  Se llama `contactoInicial` y no `telefonoInicial` porque ese nombre ya es de otro prop en
+   *  este mismo archivo (el de `CreateOwnerDrawer`, más abajo), y dos cosas distintas con el
+   *  mismo nombre a 400 líneas de distancia es una trampa. */
+  contactoInicial?: string | null
+  /** Texto ya escrito en la caja, sin enviar. Viene de `?texto=` en la URL. */
+  borradorInicial?: string | null
 }) {
   const [supabase] = useState(() => createClient())
   const [messages, setMessages] = useState<InboxMessage[]>(initialMessages)
   const router = useRouter()
-  const [selected, setSelected] = useState<string | null>(null) // teléfono (dígitos) del contacto
-  const [draft, setDraft] = useState("")
+  // ── ABRIR LA BANDEJA YA APUNTANDO A ALGUIEN ─────────────────────────────────────────────────
+  //
+  // David, 28-ago: «emitir factura por whatsapp abre whatsapp web y no comunicaciones; debería
+  // llegar a comunicaciones con el formato».
+  //
+  // Tenía razón, y no es sólo comodidad. Un `wa.me` saca al vet de Tuvetia, abre el WhatsApp
+  // PERSONAL del navegador —no el número de la clínica— y el mensaje que se manda desde ahí no
+  // existe para la app: no queda en `whatsapp_messages`, no aparece en el hilo del titular y no
+  // cuenta como entrega de la factura. Traerlo a la bandeja hace que el envío salga del número de
+  // la clínica y quede registrado.
+  //
+  // El borrador se PRE-ESCRIBE, no se envía: el vet lo lee y aprieta enviar. Es la misma regla que
+  // ya rige las sugerencias de VetGPT en esta pantalla.
+  const [selected, setSelected] = useState<string | null>(contactoInicial || null) // teléfono (dígitos)
+  const [draft, setDraft] = useState(borradorInicial ?? "")
   const [sending, setSending] = useState(false)
   const [suggesting, setSuggesting] = useState(false)
   const [showNew, setShowNew] = useState(false)

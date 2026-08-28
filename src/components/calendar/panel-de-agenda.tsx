@@ -104,8 +104,14 @@ export function PanelDeAgenda({
                 ? "Al titular se le avisa al agendar y antes de la cita."
                 : "Apagados: el titular no recibe aviso de sus citas."}
             </p>
+            {/* CON `?tab=agenda` Y ANCLA, no a la puerta del edificio.
+                David, 28-ago: «no queda claro, redirige a ajustes pero no a la parte específica».
+                Tenía razón: sin el parámetro, la página cae en su primera pestaña («Clínica») y el
+                interruptor que se acaba de prometer está en la TERCERA. El propio archivo de
+                destino ya documenta el mecanismo —«con `?tab=agenda` el enlace aterriza donde
+                dice»— y este enlace era el que no lo usaba. El `#` deja la tarjeta a la vista. */}
             <Link
-              href="/dashboard/administracion/clinica"
+              href="/dashboard/administracion/clinica?tab=agenda#avisos-de-citas"
               className="mt-1.5 inline-block text-[12px] font-medium text-brand-text hover:underline"
             >
               {avisosActivos ? "Cambiar" : "Encender"}
