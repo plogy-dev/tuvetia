@@ -437,6 +437,19 @@ export default function NotaConsultaPage({ params }: { params: Promise<{ id: str
     }
   }
 
+  // ── ESTE `useMemo` VA ARRIBA DE LOS EARLY-RETURN, Y NO ES UN DETALLE DE ESTILO ─────────────
+  //
+  // Estaba más abajo, después de los `return` de «cargando» y «no se pudo cargar». Un hook después
+  // de un return condicional NO se ejecuta en los renders que salen antes, así que React ve un
+  // número distinto de hooks entre un render y el siguiente y LANZA: «Rendered more hooks than
+  // during the previous render». Y pasa en el camino normal, no en uno raro — la pantalla empieza
+  // en `loading` y sale de ahí en cuanto `load()` responde.
+  //
+  // El comentario original decía que corría «ANTES del early-return del cockpit», y contra ése sí
+  // estaba antes; los dos de carga se agregaron después y quedaron por encima sin que nadie lo
+  // notara. Subirlo lo pone antes de los tres.
+  const turns = useMemo(() => parseTranscript(transcript), [transcript])
+
   if (loading) {
     return (
       <div className="flex items-center justify-center gap-2 px-4 py-16 text-muted-foreground">
@@ -470,10 +483,6 @@ export default function NotaConsultaPage({ params }: { params: Promise<{ id: str
   // desconocido, igual que el default de la columna: una nota vieja no puede volverse dudosa sola.
   const banda = bandaDeEvidencia(note?.evidence_level)
   const aviso = avisoDeEvidencia(banda)
-  // Memoizado por transcript: corre ANTES del early-return del cockpit, así que sin memo se
-  // re-parseaba la transcripción completa en cada render de la página.
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  const turns = useMemo(() => parseTranscript(transcript), [transcript])
   const pet = consultation?.patient
   const initial = (pet?.name ?? "?").charAt(0).toUpperCase()
 

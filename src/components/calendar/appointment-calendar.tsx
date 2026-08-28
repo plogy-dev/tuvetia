@@ -5,7 +5,7 @@
 // RLS de la BD aísla por clínica; las mutaciones de refs pasan por RPC (create/update_appointment),
 // mover/redimensionar por UPDATE directo (solo cambia horas → seguro bajo RLS).
 
-import { useCallback, useMemo, useRef, useState, type ComponentType } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState, type ComponentType } from "react"
 import {
   Calendar,
   dateFnsLocalizer,
@@ -327,8 +327,19 @@ export function AppointmentCalendar({
     },
     [loadRange],
   )
+  // EL REF SE ACTUALIZA EN UN EFECTO, NO DURANTE EL RENDER.
+  //
+  // Escribirlo en el cuerpo del componente es lo que `react-hooks/refs` rechaza, y con motivo: un
+  // render puede descartarse o repetirse, y una escritura ahí se pierde o se duplica sin aviso.
+  //
+  // Acá el cambio es seguro porque `dateRef` sólo lo LEE `cambiarVista`, que corre desde el clic
+  // del toolbar — o sea después de que los efectos ya se aplicaron. El patrón es el de «ref con el
+  // último valor», que existe justamente para darle a un callback estable acceso a un estado
+  // fresco sin meterlo en sus dependencias.
   const dateRef = useRef(date)
-  dateRef.current = date
+  useEffect(() => {
+    dateRef.current = date
+  }, [date])
   // TODO cambio de vista pasa por acá, no por la librería: «programador» no existe para RBC — su
   // `handleViewChange` lo rechazaba contra `views` y el botón quedaba MUERTO (y de paso lanzaba un
   // TypeError buscando `views["programador"].range`). Interceptar en el toolbar propio es lo único
