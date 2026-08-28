@@ -40,6 +40,17 @@ vi.mock("@/lib/email/transactional", () => ({
 }))
 
 import { POST } from "@/app/api/team/invite-email/route"
+import { textoDelCorreo } from "@/lib/email/maqueta"
+
+/**
+ * El correo tal como lo lee quien está en modo texto plano.
+ *
+ * Se afirma sobre ESTO y no sobre el HTML crudo a propósito. Desde que el correo sale maquetado, la
+ * alternativa `text/plain` ya no se escribe: la deriva el transporte de este mismo HTML. Mirar el
+ * fuente diría que el enlace está en un `href` —y un `href` no sobrevive a la derivación—; mirar el
+ * texto derivado dice que el invitado puede efectivamente copiarlo.
+ */
+const enTexto = () => textoDelCorreo(sendTransactionalEmail.mock.calls[0][1].html)
 
 const pedir = (body: unknown) =>
   POST(
@@ -73,31 +84,48 @@ describe("el correo que recibe el invitado", () => {
 
   it("lleva el enlace de aceptación con el token", async () => {
     await pedir({ token: "tok-9" })
-    const { text } = sendTransactionalEmail.mock.calls[0][1]
-    expect(text).toContain("https://app.tuvetia.com/invitar/tok-9")
+    const { html } = sendTransactionalEmail.mock.calls[0][1]
+    expect(html).toContain('href="https://app.tuvetia.com/invitar/tok-9"')
+  })
+
+  it("el enlace se puede COPIAR, no sólo apretar", async () => {
+    // Un `href` desaparece al derivar el texto plano, y hay clientes que además se comen el botón.
+    // Sin la dirección escrita, el correo queda diciendo "aceptá acá" sin ningún "acá" — y el
+    // enlace es el camino garantizado de este flujo, no un adorno.
+    await pedir({ token: "tok-9" })
+    expect(enTexto()).toContain("https://app.tuvetia.com/invitar/tok-9")
   })
 
   it("usa el dominio estable, no el efímero del deployment", async () => {
     // La petición llega a efimero-abc123.vercel.app y ese origen NO debe aparecer en el enlace:
     // un dominio de preview desaparece y se lleva la invitación con él.
     await pedir({ token: "tok-9" })
-    const { text } = sendTransactionalEmail.mock.calls[0][1]
-    expect(text).not.toContain("efimero-abc123")
+    const { html } = sendTransactionalEmail.mock.calls[0][1]
+    expect(html).not.toContain("efimero-abc123")
   })
 
   it("dice quién invita y a qué clínica", async () => {
     await pedir({ token: "tok-9" })
-    const { subject, text } = sendTransactionalEmail.mock.calls[0][1]
+    const { subject } = sendTransactionalEmail.mock.calls[0][1]
     expect(subject).toContain("Clínica Norte")
-    expect(text).toContain("Ana Ruiz")
-    expect(text).toContain("Clínica Norte")
+    expect(enTexto()).toContain("Ana Ruiz")
+    expect(enTexto()).toContain("Clínica Norte")
   })
 
   it("sin nombre del que invita, el correo sale igual", async () => {
     perfil.mockResolvedValue({ data: { clinic_id: "c-1", role: "admin", full_name: null } })
     await pedir({ token: "tok-9" })
-    const { text } = sendTransactionalEmail.mock.calls[0][1]
-    expect(text).toContain("Te invitaron a unirte al equipo de Clínica Norte")
+    expect(enTexto()).toContain("Te invitaron a unirte al equipo de Clínica Norte")
+  })
+
+  it("sale maquetado, y el texto plano NO se escribe a mano", async () => {
+    // Las dos mitades de la misma decisión. Si alguien volviera a pasar `text`, el correo tendría
+    // dos redacciones que mantener sincronizadas — y la que se lee en modo texto es justo la que
+    // nadie mira cuando cambia la otra.
+    await pedir({ token: "tok-9" })
+    const input = sendTransactionalEmail.mock.calls[0][1]
+    expect(input.html).toContain("<table")
+    expect(input.text).toBeUndefined()
   })
 })
 

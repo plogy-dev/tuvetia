@@ -30,6 +30,7 @@ import "server-only"
 
 import { createAdminClient } from "@/lib/supabase/admin"
 import { sinLosDeBaja } from "@/lib/email/baja"
+import { maquetarCorreo, parrafosDeTexto, type LineaDePie } from "@/lib/email/maqueta"
 import { loadClinicSender, sendTransactionalEmail } from "@/lib/email/transactional"
 import type { Destinatario } from "./audiencia"
 
@@ -43,15 +44,29 @@ export type ResultadoDelAviso = {
   fallidos: { email: string; error: string }[]
 }
 
-/** El pie, con el enlace propio del titular. */
-export function pieDeBaja(base: string, token: string): string {
+/**
+ * El pie, con el enlace propio del titular.
+ *
+ * Devuelve las líneas del pie de la maqueta y ya no un texto para concatenar al cuerpo. La baja va
+ * como `{ texto, url }` A PROPÓSITO: así la maqueta escribe la dirección VISIBLE además de ponerla
+ * en el `href`. Un `href` no sobrevive a la derivación del texto plano —quedaría "date de baja acá:"
+ * sin dirección—, y para este enlace eso no es una molestia de maquetado: es el derecho de
+ * revocación de la Ley 1581 desapareciendo para quien lee el correo en modo texto.
+ */
+export function pieDeBaja(base: string, token: string): LineaDePie[] {
   const url = `${base.replace(/\/$/, "")}/baja/${token}`
-  return (
-    "\n\n—\n" +
-    "Recibís este aviso porque sos cliente de la clínica.\n" +
-    `Si no querés recibir más avisos, date de baja acá: ${url}\n` +
-    "(Esto no afecta los correos sobre tus facturas.)"
-  )
+  return [
+    "Recibís este aviso porque sos cliente de la clínica.",
+    { texto: "Si no querés recibir más avisos, date de baja acá:", url },
+    "(Esto no afecta los correos sobre tus facturas.)",
+  ]
+}
+
+/** Lo que la bandeja muestra al lado del asunto: el arranque del aviso, no el asunto repetido. */
+function primerasPalabras(texto: string): string {
+  const linea = texto.replace(/\s+/g, " ").trim()
+  if (linea.length <= 140) return linea
+  return `${linea.slice(0, 139).replace(/\s+\S*$/, "")}…`
 }
 
 /**
@@ -87,13 +102,26 @@ export async function enviarAviso(
     fallidos: [],
   }
 
+  // El cuerpo lo escribe la clínica en un textarea: entra a la maqueta como DATO y ella lo escapa.
+  // Se parte en párrafos una sola vez — es igual para todos, lo único propio de cada titular es su
+  // enlace de baja.
+  const parrafos = parrafosDeTexto(cuerpo)
+  const preheader = primerasPalabras(parrafos[0] ?? asunto) || asunto
+
   for (const [i, d] of aEnviar.entries()) {
     if (i > 0) await new Promise((r) => setTimeout(r, MS_ENTRE_ENVIOS))
 
-    const texto = cuerpo.trimEnd() + pieDeBaja(baseUrl, d.token)
+    // Se maqueta DENTRO del bucle porque el pie lleva el enlace de baja propio de este titular.
+    // Armarlo una sola vez afuera haría que darse de baja diera de baja a otra persona.
+    const html = maquetarCorreo({
+      titulo: asunto,
+      preheader,
+      parrafos,
+      pie: pieDeBaja(baseUrl, d.token),
+    })
     let envio = await sendTransactionalEmail(
       clinicId,
-      { to: d.email, subject: asunto, text: texto },
+      { to: d.email, subject: asunto, html },
       remitente,
     )
     // Un reintento SÓLO si el fallo fue transitorio. Reintentar un dominio mal configurado es
@@ -102,7 +130,7 @@ export async function enviarAviso(
       await new Promise((r) => setTimeout(r, MS_ENTRE_ENVIOS * 2))
       envio = await sendTransactionalEmail(
         clinicId,
-        { to: d.email, subject: asunto, text: texto },
+        { to: d.email, subject: asunto, html },
         remitente,
       )
     }

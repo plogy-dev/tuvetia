@@ -8,6 +8,9 @@ import "server-only"
 // notificaciones). No reemplaza al SMTP por cuenta: ese sigue siendo el de la bandeja personal de
 // cada miembro. La diferencia está explicada en CORREOS.md.
 
+import { pareceHtml } from "./html-a-texto"
+import { textoDelCorreo } from "./maqueta"
+
 const API = "https://api.resend.com/emails"
 
 export interface ResendInput {
@@ -15,8 +18,33 @@ export interface ResendInput {
   from: string
   to: string | string[]
   subject: string
-  text: string
-  html?: string | null
+  /**
+   * El correo, en HTML. **Obligatorio.** Se arma con `maquetarCorreo` (maqueta.ts).
+   *
+   * ── POR QUÉ ES OBLIGATORIO Y NO "acordarse de pasarlo" ──────────────────────────────────────
+   *
+   * Hasta hoy esto era al revés: `text` obligatorio, `html` opcional. Y el resultado medido fue que
+   * NINGÚN sitio de envío pasaba `html`: la invitación al equipo, la factura, la cobranza, el aviso
+   * a titulares y el masivo de plataforma salían todos en texto plano. No por decisión de nadie —
+   * simplemente porque el camino corto era el que dejaba el tipo.
+   *
+   * Dado vuelta, un correo en texto plano deja de ser POSIBLE en vez de depender de que nadie se
+   * olvide. Es la diferencia entre una convención y una garantía: la convención se sostiene mientras
+   * alguien la recuerde en cada archivo nuevo, la garantía la revisa el compilador. Ésa es la
+   * decisión de fondo de todo este cambio.
+   */
+  html: string
+  /**
+   * La alternativa `text/plain` del MISMO mensaje. Si no viene, se deriva del `html`.
+   *
+   * NO ES UN RESTO QUE QUEDÓ: sigue viajando en cada correo. Es lo que exige un mensaje bien formado
+   * (multipart/alternative), lo que leen los lectores de pantalla y los clientes en modo texto, y lo
+   * que mira un filtro de spam cuando decide si un correo sólo-HTML es sospechoso. Lo que cambió es
+   * que se DERIVA en vez de escribirse a mano, así no puede quedar diciendo algo distinto del HTML.
+   *
+   * Se pasa a mano sólo cuando la derivación no sirve para ese correo puntual.
+   */
+  text?: string | null
   /** A dónde responde el destinatario. Acá va el correo de la clínica, no el de Tuvetia. */
   replyTo?: string | string[] | null
   /** Message-ID propio, para poder reconocer después las respuestas a este correo. */
@@ -59,6 +87,17 @@ export async function sendViaResend(input: ResendInput): Promise<ResendResult> {
     }
   }
 
+  // El tipo ya obliga a que haya `html`, pero nada obliga a que sea HTML: un `html: "Hola,\n\n…"`
+  // compila igual y llega sin maquetar. No se corrige en silencio —adivinar qué quiso mandar el que
+  // llama es peor— pero queda dicho en el log, que es donde se mira cuando un correo llega feo.
+  if (!pareceHtml(input.html)) {
+    console.warn("[email/resend] el `html` no parece HTML: ¿se armó con `maquetarCorreo`?")
+  }
+
+  // La alternativa en texto se deriva del HTML: un solo original, dos formas de leerlo. Escribirla
+  // aparte es lo que produce el correo cuyo texto plano dice una cosa y cuyo HTML dice otra.
+  const texto = input.text?.trim() || textoDelCorreo(input.html)
+
   try {
     const res = await fetch(API, {
       method: "POST",
@@ -67,8 +106,8 @@ export async function sendViaResend(input: ResendInput): Promise<ResendResult> {
         from: input.from,
         to: Array.isArray(input.to) ? input.to : [input.to],
         subject: input.subject,
-        text: input.text,
-        ...(input.html ? { html: input.html } : {}),
+        html: input.html,
+        text: texto,
         ...(input.replyTo ? { reply_to: input.replyTo } : {}),
         ...(input.headers ? { headers: input.headers } : {}),
       }),
