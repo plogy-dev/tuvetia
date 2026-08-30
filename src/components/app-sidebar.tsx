@@ -79,6 +79,13 @@ const data = {
     { title: "Pacientes", url: "/dashboard/patients", icon: <UsersIcon /> },
     { title: "Agenda", url: "/dashboard/calendario", icon: <CalendarIcon /> },
     { title: "Ventas", url: "/dashboard/facturacion", icon: <ReceiptIcon /> },
+    // ADMINISTRACIÓN CON RÓTULO, DESPUÉS DE VENTAS (28-ago). David: «el panel de admin lo
+    // tuviéramos a la izquierda, como otra vainita»; Luciano: «me parece que está bien
+    // escondido» — y lo estaba: un icono de 32px sin rótulo en la fila de accesos de abajo.
+    // El icono de abajo NO se quita (los tests de la fila de accesos y del tour anclan a esa
+    // estructura); esto es la puerta con nombre. El porqué de las condiciones de 'soloAdmin'
+    // está documentado en el tipo NavItem, en nav-main.
+    { title: "Administración", url: "/dashboard/administracion", icon: <ShieldIcon />, soloAdmin: true },
     { title: "Comunicaciones", url: "/dashboard/comunicaciones", icon: <MessageCircleIcon /> },
   ],
   // «CONEXIONES» SE FUE DE ACÁ, y con otro nombre. David lo pidió el 12-ago: «el tema de
