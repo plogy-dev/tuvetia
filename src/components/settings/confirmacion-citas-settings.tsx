@@ -28,7 +28,7 @@ import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
 import { guardarConfirmacionDeCitas } from "@/lib/citas/actions"
 import { HUECOS_DE_CITA, LARGO_MAXIMO, revisarTexto } from "@/lib/citas/recordatorio"
-import { TEXTO_POR_DEFECTO_CONFIRMACION } from "@/lib/citas/textos"
+import { PRESETS_CONFIRMACION, TEXTO_POR_DEFECTO_CONFIRMACION } from "@/lib/citas/textos"
 
 export function ConfirmacionCitasSettings({
   activoInicial,
@@ -86,6 +86,22 @@ export function ConfirmacionCitasSettings({
             <span className="font-mono text-[11px] tabular-nums text-fg-faint">
               {texto.length}/{LARGO_MAXIMO}
             </span>
+          </div>
+          {/* Los presets rellenan, no guardan: el vet revisa y guarda con el botón de
+              siempre — ver el comentario de PRESETS_CONFIRMACION. */}
+          <div className="mb-1.5 flex flex-wrap items-center gap-1.5">
+            <span className="text-[11px] text-fg-faint">Sugerencias:</span>
+            {PRESETS_CONFIRMACION.map((p) => (
+              <button
+                key={p.nombre}
+                type="button"
+                onClick={() => setTexto(p.texto)}
+                disabled={isPending || !puedeEditar}
+                className="rounded-full border border-line px-2.5 py-0.5 text-[11px] text-fg-muted transition-colors hover:border-brand hover:text-brand-text disabled:opacity-50"
+              >
+                {p.nombre}
+              </button>
+            ))}
           </div>
           <Textarea
             id="texto-confirmacion"
