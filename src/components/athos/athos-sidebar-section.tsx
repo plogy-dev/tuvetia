@@ -68,8 +68,13 @@ export function AthosSidebarSection() {
   const pathname = usePathname()
   const router = useRouter()
   const searchParams = useSearchParams()
-  const visible =
-    pathname.startsWith("/dashboard/asistente") || pathname.startsWith("/dashboard/consultas")
+  // EN TODO EL DASHBOARD, no en dos pantallas (28-ago, David: «eso debería aparecer siempre»,
+  // Felipe: «que persista 100%»). Antes esto era
+  // `pathname.startsWith("/dashboard/asistente") || pathname.startsWith("/dashboard/consultas")`
+  // — y la puerta de entrada es el TABLERO, y la PWA abre en el CALENDARIO. O sea que David
+  // entraba, no veía su historial, y concluía —razonablemente— que se le había borrado. El panel
+  // ni siquiera estaba en el DOM de la pantalla en la que él estaba parado.
+  const visible = pathname.startsWith("/dashboard")
 
   const [tab, setTab] = useState<"consultas" | "chats">("consultas")
   // `useSyncExternalStore` Y NO `useState` + `useEffect`. Las dos evitan el error de hidratación
@@ -80,6 +85,11 @@ export function AthosSidebarSection() {
   const [q, setQ] = useState("")
   const [consultas, setConsultas] = useState<Item[] | null>(null)
   const [chats, setChats] = useState<Item[] | null>(null)
+  // Un fallo de carga NO puede pintarse como lista vacía. Con la sesión caída, las consultas
+  // devuelven 401 y el `?? []` de abajo lo convertía en «Todavía no hay consultas» — que es
+  // exactamente lo que David reportó como «se me perdieron». Perder datos y no poder leerlos
+  // son problemas distintos, y la pantalla tiene que distinguirlos.
+  const [fallo, setFallo] = useState(false)
   // Sube cuando "Deshacer" restaura un chat: fuerza la recarga de la lista sin navegar.
   const [refresco, setRefresco] = useState(0)
 
@@ -125,6 +135,14 @@ export function AthosSidebarSection() {
         supabase.from("patients").select("id, name").limit(500),
       ])
       if (!vivo) return
+
+      // Con CUALQUIERA de las cuatro consultas en error, el panel lo dice en vez de mentir un
+      // vacío. Las cuatro juntas: si falla una (típicamente por sesión vencida) fallan todas.
+      if (cons.error || msgsPacientes.error || msgsGenerales.error || pts.error) {
+        setFallo(true)
+        return
+      }
+      setFallo(false)
 
       const filasCons =
         (cons.data as unknown as
@@ -347,7 +365,11 @@ export function AthosSidebarSection() {
           ))}
         </div>
 
-        {activos === null ? (
+        {fallo ? (
+          <p className="px-2 py-3 text-xs leading-relaxed text-muted-foreground">
+            No se pudo cargar el historial. Recarga la página — y si sigue igual, vuelve a entrar.
+          </p>
+        ) : activos === null ? (
           <p className="px-2 py-3 text-xs text-muted-foreground">Cargando…</p>
         ) : items.length === 0 ? (
           <p className="px-2 py-3 text-xs leading-relaxed text-muted-foreground">

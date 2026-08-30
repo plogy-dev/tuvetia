@@ -27,7 +27,12 @@ import {
 import { PanelLeftIcon } from "lucide-react"
 
 const SIDEBAR_COOKIE_NAME = "sidebar_state"
-const SIDEBAR_COOKIE_MAX_AGE = 60 * 60 * 24 * 7
+// 400 DÍAS Y NO 7 (28-ago). Con una semana, quien abrió la barra la reencontraba colapsada —
+// y colapsada, el historial de consultas es `display:none`. Era una de las capas del «se me
+// pierden las consultas» de David: su elección expiraba sola. 400 días es el techo que los
+// navegadores le permiten a una cookie (y el mismo que usa la de sesión de Supabase); la
+// preferencia dura lo que dura el navegador del usuario, que es lo que una preferencia promete.
+const SIDEBAR_COOKIE_MAX_AGE = 60 * 60 * 24 * 400
 // 232px, MEDIDO DEL PROTOTIPO DEL CLIENTE (`landing-tuvetia`, `app/Sidebar.tsx`), no elegido.
 // Eran 16rem = 256px: 24px de más en la barra que está en TODAS las pantallas, y esos 24px salen
 // del área de trabajo. En la agenda y en las listas de ocho columnas es donde se nota.
