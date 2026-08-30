@@ -11,6 +11,7 @@ import "server-only"
 // recuento en vez de lanzar, y acá se acumula lo que devuelva.
 
 import { createAdminClient } from "@/lib/supabase/admin"
+import { direccionDeLaClinica } from "@/lib/agenda/destinatarios"
 import { barrerRecordatoriosDeCita, type ResultadoDelBarrido } from "./barrido"
 
 export async function correrRecordatoriosDeCita(
@@ -19,7 +20,8 @@ export async function correrRecordatoriosDeCita(
   const admin = createAdminClient()
   const { data, error } = await admin
     .from("clinics")
-    .select("id, name, recordatorio_citas_activo, recordatorio_citas_horas, recordatorio_citas_texto")
+    // `address, city` para el link de «cómo llegar» del recordatorio (28-ago).
+    .select("id, name, address, city, recordatorio_citas_activo, recordatorio_citas_horas, recordatorio_citas_texto")
     .eq("recordatorio_citas_activo", true)
   if (error) throw new Error(`No se pudieron leer las clínicas: ${error.message}`)
 
@@ -29,6 +31,8 @@ export async function correrRecordatoriosDeCita(
     recordatorio_citas_activo: boolean
     recordatorio_citas_horas: number
     recordatorio_citas_texto: string | null
+    address: string | null
+    city: string | null
   }[]
 
   const resultados: ResultadoDelBarrido[] = []
@@ -41,6 +45,7 @@ export async function correrRecordatoriosDeCita(
           activo: c.recordatorio_citas_activo,
           horas: c.recordatorio_citas_horas,
           texto: c.recordatorio_citas_texto,
+          direccion: direccionDeLaClinica(c),
         },
         ahora,
       ),

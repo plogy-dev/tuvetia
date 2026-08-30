@@ -101,7 +101,8 @@ export function ConfirmacionCitasSettings({
             {/* LOS HUECOS SE ENUMERAN, no se dejan adivinar: escribir `{mascota}` en vez de
                 `{paciente}` produce un mensaje que sale literal al cliente. */}
             Podés usar {HUECOS_DE_CITA.map((h) => `{${h}}`).join(", ")}. Vacío = el texto por
-            defecto.
+            defecto. Debajo del mensaje van solos los links de «📅 agregar al calendario» y
+            «📍 cómo llegar» — no hace falta escribirlos.
           </p>
           {problema && <p className="mt-1 text-xs text-warn">{problema}</p>}
         </div>

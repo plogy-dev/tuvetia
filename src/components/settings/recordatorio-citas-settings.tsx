@@ -183,6 +183,11 @@ export function RecordatorioCitasSettings({
               <p className="mt-1 text-xs text-muted-foreground">
                 <span className="font-medium">Se verá así:</span>{" "}
                 {llenarTexto(texto.trim() || TEXTO_POR_DEFECTO, MUESTRA)}
+                {/* El bloque de links lo anexa la app, no la plantilla — se avisa para que el
+                    vet no lo escriba a mano y salga dos veces (28-ago). */}
+                <span className="mt-0.5 block text-fg-faint">
+                  + 📍 «Cómo llegar» con la dirección de la clínica (si está cargada en Ajustes).
+                </span>
               </p>
             )}
           </div>
