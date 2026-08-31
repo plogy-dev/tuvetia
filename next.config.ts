@@ -28,10 +28,33 @@ const nextConfig: NextConfig = {
   // rechaza: «The deploymentId "…" must be 32 characters or less». O sea que el error no aparece
   // en `next build` local, sólo allá, y por eso se subió roto.
   //
-  // 16 hexadecimales son 64 bits: de sobra para que dos despliegues no colisionen, y bien lejos
-  // del tope. `slice` es determinista, así que el id sigue siendo idéntico en el build y en el
-  // servidor — que es la condición sin la cual esto haría recargar en bucle.
-  deploymentId: process.env.VERCEL_GIT_COMMIT_SHA?.slice(0, 16),
+  // ── Y DESPUÉS TUMBÓ UNO MÁS, POR LA RAZÓN CONTRARIA (31-ago) ──────────────────────────────
+  //
+  // El id salía del SHA del commit y de nada más, así que **dos despliegues del MISMO commit
+  // producían el mismo id** — y Vercel los rechaza: «A deployment with the user-configured
+  // deploymentId "…" already exists in this project. User-configured deployment IDs must be
+  // unique per project». El build entero pasa y revienta recién al desplegar, igual que la vez
+  // del largo.
+  //
+  // No es un caso raro. Se dispara con:
+  //   · el botón **Redeploy** del panel (mismo commit, segundo despliegue),
+  //   · promover un preview a producción,
+  //   · empujar el mismo commit a dos ramas —así apareció: `consolidacion` y `master` a la vez—.
+  //
+  // El comentario de arriba decía «64 bits, de sobra para que dos despliegues no colisionen», y
+  // ahí estaba el error de razonamiento: el problema nunca fue que dos hashes distintos chocaran,
+  // sino que el mismo commit **no cambia de hash**. Lo que Vercel pide es un id único por
+  // DESPLIEGUE, y el commit identifica el código, no el despliegue.
+  //
+  // `VERCEL_DEPLOYMENT_ID` es exactamente eso y Vercel lo expone en el build. El SHA queda de
+  // respaldo por si esa variable no estuviera: sin ella se vuelve al comportamiento anterior
+  // —que funciona para todo commit nuevo— en vez de quedarse sin protección de skew, que es el
+  // defecto que trajo a David mirando la app de hace horas.
+  //
+  // Sigue recortado por el tope de 32 de Vercel, y sigue siendo determinista dentro de un mismo
+  // build: el id es idéntico en el bundle y en el servidor, que es la condición sin la cual esto
+  // haría recargar en bucle.
+  deploymentId: (process.env.VERCEL_DEPLOYMENT_ID ?? process.env.VERCEL_GIT_COMMIT_SHA)?.slice(0, 32),
 
   // LOS `.md` DE LA DOCUMENTACIÓN TIENEN QUE VIAJAR AL DESPLIEGUE.
   //
