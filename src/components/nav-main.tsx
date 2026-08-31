@@ -25,12 +25,13 @@ export type NavItem = {
   url: string
   icon?: React.ReactNode
   /**
-   * El ítem sólo se pinta para admins de la clínica, y sólo con la barra EXPANDIDA.
+   * El ítem sólo se pinta para admins de la clínica («los permisos los tienen los admins», 28-ago).
    *
-   * Las dos condiciones vienen juntas a propósito (28-ago, «Administración» tras Ventas): el rol
-   * porque los permisos de ese panel los tienen los admins; y lo de la barra colapsada porque ahí
-   * cada fila extra empuja «Iniciar consulta» fuera de una columna de 48px que no scrollea — y en
-   * ese modo ya existe el icono de Administración en la fila de accesos de abajo.
+   * Hasta el 31-ago también se escondía con la barra colapsada, porque en ese modo existía el
+   * icono de Administración en la fila de accesos. Esa fila perdió el icono —David pidió UNA
+   * puerta— así que éste es ahora el único camino y aparece en los dos modos. El costo es una
+   * fila más en la columna colapsada, sólo para admins; la barra en modo icono scrollea desde
+   * el 26-ago, así que nada queda inalcanzable.
    */
   soloAdmin?: boolean
 }
@@ -90,10 +91,7 @@ function Items({ items, grupo }: { items: NavItem[]; grupo: "consulta" | "crm" }
       {items
         .filter((item) => !item.soloAdmin || esAdmin)
         .map((item) => (
-        <SidebarMenuItem
-          key={item.title}
-          className={item.soloAdmin ? "group-data-[collapsible=icon]:hidden" : undefined}
-        >
+        <SidebarMenuItem key={item.title}>
           {/* `<Link>` Y NO `<a href>`, Y NO ES COSMÉTICO — ver el comentario largo de `NavMain`.
               Un ancla cruda a una ruta interna recarga el documento entero y mata la grabación
               en curso.

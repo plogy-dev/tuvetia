@@ -104,9 +104,10 @@ const data = {
   // que el vet pueda ver.
   navSecondary: [
     { title: "Integraciones", url: "/dashboard/conexiones", icon: <PlugIcon /> },
-    // Administración va ANTES que Configuración porque la contiene: desde el 25-ago los ajustes de
-    // la clínica viven adentro del panel, y Configuración quedó como el atajo directo a su pestaña.
-    { title: "Administración", url: "/dashboard/administracion", icon: <ShieldIcon /> },
+    // ADMINISTRACIÓN YA NO ESTÁ EN ESTA FILA (31-ago): con el ítem con rótulo tras Ventas había
+    // DOS puertas al mismo lugar, y David pidió dejar una. Se queda la del rótulo — la de acá era
+    // un icono de 32px sin nombre que Luciano describió como «bien escondido». Configuración
+    // sigue siendo el atajo directo a los ajustes, que viven adentro del panel desde el 25-ago.
     {
       title: "Configuración",
       url: "/dashboard/administracion/clinica",
