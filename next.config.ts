@@ -28,7 +28,23 @@ function idDeDespliegue(): string | undefined {
   } else {
     try { id = readFileSync(archivo, "utf8").trim() || undefined; } catch { /* sin siembra: local */ }
   }
-  return id?.slice(0, 32);
+  const recortado = id?.slice(0, 32);
+  // ── EL SIDE-EFFECT NO ES UN DESCUIDO (31-ago, segunda vuelta) ──────────────────────────────
+  //
+  // La siembra del archivo arregló los contextos que evalúan ESTA función — y producción siguió
+  // sirviendo 120 refs con `undefined`. El discriminador fue comparar páginas: /producto
+  // (marketing) salía perfecta y /login y /f/* mezcladas. La diferencia no es build-vs-runtime:
+  // es que parte de los assets del flight payload se generan leyendo `process.env.NEXT_DEPLOYMENT_ID`
+  // DIRECTO, sin pasar por la config. `next build`/`next start` locales setean ese env desde la
+  // config y por eso local siempre dio limpio; en el pipeline de Vercel hay procesos donde nadie
+  // lo setea, y un template literal interpola `undefined` como texto.
+  //
+  // Setearlo acá cubre todo proceso que evalúe la config (el build y sus workers, que heredan el
+  // env); `instrumentation.ts` lo setea para el runtime de las funciones, que no ejecuta esta
+  // función. Los dos juntos son el cierre; cualquiera de los dos solo deja la mitad de los assets
+  // con `undefined` — medido, no supuesto.
+  if (recortado && !process.env.NEXT_DEPLOYMENT_ID) process.env.NEXT_DEPLOYMENT_ID = recortado;
+  return recortado;
 }
 
 const nextConfig: NextConfig = {
