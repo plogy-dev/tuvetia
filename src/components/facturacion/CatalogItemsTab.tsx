@@ -12,6 +12,7 @@ import type { CatalogCategoryRow, CatalogItemRow, SupplierRow } from '@/lib/supa
 import { TD, TD_NUM, TH, TH_DER } from './densidad';
 import { CatalogItemForm } from './CatalogItemForm';
 import { RecipeEditor, type RecipeComponentOption } from './RecipeEditor';
+import { toast } from "sonner"
 
 /**
  * Pestaña editable de ítems (productos o servicios). Alta/edición con formulario,
@@ -56,25 +57,41 @@ export function CatalogItemsTab({
 
   function setCategory(id: string, categoryId: string) {
     startTransition(async () => {
-      const r = await setCatalogItemCategoryAction({ id, categoryId: categoryId || null });
-      // Sin esto, un fallo era invisible: el refresh revertía el <select> sin decir por qué.
-      if (!r.ok) {
-        setError(r.error);
-        return;
+      // La guarda que devuelve los botones (28-ago): si esta promesa RECHAZA —sesión vencida,
+      // red caída, o un id de Server Action viejo tras un deploy— React nunca cierra la
+      // transición e `isPending` deja los botones deshabilitados hasta recargar.
+      try {
+        const r = await setCatalogItemCategoryAction({ id, categoryId: categoryId || null });
+        // Sin esto, un fallo era invisible: el refresh revertía el <select> sin decir por qué.
+        if (!r.ok) {
+          setError(r.error);
+          return;
+        }
+        setError(null);
+        router.refresh();
+    
+      } catch (e) {
+        toast.error(`No se pudo completar la acción: ${(e as Error)?.message ?? e}`)
       }
-      setError(null);
-      router.refresh();
     });
   }
   function toggleActive(id: string, active: boolean) {
     startTransition(async () => {
-      const r = await setCatalogItemActiveAction({ id, active });
-      if (!r.ok) {
-        setError(r.error);
-        return;
+      // La guarda que devuelve los botones (28-ago): si esta promesa RECHAZA —sesión vencida,
+      // red caída, o un id de Server Action viejo tras un deploy— React nunca cierra la
+      // transición e `isPending` deja los botones deshabilitados hasta recargar.
+      try {
+        const r = await setCatalogItemActiveAction({ id, active });
+        if (!r.ok) {
+          setError(r.error);
+          return;
+        }
+        setError(null);
+        router.refresh();
+    
+      } catch (e) {
+        toast.error(`No se pudo completar la acción: ${(e as Error)?.message ?? e}`)
       }
-      setError(null);
-      router.refresh();
     });
   }
 

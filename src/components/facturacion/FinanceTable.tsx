@@ -11,6 +11,7 @@ import {
 import { deleteIncomeAction } from '@/lib/facturacion/payments/actions';
 import { financeCsv, type FinanceCsvRow } from '@/lib/facturacion/domain/finance';
 import { formatCOP } from '@/lib/facturacion/domain/money';
+import { toast } from "sonner"
 
 export interface FinanceItem {
   id: string;
@@ -47,15 +48,23 @@ export function FinanceTable({ items }: { items: FinanceItem[] }) {
     }
     setError(null);
     startTransition(async () => {
-      const r =
-        item.kind === 'EGRESO'
-          ? await deleteExpenseAction({ id: item.id })
-          : await deleteIncomeAction({ id: item.id });
-      if (!r.ok) {
-        setError(r.error);
-        return;
+      // La guarda que devuelve los botones (28-ago): si esta promesa RECHAZA —sesión vencida,
+      // red caída, o un id de Server Action viejo tras un deploy— React nunca cierra la
+      // transición e `isPending` deja los botones deshabilitados hasta recargar.
+      try {
+        const r =
+          item.kind === 'EGRESO'
+            ? await deleteExpenseAction({ id: item.id })
+            : await deleteIncomeAction({ id: item.id });
+        if (!r.ok) {
+          setError(r.error);
+          return;
+        }
+        router.refresh();
+    
+      } catch (e) {
+        toast.error(`No se pudo completar la acción: ${(e as Error)?.message ?? e}`)
       }
-      router.refresh();
     });
   }
 
@@ -68,14 +77,22 @@ export function FinanceTable({ items }: { items: FinanceItem[] }) {
     const win = window.open('about:blank', '_blank');
     if (win) win.opener = null;
     startTransition(async () => {
-      const r = await getExpenseAttachmentUrlAction({ id });
-      if (!r.ok) {
-        win?.close();
-        setError(r.error);
-        return;
+      // La guarda que devuelve los botones (28-ago): si esta promesa RECHAZA —sesión vencida,
+      // red caída, o un id de Server Action viejo tras un deploy— React nunca cierra la
+      // transición e `isPending` deja los botones deshabilitados hasta recargar.
+      try {
+        const r = await getExpenseAttachmentUrlAction({ id });
+        if (!r.ok) {
+          win?.close();
+          setError(r.error);
+          return;
+        }
+        if (win) win.location.href = r.url;
+        else window.open(r.url, '_blank', 'noopener');
+    
+      } catch (e) {
+        toast.error(`No se pudo completar la acción: ${(e as Error)?.message ?? e}`)
       }
-      if (win) win.location.href = r.url;
-      else window.open(r.url, '_blank', 'noopener');
     });
   }
 

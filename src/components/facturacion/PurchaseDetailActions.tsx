@@ -10,6 +10,7 @@ import {
   deletePurchaseDraftAction,
   reopenPurchaseAction,
 } from '@/lib/facturacion/purchases/actions';
+import { toast } from "sonner"
 
 /** Botonera del detalle de compra: confirmar (borrador), anular (confirmada), borrar (borrador). */
 export function PurchaseDetailActions({
@@ -26,13 +27,21 @@ export function PurchaseDetailActions({
   function run(fn: () => Promise<{ ok: boolean; error?: string }>, afterPath?: string) {
     setError(null);
     startTransition(async () => {
-      const r = await fn();
-      if (!r.ok) {
-        setError(r.error ?? 'Error');
-        return;
+      // La guarda que devuelve los botones (28-ago): si esta promesa RECHAZA —sesión vencida,
+      // red caída, o un id de Server Action viejo tras un deploy— React nunca cierra la
+      // transición e `isPending` deja los botones deshabilitados hasta recargar.
+      try {
+        const r = await fn();
+        if (!r.ok) {
+          setError(r.error ?? 'Error');
+          return;
+        }
+        if (afterPath) router.push(afterPath);
+        else router.refresh();
+    
+      } catch (e) {
+        toast.error(`No se pudo completar la acción: ${(e as Error)?.message ?? e}`)
       }
-      if (afterPath) router.push(afterPath);
-      else router.refresh();
     });
   }
 

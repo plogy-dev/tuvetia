@@ -11,6 +11,7 @@ import {
 } from '@/lib/facturacion/domain/finance';
 import type { SupplierRow } from '@/lib/supabase/types';
 import { InputMonedaForm } from '@/components/ui/input-moneda-form';
+import { toast } from "sonner"
 
 const METHODS = ['EFECTIVO', 'TRANSFERENCIA', 'NEQUI', 'DAVIPLATA', 'TARJETA', 'OTRO'] as const;
 
@@ -62,14 +63,22 @@ export function ExpenseForm({
     setError(null);
     const fd = new FormData(e.currentTarget);
     startTransition(async () => {
-      const r = await registerExpenseAction(fd);
-      if (!r.ok) {
-        setError(r.error);
-        return;
+      // La guarda que devuelve los botones (28-ago): si esta promesa RECHAZA —sesión vencida,
+      // red caída, o un id de Server Action viejo tras un deploy— React nunca cierra la
+      // transición e `isPending` deja los botones deshabilitados hasta recargar.
+      try {
+        const r = await registerExpenseAction(fd);
+        if (!r.ok) {
+          setError(r.error);
+          return;
+        }
+        formRef.current?.reset();
+        close();
+        router.refresh();
+    
+      } catch (e) {
+        toast.error(`No se pudo completar la acción: ${(e as Error)?.message ?? e}`)
       }
-      formRef.current?.reset();
-      close();
-      router.refresh();
     });
   }
 

@@ -199,7 +199,6 @@ export default function NotaConsultaPage({ params }: { params: Promise<{ id: str
   // el parseTranscript de abajo re-parseaba una transcripción larga cada segundo.
   const faseDeEsta = useConsultaVivaDerivado((e) => (e.consultaId === id ? e.fase : "ajena"))
   const [pestanaCockpit, setPestanaCockpit] = useState<PestanaDelCockpit>("consulta")
-  const esLaMia = faseDeEsta !== "ajena"
   const cerrandoEsta = faseDeEsta === "subiendo" || faseDeEsta === "transcribiendo"
   const grabandoEsta = faseDeEsta === "grabando" || cerrandoEsta
 

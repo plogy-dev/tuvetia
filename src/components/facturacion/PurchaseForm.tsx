@@ -8,6 +8,7 @@ import { confirmPurchaseAction, savePurchaseDraft } from '@/lib/facturacion/purc
 import { formatCOP } from '@/lib/facturacion/domain/money';
 import type { SupplierRow } from '@/lib/supabase/types';
 import { InputMoneda } from '@/components/ui/input-moneda';
+import { toast } from "sonner"
 
 export interface PurchaseItemOption {
   id: string;
@@ -159,24 +160,32 @@ export function PurchaseForm({
       return;
     }
     startTransition(async () => {
-      const r = await savePurchaseDraft(input);
-      if (!r.ok) {
-        setError(r.error);
-        return;
-      }
-      savedIdRef.current = r.id;
-      if (confirmAfter) {
-        const c = await confirmPurchaseAction({ id: r.id });
-        if (!c.ok) {
-          // Sin router.push: navegar en el mismo tick desmontaba el componente y el error jamás
-          // se pintaba — el usuario aterrizaba en un detalle "BORRADOR" sin explicación. Se queda
-          // aquí, ve el motivo, y puede reintentar (mismo borrador) o abrirlo con el enlace.
-          setSavedDraftId(r.id);
-          setError(`La compra quedó guardada como borrador, pero no se pudo confirmar: ${c.error}`);
+      // La guarda que devuelve los botones (28-ago): si esta promesa RECHAZA —sesión vencida,
+      // red caída, o un id de Server Action viejo tras un deploy— React nunca cierra la
+      // transición e `isPending` deja los botones deshabilitados hasta recargar.
+      try {
+        const r = await savePurchaseDraft(input);
+        if (!r.ok) {
+          setError(r.error);
           return;
         }
+        savedIdRef.current = r.id;
+        if (confirmAfter) {
+          const c = await confirmPurchaseAction({ id: r.id });
+          if (!c.ok) {
+            // Sin router.push: navegar en el mismo tick desmontaba el componente y el error jamás
+            // se pintaba — el usuario aterrizaba en un detalle "BORRADOR" sin explicación. Se queda
+            // aquí, ve el motivo, y puede reintentar (mismo borrador) o abrirlo con el enlace.
+            setSavedDraftId(r.id);
+            setError(`La compra quedó guardada como borrador, pero no se pudo confirmar: ${c.error}`);
+            return;
+          }
+        }
+        router.push(`/dashboard/facturacion/compras/${r.id}`);
+    
+      } catch (e) {
+        toast.error(`No se pudo completar la acción: ${(e as Error)?.message ?? e}`)
       }
-      router.push(`/dashboard/facturacion/compras/${r.id}`);
     });
   }
 

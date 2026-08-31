@@ -6,6 +6,7 @@ import Link from 'next/link';
 import { AlertTriangle, Check, X } from 'lucide-react';
 import { resolveHumanTaskAction } from '@/lib/cartera/actions';
 import type { HumanTaskKind } from '@/lib/supabase/types';
+import { toast } from "sonner"
 
 const KIND_LABELS: Record<HumanTaskKind, string> = {
   VERIFICAR_COMPROBANTE: 'Verificar comprobante',
@@ -32,15 +33,23 @@ export function HumanTasksPanel({ tasks }: { tasks: TaskItem[] }) {
 
   function resolve(taskId: string, status: 'RESUELTA' | 'DESCARTADA') {
     startTransition(async () => {
-      const r = await resolveHumanTaskAction({ taskId, status });
-      // Antes se descartaba el resultado: una tarea que no se resolvía simplemente reaparecía
-      // tras el refresh, sin ninguna pista de por qué.
-      if (!r.ok) {
-        setError(r.error);
-        return;
+      // La guarda que devuelve los botones (28-ago): si esta promesa RECHAZA —sesión vencida,
+      // red caída, o un id de Server Action viejo tras un deploy— React nunca cierra la
+      // transición e `isPending` deja los botones deshabilitados hasta recargar.
+      try {
+        const r = await resolveHumanTaskAction({ taskId, status });
+        // Antes se descartaba el resultado: una tarea que no se resolvía simplemente reaparecía
+        // tras el refresh, sin ninguna pista de por qué.
+        if (!r.ok) {
+          setError(r.error);
+          return;
+        }
+        setError(null);
+        router.refresh();
+    
+      } catch (e) {
+        toast.error(`No se pudo completar la acción: ${(e as Error)?.message ?? e}`)
       }
-      setError(null);
-      router.refresh();
     });
   }
 

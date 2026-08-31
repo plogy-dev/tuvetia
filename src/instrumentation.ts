@@ -29,6 +29,16 @@ import { reportarErrorDeServidor } from "@/lib/errores"
  * esto, que es "¿se rompió algo y nadie me avisó?".
  */
 export async function register() {
+  // EL ID DE DESPLIEGUE, PARA EL RUNTIME DE VERCEL (31-ago). Parte del flight payload se arma
+  // leyendo `process.env.NEXT_DEPLOYMENT_ID` directo — y en las funciones de Vercel nadie lo
+  // setea (el `next start` local sí lo hace, por eso local siempre dio limpio). Sin esto, 120 de
+  // 168 refs de assets salían con el TEXTO `dpl=undefined` y la protección de version skew —la
+  // del «David veía la app de hace horas»— quedaba ciega. `register()` corre al boot del server,
+  // antes de la primera petición, que es exactamente cuándo tiene que existir.
+  if (!process.env.NEXT_DEPLOYMENT_ID && process.env.VERCEL_DEPLOYMENT_ID) {
+    process.env.NEXT_DEPLOYMENT_ID = process.env.VERCEL_DEPLOYMENT_ID.slice(0, 32)
+  }
+
   const dsn = process.env.NEXT_PUBLIC_SENTRY_DSN?.trim()
   if (!dsn) return
 

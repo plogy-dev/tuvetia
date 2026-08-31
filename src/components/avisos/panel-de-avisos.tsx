@@ -51,9 +51,17 @@ export function PanelDeAvisos({
     setSegmento(clave)
     setConteo(null)
     startTransition(async () => {
-      const r = await contarAudiencia({ segmento: clave })
-      if (r.ok) setConteo({ total: r.total, deBaja: r.deBaja, sinCorreo: r.sinCorreo, tope: r.tope })
-      else toast.error(r.error)
+      // La guarda que devuelve los botones (28-ago): si esta promesa RECHAZA —sesión vencida,
+      // red caída, o un id de Server Action viejo tras un deploy— React nunca cierra la
+      // transición e `isPending` deja los botones deshabilitados hasta recargar.
+      try {
+        const r = await contarAudiencia({ segmento: clave })
+        if (r.ok) setConteo({ total: r.total, deBaja: r.deBaja, sinCorreo: r.sinCorreo, tope: r.tope })
+        else toast.error(r.error)
+    
+      } catch (e) {
+        toast.error(`No se pudo completar la acción: ${(e as Error)?.message ?? e}`)
+      }
     })
   }
 
@@ -71,18 +79,26 @@ export function PanelDeAvisos({
     if (!ok) return
 
     startTransition(async () => {
-      const r = await mandarAviso({ segmento, asunto, cuerpo })
-      if (!r.ok) {
-        toast.error(r.error)
-        return
+      // La guarda que devuelve los botones (28-ago): si esta promesa RECHAZA —sesión vencida,
+      // red caída, o un id de Server Action viejo tras un deploy— React nunca cierra la
+      // transición e `isPending` deja los botones deshabilitados hasta recargar.
+      try {
+        const r = await mandarAviso({ segmento, asunto, cuerpo })
+        if (!r.ok) {
+          toast.error(r.error)
+          return
+        }
+        const partes = [`${r.enviados} enviados`]
+        if (r.excluidosPorBaja > 0) partes.push(`${r.excluidosPorBaja} de baja`)
+        if (r.fallidos > 0) partes.push(`${r.fallidos} fallidos`)
+        toast.success(partes.join(" · "))
+        setAsunto("")
+        setCuerpo("")
+        contar(segmento)
+    
+      } catch (e) {
+        toast.error(`No se pudo completar la acción: ${(e as Error)?.message ?? e}`)
       }
-      const partes = [`${r.enviados} enviados`]
-      if (r.excluidosPorBaja > 0) partes.push(`${r.excluidosPorBaja} de baja`)
-      if (r.fallidos > 0) partes.push(`${r.fallidos} fallidos`)
-      toast.success(partes.join(" · "))
-      setAsunto("")
-      setCuerpo("")
-      contar(segmento)
     })
   }
 

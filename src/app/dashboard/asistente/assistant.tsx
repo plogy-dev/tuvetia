@@ -445,7 +445,9 @@ export function Assistant({
   // de verdad; volver del historial reutiliza la guardada → mismo hilo, sembrado con lo
   // persistido. Los hilos de paciente no llevan clave: un paciente tiene UNA conversación
   // continua por diseño.
-  const { messages, sendMessage, status, error, stop, regenerate } = useChat({
+  // `stop` no se usa (no hay botón de detener el stream todavía); se omite en vez de dejar la
+  // variable muerta que el lint venía marcando.
+  const { messages, sendMessage, status, error, regenerate } = useChat({
     // La instancia viene del mapa (ver `chatsVivos`): volver a un hilo de esta sesión conserva lo
     // hablado; la semilla del servidor solo aplica la PRIMERA vez que se visita cada hilo.
     chat: chatDe(

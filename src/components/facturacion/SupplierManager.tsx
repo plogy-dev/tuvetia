@@ -8,6 +8,7 @@ import {
   upsertSupplierAction,
 } from '@/lib/facturacion/suppliers/actions';
 import type { SupplierRow } from '@/lib/supabase/types';
+import { toast } from "sonner"
 
 type Draft = {
   id: string | null;
@@ -36,13 +37,21 @@ export function SupplierManager({ suppliers }: { suppliers: SupplierRow[] }) {
   function run(fn: () => Promise<{ ok: boolean; error?: string }>, after?: () => void) {
     setError(null);
     startTransition(async () => {
-      const r = await fn();
-      if (!r.ok) {
-        setError(r.error ?? 'Error');
-        return;
+      // La guarda que devuelve los botones (28-ago): si esta promesa RECHAZA —sesión vencida,
+      // red caída, o un id de Server Action viejo tras un deploy— React nunca cierra la
+      // transición e `isPending` deja los botones deshabilitados hasta recargar.
+      try {
+        const r = await fn();
+        if (!r.ok) {
+          setError(r.error ?? 'Error');
+          return;
+        }
+        after?.();
+        router.refresh();
+    
+      } catch (e) {
+        toast.error(`No se pudo completar la acción: ${(e as Error)?.message ?? e}`)
       }
-      after?.();
-      router.refresh();
     });
   }
 
