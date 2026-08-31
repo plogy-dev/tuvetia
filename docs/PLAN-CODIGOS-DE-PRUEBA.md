@@ -8,6 +8,29 @@ un link». Luciano: «un link especial + código promocional — una o dos seman
 
 ---
 
+## ⚠️ YA ESTÁ IMPLEMENTADO (30-ago) — y con un alcance MAYOR que este diseño
+
+El código vive en la migración `0100_la_puerta_de_la_plataforma.sql` y en `src/lib/puerta/`. Lo de
+abajo se conserva porque su lectura del terreno sigue siendo correcta y explica decisiones que el
+código da por sabidas, **pero tres cosas se hicieron distinto**:
+
+1. **El código no sólo regala días: decide quién pasa.** Se agregó un modo `cerrado` para toda la
+   plataforma (tabla `platform_gate`, botón en `/admin/acceso`). Con la puerta cerrada, quien no
+   trae código no puede crear una cuenta; las que ya existen entran igual. Era el pedido de
+   Santiago del 30-ago, posterior a este documento.
+2. **El enlace es `/signup?codigo=XXX`, no `/probar/[codigo]`.** Un salto intermedio de más es un
+   salto que se puede perder; el enlace aterriza directo en el formulario con el paso del código ya
+   saltado.
+3. **El corte vive en la base, no en el signup.** `private.ensure_clinic_membership` y
+   `public.create_clinic` no aprovisionan clínica sin pase. Un gate que viviera sólo en el
+   formulario lo esquivaría cualquiera desde la consola del navegador — y en el registro por Google
+   ni siquiera hay un formulario donde ponerlo.
+
+Lo demás salió como está escrito acá: los días **reemplazan** la prueba de 3 (`now() + dias`), el
+canje es idempotente por clínica —acá, por correo—, y falla hacia el lado que no rompe el registro.
+
+---
+
 ## Lo que YA existe (y te ahorra la mitad del trabajo)
 
 1. **El trial automático ya está.** Toda clínica nueva nace `pro` + `subscription_status='trial'`

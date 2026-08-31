@@ -4,6 +4,8 @@ import { useState } from "react"
 import Link from "next/link"
 import { cn } from "@/lib/utils"
 import { createClient } from "@/lib/supabase/client"
+import { reservarPase } from "@/app/signup/actions"
+import type { PaseDeRegistro } from "@/lib/puerta"
 import { Button } from "@/components/ui/button"
 import {
   Field,
@@ -31,8 +33,15 @@ function BrandGlyph() {
 
 export function SignupForm({
   className,
+  pase = null,
+  aviso = null,
   ...props
-}: React.ComponentProps<"div">) {
+}: React.ComponentProps<"div"> & {
+  /** El código ya validado, con los días que otorga. `null` = registro normal (prueba de 3 días). */
+  pase?: PaseDeRegistro | null
+  /** Por qué rebotó hasta acá, si rebotó. Lo pinta arriba del formulario. */
+  aviso?: string | null
+}) {
   const [fullName, setFullName] = useState("")
   const [email, setEmail] = useState("")
   const [phone, setPhone] = useState("")
@@ -42,10 +51,41 @@ export function SignupForm({
   const [error, setError] = useState<string | null>(null)
   const [sent, setSent] = useState(false)
 
+  /**
+   * A dónde vuelve el proveedor, con lo que tiene que sobrevivir al viaje.
+   *
+   * EL CÓDIGO VIAJA EN LA URL Y NO EN UNA COOKIE, y no es por comodidad: el pase se ata a un CORREO,
+   * y en este camino el correo recién se conoce cuando Google nos lo devuelve. `/auth/callback` es
+   * el primer punto donde existen las dos mitades —el código y la dirección— así que ahí es donde
+   * se canjea. Que el código quede a la vista en la barra no agrega nada: ya venía a la vista, en
+   * el enlace que se comparte.
+   */
+  function destinoDeOAuth(): string {
+    const params = new URLSearchParams()
+    const next = new URLSearchParams(window.location.search).get("next")
+    if (next) params.set("next", next)
+    if (pase) params.set("codigo", pase.codigo)
+    const cola = params.toString()
+    return `${window.location.origin}/auth/callback${cola ? `?${cola}` : ""}`
+  }
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     setError(null)
     setLoading(true)
+
+    // EL PASE, ANTES DEL ENLACE. Tiene que estar en la base para cuando el vet abra el correo: el
+    // trigger que crea la clínica lo consulta en ese instante y corre una sola vez en la vida de la
+    // cuenta. Si el canje falla no se manda nada — un enlace que deja al vet adentro sin clínica es
+    // peor que un error acá, donde todavía puede corregir el código.
+    if (pase) {
+      const res = await reservarPase({ codigo: pase.codigo, email })
+      if (!res.ok) {
+        setLoading(false)
+        setError(res.error)
+        return
+      }
+    }
 
     const supabase = createClient()
     // Propaga ?next= (p.ej. /invitar/<token>) para volver ahí tras confirmar el magic link. Siempre
@@ -81,10 +121,7 @@ export function SignupForm({
       options: {
         // Igual que login-form: el registro NO pide permisos de calendario (calendario v3). Se
         // conecta a mano desde Conexiones, eligiendo proveedor.
-        redirectTo: `${window.location.origin}/auth/callback${(() => {
-          const next = new URLSearchParams(window.location.search).get("next")
-          return next ? `?next=${encodeURIComponent(next)}` : ""
-        })()}`,
+        redirectTo: destinoDeOAuth(),
       },
     })
     if (error) {
@@ -102,10 +139,7 @@ export function SignupForm({
       options: {
         // Igual que Google: sin scope de calendario. Outlook se conecta desde Conexiones.
         scopes: "email",
-        redirectTo: `${window.location.origin}/auth/callback${(() => {
-          const next = new URLSearchParams(window.location.search).get("next")
-          return next ? `?next=${encodeURIComponent(next)}` : ""
-        })()}`,
+        redirectTo: destinoDeOAuth(),
       },
     })
     if (error) {
@@ -155,6 +189,25 @@ export function SignupForm({
               ¿Ya tienes cuenta? <Link href="/login">Inicia sesión</Link>
             </FieldDescription>
           </div>
+
+          {/* Ver `aviso` acá es lo que distingue «la app falló» de «te falta un código»: quien
+              rebotó desde un «Continuar con Google» llega sin ninguna otra pista de qué pasó. */}
+          {aviso && (
+            <div className="rounded-lg border border-warn/40 bg-warn/10 px-3 py-2 text-sm text-foreground">
+              {aviso}
+            </div>
+          )}
+
+          {/* LO QUE EL CÓDIGO LE DIO, ESCRITO. Es la única recompensa visible de haberlo puesto —y
+              en el camino del enlace el vet ni siquiera vio el paso del código, así que sin este
+              renglón nunca se entera de que su prueba dura más que la de cualquiera. */}
+          {pase && (
+            <div className="rounded-lg border border-ok/40 bg-ok/10 px-3 py-2 text-sm text-foreground">
+              Código <span className="font-mono font-medium">{pase.codigo}</span> aplicado: tu prueba
+              es de <strong>{pase.dias} días</strong>.
+            </div>
+          )}
+
           <Field>
             <FieldLabel htmlFor="full_name">Nombre completo</FieldLabel>
             <Input

@@ -48,3 +48,21 @@ export async function requerirAdminDePlataforma(): Promise<void> {
   } = await supabase.auth.getUser()
   if (!isPlatformAdmin(user?.email)) notFound()
 }
+
+/**
+ * Quién está pidiendo una acción del panel, o `null` si no es admin de plataforma.
+ *
+ * Va acá y no en un archivo de acciones porque lo necesita CADA server action del panel: una server
+ * action es un ENDPOINT propio, invocable con un POST, y ni el `notFound()` del layout ni el de
+ * `requerirAdminDePlataforma` la protegen —los dos corren al RENDERIZAR una página, que es otro
+ * momento—. El agujero del 24-ago era de lectura justamente porque las acciones ya comprobaban por
+ * su cuenta; esto es la misma comprobación, con un solo lugar donde arreglarla.
+ */
+export async function adminDePlataformaActual(): Promise<{ id: string; email: string } | null> {
+  const supabase = await createClient()
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
+  if (!user?.email || !isPlatformAdmin(user.email)) return null
+  return { id: user.id, email: user.email }
+}
