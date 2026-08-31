@@ -58,3 +58,6 @@ supabase/.temp/
 # Artefacto de una corrida del banco adversario: trae las respuestas del modelo, cambia en cada
 # corrida y no es fuente. Lo que se conserva es el informe curado en docs/AGENTE-ADVERSARIOS.md.
 adversarios/informe.json
+
+# artefacto de build: la siembra del deploymentId (ver next.config.ts)
+.deployment-id
