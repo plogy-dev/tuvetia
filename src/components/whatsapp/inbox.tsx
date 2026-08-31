@@ -619,10 +619,11 @@ export function WhatsappInbox({
           <>
             {/* LA CABECERA DEL HILO, y el botón que convierte un número en un titular.
                 Quien escribe desde un número que no está en la clínica aparece como «+573001234567»
-                y hasta ahora la única salida era copiar el número a mano a la pantalla de Titulares.
-                Peor: mientras no sea titular, VetGPT TAMPOCO le puede escribir —`athosPuedeEscribirA`
-                sólo deja hablarle a titulares registrados— así que un número sin nombre es también
-                un número sin respuesta. Guardarlo desbloquea las dos cosas de una. */}
+                y la única salida era copiar el número a mano a la pantalla de Titulares.
+                Lo que YA NO pasa (27-ago): quedarse sin respuesta. VetGPT contesta a quien escribió
+                aunque no sea titular —ver `destino-permitido`—; lo que sigue necesitando titular es
+                que VetGPT ESCRIBA PRIMERO: recordatorios de cita y cobranza. Guardarlo le pone
+                nombre al hilo y desbloquea eso. */}
             <div className="flex items-center justify-between gap-2 border-b px-4 py-2.5">
               <span className="flex min-w-0 flex-col">
                 <span className="truncate text-sm font-semibold">{nameOf(selected)}</span>

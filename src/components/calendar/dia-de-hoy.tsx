@@ -1,3 +1,5 @@
+"use client"
+
 // "Hoy" — la agenda del día como LISTA, encima del calendario.
 //
 // El mockup dibuja la agenda así y sólo así: filas con hora en mono, paciente y estado. Nosotros
@@ -11,8 +13,31 @@
 //   2. LOS HUECOS COMO FILA ACCIONABLE. En la grilla el vacío es ausencia de bloques: no se ve, no
 //      se cuenta y no se puede tocar. Acá dice "40 minutos libres" y ofrece llenarlo. Es la idea
 //      más útil del mockup en esta pantalla.
+//
+// ── SE PLIEGA, Y ARRANCA PLEGADA ────────────────────────────────────────────────────────────────
+//
+// Pedido de David (28-ago): *"que se haga desplegable para que le de más espacio a lo de abajo del
+// calendario, y siempre contraído por defecto"*. Es la MISMA pelea por el alto que cuenta el bloque
+// de más abajo, pero resuelta por el otro lado: hasta ahora la única palanca era repartir píxeles
+// entre dos bloques que los dos querían, y esto agrega la opción de que uno de los dos no los pida.
+//
+// PLEGADA NO SE CALLA. La cabecera ya decía "3 citas · 2 espacios libres" y ese renglón se queda,
+// porque es justo lo que hace útil un resumen: contesta "¿tengo día?" sin abrir nada. Un plegable
+// que sólo muestra su rótulo no plegó, escondió — y entonces las dos cosas que esta sección aporta
+// (el día de un vistazo, los huecos accionables) se pierden con un clic de más.
+//
+// EL ESTADO VIVE EN EL COMPONENTE, Y NO SE PERSISTE. Es la diferencia con el riel de la clínica y
+// con el historial de VetGPT, que sí guardan la preferencia en `localStorage`: allá "abierto" es
+// una preferencia, acá "plegada" es la instrucción — *siempre* contraído por defecto. Guardarla
+// haría que quien la abrió una vez no volviera a ver la pantalla como se pidió. Pero `useState` y
+// no una constante: mientras la pantalla siga montada, la sección se queda como el vet la dejó.
+// Navegar de semana en semana es estado del calendario —vive en `appointment-calendar.tsx`, no
+// remonta esto— así que abrirla y que se cerrara sola al pasar a la semana que viene sería el tipo
+// de "ayuda" que obliga a repetir el mismo clic todo el día.
 
+import { useState } from "react"
 import Link from "next/link"
+import { ChevronDown } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import { bogotaTimeOf } from "@/lib/date-utils"
@@ -45,7 +70,12 @@ function Fila({ children }: { children: React.ReactNode }) {
   )
 }
 
+/** El `id` de la lista, para que el `aria-controls` de la cabecera tenga a quién apuntar. */
+const ID_LISTA = "hoy-lista"
+
 export function DiaDeHoy({ citas, huecos }: { citas: CitaDeHoy[]; huecos: Hueco[] }) {
+  const [abierta, setAbierta] = useState(false)
+
   // Las citas y los huecos se intercalan por hora: una lista del día en la que el vacío aparece
   // donde está, no agrupado al final como una sección aparte.
   const filas = [
@@ -73,17 +103,67 @@ export function DiaDeHoy({ citas, huecos }: { citas: CitaDeHoy[]; huecos: Hueco[
     // su mínimo —que es la parte que de verdad no puede achicarse— y le da a «Hoy» lo que sobre. En
     // una pantalla alta «Hoy» se ve entero; en un portátil se recorta a lo que quepa y el día
     // completo sigue estando a un scroll DE LA LISTA. Que es lo que esta sección ya prometía.
-    <section className="flex min-h-0 flex-col overflow-hidden rounded-xl border border-line bg-card lg:min-h-[104px]">
-      <div className="flex shrink-0 items-center justify-between gap-4 border-b border-line px-4 py-2.5">
+    //
+    // PLEGADA EL PISO BAJA DE 104 A 41, y ése es el pedido, no un detalle de estilo. Los 104 son la
+    // cabecera (41) más una fila (63): el mínimo para que la lista siga siendo una lista. Sin lista
+    // que sostener, reservarlos sería quitarle 63 px a la grilla para no dibujar nada — plegar
+    // dejaría de darle espacio a lo de abajo, que es exactamente lo que se pidió.
+    //
+    // Y sigue habiendo un piso en vez de un `shrink-0`: la cabecera es lo único que queda plegada,
+    // y esta sección tiene `overflow-hidden`. Si flexbox pudiera encogerla por debajo de sus 41 px
+    // —puede: `min-h-0`, y la grilla de abajo tiene `flex-1` con base 0, así que el que cede es
+    // éste— el resumen se recortaría a media línea. Un piso igual al alto de la cabecera la vuelve
+    // inencogible sin renunciar a ceder, que es la regla que esta sección ya tenía.
+    <section
+      className={`flex min-h-0 flex-col overflow-hidden rounded-xl border border-line bg-card ${
+        abierta ? "lg:min-h-[104px]" : "lg:min-h-[41px]"
+      }`}
+    >
+      {/* LA CABECERA ES EL BOTÓN, con `aria-expanded` y `aria-controls` — mismo patrón que el
+          historial de VetGPT (`athos-sidebar-section.tsx`). Sin ellos un lector de pantalla anuncia
+          "Hoy, botón" y no dice si al tocarlo va a abrir o a cerrar, que en un plegable es la única
+          pregunta que importa. `w-full` y `text-left` porque un <button> no es un <div>: centra su
+          contenido y se encoge a lo que mide el texto.
+
+          El borde inferior sólo cuando hay algo debajo: plegada era una línea colgando del borde de
+          la tarjeta.
+
+          EL FOCO SE DIBUJA HACIA ADENTRO, y no es una preferencia: el contorno nativo se pinta por
+          FUERA del borde del botón, y este botón está pegado a los bordes de una tarjeta que es
+          `overflow-hidden` y `rounded-xl`. O sea que el contenedor se come justo el indicador que
+          se estaba dando por bueno: quien navega con teclado llegaba acá y no veía nada. Con
+          `-outline-offset-2` el mismo contorno cae dentro del recorte. Es el patrón de
+          `filter-chips.tsx`, con el desplazamiento al revés porque acá el que recorta es el padre.
+
+          Y `hover:bg-accent` porque plegada esta barra es TODO lo que queda de la sección, y hasta
+          ayer era un <div>. Sin nada que cambie al pasar por encima, lo único que insinúa que se
+          puede tocar es un galón de 14 px. */}
+      <button
+        type="button"
+        onClick={() => setAbierta((v) => !v)}
+        aria-expanded={abierta}
+        aria-controls={ID_LISTA}
+        className={`flex w-full shrink-0 items-center gap-3 px-4 py-2.5 text-left transition-colors
+          hover:bg-accent focus-visible:outline-2 focus-visible:-outline-offset-2
+          focus-visible:outline-ring ${abierta ? "border-b border-line" : ""}`}
+      >
         <span className="text-[11px] font-semibold uppercase tracking-[0.08em] text-fg-faint">
           Hoy
         </span>
-        <span className="text-[13px] text-fg-muted">
+        {/* EL RESUMEN NO SE VA AL PLEGAR. Es lo que hace que plegar sea plegar y no esconder: dice
+            si el día tiene algo —y cuánto hueco queda— sin obligar a abrir para averiguarlo. */}
+        <span className="ml-auto min-w-0 truncate text-[13px] text-fg-muted">
           {citas.length === 1 ? "1 cita" : `${citas.length} citas`}
           {huecos.length > 0 &&
             ` · ${huecos.length === 1 ? "1 espacio libre" : `${huecos.length} espacios libres`}`}
         </span>
-      </div>
+        <ChevronDown
+          aria-hidden
+          className={`size-3.5 shrink-0 text-fg-faint transition-transform ${
+            abierta ? "" : "-rotate-90"
+          }`}
+        />
+      </button>
 
       {/* Techo + scroll propio: un día lleno (10+ filas entre citas y huecos) crecía sin límite y
           el calendario —lo que esta pantalla existe para mostrar— quedaba entero bajo el pliegue.
@@ -92,8 +172,13 @@ export function DiaDeHoy({ citas, huecos }: { citas: CitaDeHoy[]; huecos: Hueco[
           En `lg:` el techo deja de ser 30svh y pasa a ser LO QUE LE TOQUE a la sección: `flex-1` +
           `min-h-0` dentro de una sección que ya cede. Medir contra el viewport era el error de
           fondo — 30svh no sabe que la grilla de abajo ya reclamó 420 px. Fuera de `lg:` el techo
-          fijo se queda, porque ahí la página scrollea a propósito y no hay nada que repartir. */}
-      <div className="max-h-[30svh] overflow-y-auto lg:max-h-none lg:min-h-0 lg:flex-1">
+          fijo se queda, porque ahí la página scrollea a propósito y no hay nada que repartir.
+
+          NO SE MONTA PLEGADA (y no es un `hidden`): plegada esta lista no tiene que ocupar alto ni
+          dejar filas en el orden de tabulación, que es lo que pasa con un panel oculto por CSS. Las
+          filas se recalculan solas al abrir — salen de las props, no de una consulta. */}
+      {abierta && (
+      <div id={ID_LISTA} className="max-h-[30svh] overflow-y-auto lg:max-h-none lg:min-h-0 lg:flex-1">
       {filas.map((f) =>
         f.tipo === "cita" ? (
           <Fila key={f.cita.id}>
@@ -134,6 +219,7 @@ export function DiaDeHoy({ citas, huecos }: { citas: CitaDeHoy[]; huecos: Hueco[
         ),
       )}
       </div>
+      )}
     </section>
   )
 }

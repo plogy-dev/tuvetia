@@ -34,10 +34,11 @@ export function CreateOwnerDrawer({
    * Teléfono ya conocido, para abrir el formulario con ese campo lleno.
    *
    * Lo usa la bandeja de WhatsApp: quien escribe desde un número que no es titular aparece como un
-   * número pelado, y copiarlo a mano a otra pantalla era el único camino para darle nombre. Peor:
-   * mientras no sea titular, Athos tampoco le puede escribir —`athosPuedeEscribirA` sólo deja
-   * hablarle a titulares registrados— así que el número sin nombre es también un número sin
-   * respuesta automática.
+   * número pelado, y copiarlo a mano a otra pantalla era el único camino para darle nombre.
+   *
+   * Desde el 27-ago eso ya no lo deja sin respuesta automática: Athos le contesta a quien escribió
+   * sea titular o no (ver `whatsapp/destino-permitido`). Lo que sigue reservado a titulares es que
+   * Athos ESCRIBA PRIMERO —recordatorios, cobranza—, y eso es lo que desbloquea guardarlo.
    */
   telefonoInicial?: string
   /** Se llama al crear, con el id nuevo. La bandeja lo usa para refrescar sin recargar. */
