@@ -23,6 +23,15 @@ import { registrarUso } from "@/lib/athos-agent/usage"
 import { consultarPresupuesto } from "@/lib/athos-agent/presupuesto"
 import { clinicaPuede } from "@/lib/planes/servidor"
 import { sendWhatsAppText } from "./send-message"
+import {
+  anotarQueNoSeContesto,
+  guardarConversacion,
+  leerConversacion,
+  mezclarDatos,
+} from "./conversacion"
+import { bloqueParaElPrompt, faltantes, type DatosDeLaCita } from "./datos-de-la-cita"
+import { hayCitaEnCurso, intencionDeLaConversacion } from "./intencion"
+import { TURNOS_ANTES_DE_ENTREGAR, respuestaDeRescate } from "./respuestas-de-rescate"
 const DEBOUNCE_MS = 5_000
 const MAX_PER_HOUR_PER_CONVERSATION = 8
 
@@ -121,8 +130,18 @@ export async function maybeAutoReply(input: {
       .eq("conversation_key", conversationKey)
       .gte("created_at", hourAgo),
   ])
-  if ((daily ?? 0) >= effectiveDailyLimit) return
-  if ((hourly ?? 0) >= MAX_PER_HOUR_PER_CONVERSATION) return
+  // LOS TOPES CORTAN EN SILENCIO Y ESO NO CAMBIA: mandar el rescate acá derrotaría la rampa
+  // anti-baneo, que es exactamente la razón de ser de estos dos frenos. Lo que sí cambia es que
+  // dejan rastro. Hasta hoy los cuatro cortes de este camino hacían `return` seco, y por eso la
+  // pregunta «¿por qué VetGPT no le contestó?» sólo se podía responder leyendo código.
+  if ((daily ?? 0) >= effectiveDailyLimit) {
+    await anotarQueNoSeContesto({ clinicId, conversationKey, motivo: "tope_diario" })
+    return
+  }
+  if ((hourly ?? 0) >= MAX_PER_HOUR_PER_CONVERSATION) {
+    await anotarQueNoSeContesto({ clinicId, conversationKey, motivo: "tope_por_chat" })
+    return
+  }
 
   // 6) TOPE MENSUAL DE IA DE LA CLÍNICA. Los frenos de arriba son anti-loop y anti-baneo: cuentan
   //    RESPUESTAS ENVIADAS por conversación y por día. Éste cuenta GASTO, y es el único que ve el
@@ -145,6 +164,7 @@ export async function maybeAutoReply(input: {
     console.info(
       `[auto-reply] clínica ${clinicId} en plan free: el modo automático no responde y el mensaje queda para el vet.`,
     )
+    await anotarQueNoSeContesto({ clinicId, conversationKey, motivo: "plan_free" })
     return
   }
 
@@ -153,11 +173,13 @@ export async function maybeAutoReply(input: {
     console.warn(
       `[auto-reply] clínica ${clinicId} sin cupo de IA este mes (${presupuesto.usadas}/${presupuesto.tope}): el mensaje queda para el vet.`,
     )
+    await anotarQueNoSeContesto({ clinicId, conversationKey, motivo: "sin_cupo_de_ia" })
     return
   }
 
-  // Contexto: clínica + horarios reales + hilo reciente + titular (clinic_id explícito SIEMPRE).
-  const [{ data: clinic }, { data: hours }, { data: thread }, { data: ownerRows }] = await Promise.all([
+  // Contexto: clínica + horarios reales + hilo reciente + titular + la conversación que ya venía
+  // (clinic_id explícito SIEMPRE). Todo en el mismo viaje: son independientes entre sí.
+  const [{ data: clinic }, { data: hours }, { data: thread }, { data: ownerRows }, previa] = await Promise.all([
     admin.from("clinics").select("name").eq("id", clinicId).maybeSingle(),
     admin
       .from("clinic_hours")
@@ -177,8 +199,27 @@ export async function maybeAutoReply(input: {
       .order("created_at", { ascending: false })
       .limit(12),
     admin.from("owners").select("id, full_name").eq("clinic_id", clinicId).ilike("phone", `%${last10}%`).limit(1),
+    // DÓNDE VENÍA ESTA CONVERSACIÓN. Sin esto el agente se reconstruye entero en cada mensaje
+    // leyendo el hilo, y no puede responder las dos preguntas que importan: «¿esta persona está
+    // agendando?» y «¿qué datos ya me dio?». Es lo que dejó a un titular hablando solo el 30-ago.
+    leerConversacion(clinicId, conversationKey),
   ])
   const owner = (ownerRows as { id: string; full_name: string }[] | null)?.[0] ?? null
+
+  // LA INTENCIÓN NO SE PIERDE POR UN MENSAJE QUE NO DICE NADA. «Mañana» no menciona ninguna cita, y
+  // un clasificador sin memoria lo leería como una consulta suelta — que es como se perdió el hilo.
+  // Lo clínico, en cambio, gana siempre y dura un solo turno (ver `intencion.ts`).
+  // `let` porque más abajo la conducta del modelo puede promoverla: haber llamado una herramienta
+  // de agenda es mejor evidencia que cualquier palabra del mensaje.
+  let intencion = intencionDeLaConversacion(input.text ?? "", previa.intencion)
+
+  // La pizarra del turno: la llena la tool `anotar_datos_de_la_cita` mientras el modelo trabaja, y
+  // se persiste UNA sola vez al final. Un `update` por cada dato serían cuatro escrituras por
+  // conversación dentro del `after()` de un webhook, para el mismo resultado.
+  const pizarra: { datos: DatosDeLaCita; sinHorarios: boolean } = {
+    datos: { ...previa.datos },
+    sinHorarios: false,
+  }
   const hoursText = ((hours as { weekday: number; opens_at: string; closes_at: string }[] | null) ?? [])
     .map((h) => `${WEEKDAYS[h.weekday]}: ${h.opens_at.slice(0, 5)}–${h.closes_at.slice(0, 5)}`)
     .join(" · ")
@@ -203,6 +244,7 @@ export async function maybeAutoReply(input: {
     ownerId: owner?.id ?? null,
     conversationKey,
     model: elegido.modelId,
+    pizarra,
   })
 
   try {
@@ -246,13 +288,25 @@ CITAS — tienes herramientas, úsalas en vez de prometer de memoria:
   4) el CORREO, diciéndole para qué es (mandarle la confirmación). Si no lo quiere dar, seguí sin él: NO es obligatorio
      y no se lo vuelvas a pedir.
   Nunca preguntes el teléfono: ya lo tenemos, es el número desde el que te escribe.
+  Cada vez que la persona te dé un dato, llama anotar_datos_de_la_cita ANTES de contestarle: es lo que hace que no se
+  te pierda entre mensajes. Un mensaje puede traer varios datos de una ("Santiago Tellez, mi mascota se llama Milo").
   Lo que la persona ya te dijo NO se vuelve a preguntar. Antes de llamar solicitar_cita, LEELE DE VUELTA todo lo que
   juntaste (nombre, mascota, especie, motivo, día y hora, correo) y pedile que confirme. Sólo con su confirmación la llamás.
 - SIN CUPOS NO TE CALLES. Si list_available_slots devuelve configured:false, lee su campo note y haz lo que dice.
   Con motivo "sin_horarios_configurados" la clínica no cargó su agenda: toma el pedido igual, pregunta qué día y franja
   le sirven en palabras, y llama solicitar_cita con sin_hora:true. Con motivo "cerrado_ese_dia", ofrece otro día.
   Quedarte mudo a mitad de un agendamiento no es prudencia: es dejar a un cliente esperando una respuesta que no llega.
-- Nunca menciones citas, mascotas ni datos de OTRAS personas. Sólo lo que devuelvan tus herramientas.`,
+- Nunca menciones citas, mascotas ni datos de OTRAS personas. Sólo lo que devuelvan tus herramientas.
+${
+  hayCitaEnCurso(intencion)
+    ? `
+ESTA CONVERSACIÓN YA ES UN AGENDAMIENTO. Sigue con él aunque el último mensaje sea corto o confuso ("Mañana", "?",
+"sí"): no arranques de cero ni lo trates como una consulta suelta.
+${bloqueParaElPrompt(pizarra.datos)}
+Si te pregunta algo CLÍNICO en el medio, no se lo contestes: seguí con la cita y decile que el veterinario le responde
+eso aparte.`
+    : ""
+}`,
       messages: [
         {
           role: "user",
@@ -274,57 +328,150 @@ CITAS — tienes herramientas, úsalas en vez de prometer de memoria:
       usage: result.totalUsage,
     })
 
+    // Lo que quedó en la pizarra después de que el modelo trabajó. `mezclarDatos` no deja que un
+    // campo vacío borre uno que ya estaba: cada turno SUMA, nunca reemplaza.
+    const datosDelTurno = mezclarDatos(previa.datos, pizarra.datos)
+    const sinHorarios = pizarra.sinHorarios
+
+    // ── LA CONDUCTA COMO SEÑAL, QUE ES LA QUE NO SE PUEDE FINGIR ────────────────────────────────
+    //
+    // Las palabras clasifican mal a propósito de un mensaje corto. Haber LLAMADO una herramienta de
+    // agenda, en cambio, es una decisión que el modelo ya tomó: para eso tuvo que entender que
+    // había una cita en juego. Promueve la intención aunque el texto no dijera nada.
+    const HERRAMIENTAS_DE_AGENDA = new Set([
+      "anotar_datos_de_la_cita",
+      "list_available_slots",
+      "solicitar_cita",
+      "propose_appointment",
+    ])
+    const tocoLaAgenda = result.steps.some((s) =>
+      s.toolCalls.some((c) => HERRAMIENTAS_DE_AGENDA.has(c.toolName)),
+    )
+    // Lo clínico NO se promueve: si el titular contó un síntoma, este turno se calla aunque haya
+    // consultado la agenda antes.
+    if (tocoLaAgenda && intencion !== "clinico") intencion = "cita"
+
+    // ¿AVANZÓ ALGO? Se cuenta por datos, no por mensajes: tres «?» seguidos no llenan un solo campo,
+    // y es justo cuando hay que dejar de insistir y entregarle la conversación a una persona.
+    const avanzo = faltantes(previa.datos).length > faltantes(datosDelTurno).length
+    const sinAvance = avanzo ? 0 : previa.mensajesSinAvance + 1
+
+    // ── ENVIAR, EN UN SOLO LUGAR ────────────────────────────────────────────────────────────────
+    //
+    // Esto estaba escrito derecho abajo, y extraerlo NO es prolijidad: desde que existe la respuesta
+    // de rescate hay DOS caminos que le escriben al titular, y el segundo tiene que registrar su
+    // fila en `athos_actions` igual que el primero. Los topes anti-loop —8 por chat por hora, y el
+    // diario— se cuentan sobre esa tabla, no sobre `whatsapp_messages`. Un mensaje que sale sin
+    // dejar su fila no cuenta, y entonces el arreglo del silencio abriría un bucle: el defecto
+    // opuesto, y peor, porque éste sí se le nota al titular.
+    //
+    // Vive DENTRO de esta función a propósito: `auto-reply-no-duplica.test.ts` lee este archivo
+    // entero para fijar el orden de la reserva atómica, y sacarlo a otro módulo lo dejaría ciego.
+    const responder = async (texto: string, comoRescate: boolean) => {
+      // ESTO ES ATHOS ESCRIBIENDO, y pasa por la guarda de destinos. Desde el 28-ago la guarda
+      // reconoce dos puertas: titular registrado, o un número que le haya escrito a la clínica —
+      // y éste es siempre lo segundo, porque estamos RESPONDIENDO a su entrante. O sea que un
+      // desconocido que pregunta el horario ya recibe su respuesta; lo que sigue cerrado es que
+      // Athos INICIE conversación con un número que nunca escribió.
+      const { waMessageId: sentId, message } = await sendWhatsAppText(clinicId, fromPhone, texto, {
+        ownerId: owner?.id ?? null,
+        sentBy: null,
+        agentMode: "auto",
+        origen: "athos",
+      })
+
+      // Registro de la acción auto (ejecutada) + auditoría.
+      const { data: action } = await admin
+        .from("athos_actions")
+        .insert({
+          clinic_id: clinicId,
+          owner_id: owner?.id ?? null,
+          // MISMA variable que usa el freno horario: si estos dos valores divergen, el anti-loop
+          // deja de contar y el titular puede recibir más de 8 respuestas por hora.
+          conversation_key: conversationKey,
+          source: "auto",
+          tool_name: "send_whatsapp_message",
+          payload: { to_phone: conversationKey, body: texto, in_reply_to: waMessageId, rescate: comoRescate },
+          summary: `${comoRescate ? "Rescate automático" : "Respuesta automática"}: "${texto.length > 100 ? `${texto.slice(0, 99)}…` : texto}"`,
+          risk: "auto",
+          status: "executed",
+          // El rescate no lo redactó ningún modelo —es un literal del repo— y decir lo contrario en
+          // la traza haría buscar en el lugar equivocado el día que una frase moleste.
+          proposed_by_model: comoRescate ? null : elegido.modelId,
+          executed_at: new Date().toISOString(),
+          result: { wa_message_id: sentId, message_id: message?.id ?? null },
+        })
+        .select("id")
+        .single()
+      await admin.from("audit_logs").insert({
+        clinic_id: clinicId,
+        action: "athos_action.auto_executed",
+        table_name: "athos_actions",
+        record_id: (action as { id: string } | null)?.id ?? null,
+        payload: { in_reply_to: waMessageId, wa_message_id: sentId, rescate: comoRescate },
+      })
+    }
+
     const text = result.text.trim()
     if (!text || text === "NO_REPLY" || text.includes("NO_REPLY")) {
-      // Con tools aparece un caso que antes no existía: que se agoten los 3 pasos llamando
-      // herramientas y no quede texto final. Se sigue callando —mandar medio mensaje al titular es
-      // peor que no mandar ninguno— pero se loguea, porque si pasa seguido es que `stepCountIs(4)`
+      // Con tools aparece un caso que antes no existía: que se agoten los pasos llamando
+      // herramientas y no quede texto final. Se loguea, porque si pasa seguido es que `stepCountIs`
       // quedó corto. Si además se propuso una cita, la tarjeta ya está en la app y el vet la ve.
       if (!text && result.steps.some((s) => s.toolCalls.length > 0)) {
         console.warn("whatsapp/auto-reply: se llamaron tools y no quedó texto para el titular")
       }
+
+      // ── EL SILENCIO DEJA DE SER EL COMODÍN PARA TODO ──────────────────────────────────────────
+      //
+      // Callarse sigue siendo lo correcto para cualquier cosa clínica, precios o quejas, y ése sigue
+      // siendo el camino por defecto: `respuestaDeRescate` devuelve `null` salvo que haya un
+      // agendamiento en curso. Lo que cambia es el caso del 30-ago —un titular a mitad de una cita
+      // comiéndose cuatro silencios seguidos—, y ahí sale un literal del repo, nunca texto del modelo.
+      const rescate = respuestaDeRescate(
+        { citaEnCurso: hayCitaEnCurso(intencion), datos: datosDelTurno, mensajesSinAvance: sinAvance },
+        sinHorarios ? "sin_horarios" : "sin_texto",
+      )
+      if (rescate) {
+        await responder(rescate, true)
+        await guardarConversacion({
+          clinicId,
+          conversationKey,
+          intencion,
+          // Si ya fue el rescate de rendirse, la conversación queda del vet y no se insiste más.
+          estado: sinAvance >= TURNOS_ANTES_DE_ENTREGAR ? "entregada_al_vet" : "recolectando",
+          datos: datosDelTurno,
+          mensajesSinAvance: sinAvance,
+          motivo: sinHorarios
+            ? "sin_horarios"
+            : sinAvance >= TURNOS_ANTES_DE_ENTREGAR
+              ? "sin_avance"
+              : null,
+        })
+        return
+      }
+
+      // Sin cita abierta: silencio, igual que siempre. El mensaje queda sin leer para el vet.
+      await guardarConversacion({
+        clinicId,
+        conversationKey,
+        intencion,
+        estado: "recolectando",
+        datos: datosDelTurno,
+        mensajesSinAvance: sinAvance,
+      })
       return
     }
 
-    // ESTO ES ATHOS ESCRIBIENDO, y pasa por la guarda de destinos. Desde el 28-ago la guarda
-    // reconoce dos puertas: titular registrado, o un número que le haya escrito a la clínica —
-    // y éste es siempre lo segundo, porque estamos RESPONDIENDO a su entrante. O sea que un
-    // desconocido que pregunta el horario ya recibe su respuesta; lo que sigue cerrado es que
-    // Athos INICIE conversación con un número que nunca escribió.
-    const { waMessageId: sentId, message } = await sendWhatsAppText(clinicId, fromPhone, text, {
-      ownerId: owner?.id ?? null,
-      sentBy: null,
-      agentMode: "auto",
-      origen: "athos",
-    })
-
-    // Registro de la acción auto (ejecutada) + auditoría.
-    const { data: action } = await admin
-      .from("athos_actions")
-      .insert({
-        clinic_id: clinicId,
-        owner_id: owner?.id ?? null,
-        // MISMA variable que usa el freno horario: si estos dos valores divergen, el anti-loop
-        // deja de contar y el titular puede recibir más de 8 respuestas por hora.
-        conversation_key: conversationKey,
-        source: "auto",
-        tool_name: "send_whatsapp_message",
-        payload: { to_phone: conversationKey, body: text, in_reply_to: waMessageId },
-        summary: `Respuesta automática: "${text.length > 100 ? `${text.slice(0, 99)}…` : text}"`,
-        risk: "auto",
-        status: "executed",
-        proposed_by_model: elegido.modelId,
-        executed_at: new Date().toISOString(),
-        result: { wa_message_id: sentId, message_id: message?.id ?? null },
-      })
-      .select("id")
-      .single()
-    await admin.from("audit_logs").insert({
-      clinic_id: clinicId,
-      action: "athos_action.auto_executed",
-      table_name: "athos_actions",
-      record_id: (action as { id: string } | null)?.id ?? null,
-      payload: { in_reply_to: waMessageId, wa_message_id: sentId },
+    await responder(text, false)
+    await guardarConversacion({
+      clinicId,
+      conversationKey,
+      intencion,
+      // Sin datos que falten, el turno siguiente es la confirmación: la persona tiene que decir que
+      // sí antes de que se pida la cita.
+      estado: faltantes(datosDelTurno).length === 0 ? "confirmando" : "recolectando",
+      datos: datosDelTurno,
+      mensajesSinAvance: sinAvance,
     })
   } catch (e) {
     // El modo auto NUNCA rompe el webhook: silencio y el mensaje queda para el vet.

@@ -212,7 +212,31 @@ describe("un número desconocido no accede a datos de nadie", () => {
     // `["list_available_slots"]`, y eso mezclaba dos cosas: que no vea datos ajenos (que sigue
     // valiendo) con que no pueda pedir cita (que se revirtió a propósito el 26-ago — el cliente
     // nuevo era el único al que la clínica respondía a mano). Lo que se fija ahora es lo primero.
-    expect(Object.keys(tools).sort()).toEqual(["list_available_slots", "solicitar_cita"])
+    //
+    // `anotar_datos_de_la_cita` entró el 31-ago y NO toca la base: escribe en una libreta en
+    // memoria que `auto-reply` persiste al final del turno. No abre ninguna puerta a datos ajenos,
+    // que es lo único que este test protege.
+    expect(Object.keys(tools).sort()).toEqual([
+      "anotar_datos_de_la_cita",
+      "list_available_slots",
+      "solicitar_cita",
+    ])
+  })
+
+  it("las cuatro tools de titular siguen fuera del alcance de un desconocido", () => {
+    // La afirmación de arriba es una lista blanca y se actualiza cada vez que nace una tool. Ésta es
+    // la lista NEGRA, que es la que de verdad hay que proteger: si alguna de estas cuatro se cuela,
+    // un número cualquiera podría enumerar las mascotas y las citas de otra persona.
+    const { admin } = crearAdmin({})
+    const tools = buildAutoReplyTools(admin, { ...CTX, ownerId: null })
+    for (const prohibida of [
+      "list_my_patients",
+      "list_my_appointments",
+      "propose_appointment",
+      "get_owner_by_phone",
+    ]) {
+      expect(tools, prohibida).not.toHaveProperty(prohibida)
+    }
   })
 })
 

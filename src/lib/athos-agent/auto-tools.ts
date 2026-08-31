@@ -33,6 +33,9 @@ import type { SupabaseClient } from "@supabase/supabase-js"
 
 import { proposeAction, type AgentContext } from "./actions"
 import { calcularCupos, invalidDateError, localRange, localWeekday } from "./agenda"
+// Módulo puro, sin una sola importación propia: la forma del borrador y la cuenta de lo que falta
+// viven en un solo lugar para que la tool y el prompt no puedan contradecirse.
+import { faltantes, siguientePregunta, type DatosDeLaCita } from "@/lib/whatsapp/datos-de-la-cita"
 
 type SB = SupabaseClient
 
@@ -46,6 +49,17 @@ export type AutoReplyContext = {
   /** Teléfono normalizado — la clave de conversación donde cuelga la propuesta. */
   conversationKey: string
   model: string
+  /**
+   * La libreta del turno, que `auto-reply` persiste UNA sola vez al final.
+   *
+   * Las tools escriben acá en vez de tocar la base: un `update` por cada dato serían cuatro
+   * escrituras por conversación dentro del `after()` de un webhook, para el mismo resultado. Y
+   * `sinHorarios` es lo que le permite a quien llama saber POR QUÉ el modelo no pudo ofrecer una
+   * hora, sin tener que adivinarlo de un texto que a lo mejor ni salió.
+   *
+   * Opcional: los tests de las tools no necesitan pasarla.
+   */
+  pizarra?: { datos: DatosDeLaCita; sinHorarios: boolean }
 }
 
 function contextoDeAccion(ctx: AutoReplyContext): AgentContext {
@@ -64,6 +78,53 @@ export function buildAutoReplyTools(admin: SB, ctx: AutoReplyContext) {
   const { clinicId, ownerId } = ctx
 
   const publicas = {
+    // ── LA LIBRETA, QUE ES LO QUE LE FALTABA AL AGENTE ─────────────────────────────────────────
+    //
+    // Sin esto, el modo automático se reconstruía entero en cada mensaje leyendo los últimos 12 del
+    // hilo. Eso falla de tres maneras y las tres se vieron el 30-ago: el hilo está truncado (una
+    // recolección de dos días se cae de la ventana), el modelo releyendo sus propias preguntas es
+    // justo lo que produce la re-pregunta, y «ya tengo todo» no era una condición que una máquina
+    // pudiera comprobar.
+    //
+    // DEVUELVE LO QUE FALTA CALCULADO EN TypeScript, no lo que el modelo crea que falta. Es la misma
+    // función que arma el bloque del prompt, así que las dos mitades no pueden discrepar — y una
+    // discrepancia entre ellas se ve, del otro lado, como VetGPT preguntando dos veces lo mismo.
+    anotar_datos_de_la_cita: tool({
+      description:
+        "Guarda lo que el titular acaba de decir para su cita. Llamala CADA VEZ que te dé un dato nuevo, antes de " +
+        "contestarle — un mismo mensaje puede traer varios. Devuelve qué falta todavía y cuál es la próxima pregunta.",
+      inputSchema: z.object({
+        nombre: z.string().max(80).optional().describe("Nombre de quien escribe"),
+        mascota: z.string().max(60).optional(),
+        especie: z.string().max(30).optional().describe("Perro, Gato, Ave, Conejo, Roedor, Reptil u Otro"),
+        motivo: z.string().max(200).optional().describe("Por qué la quiere traer, en sus palabras"),
+        email: z.string().max(120).optional().describe("Sólo si lo escribió. Nunca lo inventes."),
+        email_rechazado: z
+          .boolean()
+          .optional()
+          .describe("true si dijo que no lo quiere dar — así deja de pedírsele"),
+        fecha: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+        hora: z.string().regex(/^\d{2}:\d{2}$/).optional(),
+        sin_hora: z.boolean().optional().describe("true si no hay cupos y la hora la pone el equipo"),
+        preferencia: z.string().max(120).optional().describe("Con sin_hora: 'en la tarde', 'temprano'"),
+      }),
+      execute: async (parcial) => {
+        if (!ctx.pizarra) return { error: "No hay dónde anotar en este contexto." }
+        for (const [k, v] of Object.entries(parcial)) {
+          if (v === null || v === undefined) continue
+          if (typeof v === "string" && v.trim() === "") continue
+          ;(ctx.pizarra.datos as Record<string, unknown>)[k] = typeof v === "string" ? v.trim() : v
+        }
+        const falta = faltantes(ctx.pizarra.datos)
+        return {
+          anotado: true,
+          falta,
+          siguiente_pregunta: siguientePregunta(ctx.pizarra.datos),
+          listo_para_solicitar: falta.length === 0,
+        }
+      },
+    }),
+
     list_available_slots: tool({
       description:
         "Cupos LIBRES para citas en un día concreto. Úsala SIEMPRE antes de ofrecer un horario — nunca inventes disponibilidad. Devuelve horas locales; no dice de quién es lo que está ocupado.",
@@ -129,6 +190,9 @@ export function buildAutoReplyTools(admin: SB, ctx: AutoReplyContext) {
         // Que la nota sea verdadera no alcanza: tiene que DECIRLE QUÉ HACER. Un modelo al que se le
         // informa un problema y no una salida vuelve al comodín de la casa, que es el silencio.
         if (!algunaFranjaRes.count) {
+          // Que quien llama pueda saberlo sin leer el texto: es lo que decide qué rescate sale si el
+          // modelo se queda sin palabras — «estamos organizando la agenda» y no «no te entendí».
+          if (ctx.pizarra) ctx.pizarra.sinHorarios = true
           return {
             configured: false,
             slots: [],
