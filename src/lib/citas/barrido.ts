@@ -1,5 +1,7 @@
 import "server-only"
 
+import { bloqueDeLinks } from "@/lib/citas/links"
+
 // El barrido que manda los recordatorios de cita.
 //
 // ── DÓNDE CORRE, Y POR QUÉ AHÍ ────────────────────────────────────────────────────────────────
@@ -65,7 +67,7 @@ export type ResultadoDelBarrido = {
 export async function barrerRecordatoriosDeCita(
   clinicId: string,
   nombreDeLaClinica: string,
-  opciones: { activo: boolean; horas: number; texto?: string | null },
+  opciones: { activo: boolean; horas: number; texto?: string | null; direccion?: string | null },
   ahora = new Date(),
 ): Promise<ResultadoDelBarrido> {
   const dia = diaAAvisar(opciones.horas, ahora)
@@ -117,12 +119,21 @@ export async function barrerRecordatoriosDeCita(
     }
 
     const { fecha, hora } = fechaYHora(cita.starts_at)
-    const cuerpo = llenarTexto(texto, {
-      paciente: cita.patient?.name ?? "su mascota",
-      fecha,
-      hora,
-      clinica: nombreDeLaClinica,
-    })
+    // Sólo «cómo llegar» (28-ago): agregar al calendario una cita de MAÑANA a último momento no
+    // aporta, y el recordatorio corto se lee mejor. El link de Calendar va en la confirmación.
+    const cuerpo =
+      llenarTexto(texto, {
+        paciente: cita.patient?.name ?? "su mascota",
+        fecha,
+        hora,
+        clinica: nombreDeLaClinica,
+      }) +
+      bloqueDeLinks({
+        conCalendario: false,
+        titulo: `Cita de ${cita.patient?.name ?? "su mascota"}`,
+        inicio: cita.starts_at,
+        direccion: opciones.direccion,
+      })
 
     // Se sella ANTES de mandar. Ver el comentario de arriba: el peor caso tiene que ser «no llegó».
     const { error: sellarErr } = await admin

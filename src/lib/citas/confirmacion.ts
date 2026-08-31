@@ -1,5 +1,8 @@
 import "server-only"
 
+import { direccionDeLaClinica } from "@/lib/agenda/destinatarios"
+import { bloqueDeLinks } from "@/lib/citas/links"
+
 // La confirmación que sale EN EL MOMENTO de agendar la cita.
 //
 // ── QUÉ ES Y QUÉ NO ES ─────────────────────────────────────────────────────────────────────────
@@ -44,6 +47,7 @@ export type ResultadoDeConfirmacion = {
 type CitaParaConfirmar = {
   clinic_id: string
   starts_at: string
+  ends_at: string | null
   patient: { name: string } | null
   owner: { full_name: string; phone: string | null } | null
 }
@@ -68,14 +72,16 @@ export async function confirmarCita(
     admin
       .from("appointments")
       .select(
-        "clinic_id, starts_at, patient:patients!appointments_patient_id_fkey(name), owner:owners!appointments_owner_id_fkey(full_name, phone)",
+        // `ends_at` para el link de Calendar (el template de Google exige inicio Y fin).
+        "clinic_id, starts_at, ends_at, patient:patients!appointments_patient_id_fkey(name), owner:owners!appointments_owner_id_fkey(full_name, phone)",
       )
       .eq("id", appointmentId)
       .eq("clinic_id", clinicId)
       .maybeSingle(),
     admin
       .from("clinics")
-      .select("name, confirmacion_citas_activo, confirmacion_citas_texto")
+      // `address, city` para los links de Maps y Calendar del aviso (28-ago).
+      .select("name, address, city, confirmacion_citas_activo, confirmacion_citas_texto")
       .eq("id", clinicId)
       .maybeSingle(),
   ])
@@ -83,6 +89,8 @@ export async function confirmarCita(
   const cita = citaCruda as unknown as CitaParaConfirmar | null
   const clinica = clinicaCruda as {
     name: string
+    address: string | null
+    city: string | null
     confirmacion_citas_activo: boolean | null
     confirmacion_citas_texto: string | null
   } | null
@@ -117,12 +125,23 @@ export async function confirmarCita(
     plantilla && !revisarTexto(plantilla) ? plantilla : TEXTO_POR_DEFECTO_CONFIRMACION
 
   const { fecha, hora } = fechaYHora(cita.starts_at)
-  const mensaje = llenarTexto(texto, {
-    paciente: cita.patient?.name ?? "su mascota",
-    fecha,
-    hora,
-    clinica: clinica.name,
-  })
+  // EL BLOQUE DE LINKS VA DESPUÉS DE LA PLANTILLA, anexado por la app (28-ago: «con este link de
+  // Google Maps, Google Calendar»). La confirmación es EL momento «agendar», así que lleva los
+  // dos; el largo de la plantilla del vet (LARGO_MAXIMO) no lo cuenta — no es texto suyo.
+  const mensaje =
+    llenarTexto(texto, {
+      paciente: cita.patient?.name ?? "su mascota",
+      fecha,
+      hora,
+      clinica: clinica.name,
+    }) +
+    bloqueDeLinks({
+      conCalendario: true,
+      titulo: `Cita de ${cita.patient?.name ?? "su mascota"} en ${clinica.name}`,
+      inicio: cita.starts_at,
+      fin: cita.ends_at,
+      direccion: direccionDeLaClinica(clinica),
+    })
 
   try {
     await sendWhatsAppText(clinicId, telefono, mensaje)

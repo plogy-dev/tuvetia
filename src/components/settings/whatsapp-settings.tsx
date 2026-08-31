@@ -11,6 +11,7 @@ import { useRouter } from "next/navigation"
 import { Loader2, MessageCircle, QrCode, RefreshCw } from "lucide-react"
 import { toast } from "sonner"
 
+import { BarraDeAutonomia } from "@/components/settings/barra-de-autonomia"
 import { Button } from "@/components/ui/button"
 
 type WaStatus = "none" | "pending" | "connected" | "disconnected"
@@ -53,10 +54,13 @@ export function WhatsappSettings({
   initialStatus,
   initialPhone,
   initialAgentMode = "review",
+  cupoAutoDeHoy = null,
 }: {
   initialStatus: WaStatus
   initialPhone: string | null
   initialAgentMode?: "auto" | "review" | "paused" | "intervene"
+  /** Respuestas auto que la clínica puede enviar hoy (la rampa, contada en el servidor). */
+  cupoAutoDeHoy?: number | null
 }) {
   const router = useRouter()
   const [status, setStatus] = useState<WaStatus>(initialStatus)
@@ -285,8 +289,7 @@ export function WhatsappSettings({
     }
   }
 
-  async function toggleAutoMode() {
-    const next = agentMode === "auto" ? "review" : "auto"
+  async function cambiarModo(next: "auto" | "review") {
     setBusy(true)
     try {
       const res = await fetch("/api/whatsapp/agent-mode", {
@@ -322,54 +325,16 @@ export function WhatsappSettings({
             Verificar
           </Button>
         </div>
-        {/* ── EL INTERRUPTOR ES UN INTERRUPTOR (28-ago, pedido del cliente) ──────────────────
-            Antes era un botón chico que decía «Activadas»/«Desactivadas» — y un botón que DICE un
-            estado es ambiguo por construcción: ¿«Activadas» es lo que está pasando, o lo que va a
-            pasar si lo toco? Un switch no tiene ese problema: la posición ES el estado y tocarlo
-            lo cambia. Con el punto de color y el rótulo al lado se lee de un vistazo y sin color.
-            La tarjeta entera es tocable: el objetivo táctil de un switch solo es minúsculo, y que
-            esta decisión sea fácil de acertar importa más que el espacio que ocupa. */}
-        <button
-          type="button"
-          role="switch"
-          aria-checked={agentMode === "auto"}
-          onClick={toggleAutoMode}
-          disabled={busy}
-          className="flex w-full flex-wrap items-center justify-between gap-3 rounded-xl border px-4 py-3 text-left transition-colors hover:bg-surface-2 focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none disabled:opacity-60"
-        >
-          <div className="flex min-w-0 flex-1 flex-col gap-0.5">
-            <span className="flex items-center gap-2 text-sm font-semibold">
-              <span
-                aria-hidden
-                className={agentMode === "auto" ? "size-2 rounded-full bg-ok" : "size-2 rounded-full bg-fg-faint"}
-              />
-              Respuestas automáticas de VetGPT
-              <span className={agentMode === "auto" ? "text-xs font-medium text-ok" : "text-xs font-medium text-fg-muted"}>
-                {agentMode === "auto" ? "Encendidas" : "Apagadas"}
-              </span>
-            </span>
-            <span className="text-xs leading-relaxed text-muted-foreground">
-              {agentMode === "auto"
-                ? "VetGPT le responde a todo el que escriba — horarios, ubicación y pedidos de cita. Lo clínico nunca: eso queda en la bandeja para vos. Cada respuesta queda registrada."
-                : "Apagadas (así arranca): VetGPT no le escribe solo a nadie — sugiere la respuesta en la bandeja y sale únicamente cuando vos la apruebes."}
-            </span>
-          </div>
-          {/* El switch visual. Decorativo a propósito: el botón de afuera es el control real. */}
-          <span
-            aria-hidden
-            className={
-              "relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors " +
-              (agentMode === "auto" ? "bg-ok" : "bg-fg-faint/40")
-            }
-          >
-            <span
-              className={
-                "inline-block size-5 transform rounded-full bg-white transition-transform " +
-                (agentMode === "auto" ? "translate-x-[22px]" : "translate-x-0.5")
-              }
-            />
-          </span>
-        </button>
+        {/* ── LA BARRA DE AUTONOMÍA (28-ago, pedido de Luciano) ──────────────────────────────
+            Reemplaza al switch binario del mismo día: la barrita gradúa el nivel de libertad del
+            agente y muestra a dónde va (el tercer nivel, bloqueado, «se gana con el uso»). El
+            endpoint es el mismo; los dos niveles operables son los dos valores que la API acepta. */}
+        <BarraDeAutonomia
+          modo={agentMode}
+          ocupado={busy}
+          onCambiar={(siguiente) => void cambiarModo(siguiente)}
+          cupoAutoDeHoy={cupoAutoDeHoy}
+        />
       </div>
     )
   }

@@ -2,6 +2,7 @@ import { CalendarDays, Mail, MessageCircle } from "lucide-react"
 
 import { sesionDelServidor } from "@/lib/supabase/sesion"
 import { WhatsappSettings } from "@/components/settings/whatsapp-settings"
+import { cupoDeHoy } from "@/lib/whatsapp/rampa"
 import { VetgptNoRespondeSolo } from "@/components/conexiones/vetgpt-no-responde-solo"
 import { CalendarSettings, type CalendarProvider } from "@/components/settings/calendar-settings"
 import { AthosEmailSettings } from "@/components/settings/athos-email-settings"
@@ -52,7 +53,12 @@ export default async function ConexionesPage() {
 
   const [{ data: wa }, correoAthos, { data: clinica }, { data: adminDeRespaldo }, miCalendario] =
     await Promise.all([
-    supabase.from("whatsapp_integrations").select("status, phone_number, agent_mode").maybeSingle(),
+    supabase
+      .from("whatsapp_integrations")
+      // `connected_at` y `auto_daily_limit` alimentan la línea de la rampa en la barra de
+      // autonomía — la parte «se gana con el uso» que ya existía muda en auto-reply.ts.
+      .select("status, phone_number, agent_mode, connected_at, auto_daily_limit")
+      .maybeSingle(),
     // La cuenta de correo que este miembro conectó por Composio: la que usa VetGPT por él.
     user && composioListo
       ? estadoConexion(user.id)
@@ -100,7 +106,12 @@ export default async function ConexionesPage() {
     status: "pending" | "connected" | "disconnected"
     phone_number: string | null
     agent_mode: "auto" | "review" | "paused" | "intervene"
+    connected_at: string | null
+    auto_daily_limit: number | null
   } | null
+  // El cupo se cuenta ACÁ, en el servidor, con la función pura de la rampa — el reloj dentro
+  // del render es impuro (mismo criterio que `diasDePruebaRestantes` en la página del plan).
+  const cupoAutoDeHoy = cupoDeHoy(waRow?.connected_at ?? null, waRow?.auto_daily_limit ?? null)
   const calendarConnected: CalendarProvider | null = miCalendario.proveedor
 
   return (
@@ -128,6 +139,7 @@ export default async function ConexionesPage() {
             initialStatus={waRow?.status ?? "none"}
             initialPhone={waRow?.phone_number ?? null}
             initialAgentMode={waRow?.agent_mode ?? "review"}
+            cupoAutoDeHoy={cupoAutoDeHoy}
           />
         </section>
 

@@ -33,6 +33,7 @@ import {
   llenarTexto,
   revisarTexto,
 } from "@/lib/citas/recordatorio"
+import { PRESETS_RECORDATORIO } from "@/lib/citas/textos"
 
 /** Sólo múltiplos de un día: es lo que un barrido diario puede cumplir. */
 const ANTICIPACIONES = [
@@ -157,6 +158,21 @@ export function RecordatorioCitasSettings({
                 </button>
               )}
             </div>
+            {/* Los presets rellenan, no guardan — ver PRESETS_RECORDATORIO. */}
+            <div className="mb-1.5 flex flex-wrap items-center gap-1.5">
+              <span className="text-[11px] text-fg-faint">Sugerencias:</span>
+              {PRESETS_RECORDATORIO.map((p) => (
+                <button
+                  key={p.nombre}
+                  type="button"
+                  onClick={() => setTexto(p.texto)}
+                  disabled={isPending || !puedeEditar}
+                  className="rounded-full border border-line px-2.5 py-0.5 text-[11px] text-fg-muted transition-colors hover:border-brand hover:text-brand-text disabled:opacity-50"
+                >
+                  {p.nombre}
+                </button>
+              ))}
+            </div>
             <textarea
               id="texto-recordatorio"
               value={texto}
@@ -183,6 +199,11 @@ export function RecordatorioCitasSettings({
               <p className="mt-1 text-xs text-muted-foreground">
                 <span className="font-medium">Se verá así:</span>{" "}
                 {llenarTexto(texto.trim() || TEXTO_POR_DEFECTO, MUESTRA)}
+                {/* El bloque de links lo anexa la app, no la plantilla — se avisa para que el
+                    vet no lo escriba a mano y salga dos veces (28-ago). */}
+                <span className="mt-0.5 block text-fg-faint">
+                  + 📍 «Cómo llegar» con la dirección de la clínica (si está cargada en Ajustes).
+                </span>
               </p>
             )}
           </div>

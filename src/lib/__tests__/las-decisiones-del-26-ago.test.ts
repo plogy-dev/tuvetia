@@ -27,11 +27,13 @@ describe("1 · VetGPT no responde solo, y se le dice al vet EN LA CARA", () => {
     expect(aviso).toContain("no le escribe solo")
   })
 
-  it("el toggle de ajustes explica el estado APAGADO, que es como arranca", () => {
+  it("el control de ajustes explica el estado APAGADO, que es como arranca", () => {
     // La letra pequeña vieja sólo describía el modo encendido: quien lo veía apagado no sabía
-    // qué significaba eso para sus clientes.
-    const ajustes = limpiar("src/components/settings/whatsapp-settings.tsx")
-    expect(ajustes).toContain("así arranca")
+    // qué significaba eso para sus clientes. El copy vivió en el toggle de whatsapp-settings
+    // hasta el 30-ago; hoy vive en la barra de autonomía, que lo reemplazó — el invariante
+    // sigue al copy, no al archivo.
+    const barra = limpiar("src/components/settings/barra-de-autonomia.tsx")
+    expect(barra.toLowerCase()).toContain("así arranca")
   })
 })
 

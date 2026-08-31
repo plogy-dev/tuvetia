@@ -28,7 +28,7 @@ import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
 import { guardarConfirmacionDeCitas } from "@/lib/citas/actions"
 import { HUECOS_DE_CITA, LARGO_MAXIMO, revisarTexto } from "@/lib/citas/recordatorio"
-import { TEXTO_POR_DEFECTO_CONFIRMACION } from "@/lib/citas/textos"
+import { PRESETS_CONFIRMACION, TEXTO_POR_DEFECTO_CONFIRMACION } from "@/lib/citas/textos"
 
 export function ConfirmacionCitasSettings({
   activoInicial,
@@ -87,6 +87,22 @@ export function ConfirmacionCitasSettings({
               {texto.length}/{LARGO_MAXIMO}
             </span>
           </div>
+          {/* Los presets rellenan, no guardan: el vet revisa y guarda con el botón de
+              siempre — ver el comentario de PRESETS_CONFIRMACION. */}
+          <div className="mb-1.5 flex flex-wrap items-center gap-1.5">
+            <span className="text-[11px] text-fg-faint">Sugerencias:</span>
+            {PRESETS_CONFIRMACION.map((p) => (
+              <button
+                key={p.nombre}
+                type="button"
+                onClick={() => setTexto(p.texto)}
+                disabled={isPending || !puedeEditar}
+                className="rounded-full border border-line px-2.5 py-0.5 text-[11px] text-fg-muted transition-colors hover:border-brand hover:text-brand-text disabled:opacity-50"
+              >
+                {p.nombre}
+              </button>
+            ))}
+          </div>
           <Textarea
             id="texto-confirmacion"
             rows={3}
@@ -101,7 +117,8 @@ export function ConfirmacionCitasSettings({
             {/* LOS HUECOS SE ENUMERAN, no se dejan adivinar: escribir `{mascota}` en vez de
                 `{paciente}` produce un mensaje que sale literal al cliente. */}
             Podés usar {HUECOS_DE_CITA.map((h) => `{${h}}`).join(", ")}. Vacío = el texto por
-            defecto.
+            defecto. Debajo del mensaje van solos los links de «📅 agregar al calendario» y
+            «📍 cómo llegar» — no hace falta escribirlos.
           </p>
           {problema && <p className="mt-1 text-xs text-warn">{problema}</p>}
         </div>

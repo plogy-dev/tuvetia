@@ -15,6 +15,7 @@ import {
 } from "@/components/ui/sidebar"
 
 import { InsigniaSinLeer } from "@/components/comunicaciones/insignia-sin-leer"
+import { usePlan } from "@/components/planes/plan-provider"
 
 /** Dónde vive la bandeja. El aviso de mensajes sin leer cuelga de este ítem y de ningún otro. */
 const RUTA_COMUNICACIONES = "/dashboard/comunicaciones"
@@ -23,6 +24,15 @@ export type NavItem = {
   title: string
   url: string
   icon?: React.ReactNode
+  /**
+   * El ítem sólo se pinta para admins de la clínica, y sólo con la barra EXPANDIDA.
+   *
+   * Las dos condiciones vienen juntas a propósito (28-ago, «Administración» tras Ventas): el rol
+   * porque los permisos de ese panel los tienen los admins; y lo de la barra colapsada porque ahí
+   * cada fila extra empuja «Iniciar consulta» fuera de una columna de 48px que no scrollea — y en
+   * ese modo ya existe el icono de Administración en la fila de accesos de abajo.
+   */
+  soloAdmin?: boolean
 }
 
 export type NavGroup = {
@@ -72,10 +82,18 @@ function Indicador({ grupo }: { grupo: "consulta" | "crm" }) {
 
 function Items({ items, grupo }: { items: NavItem[]; grupo: "consulta" | "crm" }) {
   const pathname = usePathname()
+  // `usePlan` y no una prop nueva: el sidebar ya vive dentro de `PlanProvider` (el layout lo
+  // monta con `esAdmin` del perfil), y es el mismo camino que usan las pantallas de planes.
+  const { esAdmin } = usePlan()
   return (
     <SidebarMenu>
-      {items.map((item) => (
-        <SidebarMenuItem key={item.title}>
+      {items
+        .filter((item) => !item.soloAdmin || esAdmin)
+        .map((item) => (
+        <SidebarMenuItem
+          key={item.title}
+          className={item.soloAdmin ? "group-data-[collapsible=icon]:hidden" : undefined}
+        >
           {/* `<Link>` Y NO `<a href>`, Y NO ES COSMÉTICO — ver el comentario largo de `NavMain`.
               Un ancla cruda a una ruta interna recarga el documento entero y mata la grabación
               en curso.
