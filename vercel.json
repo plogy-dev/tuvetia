@@ -8,5 +8,8 @@
       "path": "/api/cron/cartera",
       "schedule": "0 14 * * *"
     }
+  ],
+  "regions": [
+    "pdx1"
   ]
 }
