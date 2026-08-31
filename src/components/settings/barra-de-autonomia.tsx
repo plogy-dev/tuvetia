@@ -1,6 +1,8 @@
 "use client"
 
-import { Check, Lock } from "lucide-react"
+import { Check, CircleAlert, Lock } from "lucide-react"
+
+import type { Requisito } from "@/lib/whatsapp/requisitos-del-modo-automatico"
 
 // La barra de autonomía de VetGPT — cuánta libertad tiene para actuar solo.
 //
@@ -67,13 +69,30 @@ export function BarraDeAutonomia({
   ocupado,
   onCambiar,
   cupoAutoDeHoy,
+  requisitos = [],
 }: {
   modo: Modo
   ocupado: boolean
   onCambiar: (siguiente: "auto" | "review") => void
   /** Respuestas auto que puede enviar hoy — lo cuenta el servidor con `lib/whatsapp/rampa`. */
   cupoAutoDeHoy: number | null
+  /**
+   * Lo que le falta a la clínica para que esto funcione de verdad, de
+   * `lib/whatsapp/requisitos-del-modo-automatico`.
+   *
+   * Ese módulo existía desde el 27-ago —completo y probado— y NO LO CONSUMÍA NADIE. El resultado se
+   * midió el 30-ago: una clínica encendió el modo automático con cero horarios cargados, la pantalla
+   * dijo «Encendidas», y el problema apareció recién del lado del cliente, cuando un titular pidió
+   * cita y VetGPT no tenía ni un cupo que ofrecerle.
+   *
+   * Por defecto vacío: quien no lo pase no ve nada, igual que antes.
+   */
+  requisitos?: Requisito[]
 }) {
+  // SÓLO LO QUE FALTA. La lista completa —incluidos los cumplidos— es útil cuando algo no anda y se
+  // está diagnosticando; acá, al lado del interruptor, tres renglones verdes son ruido que hace que
+  // no se lea el cuarto, que es el que importa.
+  const pendientes = requisitos.filter((r) => !r.cumplido)
   // El índice del nivel activo. `paused`/`intervene` (sin UI hoy) se pintan como nivel 1.
   const activo = modo === "auto" ? 1 : 0
 
@@ -147,6 +166,23 @@ export function BarraDeAutonomia({
           Hoy puede enviar hasta <span className="font-medium text-fg-muted">{cupoAutoDeHoy}</span>{" "}
           respuestas — el cupo sube solo con los días de uso.
         </p>
+      )}
+
+      {/* LO QUE FALTA, AL LADO DEL INTERRUPTOR Y NO EN OTRA PANTALLA. El aviso de los horarios ya
+          existía, pero vivía en la pantalla de HORARIOS contando que VetGPT los usa: o sea que sólo
+          lo leía quien ya estaba cargándolos. Quien enciende el modo automático no pasa por ahí. */}
+      {pendientes.length > 0 && (
+        <ul className="mt-3 flex flex-col gap-1.5 border-t pt-3">
+          {pendientes.map((r) => (
+            <li key={r.id} className="flex items-start gap-2 text-xs leading-relaxed">
+              <CircleAlert
+                className={`mt-px size-3.5 shrink-0 ${r.bloqueante ? "text-warn" : "text-fg-faint"}`}
+                aria-hidden
+              />
+              <span className={r.bloqueante ? "text-fg-muted" : "text-muted-foreground"}>{r.texto}</span>
+            </li>
+          ))}
+        </ul>
       )}
     </div>
   )

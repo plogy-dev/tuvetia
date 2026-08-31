@@ -12,6 +12,7 @@ import { Loader2, MessageCircle, QrCode, RefreshCw } from "lucide-react"
 import { toast } from "sonner"
 
 import { BarraDeAutonomia } from "@/components/settings/barra-de-autonomia"
+import type { Requisito } from "@/lib/whatsapp/requisitos-del-modo-automatico"
 import { Button } from "@/components/ui/button"
 
 type WaStatus = "none" | "pending" | "connected" | "disconnected"
@@ -55,12 +56,15 @@ export function WhatsappSettings({
   initialPhone,
   initialAgentMode = "review",
   cupoAutoDeHoy = null,
+  requisitos = [],
 }: {
   initialStatus: WaStatus
   initialPhone: string | null
   initialAgentMode?: "auto" | "review" | "paused" | "intervene"
   /** Respuestas auto que la clínica puede enviar hoy (la rampa, contada en el servidor). */
   cupoAutoDeHoy?: number | null
+  /** Lo que le falta a la clínica para que el modo automático funcione de verdad. Ver la barra. */
+  requisitos?: Requisito[]
 }) {
   const router = useRouter()
   const [status, setStatus] = useState<WaStatus>(initialStatus)
@@ -334,6 +338,7 @@ export function WhatsappSettings({
           ocupado={busy}
           onCambiar={(siguiente) => void cambiarModo(siguiente)}
           cupoAutoDeHoy={cupoAutoDeHoy}
+          requisitos={requisitos}
         />
       </div>
     )

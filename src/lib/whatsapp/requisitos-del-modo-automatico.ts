@@ -31,13 +31,23 @@ export const RESPUESTAS_DEL_PRIMER_DIA = 5
 /** Anti-loop por conversación de `auto-reply.ts` (`MAX_PER_HOUR_PER_CONVERSATION`). */
 export const MAXIMO_POR_CHAT_POR_HORA = 8
 
-export type IdDeRequisito = "conexion" | "plan" | "rol"
+export type IdDeRequisito = "conexion" | "plan" | "rol" | "horarios"
 
 export type Requisito = {
   id: IdDeRequisito
   cumplido: boolean
   /** Una línea. Si falta, dice qué falta Y qué hacer; si está, confirma sin explicar de más. */
   texto: string
+  /**
+   * ¿Sin esto el interruptor NO se puede encender?
+   *
+   * Los tres primeros sí: sin línea no hay mensajes, sin Pro no hay capacidad y sin ser
+   * administrador no hay permiso. `horarios` NO, y es una decisión de producto, no un olvido —
+   * hacerlo bloqueante cambiaría HOY, en silencio, quién puede tener el modo automático encendido,
+   * y hay clínicas corriendo con cero horarios que se encontrarían un interruptor que ya no pueden
+   * volver a prender. Se avisa fuerte y se deja pasar.
+   */
+  bloqueante: boolean
 }
 
 /**
@@ -55,17 +65,26 @@ export function requisitosDelModoAutomatico(estado: {
   planPro: boolean
   /** Quien mira es administrador de la clínica: el único que puede mover el interruptor. */
   esAdmin: boolean
+  /**
+   * La clínica cargó al menos un horario de atención propio (`clinic_hours` con `vet_id` nulo).
+   *
+   * Opcional para no romper a quien ya llamaba esta función con tres campos: sin el dato no se
+   * afirma nada, que es mejor que afirmar que faltan horarios cuando nadie los miró.
+   */
+  tieneHorarios?: boolean
 }): Requisito[] {
   return [
     {
       id: "conexion",
       cumplido: estado.conectado,
+      bloqueante: true,
       texto: estado.conectado
         ? "El WhatsApp de la clínica está conectado."
         : "El WhatsApp de la clínica no está conectado: sin línea no llega ningún mensaje que responder.",
     },
     {
       id: "plan",
+      bloqueante: true,
       cumplido: estado.planPro,
       // Nombra el plan de la clínica, no «tu plan»: lo paga la clínica y lo contrata el
       // administrador. Un vet que lee «tu plan» va a buscar dónde pagarlo y no lo va a encontrar.
@@ -75,17 +94,43 @@ export function requisitosDelModoAutomatico(estado: {
     },
     {
       id: "rol",
+      bloqueante: true,
       cumplido: estado.esAdmin,
       texto: estado.esAdmin
         ? "Sos administrador de la clínica, así que podés encenderlo y apagarlo."
         : "Sólo un administrador de la clínica puede encender o apagar las respuestas automáticas. Pedíselo a quien administra la tuya.",
     },
+    // ── EL AVISO QUE FALTABA, Y QUE HABRÍA EVITADO EL INCIDENTE DEL 30-AGO ──────────────────────
+    //
+    // `Clinica de Santiago Tellez` encendió el modo automático a las 20:53 con CERO horarios
+    // cargados. Cuatro minutos después un titular pidió cita, dijo «Mañana», y VetGPT no tenía ni un
+    // cupo que ofrecerle. La app no dijo nada en ningún momento: el interruptor se dejó encender, el
+    // toast dijo «Encendidas», y el problema recién apareció del lado del cliente.
+    //
+    // El aviso que sí existía apuntaba al revés —en la pantalla de HORARIOS, contando que VetGPT los
+    // usa—, o sea que sólo lo leía quien ya estaba cargándolos.
+    {
+      id: "horarios",
+      bloqueante: false,
+      // `undefined` = nadie preguntó. No se afirma que falten horarios sin haberlos mirado.
+      cumplido: estado.tieneHorarios !== false,
+      texto:
+        estado.tieneHorarios === false
+          ? "La clínica no tiene horarios de atención cargados. VetGPT va a responder igual y a tomar los pedidos de cita, pero no va a poder ofrecer una hora hasta que los cargues en Administración → Agenda."
+          : "La clínica tiene horarios cargados, así que VetGPT puede ofrecer cupos reales.",
+    },
   ]
 }
 
-/** ¿Está todo lo comprobable en su sitio? Si no, el interruptor no debería dejarse encender. */
+/**
+ * ¿Está todo lo que BLOQUEA en su sitio? Si no, el interruptor no debería dejarse encender.
+ *
+ * Mira sólo los bloqueantes a propósito: `horarios` avisa fuerte pero no frena — el porqué está en
+ * el campo `bloqueante` del tipo, y cambiarlo por un `every` a secas apagaría el interruptor de las
+ * clínicas que hoy lo tienen encendido sin horarios.
+ */
 export function puedeEncenderse(requisitos: Requisito[]): boolean {
-  return requisitos.every((r) => r.cumplido)
+  return requisitos.filter((r) => r.bloqueante).every((r) => r.cumplido)
 }
 
 /**

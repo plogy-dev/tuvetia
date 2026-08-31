@@ -3,6 +3,7 @@ import { CalendarDays, Mail, MessageCircle } from "lucide-react"
 import { sesionDelServidor } from "@/lib/supabase/sesion"
 import { WhatsappSettings } from "@/components/settings/whatsapp-settings"
 import { cupoDeHoy } from "@/lib/whatsapp/rampa"
+import { requisitosDelModoAutomatico } from "@/lib/whatsapp/requisitos-del-modo-automatico"
 import { VetgptNoRespondeSolo } from "@/components/conexiones/vetgpt-no-responde-solo"
 import { CalendarSettings, type CalendarProvider } from "@/components/settings/calendar-settings"
 import { AthosEmailSettings } from "@/components/settings/athos-email-settings"
@@ -51,8 +52,14 @@ export default async function ConexionesPage() {
     compartidoConElCorreo: false,
   }
 
-  const [{ data: wa }, correoAthos, { data: clinica }, { data: adminDeRespaldo }, miCalendario] =
-    await Promise.all([
+  const [
+    { data: wa },
+    correoAthos,
+    { data: clinica },
+    { data: adminDeRespaldo },
+    miCalendario,
+    { count: horariosCargados },
+  ] = await Promise.all([
     supabase
       .from("whatsapp_integrations")
       // `connected_at` y `auto_daily_limit` alimentan la línea de la rampa en la barra de
@@ -65,7 +72,9 @@ export default async function ConexionesPage() {
       : Promise.resolve({ conectado: false, proveedor: null, email: null }),
     // Quién administra la clínica: es el anfitrión de respaldo cuando el vet asignado no conectó el
     // suyo, y lo que hace falta para decirle a un vet a dónde están yendo sus citas mientras tanto.
-    user ? supabase.from("clinics").select("owner_id").maybeSingle() : Promise.resolve({ data: null }),
+    user
+      ? supabase.from("clinics").select("owner_id, plan").maybeSingle()
+      : Promise.resolve({ data: null }),
     // EL RESPALDO, y el nombre. Se pide siempre —no sólo cuando falta `owner_id`— porque también
     // sirve para NOMBRAR al administrador más abajo, y una consulta más en la misma ola no cuesta
     // una ida y vuelta.
@@ -76,6 +85,15 @@ export default async function ConexionesPage() {
     // administrador, porque el evento vivía en su calendario y la conexión de quien miraba no
     // cambiaba nada. Ahora es al revés: el evento se crea en el del vet asignado.
     user && composioListo ? estadoCalendario(user.id) : Promise.resolve(SIN_CALENDARIO),
+    // ¿LA CLÍNICA CARGÓ SUS HORARIOS? Alimenta el aviso de la barra de autonomía. `head: true`: no
+    // se traen filas, sólo el conteo. `vet_id` nulo = el horario de la puerta, que es el que VetGPT
+    // le ofrece a un titular (0069) — el personal de un vet no sirve para eso.
+    user
+      ? supabase
+          .from("clinic_hours")
+          .select("id", { count: "exact", head: true })
+          .is("vet_id", null)
+      : Promise.resolve({ count: 0 }),
   ])
 
   // UNA SOLA REGLA para "de quién es el calendario", compartida con el camino que empuja la cita
@@ -112,6 +130,20 @@ export default async function ConexionesPage() {
   // El cupo se cuenta ACÁ, en el servidor, con la función pura de la rampa — el reloj dentro
   // del render es impuro (mismo criterio que `diasDePruebaRestantes` en la página del plan).
   const cupoAutoDeHoy = cupoDeHoy(waRow?.connected_at ?? null, waRow?.auto_daily_limit ?? null)
+
+  // ── EL CHECKLIST QUE EXISTÍA Y NO CONSUMÍA NADIE ────────────────────────────────────────────
+  //
+  // `requisitos-del-modo-automatico.ts` está escrito y probado desde el 27-ago —cuando David
+  // encendió el interruptor y «no pasó nada»— y hasta hoy no lo importaba ni un archivo. El precio
+  // se pagó el 30-ago: una clínica encendió el modo automático con cero horarios cargados y se
+  // enteró por un cliente que se quedó esperando.
+  const requisitosDelAuto = requisitosDelModoAutomatico({
+    conectado: waRow?.status === "connected",
+    // El plan viaja en la misma consulta que trae al administrador: una columna más, cero viajes más.
+    planPro: (clinica as { plan?: string } | null)?.plan === "pro",
+    esAdmin: esAdministrador,
+    tieneHorarios: (horariosCargados ?? 0) > 0,
+  })
   const calendarConnected: CalendarProvider | null = miCalendario.proveedor
 
   return (
@@ -140,6 +172,7 @@ export default async function ConexionesPage() {
             initialPhone={waRow?.phone_number ?? null}
             initialAgentMode={waRow?.agent_mode ?? "review"}
             cupoAutoDeHoy={cupoAutoDeHoy}
+            requisitos={requisitosDelAuto}
           />
         </section>
 

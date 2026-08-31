@@ -61,14 +61,45 @@ describe("requisitosDelModoAutomatico — por qué no responde", () => {
     }
   })
 
-  it("los tres requisitos se pintan siempre, cumplidos o no", () => {
+  it("los cuatro requisitos se pintan siempre, cumplidos o no", () => {
     // Una lista que sólo muestra lo que falta no responde «¿y qué SÍ tengo?», que es la otra mitad
     // de la pregunta cuando algo no funciona.
     expect(requisitosDelModoAutomatico(TODO_BIEN).map((r) => r.id)).toEqual([
       "conexion",
       "plan",
       "rol",
+      "horarios",
     ])
+  })
+
+  // ── LA DECISIÓN DE PRODUCTO, ESCRITA PARA QUE NO SE CAMBIE SIN QUERER ────────────────────────
+  //
+  // `horarios` avisa pero NO bloquea. Si alguien convierte `puedeEncenderse` en un `every` a secas,
+  // el interruptor se apaga para las clínicas que hoy lo tienen encendido sin horarios cargados —
+  // incluida la del incidente del 30-ago— y se encuentran con algo que ya no pueden volver a
+  // prender. Es una decisión, no un descuido, y este test es donde está anotada.
+  it("sin horarios AVISA pero deja encender igual", () => {
+    const sinHorarios = requisitosDelModoAutomatico({ ...TODO_BIEN, tieneHorarios: false })
+    const horarios = sinHorarios.find((r) => r.id === "horarios")!
+
+    expect(horarios.cumplido).toBe(false)
+    expect(horarios.bloqueante).toBe(false)
+    // Tiene que decir qué hacer, no sólo qué pasa: sin el dónde, el vet lee el problema y no lo
+    // puede arreglar. Fue exactamente el caso del 30-ago.
+    expect(horarios.texto).toMatch(/Administración/i)
+    expect(puedeEncenderse(sinHorarios)).toBe(true)
+  })
+
+  it("sin el dato, no se afirma que falten horarios", () => {
+    // `tieneHorarios` es opcional: quien no lo consulte no debería ver una advertencia inventada.
+    const requisitos = requisitosDelModoAutomatico(TODO_BIEN)
+    expect(requisitos.find((r) => r.id === "horarios")!.cumplido).toBe(true)
+  })
+
+  it("los tres que sí bloquean siguen bloqueando", () => {
+    for (const id of ["conexion", "plan", "rol"] as const) {
+      expect(requisitosDelModoAutomatico(TODO_BIEN).find((r) => r.id === id)!.bloqueante, id).toBe(true)
+    }
   })
 })
 
