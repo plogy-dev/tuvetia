@@ -65,7 +65,8 @@ describe("el ancho del shell", () => {
   })
 })
 
-describe("la fila de accesos (integraciones · administración · configuración · ayuda)", () => {
+// Administración salió de la fila el 31-ago (David pidió UNA puerta: la del rótulo tras Ventas).
+describe("la fila de accesos (integraciones · configuración · ayuda)", () => {
   it("es una fila de iconos, no una pila — o «Consulta» vuelve a caer bajo el pliegue", () => {
     // Ya no vive en el pie (26-ago: David pidió que bajara con el resto), pero la fila sigue
     // siendo lo correcto: apilada costaba ~232 px de alto contra ~90 en fila, y ahora ese alto
@@ -84,8 +85,9 @@ describe("la fila de accesos (integraciones · administración · configuración
   })
 
   it("no hay dos ítems del pie encendidos a la vez", () => {
-    // Administración contiene a Configuración: sin el desempate del más específico, en
-    // /administracion/clinica se encendían los dos.
+    // El desempate del más específico se queda aunque Administración ya no esté en la fila:
+    // Configuración (/administracion/clinica) sigue conviviendo con rutas que la contienen, y
+    // quitar el helper es cómo el defecto vuelve con el próximo ítem que se agregue.
     const nav = leer("src", "components", "nav-secondary.tsx")
     expect(nav).toContain("urlActivaEntre")
   })

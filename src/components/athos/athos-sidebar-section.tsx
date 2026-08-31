@@ -22,8 +22,8 @@
 // misma molestia: con cuarenta consultas cargadas, este panel empujaba el resto de la barra fuera
 // de la vista justo en la pantalla donde uno está trabajando.
 //
-// El "abajo" está en `app-sidebar.tsx` —es cuestión de orden— y el plegado vive acá, con su estado
-// recordado: un panel que se vuelve a abrir solo en cada navegación no está plegado, está
+// El "abajo" está en `app-sidebar.tsx` —es cuestión de orden—. El plegado EXISTIÓ acá y se quitó
+// el 31-ago a pedido de David: el historial va siempre desplegado.
 // molestando una vez por página.
 //
 // Y LA LISTA TIENE TECHO Y SCROLL PROPIO. Sin eso, "plegable" arregla el caso cerrado y deja el
@@ -32,7 +32,7 @@
 import { useEffect, useMemo, useState, useSyncExternalStore } from "react"
 import Link from "next/link"
 import { usePathname, useRouter, useSearchParams } from "next/navigation"
-import { ChevronDown, MessagesSquare, PlusIcon, SearchIcon, Stethoscope, Trash2 } from "lucide-react"
+import { MessagesSquare, PlusIcon, SearchIcon, Stethoscope, Trash2 } from "lucide-react"
 import { toast } from "sonner"
 
 import { ESTADO_DE_CONSULTA } from "@/lib/consultas/estado"
@@ -47,12 +47,6 @@ import {
   SidebarMenuItem,
 } from "@/components/ui/sidebar"
 import { bogotaDate } from "@/lib/date-utils"
-import {
-  escribirPlegado,
-  leerPlegado,
-  plegadoEnElServidor,
-  suscribirAlPlegado,
-} from "@/lib/athos/historial-plegado"
 
 
 /** Cuántas filas de cada lista se traen. Es un panel de acceso rápido, no un archivo completo. */
@@ -77,11 +71,6 @@ export function AthosSidebarSection() {
   const visible = pathname.startsWith("/dashboard")
 
   const [tab, setTab] = useState<"consultas" | "chats">("consultas")
-  // `useSyncExternalStore` Y NO `useState` + `useEffect`. Las dos evitan el error de hidratación
-  // —el servidor no tiene `window`—, pero la del efecto llama a `setState` adentro del efecto, que
-  // es un render en cascada. Ésta es la API que React documenta para leer un sistema externo con
-  // soporte de SSR, y de paso sincroniza entre pestañas sin cablear nada.
-  const plegado = useSyncExternalStore(suscribirAlPlegado, leerPlegado, plegadoEnElServidor)
   const [q, setQ] = useState("")
   const [consultas, setConsultas] = useState<Item[] | null>(null)
   const [chats, setChats] = useState<Item[] | null>(null)
@@ -99,9 +88,7 @@ export function AthosSidebarSection() {
   // Los datos viejos se quedan pintados mientras llegan los nuevos: refrescar no parpadea.
   const rutaKey = `${pathname}?${searchParams.toString()}`
   useEffect(() => {
-    // NI UNA CONSULTA CON EL PANEL PLEGADO. Son tres —consultas, mensajes y pacientes— y ninguna
-    // sirve para pintar algo que está cerrado. Al desplegarlo se cargan, y ahí sí valen la pena.
-    if (!visible || plegado) return
+    if (!visible) return
     let vivo = true
     void (async () => {
       const supabase = createClient()
@@ -205,7 +192,7 @@ export function AthosSidebarSection() {
     return () => {
       vivo = false
     }
-  }, [visible, plegado, rutaKey, refresco])
+  }, [visible, rutaKey, refresco])
 
   // "Eliminar" un chat = quitarlo de la VISTA (0095): los mensajes quedan en la base y la memoria
   // del paciente intacta. Optimista: desaparece al clic; si el servidor falla, se recarga y el
@@ -275,26 +262,15 @@ export function AthosSidebarSection() {
   return (
     <SidebarGroup className="group-data-[collapsible=icon]:hidden">
       <SidebarGroupContent className="flex flex-col gap-2">
-        {/* LA CABECERA ES EL BOTÓN. `aria-expanded` y `aria-controls` no son decoración: sin ellos
-            un lector de pantalla anuncia "Historial, botón" y no dice si al tocarlo va a abrir o a
-            cerrar — que es la única pregunta que importa en un plegable. */}
-        <button
-          type="button"
-          onClick={() => escribirPlegado(!plegado)}
-          aria-expanded={!plegado}
-          aria-controls="athos-historial"
-          className="flex items-center gap-1.5 rounded-[7px] px-2 py-1 text-xs font-medium text-muted-foreground transition-colors hover:bg-sidebar-accent hover:text-sidebar-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
-        >
-          <ChevronDown
-            aria-hidden
-            className={`size-3.5 transition-transform ${plegado ? "-rotate-90" : ""}`}
-          />
-          Historial
-        </button>
+        {/* LA CABECERA YA NO ES UN BOTÓN (31-ago). El plegable venía del pedido de David del
+            19-ago («abajo y plegables»), y el mismo David lo revirtió el 28-ago al encontrarse
+            el panel escondido: «eso debería aparecer siempre». Quien pliega una vez y lo olvida
+            reencuentra un panel «vacío» semanas después — el mismo malentendido que este panel
+            venía de causar con la ruta y con la cookie del sidebar. El techo con scroll propio
+            de la lista (más abajo) es lo que impide que el historial abierto empuje al resto,
+            que era el problema que el plegable venía a resolver. */}
+        <p className="px-2 py-1 text-xs font-medium text-muted-foreground">Historial</p>
 
-        {/* Todo lo de adentro se monta sólo al desplegar: plegado no pinta nada, y tampoco pide
-            nada a la base (ver el efecto de carga). */}
-        {!plegado && (
         <div id="athos-historial" className="flex flex-col gap-2">
         <SidebarMenu>
           <SidebarMenuItem>
@@ -418,7 +394,6 @@ export function AthosSidebarSection() {
           </SidebarMenu>
         )}
         </div>
-        )}
       </SidebarGroupContent>
     </SidebarGroup>
   )
