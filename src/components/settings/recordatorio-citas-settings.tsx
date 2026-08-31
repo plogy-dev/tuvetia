@@ -73,19 +73,27 @@ export function RecordatorioCitasSettings({
 
   function guardar() {
     startTransition(async () => {
-      const r = await guardarRecordatorioDeCitas({
-        activo,
-        horas,
-        texto: esElDePorDefecto ? null : texto,
-      })
-      if (r.ok) {
-        toast.success(
-          activo
-            ? "Listo. Los recordatorios saldrán en el barrido de la mañana."
-            : "Recordatorios de cita desactivados.",
-        )
-      } else {
-        toast.error(r.error)
+      // La guarda que devuelve los botones (28-ago): si esta promesa RECHAZA —sesión vencida,
+      // red caída, o un id de Server Action viejo tras un deploy— React nunca cierra la
+      // transición e `isPending` deja los botones deshabilitados hasta recargar.
+      try {
+        const r = await guardarRecordatorioDeCitas({
+          activo,
+          horas,
+          texto: esElDePorDefecto ? null : texto,
+        })
+        if (r.ok) {
+          toast.success(
+            activo
+              ? "Listo. Los recordatorios saldrán en el barrido de la mañana."
+              : "Recordatorios de cita desactivados.",
+          )
+        } else {
+          toast.error(r.error)
+        }
+    
+      } catch (e) {
+        toast.error(`No se pudo completar la acción: ${(e as Error)?.message ?? e}`)
       }
     })
   }

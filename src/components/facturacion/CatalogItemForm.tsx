@@ -6,6 +6,7 @@ import { AlertTriangle } from 'lucide-react';
 import { upsertCatalogItem, type UpsertCatalogItemInput } from '@/lib/facturacion/actions';
 import type { CatalogCategoryRow, CatalogItemRow, SupplierRow } from '@/lib/supabase/types';
 import { InputMonedaForm } from '@/components/ui/input-moneda-form';
+import { toast } from "sonner"
 
 const inputCls =
   'mt-1 w-full rounded-lg border border-line bg-surface px-3 py-2 text-sm text-fg placeholder:text-fg-faint outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50';
@@ -76,13 +77,21 @@ export function CatalogItemForm({
       active: initial?.active ?? true,
     };
     startTransition(async () => {
-      const r = await upsertCatalogItem(input);
-      if (!r.ok) {
-        setError(r.error);
-        return;
+      // La guarda que devuelve los botones (28-ago): si esta promesa RECHAZA —sesión vencida,
+      // red caída, o un id de Server Action viejo tras un deploy— React nunca cierra la
+      // transición e `isPending` deja los botones deshabilitados hasta recargar.
+      try {
+        const r = await upsertCatalogItem(input);
+        if (!r.ok) {
+          setError(r.error);
+          return;
+        }
+        router.refresh();
+        onDone?.();
+    
+      } catch (e) {
+        toast.error(`No se pudo completar la acción: ${(e as Error)?.message ?? e}`)
       }
-      router.refresh();
-      onDone?.();
     });
   }
 

@@ -29,6 +29,7 @@ import { buscarPorCodigo } from '@/lib/facturacion/buscar-por-codigo';
 import type { DocKind } from '@/lib/facturacion/domain/types';
 import type { CatalogItemRow, PaymentTerms } from '@/lib/supabase/types';
 import { InputMoneda } from '@/components/ui/input-moneda';
+import { toast } from "sonner"
 
 /**
  * «Nueva cuenta» — el formulario de venta, copiado de OkVet.
@@ -398,28 +399,36 @@ export function InvoiceCart({
       return;
     }
     startTransition(async () => {
-      const input = buildInput();
-      const inputKey = JSON.stringify(input);
-      // Idempotencia: si ya se guardó esta misma cuenta, no se crea otra — se navega a la que hay.
-      if (draftRef.current?.key === inputKey) {
-        router.push(draftRef.current.url);
-        return;
+      // La guarda que devuelve los botones (28-ago): si esta promesa RECHAZA —sesión vencida,
+      // red caída, o un id de Server Action viejo tras un deploy— React nunca cierra la
+      // transición e `isPending` deja los botones deshabilitados hasta recargar.
+      try {
+        const input = buildInput();
+        const inputKey = JSON.stringify(input);
+        // Idempotencia: si ya se guardó esta misma cuenta, no se crea otra — se navega a la que hay.
+        if (draftRef.current?.key === inputKey) {
+          router.push(draftRef.current.url);
+          return;
+        }
+        const created = await createInvoiceDraft(input);
+        if (!created.ok) {
+          setError(created.error);
+          return;
+        }
+        const avisos = created.preview.warnings.map((w) => w.message);
+        draftRef.current = { key: inputKey, url: created.url };
+        // Con avisos del servidor (existencia insuficiente, datos del pagador incompletos…) no se
+        // navega en silencio: la cuenta YA quedó guardada, el vet los lee y sigue con el enlace.
+        if (avisos.length > 0) {
+          setWarnings(avisos);
+          setDraftUrl(created.url);
+          return;
+        }
+        router.push(created.url);
+    
+      } catch (e) {
+        toast.error(`No se pudo completar la acción: ${(e as Error)?.message ?? e}`)
       }
-      const created = await createInvoiceDraft(input);
-      if (!created.ok) {
-        setError(created.error);
-        return;
-      }
-      const avisos = created.preview.warnings.map((w) => w.message);
-      draftRef.current = { key: inputKey, url: created.url };
-      // Con avisos del servidor (existencia insuficiente, datos del pagador incompletos…) no se
-      // navega en silencio: la cuenta YA quedó guardada, el vet los lee y sigue con el enlace.
-      if (avisos.length > 0) {
-        setWarnings(avisos);
-        setDraftUrl(created.url);
-        return;
-      }
-      router.push(created.url);
     });
   }
 

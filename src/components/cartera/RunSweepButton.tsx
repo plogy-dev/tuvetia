@@ -4,6 +4,7 @@ import { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { RefreshCw } from 'lucide-react';
 import { runSweepNowAction } from '@/lib/cartera/actions';
+import { toast } from "sonner"
 
 /** "Ejecutar seguimiento ahora": corre el barrido de cartera del vet a mano. */
 export function RunSweepButton() {
@@ -26,15 +27,23 @@ export function RunSweepButton() {
           )
             return;
           startTransition(async () => {
-            setMsg(null);
-            const r = await runSweepNowAction();
-            if (r.ok) {
-              setMsg(
-                `Programados ${r.planned} · enviados ${r.sent} · reprogramados ${r.rescheduled} · omitidos ${r.skipped}`,
-              );
-              router.refresh();
-            } else {
-              setMsg(r.error);
+            // La guarda que devuelve los botones (28-ago): si esta promesa RECHAZA —sesión vencida,
+            // red caída, o un id de Server Action viejo tras un deploy— React nunca cierra la
+            // transición e `isPending` deja los botones deshabilitados hasta recargar.
+            try {
+              setMsg(null);
+              const r = await runSweepNowAction();
+              if (r.ok) {
+                setMsg(
+                  `Programados ${r.planned} · enviados ${r.sent} · reprogramados ${r.rescheduled} · omitidos ${r.skipped}`,
+                );
+                router.refresh();
+              } else {
+                setMsg(r.error);
+              }
+          
+            } catch (e) {
+              toast.error(`No se pudo completar la acción: ${(e as Error)?.message ?? e}`)
             }
           });
         }}

@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { AlertTriangle, Check } from 'lucide-react';
 import { saveBillingSettings, type SaveSettingsInput } from '@/lib/facturacion/actions';
 import type { BillingSettingsRow } from '@/lib/supabase/types';
+import { toast } from "sonner"
 
 /**
  * Configuración del emisor en 4 secciones (funciones → datos fiscales →
@@ -36,13 +37,21 @@ export function SettingsForm({ settings }: { settings: BillingSettingsRow | null
       blockOnInsufficientStock: fd.get('blockOnInsufficientStock') === 'on',
     };
     startTransition(async () => {
-      const r = await saveBillingSettings(input);
-      if (!r.ok) {
-        setError(r.error);
-        return;
+      // La guarda que devuelve los botones (28-ago): si esta promesa RECHAZA —sesión vencida,
+      // red caída, o un id de Server Action viejo tras un deploy— React nunca cierra la
+      // transición e `isPending` deja los botones deshabilitados hasta recargar.
+      try {
+        const r = await saveBillingSettings(input);
+        if (!r.ok) {
+          setError(r.error);
+          return;
+        }
+        setSaved(true);
+        router.refresh();
+    
+      } catch (e) {
+        toast.error(`No se pudo completar la acción: ${(e as Error)?.message ?? e}`)
       }
-      setSaved(true);
-      router.refresh();
     });
   }
 

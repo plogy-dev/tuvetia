@@ -6,6 +6,7 @@ import { AlertTriangle, Undo2 } from 'lucide-react';
 import { revertImport } from '@/lib/facturacion/import/actions';
 import { fmtDateTime } from '@/lib/facturacion/format';
 import type { ImportBatchRow } from '@/lib/supabase/types';
+import { toast } from "sonner"
 
 const STATUS_LABELS: Record<string, string> = {
   PREVIEW: 'Vista previa (sin confirmar)',
@@ -27,12 +28,20 @@ export function ImportBatchesList({ batches }: { batches: ImportBatchRow[] }) {
     }
     setError(null);
     startTransition(async () => {
-      const r = await revertImport({ batchId });
-      if (!r.ok) {
-        setError(r.error);
-        return;
+      // La guarda que devuelve los botones (28-ago): si esta promesa RECHAZA —sesión vencida,
+      // red caída, o un id de Server Action viejo tras un deploy— React nunca cierra la
+      // transición e `isPending` deja los botones deshabilitados hasta recargar.
+      try {
+        const r = await revertImport({ batchId });
+        if (!r.ok) {
+          setError(r.error);
+          return;
+        }
+        router.refresh();
+    
+      } catch (e) {
+        toast.error(`No se pudo completar la acción: ${(e as Error)?.message ?? e}`)
       }
-      router.refresh();
     });
   }
 

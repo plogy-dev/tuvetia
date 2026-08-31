@@ -38,26 +38,11 @@ import { join, sep } from "node:path"
 import { describe, expect, it } from "vitest"
 
 /** Los que faltan. Esta lista SÓLO PUEDE ACHICARSE. */
-const PENDIENTES = [
-  "src/components/avisos/panel-de-avisos.tsx",
-  "src/components/cartera/HumanTasksPanel.tsx",
-  "src/components/cartera/PlantillasDeRecordatorio.tsx",
-  "src/components/cartera/RunSweepButton.tsx",
-  "src/components/facturacion/CatalogItemForm.tsx",
-  "src/components/facturacion/CatalogItemsTab.tsx",
-  "src/components/facturacion/ExpenseForm.tsx",
-  "src/components/facturacion/FinanceTable.tsx",
-  "src/components/facturacion/ImportBatchesList.tsx",
-  "src/components/facturacion/IncomeForm.tsx",
-  "src/components/facturacion/InvoiceCart.tsx",
-  "src/components/facturacion/MovementForm.tsx",
-  "src/components/facturacion/PurchaseDetailActions.tsx",
-  "src/components/facturacion/PurchaseForm.tsx",
-  "src/components/facturacion/RecipeEditor.tsx",
-  "src/components/facturacion/SettingsForm.tsx",
-  "src/components/facturacion/SupplierManager.tsx",
-  "src/components/settings/confirmacion-citas-settings.tsx",
-  "src/components/settings/recordatorio-citas-settings.tsx",
+const PENDIENTES: string[] = [
+  // VACÍA desde el 31-ago: los 19 anotados se guardaron con try/catch (codemod, un mismo patrón:
+  // el catch avisa con toast y la transición SIEMPRE se cierra). La regla no cambia: esta lista
+  // sólo puede achicarse, y de vacía no se puede achicar — cualquier archivo nuevo con el patrón
+  // rompe la prueba de abajo.
 ]
 
 /** Los que ya se arreglaron. Sin esto, «achicar la lista» se puede hacer borrando líneas. */
@@ -134,8 +119,8 @@ describe("ningún botón se queda muerto", () => {
   })
 
   it("la lista de pendientes sólo puede achicarse", () => {
-    // 19 es el número del 28-ago, el día que se midió. Bajarlo exige arreglar; subirlo, romper.
-    expect(PENDIENTES.length).toBeLessThanOrEqual(19)
+    // 19 era el número del 28-ago; el 31-ago llegó a CERO. Subir de cero es romper.
+    expect(PENDIENTES.length).toBe(0)
     // Y no puede tener nombres inventados: un pendiente que ya no existe es una línea que sobra.
     const malos = sinGuarda()
     expect(PENDIENTES.filter((r) => !malos.includes(r))).toEqual([])

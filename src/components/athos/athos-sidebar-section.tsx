@@ -29,7 +29,7 @@
 // Y LA LISTA TIENE TECHO Y SCROLL PROPIO. Sin eso, "plegable" arregla el caso cerrado y deja el
 // abierto igual de roto: cuarenta filas siguen empujando lo de abajo hasta sacarlo de la pantalla.
 
-import { useEffect, useMemo, useState, useSyncExternalStore } from "react"
+import { useEffect, useMemo, useState } from "react"
 import Link from "next/link"
 import { usePathname, useRouter, useSearchParams } from "next/navigation"
 import { MessagesSquare, PlusIcon, SearchIcon, Stethoscope, Trash2 } from "lucide-react"

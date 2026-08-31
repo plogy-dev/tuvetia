@@ -8,6 +8,7 @@ import {
   ingestRecipeAction,
   saveServiceRecipeAction,
 } from '@/lib/facturacion/actions';
+import { toast } from "sonner"
 
 export type RecipeComponentOption = { id: string; name: string; use_unit: string };
 type Row = { componentId: string; qty: number };
@@ -74,16 +75,24 @@ export function RecipeEditor({
     setError(null);
     setOkMsg(null);
     startTransition(async () => {
-      const r = await saveServiceRecipeAction({
-        serviceId,
-        components: rows.map((x) => ({ componentId: x.componentId, qty: x.qty })),
-      });
-      if (!r.ok) {
-        setError(r.error);
-        return;
+      // La guarda que devuelve los botones (28-ago): si esta promesa RECHAZA —sesión vencida,
+      // red caída, o un id de Server Action viejo tras un deploy— React nunca cierra la
+      // transición e `isPending` deja los botones deshabilitados hasta recargar.
+      try {
+        const r = await saveServiceRecipeAction({
+          serviceId,
+          components: rows.map((x) => ({ componentId: x.componentId, qty: x.qty })),
+        });
+        if (!r.ok) {
+          setError(r.error);
+          return;
+        }
+        setOkMsg('Receta guardada.');
+        router.refresh();
+    
+      } catch (e) {
+        toast.error(`No se pudo completar la acción: ${(e as Error)?.message ?? e}`)
       }
-      setOkMsg('Receta guardada.');
-      router.refresh();
     });
   }
 

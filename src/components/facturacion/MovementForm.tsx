@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { AlertTriangle, Check, ArrowDownUp } from 'lucide-react';
 import { registerInventoryMovement } from '@/lib/facturacion/actions';
 import type { CatalogItemRow } from '@/lib/supabase/types';
+import { toast } from "sonner"
 
 /** Registro de movimiento manual de inventario (carga inicial, compra, ajuste…). */
 export function MovementForm({ items }: { items: CatalogItemRow[] }) {
@@ -34,19 +35,27 @@ export function MovementForm({ items }: { items: CatalogItemRow[] }) {
     const outbound = ['CONSUMO_INTERNO', 'VENCIMIENTO', 'PERDIDA'].includes(type);
     const qty = type === 'AJUSTE' ? Number(fd.get('qty') ?? 0) : outbound ? -rawQty : rawQty;
     startTransition(async () => {
-      const r = await registerInventoryMovement({
-        itemId: String(fd.get('itemId')),
-        qty,
-        movementType: type,
-        note: (fd.get('note') as string) || null,
-      });
-      if (!r.ok) {
-        setError(r.error);
-        return;
+      // La guarda que devuelve los botones (28-ago): si esta promesa RECHAZA —sesión vencida,
+      // red caída, o un id de Server Action viejo tras un deploy— React nunca cierra la
+      // transición e `isPending` deja los botones deshabilitados hasta recargar.
+      try {
+        const r = await registerInventoryMovement({
+          itemId: String(fd.get('itemId')),
+          qty,
+          movementType: type,
+          note: (fd.get('note') as string) || null,
+        });
+        if (!r.ok) {
+          setError(r.error);
+          return;
+        }
+        setOkMsg('Movimiento registrado.');
+        form.reset();
+        router.refresh();
+    
+      } catch (e) {
+        toast.error(`No se pudo completar la acción: ${(e as Error)?.message ?? e}`)
       }
-      setOkMsg('Movimiento registrado.');
-      form.reset();
-      router.refresh();
     });
   }
 
