@@ -36,6 +36,7 @@ import { calcularCupos, invalidDateError, localRange, localWeekday } from "./age
 // Módulo puro, sin una sola importación propia: la forma del borrador y la cuenta de lo que falta
 // viven en un solo lugar para que la tool y el prompt no puedan contradecirse.
 import { faltantes, siguientePregunta, type DatosDeLaCita } from "@/lib/whatsapp/datos-de-la-cita"
+import { agendarYConfirmarSolo } from "@/lib/whatsapp/agendar-solo"
 
 type SB = SupabaseClient
 
@@ -60,6 +61,14 @@ export type AutoReplyContext = {
    * Opcional: los tests de las tools no necesitan pasarla.
    */
   pizarra?: { datos: DatosDeLaCita; sinHorarios: boolean }
+  /**
+   * Nivel 3 de la barra de autonomía (`whatsapp_integrations.confirma_citas_solo`).
+   *
+   * Con esto en `true`, `solicitar_cita` no se queda esperando a un vet: agenda y confirma. Es el
+   * ÚNICO camino del producto que crea filas sin que ninguna persona haya mirado, y por eso la
+   * clínica lo tiene que encender a mano. Ver `lib/whatsapp/agendar-solo.ts`.
+   */
+  confirmaSolo?: boolean
 }
 
 function contextoDeAccion(ctx: AutoReplyContext): AgentContext {
@@ -307,7 +316,7 @@ export function buildAutoReplyTools(admin: SB, ctx: AutoReplyContext) {
 
           const cuando = sin_hora ? `${date}${preferencia ? ` (${preferencia})` : ""}, sin hora` : `${date} a las ${time}`
 
-          return proposeAction(
+          const propuesta = await proposeAction(
             contextoDeAccion(ctx),
             "solicitar_cita",
             {
@@ -328,6 +337,46 @@ export function buildAutoReplyTools(admin: SB, ctx: AutoReplyContext) {
             `Solicitud de cita de ${nombre.trim()} para ${mascota.trim()} (${especie.trim()}) — ${cuando}`,
             {},
           )
+
+          // ── NIVEL 3 DE LA BARRA: AGENDA Y CONFIRMA SOLA ─────────────────────────────────────────
+          //
+          // La fila `proposed` se crea IGUAL y recién después se marca ejecutada: es la traza de qué
+          // hizo el agente y con qué datos, y es lo que la bandeja ya sabe pintar. Sin ella, una cita
+          // nacida así sería indistinguible de una cargada a mano y el nivel 3 no se podría auditar.
+          //
+          // Si algo falla, la acción se queda `proposed` y la atiende una persona — el nivel 3
+          // degrada al 2 en vez de perder la cita en silencio.
+          // `in` y no `?.`: el resultado es una unión y la otra rama es `{ error }`. Sin la guarda,
+          // un fallo al proponer entraría igual acá y trataría de agendar una acción que no existe.
+          if (ctx.confirmaSolo && "action_id" in propuesta && propuesta.action_id) {
+            const hecho = await agendarYConfirmarSolo(admin, {
+              actionId: propuesta.action_id,
+              clinicId,
+              nombre: nombre.trim(),
+              telefono: ctx.conversationKey,
+              email: email?.trim() || null,
+              mascota: mascota.trim(),
+              especie: especie.trim(),
+              startsAt: rango.from,
+              endsAt: rango.to,
+              reason,
+              sinHora: sin_hora,
+            })
+            if (hecho.agendada) {
+              return {
+                ...propuesta,
+                status: "executed",
+                // LA `description` DE ESTA TOOL DICE «nunca que ya quedó agendada», y en nivel 3 eso
+                // es mentira. La `description` es estática por build; el `note` es lo único que puede
+                // cambiar con la configuración de la clínica, así que la corrección va acá.
+                note: hecho.avisada
+                  ? "LA CITA QUEDÓ AGENDADA y ya le llegó la confirmación por WhatsApp. Decíselo así: confirmada, no 'te confirmamos en breve'."
+                  : "LA CITA QUEDÓ AGENDADA. Confirmásela vos en tu respuesta, con el día y la hora.",
+              }
+            }
+          }
+
+          return propuesta
         },
       }),
     }

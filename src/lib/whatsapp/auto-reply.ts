@@ -52,7 +52,7 @@ export async function maybeAutoReply(input: {
   // 1) Opt-in de la clínica.
   const { data: integ } = await admin
     .from("whatsapp_integrations")
-    .select("agent_mode, auto_daily_limit, status, connected_at")
+    .select("agent_mode, auto_daily_limit, status, connected_at, confirma_citas_solo")
     .eq("clinic_id", clinicId)
     .maybeSingle()
   const cfg = integ as {
@@ -60,6 +60,8 @@ export async function maybeAutoReply(input: {
     auto_daily_limit: number
     status: string
     connected_at: string | null
+    /** Nivel 3 de la barra: VetGPT cierra la cita en vez de dejarla para que un vet la apruebe. */
+    confirma_citas_solo: boolean | null
   } | null
   if (!cfg || cfg.status !== "connected" || cfg.agent_mode !== "auto") return
 
@@ -245,6 +247,9 @@ export async function maybeAutoReply(input: {
     conversationKey,
     model: elegido.modelId,
     pizarra,
+    // Sólo cuenta con `agent_mode='auto'`, y a esta altura eso ya está comprobado (la salida
+    // temprana de más arriba). Ver la migración 0102 para por qué son dos columnas y no un enum.
+    confirmaSolo: cfg.confirma_citas_solo === true,
   })
 
   try {

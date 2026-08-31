@@ -12,6 +12,7 @@ import { Loader2, MessageCircle, QrCode, RefreshCw } from "lucide-react"
 import { toast } from "sonner"
 
 import { BarraDeAutonomia } from "@/components/settings/barra-de-autonomia"
+import type { NivelDeAutonomia } from "@/lib/whatsapp/nivel-de-autonomia"
 import type { Requisito } from "@/lib/whatsapp/requisitos-del-modo-automatico"
 import { Button } from "@/components/ui/button"
 
@@ -55,12 +56,15 @@ export function WhatsappSettings({
   initialStatus,
   initialPhone,
   initialAgentMode = "review",
+  initialConfirmaSolo = false,
   cupoAutoDeHoy = null,
   requisitos = [],
 }: {
   initialStatus: WaStatus
   initialPhone: string | null
   initialAgentMode?: "auto" | "review" | "paused" | "intervene"
+  /** Nivel 3 ya encendido (`whatsapp_integrations.confirma_citas_solo`). */
+  initialConfirmaSolo?: boolean
   /** Respuestas auto que la clínica puede enviar hoy (la rampa, contada en el servidor). */
   cupoAutoDeHoy?: number | null
   /** Lo que le falta a la clínica para que el modo automático funcione de verdad. Ver la barra. */
@@ -70,6 +74,7 @@ export function WhatsappSettings({
   const [status, setStatus] = useState<WaStatus>(initialStatus)
   const [phone, setPhone] = useState<string | null>(initialPhone)
   const [agentMode, setAgentMode] = useState(initialAgentMode)
+  const [confirmaSolo, setConfirmaSolo] = useState(initialConfirmaSolo)
   const [busy, setBusy] = useState(false)
   // Flujo Evolution (QR embebido + consentimiento de integración no oficial)
   const [qr, setQr] = useState<string | null>(null)
@@ -293,7 +298,7 @@ export function WhatsappSettings({
     }
   }
 
-  async function cambiarModo(next: "auto" | "review") {
+  async function cambiarModo(next: NivelDeAutonomia) {
     setBusy(true)
     try {
       const res = await fetch("/api/whatsapp/agent-mode", {
@@ -303,11 +308,17 @@ export function WhatsappSettings({
       })
       const json = (await res.json().catch(() => ({}))) as { error?: string }
       if (!res.ok) throw new Error(json.error ?? `HTTP ${res.status}`)
-      setAgentMode(next)
+      // Las dos mitades del estado se mueven juntas, igual que en el servidor: bajar de `confirma`
+      // a `auto` tiene que apagar la confirmación automática también acá, o la barra pintaría el
+      // nivel 3 hasta la próxima recarga.
+      setAgentMode(next === "review" ? "review" : "auto")
+      setConfirmaSolo(next === "confirma")
       toast.success(
-        next === "auto"
-          ? "Encendidas: VetGPT le responde a todo el que escriba — sólo lo no clínico"
-          : "Apagadas: VetGPT vuelve a solo sugerir — nada sale sin tu aprobación",
+        next === "confirma"
+          ? "VetGPT agenda y confirma solo: crea el titular, la mascota y la cita, y le avisa al titular"
+          : next === "auto"
+            ? "Encendidas: VetGPT le responde a todo el que escriba — sólo lo no clínico"
+            : "Apagadas: VetGPT vuelve a solo sugerir — nada sale sin tu aprobación",
       )
     } catch (e) {
       toast.error(`No se pudo cambiar el modo: ${(e as Error).message}`)
@@ -335,6 +346,7 @@ export function WhatsappSettings({
             endpoint es el mismo; los dos niveles operables son los dos valores que la API acepta. */}
         <BarraDeAutonomia
           modo={agentMode}
+          confirmaSolo={confirmaSolo}
           ocupado={busy}
           onCambiar={(siguiente) => void cambiarModo(siguiente)}
           cupoAutoDeHoy={cupoAutoDeHoy}

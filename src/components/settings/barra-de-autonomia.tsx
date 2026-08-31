@@ -1,8 +1,9 @@
 "use client"
 
-import { Check, CircleAlert, Lock } from "lucide-react"
+import { Check, CircleAlert } from "lucide-react"
 
 import type { Requisito } from "@/lib/whatsapp/requisitos-del-modo-automatico"
+import { nivelDeLasColumnas, type NivelDeAutonomia } from "@/lib/whatsapp/nivel-de-autonomia"
 
 // La barra de autonomía de VetGPT — cuánta libertad tiene para actuar solo.
 //
@@ -12,31 +13,40 @@ import type { Requisito } from "@/lib/whatsapp/requisitos-del-modo-automatico"
 // autonomía en el que [el agente] puede actuar y tomar decisiones. Ese nivel de pronto se pueda
 // ir GANANDO — que empiece en nada y con el uso se vaya volviendo más y más.»
 //
-// ── QUÉ ES HOY, Y QUÉ NO TODAVÍA ────────────────────────────────────────────────────────────
+// ── LOS TRES NIVELES, Y CÓMO SE GUARDAN ─────────────────────────────────────────────────────
 //
-// Tres niveles a la vista, DOS operables. Los dos primeros son los únicos valores que la API
-// acepta (`api/whatsapp/agent-mode` valida `z.enum(["review","auto"])`) y los únicos con
-// comportamiento real detrás. El tercero está BLOQUEADO a propósito: es la promesa de la
-// progresión — mostrar a dónde va la barra sin fingir que ya llega.
+// Los tres son operables desde el 31-ago. El estado NO es un enum de tres valores: sale de dos
+// columnas de `whatsapp_integrations` y se deriva acá.
 //
-// LA PARTE DE «SE GANA CON EL USO» YA EXISTE A MEDIAS, y esta barra la cuenta por primera vez:
-// `auto-reply.ts` tiene una rampa de calentamiento — 5 respuestas/día el día que se conecta el
-// número, +5 por cada día conectado, hasta el límite configurado. Existía muda; acá se muestra
-// («hoy puede enviar hasta N respuestas»), que es la mitad narrativa de lo que pidió Luciano.
+//     review    → agent_mode='review'
+//     auto      → agent_mode='auto', confirma_citas_solo=false
+//     confirma  → agent_mode='auto', confirma_citas_solo=true
 //
-// ── DISEÑO DE LA V2 (escrito para quien la implemente, no para hoy) ─────────────────────────
+// Y esa forma no es capricho: TODO el sistema pregunta `agent_mode = 'auto'` para saber si puede
+// hablar (`auto-reply.ts`, `cartera/wa-router.ts`). Un tercer valor del enum dejaría a la clínica de
+// nivel 3 con el agente entero mudo — el porqué completo está en la migración 0102.
 //
-// Desbloquear el nivel 3 cuando la clínica acumule X respuestas automáticas sin intervención
-// del vet. El dato ya se registra: `athos_actions` con `source='auto'` y `status='executed'`
-// es cada respuesta que salió sola, y una intervención es el vet retomando el hilo. El contador
-// es una consulta; la regla de graduación (¿50? ¿200?) es la decisión de producto que falta.
-// Cuando exista, el nivel 3 habilita `propose_appointment` con confirmación automática — hoy
-// toda cita propuesta queda pendiente de que el equipo la confirme.
+// ── POR QUÉ EL TERCERO YA NO ESTÁ BLOQUEADO ─────────────────────────────────────────────────
+//
+// Nació con candado, como promesa de la progresión, esperando una regla de «se gana con el uso»
+// (¿50 respuestas? ¿200?) que quedó anotada como «la decisión de producto que falta». Nunca se
+// tomó, y mientras tanto ninguna clínica podía dejar que VetGPT cerrara una cita — que era
+// exactamente lo que hacía falta para probar con veterinarios reales. Se abrió; lo enciende el
+// administrador.
+//
+// LA PROGRESIÓN DE LUCIANO NO SE PIERDE, y es la parte que ya existía muda: `auto-reply.ts` tiene
+// una rampa de calentamiento —5 respuestas/día el día que se conecta el número, +5 por cada día
+// conectado, hasta el límite configurado— que esta barra cuenta («hoy puede enviar hasta N»). Ése
+// es el límite que de verdad sube solo con el uso.
+//
+// Si algún día se quiere el candado de vuelta, el dato para calcularlo está: `athos_actions` con
+// `source='auto'` y `status='executed'` es cada respuesta que salió sola.
 
 type Modo = "auto" | "review" | "paused" | "intervene"
 
+/** `valor` es lo que se le manda al endpoint, no lo que la base guarda. Ver la cabecera. */
 type Nivel = {
-  valor: Modo | null // null = todavía no operable
+  valor: NivelDeAutonomia
   titulo: string
   detalle: string
 }
@@ -57,23 +67,28 @@ const NIVELES: Nivel[] = [
       "VetGPT le responde a todo el que escriba — horarios, ubicación y pedidos de cita. Lo clínico nunca: eso queda en la bandeja para vos.",
   },
   {
-    valor: null,
+    valor: "confirma",
     titulo: "Agenda y confirma",
+    // Dice lo que el vet DEJA DE HACER y lo que sigue sin poder hacer. Es el único nivel donde algo
+    // se crea sin que nadie mire, así que la frase tiene que dejarlo claro antes del clic.
     detalle:
-      "Confirmará citas sin pasar por la bandeja. Se desbloquea con el uso: primero hay que ver al asistente responder bien un tiempo.",
+      "VetGPT cierra la cita solo: crea el titular, la mascota y la cita, y le manda la confirmación al titular. Vos la ves en la agenda, ya hecha. Lo clínico sigue sin tocarlo.",
   },
 ]
 
 export function BarraDeAutonomia({
   modo,
   ocupado,
+  confirmaSolo = false,
   onCambiar,
   cupoAutoDeHoy,
   requisitos = [],
 }: {
   modo: Modo
+  /** Nivel 3 encendido (`whatsapp_integrations.confirma_citas_solo`). Sólo cuenta con `modo=auto`. */
+  confirmaSolo?: boolean
   ocupado: boolean
-  onCambiar: (siguiente: "auto" | "review") => void
+  onCambiar: (siguiente: NivelDeAutonomia) => void
   /** Respuestas auto que puede enviar hoy — lo cuenta el servidor con `lib/whatsapp/rampa`. */
   cupoAutoDeHoy: number | null
   /**
@@ -93,14 +108,15 @@ export function BarraDeAutonomia({
   // está diagnosticando; acá, al lado del interruptor, tres renglones verdes son ruido que hace que
   // no se lea el cuarto, que es el que importa.
   const pendientes = requisitos.filter((r) => !r.cumplido)
-  // El índice del nivel activo. `paused`/`intervene` (sin UI hoy) se pintan como nivel 1.
-  const activo = modo === "auto" ? 1 : 0
+  // El punto activo sale de la MISMA función que el endpoint usa al revés para guardar. Con dos
+  // traducciones separadas, la barra terminaría pintando un nivel distinto del que está guardado.
+  const activo = NIVELES.findIndex((n) => n.valor === nivelDeLasColumnas(modo, confirmaSolo))
 
   return (
     <div className="rounded-xl border px-4 py-3">
       <p className="text-sm font-semibold">Autonomía de VetGPT</p>
       <p className="mt-0.5 text-xs text-muted-foreground">
-        Cuánto puede hacer sin pasar por vos. Se sube de a un nivel — y el tercero se gana.
+        Cuánto puede hacer sin pasar por vos. Se sube y se baja de a un nivel, cuando quieras.
       </p>
 
       {/* La barrita: el riel con los tres puntos, y el relleno hasta el nivel activo. */}
@@ -113,31 +129,24 @@ export function BarraDeAutonomia({
           <div className="absolute inset-x-0 top-1/2 flex -translate-y-1/2 justify-between">
             {NIVELES.map((nivel, i) => {
               const esActivo = i === activo
-              const bloqueado = nivel.valor === null
               return (
                 <button
                   key={nivel.titulo}
                   type="button"
                   role="radio"
                   aria-checked={esActivo}
-                  aria-label={`${nivel.titulo}${bloqueado ? " (bloqueado: se desbloquea con el uso)" : ""}`}
-                  disabled={ocupado || bloqueado}
+                  aria-label={nivel.titulo}
+                  disabled={ocupado}
                   onClick={() => {
-                    if (!bloqueado && !esActivo) onCambiar(nivel.valor as "auto" | "review")
+                    if (!esActivo) onCambiar(nivel.valor)
                   }}
                   className={`grid size-6 place-items-center rounded-full border-2 transition-colors focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none ${
                     esActivo
                       ? "border-ok bg-ok text-white"
-                      : bloqueado
-                        ? "cursor-not-allowed border-line bg-surface text-fg-faint"
-                        : "border-line bg-surface text-transparent hover:border-ok"
+                      : "border-line bg-surface text-transparent hover:border-ok"
                   }`}
                 >
-                  {bloqueado ? (
-                    <Lock className="size-3" aria-hidden />
-                  ) : (
-                    <Check className="size-3.5" aria-hidden />
-                  )}
+                  <Check className="size-3.5" aria-hidden />
                 </button>
               )
             })}

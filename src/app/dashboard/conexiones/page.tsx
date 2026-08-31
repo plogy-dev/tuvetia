@@ -64,7 +64,7 @@ export default async function ConexionesPage() {
       .from("whatsapp_integrations")
       // `connected_at` y `auto_daily_limit` alimentan la línea de la rampa en la barra de
       // autonomía — la parte «se gana con el uso» que ya existía muda en auto-reply.ts.
-      .select("status, phone_number, agent_mode, connected_at, auto_daily_limit")
+      .select("status, phone_number, agent_mode, connected_at, auto_daily_limit, confirma_citas_solo")
       .maybeSingle(),
     // La cuenta de correo que este miembro conectó por Composio: la que usa VetGPT por él.
     user && composioListo
@@ -126,6 +126,7 @@ export default async function ConexionesPage() {
     agent_mode: "auto" | "review" | "paused" | "intervene"
     connected_at: string | null
     auto_daily_limit: number | null
+    confirma_citas_solo: boolean | null
   } | null
   // El cupo se cuenta ACÁ, en el servidor, con la función pura de la rampa — el reloj dentro
   // del render es impuro (mismo criterio que `diasDePruebaRestantes` en la página del plan).
@@ -171,6 +172,7 @@ export default async function ConexionesPage() {
             initialStatus={waRow?.status ?? "none"}
             initialPhone={waRow?.phone_number ?? null}
             initialAgentMode={waRow?.agent_mode ?? "review"}
+            initialConfirmaSolo={waRow?.confirma_citas_solo ?? false}
             cupoAutoDeHoy={cupoAutoDeHoy}
             requisitos={requisitosDelAuto}
           />
