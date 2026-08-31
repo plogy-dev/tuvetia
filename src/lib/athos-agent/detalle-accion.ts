@@ -116,13 +116,21 @@ const POR_TOOL: Record<string, (p: Record<string, unknown>) => CampoDeAccion[]> 
   solicitar_cita: (p) => [
     ...fila("Quien escribe", p.nombre),
     ...fila("Teléfono", p.telefono),
+    // Correo y especie se muestran o el vet estaría aprobando campos que nunca vio — que es
+    // exactamente el defecto que este archivo existe para cerrar. La especie va derecho a
+    // `patients.species` y el correo a `owners.email`.
+    ...fila("Correo", p.email),
     ...fila("Mascota", p.mascota),
+    ...fila("Especie", p.especie),
     ...(typeof p.starts_at === "string"
       ? [...cuando(p.starts_at), ...duracion(p.starts_at, p.ends_at)]
       : [
           ...fila("Fecha", typeof p.date === "string" ? bogotaDateOnly(p.date) : null),
           ...fila("Hora", p.time),
         ]),
+    // Sólo cuando llegó sin hora: es el dato que el vet necesita para elegirla, y en una solicitud
+    // con hora acordada sería una fila vacía de ruido.
+    ...(p.sin_hora === true ? fila("Pidió", p.preferencia ?? "sin preferencia") : []),
     ...fila("Motivo", p.reason),
   ],
 

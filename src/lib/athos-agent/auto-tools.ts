@@ -85,7 +85,7 @@ export function buildAutoReplyTools(admin: SB, ctx: AutoReplyContext) {
           return { error: `Sólo se puede consultar hasta ${DIAS_MAX_ADELANTE} días hacia adelante.` }
         }
 
-        const [franjasRes, ocupadosRes] = await Promise.all([
+        const [franjasRes, ocupadosRes, algunaFranjaRes] = await Promise.all([
           admin
             .from("clinic_hours")
             .select("opens_at, closes_at, slot_minutes")
@@ -102,6 +102,13 @@ export function buildAutoReplyTools(admin: SB, ctx: AutoReplyContext) {
             .gte("starts_at", dia.from)
             .lt("starts_at", dia.to)
             .neq("status", "canceled"),
+          // ¿TIENE HORARIOS EN ALGÚN DÍA? Es la consulta que distingue los dos ceros — ver abajo.
+          // `head: true` no trae filas: sólo el conteo, que es todo lo que hace falta.
+          admin
+            .from("clinic_hours")
+            .select("id", { count: "exact", head: true })
+            .eq("clinic_id", clinicId)
+            .is("vet_id", null),
         ])
         if (franjasRes.error) return { error: franjasRes.error.message }
         const franjas = (franjasRes.data ?? []) as {
@@ -109,8 +116,37 @@ export function buildAutoReplyTools(admin: SB, ctx: AutoReplyContext) {
           closes_at: string
           slot_minutes: number
         }[]
+
+        // ── LOS DOS CEROS QUE NO SON EL MISMO CERO (31-ago) ─────────────────────────────────────
+        //
+        // Acá había una sola rama: sin franjas → «La clínica no atiende ese día». Y esa frase es
+        // MENTIRA cuando la clínica no cargó NINGÚN horario, porque entonces se devuelve todos los
+        // días del año. Fue el silencio del 30-ago, medido en el chat de Santiago Tellez: el
+        // titular pidió cita, dijo «Mañana», y el modelo recibió una nota que no podía repetir sin
+        // mentir, no podía inventar horas (regla dura del prompt) y ante la duda se calló. Los tres
+        // mensajes siguientes —«?», «?», «a qué horas quedó mi cita?»— chocaron con lo mismo.
+        //
+        // Que la nota sea verdadera no alcanza: tiene que DECIRLE QUÉ HACER. Un modelo al que se le
+        // informa un problema y no una salida vuelve al comodín de la casa, que es el silencio.
+        if (!algunaFranjaRes.count) {
+          return {
+            configured: false,
+            slots: [],
+            motivo: "sin_horarios_configurados",
+            note:
+              "La clínica todavía no cargó sus horarios en la plataforma, así que NO hay cupos que ofrecer en ningún día. " +
+              "NO te calles y NO inventes horas: seguí tomando el pedido igual (nombre, mascota, especie, motivo y correo), " +
+              "preguntá qué día y franja le sirven —en palabras, sin comprometer una hora— y usá `solicitar_cita` con `sin_hora`. " +
+              "Decile que el equipo le confirma el horario.",
+          }
+        }
         if (!franjas.length) {
-          return { configured: false, slots: [], note: "La clínica no atiende ese día." }
+          return {
+            configured: false,
+            slots: [],
+            motivo: "cerrado_ese_dia",
+            note: "La clínica no atiende ese día. Ofrecé otro día en vez de cortar la conversación.",
+          }
         }
         return {
           configured: true,
@@ -150,23 +186,62 @@ export function buildAutoReplyTools(admin: SB, ctx: AutoReplyContext) {
       solicitar_cita: tool({
         description:
           "PIDE una cita para alguien que NO está registrado en la clínica. Úsala sólo si list_my_patients no está disponible. " +
-          "Antes tenés que preguntarle su NOMBRE y el NOMBRE DE LA MASCOTA — sin los dos no la llames. " +
-          "Consultá list_available_slots antes de nombrar un horario. NO agenda: queda pendiente de que el equipo la confirme; " +
-          "decile que le confirman en breve, nunca que ya quedó agendada.",
+          "Antes tenés que preguntarle NOMBRE, NOMBRE DE LA MASCOTA, ESPECIE y MOTIVO — sin esos cuatro no la llames. " +
+          "El correo pedilo, pero si no lo quiere dar mandá la solicitud igual: no es obligatorio. " +
+          "Consultá list_available_slots antes de nombrar un horario. Si no hay cupos porque la clínica no cargó su agenda, " +
+          "usá sin_hora:true y poné en preferencia lo que la persona dijo ('mañana en la tarde'). " +
+          "NO agenda: queda pendiente de que el equipo la confirme; decile que le confirman en breve, nunca que ya quedó agendada.",
         inputSchema: z.object({
           nombre: z.string().min(2).max(80).describe("Nombre de quien escribe, tal como lo dijo"),
           mascota: z.string().min(1).max(60).describe("Nombre de la mascota, tal como lo dijo"),
-          date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
-          time: z.string().regex(/^\d{2}:\d{2}$/).describe("Hora local, de list_available_slots"),
+          // LA ESPECIE SE PREGUNTA (31-ago). `patients.species` es NOT NULL y sin default: sin este
+          // dato la ficha nace con un relleno que después nadie corrige. Ver el ejecutor.
+          especie: z
+            .string()
+            .min(2)
+            .max(30)
+            .describe("Perro, Gato, Ave, Conejo, Roedor, Reptil u Otro — preguntáselo, no lo adivines"),
+          email: z
+            .string()
+            .email()
+            .nullable()
+            .optional()
+            .describe("SÓLO si la persona lo escribió. Nunca lo inventes ni lo deduzcas del nombre."),
+          date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).describe("Día pedido, YYYY-MM-DD"),
+          // OPCIONAL DESDE EL 31-AGO: con `sin_hora` no hay hora que ofrecer, porque la clínica no
+          // cargó horarios y `list_available_slots` no devolvió ni un cupo.
+          time: z.string().regex(/^\d{2}:\d{2}$/).optional().describe("Hora local, de list_available_slots"),
+          sin_hora: z
+            .boolean()
+            .default(false)
+            .describe("true cuando no hay cupos que ofrecer: la solicitud queda para que el equipo le ponga la hora"),
+          preferencia: z
+            .string()
+            .max(120)
+            .optional()
+            .describe("Con sin_hora, la franja que pidió en sus palabras: 'en la tarde', 'temprano'"),
           duration_min: z.number().int().min(5).max(240).default(30),
           reason: z.string().min(1).max(200).describe("Motivo, en las palabras de quien escribe"),
         }),
-        execute: async ({ nombre, mascota, date, time, duration_min, reason }) => {
-          const rango = localRange(date, time, duration_min)
+        execute: async ({ nombre, mascota, especie, email, date, time, sin_hora, preferencia, duration_min, reason }) => {
+          // SIN HORA SE ANCLA AL ARRANQUE DEL DÍA. La cita nace con `sin_hora`, que la migración 0096
+          // expande a la jornada entera — no es una cita a medianoche, es una cita "ese día", que es
+          // exactamente lo que la persona pidió cuando no había cupos que ofrecerle.
+          // El chequeo va ANTES de armar el rango: `localRange(date, "")` devuelve null y el vet
+          // vería «fecha inválida» cuando la fecha estaba bien y lo que faltaba era la hora.
+          if (!sin_hora && !time) {
+            return { error: "Falta la hora. Si no hay cupos que ofrecer, mandá sin_hora:true." }
+          }
+          const rango = localRange(date, sin_hora ? "00:00" : time!, duration_min)
           if (!rango) return invalidDateError(date, time)
-          if (new Date(rango.from).getTime() < Date.now()) {
+          // Con `sin_hora` se compara contra el final del día: pedir "mañana" a las 23:00 de hoy es
+          // legítimo, y anclado a las 00:00 el chequeo de "ya pasó" lo rebotaría sin motivo.
+          const limite = sin_hora ? new Date(rango.from).getTime() + 86_400_000 : new Date(rango.from).getTime()
+          if (limite < Date.now()) {
             return { error: "Ese horario ya pasó. Ofrecé uno futuro." }
           }
+
+          const cuando = sin_hora ? `${date}${preferencia ? ` (${preferencia})` : ""}, sin hora` : `${date} a las ${time}`
 
           return proposeAction(
             contextoDeAccion(ctx),
@@ -174,15 +249,19 @@ export function buildAutoReplyTools(admin: SB, ctx: AutoReplyContext) {
             {
               nombre: nombre.trim(),
               mascota: mascota.trim(),
+              especie: especie.trim(),
+              email: email?.trim() || null,
               // EL TELÉFONO SALE DEL CONTEXTO Y NO DEL MODELO. Es el dato con el que se va a crear
               // el titular, y es el único de toda la solicitud que no puede venir de lo que alguien
               // escribió: es de quién llega el mensaje, no lo que el mensaje dice.
               telefono: ctx.conversationKey,
               starts_at: rango.from,
               ends_at: rango.to,
+              sin_hora,
+              preferencia: preferencia?.trim() || null,
               reason,
             },
-            `Solicitud de cita de ${nombre.trim()} para ${mascota.trim()} — ${date} a las ${time}`,
+            `Solicitud de cita de ${nombre.trim()} para ${mascota.trim()} (${especie.trim()}) — ${cuando}`,
             {},
           )
         },

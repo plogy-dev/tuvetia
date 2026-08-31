@@ -39,6 +39,9 @@ export type ProposedAction = {
 const TOOL_LABELS: Record<string, string> = {
   send_whatsapp_message: "Mensaje de WhatsApp",
   create_appointment: "Nueva cita",
+  // Faltaba desde que existe la tool: la tarjeta más importante del flujo de WhatsApp —la de quien
+  // pide cita sin estar registrado— se pintaba con el nombre crudo `solicitar_cita` en el encabezado.
+  solicitar_cita: "Solicitud de cita",
   update_appointment: "Cambio de cita",
   create_owner: "Nuevo titular",
   create_patient: "Nuevo paciente",
@@ -63,6 +66,21 @@ type CampoEditable = { campo: string; label: string; multilinea: boolean; ayuda?
 
 const CAMPOS_EDITABLES: Record<string, CampoEditable[]> = {
   send_whatsapp_message: [{ campo: "body", label: "Texto del mensaje", multilinea: true }],
+  // ── LA HORA DE UNA SOLICITUD TIENE QUE PODERSE PONER ACÁ ────────────────────────────────────
+  //
+  // Cuando la clínica no tiene horarios cargados, VetGPT no puede ofrecer ni un cupo: toma el
+  // pedido `sin_hora` y anota en la preferencia lo que la persona dijo («mañana en la tarde»). El
+  // vet es quien elige la hora de verdad, y sin estos campos tendría que rechazar la tarjeta y
+  // agendar a mano — perdiendo el titular y el paciente que la aprobación crea de un tirón.
+  //
+  // La especie también es editable: la escribió alguien por WhatsApp y va derecho a `patients`.
+  solicitar_cita: [
+    { campo: "starts_at", label: "Inicio", multilinea: false, ayuda: "Fecha y hora ISO. Si llegó sin hora, ponela acá." },
+    { campo: "ends_at", label: "Fin", multilinea: false },
+    { campo: "especie", label: "Especie", multilinea: false },
+    { campo: "email", label: "Correo", multilinea: false },
+    { campo: "reason", label: "Motivo", multilinea: false },
+  ],
   send_email: [
     { campo: "to_email", label: "Para", multilinea: false },
     { campo: "subject", label: "Asunto", multilinea: false },

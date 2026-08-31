@@ -213,9 +213,16 @@ export async function maybeAutoReply(input: {
       maxOutputTokens: 500,
       tools,
       // Esto corre dentro del `after()` de un webhook: una cadena larga de tools acá es latencia y
-      // gasto sin nadie mirando. Cuatro pasos: con un número NUEVO hay una vuelta más que con uno
-      // conocido —preguntar el nombre y el de la mascota— antes de "cupos → solicitar → contestar".
-      stopWhen: stepCountIs(4),
+      // gasto sin nadie mirando. Eran cuatro pasos, y con la recolección completa —especie, motivo y
+      // correo, más la lectura de vuelta antes de confirmar— cuatro es el PISO exacto sin holgura:
+      // consultar cupos, reconsultar otro día si el primero estaba cerrado, solicitar_cita y el
+      // texto final ya lo llenan. Un turno que se queda sin pasos no deja texto, y el titular se
+      // come un silencio — que es justo el defecto del 30-ago.
+      //
+      // Ocho da margen para dos consultas de agenda sin abrir la puerta a una cadena infinita. El
+      // `console.warn` de más abajo ("se llamaron tools y no quedó texto") es el instrumento para
+      // saber si ocho también queda corto: si aparece seguido, hay que subirlo.
+      stopWhen: stepCountIs(8),
       system: `Eres el asistente de WhatsApp de la clínica veterinaria "${(clinic as { name: string } | null)?.name ?? "la clínica"}" (Colombia, tuteo).
 
 Decide si el ÚLTIMO mensaje del titular es respondible automáticamente y, si lo es, responde.
@@ -231,9 +238,20 @@ CITAS — tienes herramientas, úsalas en vez de prometer de memoria:
 - Consulta list_available_slots antes de nombrar CUALQUIER horario. Nunca inventes disponibilidad.
 - Para proponer, primero list_my_patients (necesitas el patient_id de la mascota) y después propose_appointment.
 - propose_appointment NO agenda: deja la cita pendiente de que el equipo la confirme. Dile al titular que se la confirman en breve — JAMÁS que ya quedó agendada.
-- Si las herramientas de mascotas no están disponibles, es que NO reconocemos este número. Ahí usa solicitar_cita:
-  pregúntale primero su NOMBRE y el NOMBRE DE LA MASCOTA (en un solo mensaje, no de a uno), consulta list_available_slots
-  y recién entonces llámala. Sin esos dos nombres no la llames — vuelve a preguntar.
+- Si las herramientas de mascotas no están disponibles, es que NO reconocemos este número. Ahí usa solicitar_cita,
+  juntando los datos en ESTE orden, agrupados, nunca de a uno:
+  1) su NOMBRE y el NOMBRE DE LA MASCOTA (un solo mensaje);
+  2) la ESPECIE (perro, gato, ave, conejo, roedor, reptil u otro) y el MOTIVO de la consulta (un solo mensaje);
+  3) el día y la hora, después de consultar list_available_slots;
+  4) el CORREO, diciéndole para qué es (mandarle la confirmación). Si no lo quiere dar, seguí sin él: NO es obligatorio
+     y no se lo vuelvas a pedir.
+  Nunca preguntes el teléfono: ya lo tenemos, es el número desde el que te escribe.
+  Lo que la persona ya te dijo NO se vuelve a preguntar. Antes de llamar solicitar_cita, LEELE DE VUELTA todo lo que
+  juntaste (nombre, mascota, especie, motivo, día y hora, correo) y pedile que confirme. Sólo con su confirmación la llamás.
+- SIN CUPOS NO TE CALLES. Si list_available_slots devuelve configured:false, lee su campo note y haz lo que dice.
+  Con motivo "sin_horarios_configurados" la clínica no cargó su agenda: toma el pedido igual, pregunta qué día y franja
+  le sirven en palabras, y llama solicitar_cita con sin_hora:true. Con motivo "cerrado_ese_dia", ofrece otro día.
+  Quedarte mudo a mitad de un agendamiento no es prudencia: es dejar a un cliente esperando una respuesta que no llega.
 - Nunca menciones citas, mascotas ni datos de OTRAS personas. Sólo lo que devuelvan tus herramientas.`,
       messages: [
         {

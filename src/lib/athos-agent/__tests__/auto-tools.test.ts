@@ -56,8 +56,13 @@ function crearAdmin(datos: Record<string, unknown[]>) {
       maybeSingle: async () => ({ data: filas()[0] ?? null, error: null }),
       // Las consultas sin `.limit()` ni `.maybeSingle()` se esperan directo: el builder de
       // supabase-js es un thenable y el falso tiene que serlo también.
+      //
+      // `count` viaja SIEMPRE, aunque la consulta no lo haya pedido. PostgREST sólo lo devuelve con
+      // `{ count: "exact" }`, pero devolverlo de más acá no engaña a nadie y sí evita el modo de
+      // fallo que este doble tuvo hasta el 31-ago: sin `count`, toda consulta de conteo leía
+      // `undefined`, o sea "cero filas", y las pruebas pasaban por el motivo equivocado.
       then: (resolve: (v: unknown) => unknown) =>
-        Promise.resolve({ data: filas(), error: null }).then(resolve),
+        Promise.resolve({ data: filas(), error: null, count: filas().length }).then(resolve),
     }
     return chain
   }
@@ -94,6 +99,49 @@ beforeEach(() => {
   inserted.length = 0
 })
 
+describe("los dos ceros que no son el mismo cero", () => {
+  /**
+   * El silencio del 30-ago, en una prueba.
+   *
+   * `Clinica de Santiago Tellez` tenía `clinic_hours` VACÍO. Un titular pidió cita, dijo «Mañana», y
+   * la herramienta devolvió «La clínica no atiende ese día» — una frase FALSA, porque con cero
+   * horarios se devolvía todos los días del año. El modelo no puede repetir algo falso, no puede
+   * inventar horas (regla dura del prompt) y ante la duda se calla: el titular quedó sin respuesta,
+   * y los tres mensajes que mandó después chocaron con lo mismo.
+   *
+   * Lo que se fija acá no es el texto sino la DISTINCIÓN: sin horarios y cerrado ese día tienen que
+   * ser dos respuestas distintas, porque llevan al agente a hacer dos cosas distintas.
+   */
+  it("sin NINGÚN horario cargado, lo dice y manda a tomar el pedido igual", async () => {
+    const { admin } = crearAdmin({ clinic_hours: [], appointments: [] })
+    const tools = buildAutoReplyTools(admin, CTX)
+
+    const r = await tomar(tools, "list_available_slots").execute({ date: manana() })
+
+    expect(r.configured).toBe(false)
+    expect(r.motivo).toBe("sin_horarios_configurados")
+    // La nota tiene que DECIRLE QUÉ HACER, no sólo informar el problema: un modelo al que se le
+    // describe un obstáculo sin salida vuelve al comodín de la casa, que es el silencio.
+    expect(r.note).toMatch(/sin_hora/)
+    expect(r.note).toMatch(/no te calles/i)
+  })
+
+  it("con horarios en otros días pero no en éste, ofrece otro día", async () => {
+    // El doble devuelve las mismas filas para toda consulta a `clinic_hours`, así que este caso se
+    // arma al revés que el de arriba: hay filas, luego hay horarios cargados. Lo que se comprueba
+    // es que ese cero NO se confunda con el otro.
+    const { admin } = crearAdmin({
+      clinic_hours: [{ opens_at: "09:00:00", closes_at: "11:00:00", slot_minutes: 30 }],
+      appointments: [],
+    })
+    const tools = buildAutoReplyTools(admin, CTX)
+
+    const r = await tomar(tools, "list_available_slots").execute({ date: manana() })
+
+    expect(r.motivo).not.toBe("sin_horarios_configurados")
+  })
+})
+
 describe("aislamiento por clínica — no hay RLS que respalde", () => {
   it("los cupos se consultan SIEMPRE acotados a la clínica", async () => {
     const { admin, consultas } = crearAdmin({
@@ -105,7 +153,17 @@ describe("aislamiento por clínica — no hay RLS que respalde", () => {
 
     // Las DOS tablas, no sólo una: olvidar el filtro en `appointments` haría que las citas de otra
     // clínica taparan cupos que sí están libres.
-    expect(consultas.map((c) => c.tabla).sort()).toEqual(["appointments", "clinic_hours"])
+    //
+    // `clinic_hours` aparece DOS veces desde el 31-ago y no es un descuido: una consulta trae las
+    // franjas del día pedido y la otra cuenta si la clínica tiene horarios en ALGÚN día. Sin esa
+    // segunda, «no hay franjas» se confundía con «la clínica no atiende ese día» y el agente se
+    // quedaba mudo — el silencio del 30-ago. La que importa acá es la línea de abajo: las tres van
+    // acotadas a la clínica.
+    expect(consultas.map((c) => c.tabla).sort()).toEqual([
+      "appointments",
+      "clinic_hours",
+      "clinic_hours",
+    ])
     for (const c of consultas) expect(c.filtros.clinic_id, c.tabla).toBe("clinic-A")
   })
 

@@ -59,6 +59,21 @@ const SOLICITAR_CITA = z.object({
   starts_at: z.string().datetime({ offset: true }),
   ends_at: z.string().datetime({ offset: true }),
   reason: z.string().min(1),
+  // ── LOS CUATRO CAMPOS NUEVOS VAN OPCIONALES, Y NO ES DESPROLIJIDAD ──────────────────────────
+  //
+  // `validarPayload` corre sobre el payload GUARDADO, en el momento en que el vet aprueba
+  // (`execute/route.ts`), no cuando el modelo lo escribió. O sea que endurecer este esquema no
+  // valida solicitudes futuras: INVALIDA las que ya están esperando en la bandeja. Una tarjeta
+  // creada ayer, sin `especie` porque ayer no se preguntaba, se volvería inaprobable con un
+  // «especie: Required» que el vet no tiene forma de resolver — y esa tarjeta es una persona real
+  // esperando su cita.
+  //
+  // Quien SÍ los exige es la tool (`auto-tools.ts`), que es donde se decide qué se le pregunta a
+  // la gente. Acá sólo se comprueba que lo que llegó tenga la forma correcta.
+  especie: z.string().min(2).max(30).optional(),
+  email: z.string().email().nullable().optional(),
+  sin_hora: z.boolean().optional(),
+  preferencia: z.string().max(120).nullable().optional(),
 })
 
 /** `update_appointment` guarda el id más SÓLO los campos que cambian: todos opcionales. */

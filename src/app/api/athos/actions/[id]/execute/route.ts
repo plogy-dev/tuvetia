@@ -299,7 +299,10 @@ const threadId = String(p.thread_id ?? "")
       const { data: ownerId, error: oErr } = await supabase.rpc("create_owner", {
         p_full_name: p.nombre,
         p_phone: p.telefono,
-        p_email: null,
+        // EL CORREO, DESDE EL 31-AGO. Se pide por WhatsApp pero NO es obligatorio: quien no lo
+        // quiere dar igual se agenda. `owners.email` es nullable, así que un null acá es una ficha
+        // válida y no un dato perdido.
+        p_email: (p.email as string | null) ?? null,
         p_document_id: null,
         p_address: null,
         p_notes: "Se registró solo, pidiendo cita por WhatsApp.",
@@ -309,9 +312,19 @@ const threadId = String(p.thread_id ?? "")
       const { data: patientId, error: pcErr } = await supabase.rpc("create_patient", {
         p_owner_id: ownerId,
         p_name: p.mascota,
-        // La especie no se pregunta por WhatsApp: alargar la conversación para un campo que el vet
-        // completa en dos segundos al atender es cobrarle al cliente el trabajo de la ficha.
-        p_species: "Sin especificar",
+        // ── LA ESPECIE SÍ SE PREGUNTA (31-ago), y esto revierte lo que decía acá ─────────────────
+        //
+        // El comentario anterior argumentaba que no valía la pena: «alargar la conversación para un
+        // campo que el vet completa en dos segundos al atender es cobrarle al cliente el trabajo de
+        // la ficha». El razonamiento era bueno y el resultado no: `patients.species` es NOT NULL y
+        // sin default, así que TODA ficha nacida por WhatsApp quedaba con el literal «Sin
+        // especificar» — y nadie lo completaba después, porque en la ficha ya hay algo escrito y no
+        // se ve como un hueco. Contamina los filtros por especie de toda la clínica.
+        //
+        // Una pregunta más en la conversación es más barata que una base con fichas a medias. El
+        // fallback se conserva para las solicitudes creadas ANTES de este cambio, que están en la
+        // bandeja esperando aprobación y no traen el campo.
+        p_species: (p.especie as string | undefined) ?? "Sin especificar",
         p_sex: "unknown",
         p_breed: null,
         p_birth_date: null,
@@ -324,6 +337,13 @@ const threadId = String(p.thread_id ?? "")
           `Titular creado pero el paciente falló: ${pcErr.message}`,
         )
 
+      // LA PREFERENCIA VA EN LAS NOTAS, no se pierde. Cuando la solicitud llegó `sin_hora` —porque
+      // la clínica no tenía horarios cargados y no había ni un cupo que ofrecer— lo único que se
+      // sabe del horario es lo que la persona dijo en palabras («mañana en la tarde»). Es
+      // exactamente lo que el vet necesita leer para elegir la hora.
+      const preferencia = (p.preferencia as string | null | undefined) ?? null
+      const sinHora = p.sin_hora === true
+
       const { data: appointmentId, error: aErr } = await supabase.rpc("create_appointment", {
         p_title: `${String(p.mascota)} — ${String(p.reason)}`,
         p_starts_at: p.starts_at,
@@ -333,7 +353,14 @@ const threadId = String(p.thread_id ?? "")
         p_vet_id: userId,
         p_reason: p.reason,
         p_status: "scheduled",
-        p_notes: "Pedida por WhatsApp desde un número que no estaba registrado.",
+        p_notes: sinHora
+          ? `Pedida por WhatsApp desde un número que no estaba registrado. Sin hora acordada${preferencia ? ` — pidió: "${preferencia}"` : ""}.`
+          : "Pedida por WhatsApp desde un número que no estaba registrado.",
+        // `sin_hora` (migración 0096) expande la cita a la jornada entera en vez de dejarla clavada
+        // a las 00:00, que es donde la ancla `solicitar_cita` cuando no hay cupos que ofrecer. Una
+        // cita a medianoche en la agenda es un error visible; una que cubre el día es lo que se
+        // pidió: «ese día, la hora la confirmamos».
+        p_sin_hora: sinHora,
       })
       if (aErr)
         throw new ErrorQueElVetPuedeResolver(
