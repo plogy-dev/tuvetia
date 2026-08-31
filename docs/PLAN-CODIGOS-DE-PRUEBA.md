@@ -120,7 +120,12 @@ quieres atomicidad total, mételo en una función SQL `security definer` (patró
   aplica: el barrido baja a `free` y `gestion-del-plan` ofrece pagar).
 - Un cron nuevo (no hay cupo en Vercel Hobby: los 2 diarios están usados — y no se necesita).
 
-## Una decisión abierta (de producto, no técnica)
+## La decisión de producto — CERRADA (David, 30-ago)
 
-¿Los 7-14 días del código REEMPLAZAN los 3 del trial o se SUMAN? El diseño de arriba reemplaza
-(pone `now() + dias`, no `plan_renueva_en + dias`). Da igual técnicamente; que lo diga David.
+**Con el enlace: 7 días. Sin el enlace: los 3 de siempre.** Los días del código REEMPLAZAN al
+trial, no se suman — que es exactamente lo que el diseño de arriba ya hace (`now() + dias`, no
+`plan_renueva_en + dias`). Nada que cambiar en el diseño; el primer código se crea con
+`dias = 7`.
+
+Dicho de otra forma, para que el copy de la landing no lo tergiverse: el enlace no «agrega una
+semana» — define que la prueba de esa clínica dura una semana en vez de tres días.
