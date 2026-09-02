@@ -1,0 +1,54 @@
+/**
+ * Qué pasa con el estado guardado cuando un envío falla.
+ *
+ * El caso, reportado el 2-sep: el vet desvinculó WhatsApp desde el teléfono, la app siguió
+ * mostrando «Conectado · 573107663149», y al escribir salió «El servicio de WhatsApp está fallando
+ * (500)» — un mensaje que manda a esperar cuando lo que había que hacer era volver a escanear el QR.
+ *
+ * `whatsapp_integrations.status` es una foto: se escribe al conectar, cuando llega un
+ * `connection.update` del proveedor, o cuando el vet aprieta «Verificar». Si ese evento no llega, la
+ * columna se queda en `connected` para siempre. Un fallo de envío es la mejor evidencia disponible
+ * de que algo pasa con la línea, y hasta ahora se tiraba a la basura.
+ *
+ * Lo que se fija acá es la asimetría: se confirma antes de bajar la bandera, y ANTE LA DUDA NO SE
+ * BAJA. Marcar «desconectado» por un hipo del proveedor mandaría al vet a escanear un QR que no
+ * necesita, y perder una conexión sana es peor que tardar un rato más en enterarse de una rota.
+ */
+import { describe, expect, it, vi } from "vitest"
+
+import { laLineaSeCayo } from "@/lib/whatsapp/send-message"
+import type { WhatsAppIntegrationRow, WhatsAppProvider } from "@/lib/whatsapp/provider"
+
+const INTEG = { clinic_id: "c-1", status: "connected" } as unknown as WhatsAppIntegrationRow
+
+const proveedorQueDice = (status: string): WhatsAppProvider =>
+  ({
+    refreshStatus: async () => ({ status, phoneNumber: null, phoneNumberId: null }),
+  }) as unknown as WhatsAppProvider
+
+describe("laLineaSeCayo — se confirma antes de bajar la bandera", () => {
+  it("sólo con `disconnected` confirmado devuelve true", async () => {
+    expect(await laLineaSeCayo(proveedorQueDice("disconnected"), INTEG)).toBe(true)
+  })
+
+  it("un estado sano o indeterminado NO la baja", async () => {
+    for (const estado of ["connected", "pending", "none"]) {
+      expect(await laLineaSeCayo(proveedorQueDice(estado), INTEG), estado).toBe(false)
+    }
+  })
+
+  it("si la consulta de estado TAMBIÉN falla, ante la duda queda conectada", async () => {
+    // Es el caso del proveedor caído: el envío falla y la consulta también. Bajar la bandera acá
+    // sería concluir «se desconectó el teléfono» a partir de «no pude preguntar».
+    const roto = {
+      refreshStatus: async () => {
+        throw new Error("ECONNREFUSED")
+      },
+    } as unknown as WhatsAppProvider
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {})
+    expect(await laLineaSeCayo(roto, INTEG)).toBe(false)
+    // Y queda registrado: un fallo que no cambia nada y tampoco se anota es un fallo invisible.
+    expect(warn).toHaveBeenCalled()
+    warn.mockRestore()
+  })
+})

@@ -6,7 +6,28 @@ import { createAdminClient } from "@/lib/supabase/admin"
 import { DestinoNoRegistrado, athosPuedeEscribirA, type OrigenDelEnvio } from "./destino-permitido"
 import { ErrorQueElVetPuedeResolver } from "./error-de-envio"
 import { normalizarTelefono } from "./telefono"
-import { providerFor, type WhatsAppIntegrationRow } from "./provider"
+import { providerFor, type WhatsAppIntegrationRow, type WhatsAppProvider } from "./provider"
+
+/**
+ * ¿El proveedor confirma que esta línea ya no está conectada?
+ *
+ * `false` ante la duda, y es lo importante: si la consulta de estado también falla —el proveedor
+ * caído, la red— NO se baja la bandera. Marcar «desconectado» por un hipo mandaría al vet a
+ * escanear un QR que no necesita, y perder una conexión sana es peor que tardar un rato más en
+ * enterarse de una rota. La corrección optimista se paga cuando se equivoca.
+ */
+export async function laLineaSeCayo(
+  proveedor: WhatsAppProvider,
+  integ: WhatsAppIntegrationRow,
+): Promise<boolean> {
+  try {
+    const fresco = await proveedor.refreshStatus(integ)
+    return fresco.status === "disconnected"
+  } catch (e) {
+    console.warn("whatsapp/send: no se pudo confirmar el estado tras el fallo:", (e as Error).message)
+    return false
+  }
+}
 
 export type SendWhatsAppOptions = {
   ownerId?: string | null
@@ -84,7 +105,42 @@ export async function sendWhatsAppText(
     throw new DestinoNoRegistrado(destino)
   }
 
-  const { waMessageId } = await providerFor(integ).sendText(integ, destino, body)
+  // ── SI FALLA EL ENVÍO, PREGUNTAR SI LA LÍNEA SIGUE VIVA (31-ago) ────────────────────────────
+  //
+  // `whatsapp_integrations.status` es una FOTO, no una verdad: se escribe cuando alguien conecta,
+  // cuando llega un `connection.update` del proveedor, o cuando el vet aprieta «Verificar». Si el
+  // vet cierra la sesión desde el teléfono y ese evento no llega —o llega y se pierde—, la columna
+  // se queda en `connected` para siempre y la pantalla dice «Conectado» sobre una línea muerta.
+  //
+  // Reportado el 2-sep: WhatsApp desvinculado desde el teléfono, la app seguía mostrando
+  // «Conectado · 573107663149», y al escribir salía «El servicio de WhatsApp está fallando (500)» —
+  // un mensaje que manda a esperar cuando lo que había que hacer era volver a escanear el QR.
+  //
+  // Un fallo de envío es la MEJOR evidencia disponible de que algo pasa con la línea, y hasta ahora
+  // se tiraba a la basura. No se marca desconectado por el sólo hecho de fallar —un 500 también
+  // puede ser el proveedor teniendo un mal minuto, y bajar la bandera por eso mandaría al vet a
+  // reconectar una línea sana—: se le PREGUNTA al proveedor, y sólo se corrige si confirma.
+  const proveedor = providerFor(integ)
+  let waMessageId: string
+  try {
+    ;({ waMessageId } = await proveedor.sendText(integ, destino, body))
+  } catch (e) {
+    if (await laLineaSeCayo(proveedor, integ)) {
+      await admin
+        .from("whatsapp_integrations")
+        .update({ status: "disconnected", updated_at: new Date().toISOString() })
+        .eq("clinic_id", clinicId)
+
+      // Se reemplaza el error del proveedor por uno que dice qué hacer. «El servicio está fallando
+      // (500)» es verdad y es inútil: describe el síntoma y esconde la causa.
+      throw new ErrorQueElVetPuedeResolver(
+        "WhatsApp se desconectó: el teléfono ya no está vinculado. Andá a Integraciones y volvé a escanear el QR.",
+        409,
+        `El proveedor confirmó la desconexión tras fallar el envío: ${(e as Error).message}`,
+      )
+    }
+    throw e
+  }
 
   // Registrar el saliente y devolver la fila real (id + created_at de la BD) — el front la usa
   // para no duplicar el hilo. Un retry único: si falla dos veces, el mensaje salió pero no quedó
