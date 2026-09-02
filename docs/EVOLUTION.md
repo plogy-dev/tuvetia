@@ -61,8 +61,56 @@ Evolution necesita un proceso PERSISTENTE (mantiene las sesiones WebSocket) — 
 
 ## Operación
 
+### ⚠️ El Postgres de Evolution se llena, y se cae como «el servicio está fallando (500)»
+
+**Pasó el 2-sep-2026** y costó tres días de diagnóstico en la dirección equivocada. Vale la pena
+leer esto antes de tocar nada cuando los envíos fallan.
+
+**El síntoma engaña.** La pantalla dice **Conectado**, el número está bien, `connectionState`
+responde `open` — y todo envío devuelve **500**. No es la línea: la conexión de WhatsApp está
+perfecta. Es que Evolution, en cada envío, **escribe el mensaje en su Postgres**, y con el volumen
+al 100% esa escritura falla. Nosotros sólo vemos el 500.
+
+**Cómo confirmarlo en 10 segundos:** Railway → el servicio de Postgres de Evolution → el volumen.
+Si dice *«Volume Is Full — at 100% capacity»*, es esto y no hace falta buscar más.
+
+**Lo que NO hay que hacer:** desconectar y volver a escanear el QR. No arregla nada y empeora —
+crear una instancia nueva también es una escritura en ese mismo Postgres, así que se pierde la que
+había y no se puede hacer otra. (Por eso el mensaje de error de un 5xx dice «no es tu conexión, es
+el servicio» y manda a soporte en vez de a reconectar: ver `lib/whatsapp/error-de-envio.ts`.)
+
+**El orden para resolverlo:**
+
+1. **Agrandar el volumen** en Railway. Es lo único que destraba en el momento: mientras esté al
+   100%, ninguna otra acción que escriba va a funcionar — ni siquiera limpiar.
+2. **Podar.** Lo que crece sin techo son las tablas de historial de Evolution (`Message`,
+   `MessageUpdate`, `Chat`, `Contact`). `MessageUpdate` es la peor: un registro por cada acuse de
+   entrega y de lectura, de cada mensaje, para siempre.
+3. **Apagar lo que no necesitamos guardar dos veces.** Evolution tiene variables
+   `DATABASE_SAVE_*` para elegir qué persiste — **verificá los nombres exactos contra la versión de
+   la imagen que estés corriendo**, cambian entre versiones.
+
+**Y ACÁ ESTÁ LA PARTE QUE HACE QUE ESTO SEA SEGURO:** *nosotros ya guardamos todos los mensajes*.
+`whatsapp_messages` en Supabase tiene cada entrante y cada saliente — es una decisión de diseño
+anotada más arriba («todos los mensajes viven en nuestra BD; un baneo no pierde historial»). O sea
+que el historial que Evolution acumula es una **segunda copia que nadie lee**. Apagar la
+persistencia de mensajes, acuses, chats y contactos no nos hace perder nada.
+
+**Lo que SÍ tiene que seguir guardándose** son las credenciales de sesión de cada instancia: es lo
+que evita que todas las clínicas tengan que re-escanear el QR en cada reinicio del contenedor.
+Antes de apagar cualquier variable, comprobá cuál gobierna eso en tu versión — apagar la equivocada
+desloguea a todas las clínicas de una.
+
+**Monitoreo:** una alerta de volumen al 80% en Railway. Este fallo no avisa: se manifiesta como un
+500 genérico del lado del vet, sin ninguna pista de que el problema es de disco.
+
+### Desconexiones
+
 - Desconexión (`connection.update: close` o "Verificar" con estado close) → `disconnected` +
   banner. Reconectar = re-escanear QR.
+- **Un 404 del proveedor cuenta como línea perdida** (`lib/whatsapp/send-message.ts`): si la
+  instancia ya no existe del lado de Evolution, es la evidencia más fuerte que hay. Un 5xx, en
+  cambio, NO se trata como desconexión — por lo de arriba.
 - Baneo sospechado: la instancia queda `close` y el número no re-vincula → contactar al vet,
   evaluar apelación en la app de WhatsApp, y ofrecer migración al proveedor `meta`.
 - Actualizaciones de Evolution: el protocolo de WhatsApp cambia; pinnear versión y actualizar

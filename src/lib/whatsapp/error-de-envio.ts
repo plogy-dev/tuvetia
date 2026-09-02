@@ -63,16 +63,19 @@ export type ContextoDeFallo = {
 const WHATSAPP: ContextoDeFallo = {
   sinRespuesta:
     "El servicio de WhatsApp no respondió a tiempo. El mensaje no salió; probá de nuevo en un momento.",
-  // DICE QUÉ HACER, no sólo qué pasó. La versión anterior era «El servicio de WhatsApp está
-  // fallando (500). El mensaje no salió» y nada más: verdadera, y un callejón sin salida. Santiago
-  // la vio tres días seguidos sin ninguna pista de que lo que había que hacer era volver a vincular
-  // el número.
+  // ── LO QUE ESTE MENSAJE NO PUEDE HACER: MANDAR A RECONECTAR ─────────────────────────────────
   //
-  // No afirma que esté desconectado —cuando el proveedor lo confirma, el mensaje es otro y sale
-  // desde `send-message.ts`—: reintentar sigue siendo lo primero. Pero nombra la salida para
-  // cuando reintentar no alcanza, que es el caso en el que alguien lee esto por tercera vez.
+  // Estuvo un rato diciendo «si te sigue pasando, desconectá y volvé a vincular el número», y era
+  // un consejo peligroso. El 2-sep un 5xx sostenido resultó ser el volumen de Postgres de Evolution
+  // al 100%: la conexión de WhatsApp estaba PERFECTA y lo que fallaba era que el proveedor no podía
+  // escribir. Reconectar ahí no arregla nada y empeora — crear una instancia nueva también es una
+  // escritura, así que el vet se habría quedado sin la que tenía y sin poder hacer una.
+  //
+  // Un 5xx es del SERVICIO, no de la línea. Cuando lo que se cayó es la línea, el proveedor lo
+  // confirma y el mensaje lo emite `send-message.ts`, que ahí sí manda a escanear el QR. Acá la
+  // única acción honesta es avisar a quien puede mirar el servidor.
   cayo: (s) =>
-    `El servicio de WhatsApp está fallando (${s}). El mensaje no salió. Si te sigue pasando, desconectá y volvé a vincular el número en Integraciones.`,
+    `El servicio de WhatsApp está fallando (${s}). El mensaje no salió — no es tu conexión, es el servicio. Si te sigue pasando, avisá a soporte.`,
   rechazo: (s) =>
     `El servicio de WhatsApp rechazó el envío (${s}). Revisá que el número esté bien y que la conexión siga activa en Configuración.`,
   inesperado: "No se pudo enviar el mensaje por un error inesperado. Si vuelve a pasar, avisá a soporte.",
