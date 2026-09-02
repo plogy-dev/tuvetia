@@ -28,6 +28,19 @@ export async function laLineaSeCayo(
     // es desconocido. Mirar sólo `disconnected` dejaba pasar justo el caso reportado.
     return fresco.status !== "connected"
   } catch (e) {
+    // ── UN 404 NO ES UNA DUDA (2-sep) ─────────────────────────────────────────────────────────
+    //
+    // Y es lo que hacía que el arreglo de ayer no se activara nunca en el caso reportado. `evo()`
+    // LANZA en cualquier respuesta que no sea 2xx, 404 incluido — así que si la instancia ya no
+    // existe del lado del proveedor (el contenedor se reinició y perdió la sesión, o alguien la
+    // borró), la consulta de estado tira, se caía en este `catch`, y «ante la duda» devolvía
+    // `false`: el vet seguía viendo «El servicio de WhatsApp está fallando (500)».
+    //
+    // Pero un 404 no es no-poder-preguntar: es el proveedor CONTESTANDO que esa instancia no está.
+    // Es la evidencia más fuerte que existe de que la línea se fue, más fuerte todavía que un
+    // `state: close`. La prudencia va para los fallos que no dicen nada — una red caída, un 502, un
+    // timeout—, no para una respuesta clara que no nos gusta.
+    if ((e as { status?: unknown })?.status === 404) return true
     console.warn("whatsapp/send: no se pudo confirmar el estado tras el fallo:", (e as Error).message)
     return false
   }
@@ -129,7 +142,10 @@ export async function sendWhatsAppText(
   try {
     ;({ waMessageId } = await proveedor.sendText(integ, destino, body))
   } catch (e) {
-    if (await laLineaSeCayo(proveedor, integ)) {
+    // Si el ENVÍO mismo dio 404, no hace falta preguntar nada: el proveedor ya dijo que esa
+    // instancia no existe. Se ahorra un viaje en el camino que ya está fallando.
+    const seFue = (e as { status?: unknown })?.status === 404 || (await laLineaSeCayo(proveedor, integ))
+    if (seFue) {
       await admin
         .from("whatsapp_integrations")
         .update({ status: "disconnected", updated_at: new Date().toISOString() })

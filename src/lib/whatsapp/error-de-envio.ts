@@ -63,7 +63,16 @@ export type ContextoDeFallo = {
 const WHATSAPP: ContextoDeFallo = {
   sinRespuesta:
     "El servicio de WhatsApp no respondió a tiempo. El mensaje no salió; probá de nuevo en un momento.",
-  cayo: (s) => `El servicio de WhatsApp está fallando (${s}). El mensaje no salió.`,
+  // DICE QUÉ HACER, no sólo qué pasó. La versión anterior era «El servicio de WhatsApp está
+  // fallando (500). El mensaje no salió» y nada más: verdadera, y un callejón sin salida. Santiago
+  // la vio tres días seguidos sin ninguna pista de que lo que había que hacer era volver a vincular
+  // el número.
+  //
+  // No afirma que esté desconectado —cuando el proveedor lo confirma, el mensaje es otro y sale
+  // desde `send-message.ts`—: reintentar sigue siendo lo primero. Pero nombra la salida para
+  // cuando reintentar no alcanza, que es el caso en el que alguien lee esto por tercera vez.
+  cayo: (s) =>
+    `El servicio de WhatsApp está fallando (${s}). El mensaje no salió. Si te sigue pasando, desconectá y volvé a vincular el número en Integraciones.`,
   rechazo: (s) =>
     `El servicio de WhatsApp rechazó el envío (${s}). Revisá que el número esté bien y que la conexión siga activa en Configuración.`,
   inesperado: "No se pudo enviar el mensaje por un error inesperado. Si vuelve a pasar, avisá a soporte.",

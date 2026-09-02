@@ -40,6 +40,23 @@ describe("laLineaSeCayo — se confirma antes de bajar la bandera", () => {
     expect(await laLineaSeCayo(proveedorQueDice("connected"), INTEG)).toBe(false)
   })
 
+  it("un 404 del proveedor NO es una duda: la línea se fue", async () => {
+    // Y es lo que hacía que el arreglo del 31-ago no se activara nunca en el caso reportado. `evo()`
+    // lanza en cualquier respuesta que no sea 2xx, 404 incluido: si la instancia ya no existe del
+    // lado del proveedor, la consulta de estado tiraba, se caía en el `catch` y «ante la duda»
+    // devolvía false — el vet seguía viendo «El servicio de WhatsApp está fallando (500)».
+    //
+    // Un 404 no es no-poder-preguntar: es el proveedor CONTESTANDO que esa instancia no está.
+    const noExiste = {
+      refreshStatus: async () => {
+        throw Object.assign(new Error("Evolution GET /instance/connectionState/x → 404: not found"), {
+          status: 404,
+        })
+      },
+    } as unknown as WhatsAppProvider
+    expect(await laLineaSeCayo(noExiste, INTEG)).toBe(true)
+  })
+
   it("si la consulta de estado TAMBIÉN falla, ante la duda queda conectada", async () => {
     // Es el caso del proveedor caído: el envío falla y la consulta también. Bajar la bandera acá
     // sería concluir «se desconectó el teléfono» a partir de «no pude preguntar».
