@@ -22,7 +22,11 @@ export async function laLineaSeCayo(
 ): Promise<boolean> {
   try {
     const fresco = await proveedor.refreshStatus(integ)
-    return fresco.status === "disconnected"
+    // CUALQUIER COSA QUE NO SEA `connected`, no sólo `disconnected`. Con Evolution, una instancia
+    // cerrada devuelve `pending` en vez de `disconnected` según cómo estuviera la columna guardada
+    // (ver `evolution-provider.refreshStatus`), y `pending` es además lo que sale cuando el estado
+    // es desconocido. Mirar sólo `disconnected` dejaba pasar justo el caso reportado.
+    return fresco.status !== "connected"
   } catch (e) {
     console.warn("whatsapp/send: no se pudo confirmar el estado tras el fallo:", (e as Error).message)
     return false

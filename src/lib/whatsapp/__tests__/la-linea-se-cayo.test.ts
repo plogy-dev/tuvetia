@@ -27,14 +27,17 @@ const proveedorQueDice = (status: string): WhatsAppProvider =>
   }) as unknown as WhatsAppProvider
 
 describe("laLineaSeCayo — se confirma antes de bajar la bandera", () => {
-  it("sólo con `disconnected` confirmado devuelve true", async () => {
-    expect(await laLineaSeCayo(proveedorQueDice("disconnected"), INTEG)).toBe(true)
+  it("cualquier estado que no sea `connected` cuenta como caída", async () => {
+    // `pending` TAMBIÉN, y es el que importa: con Evolution una instancia cerrada devuelve
+    // `pending` en vez de `disconnected` según cómo estuviera la columna guardada. Mirar sólo
+    // `disconnected` dejaba pasar justo el caso reportado el 2-sep.
+    for (const estado of ["disconnected", "pending", "none"]) {
+      expect(await laLineaSeCayo(proveedorQueDice(estado), INTEG), estado).toBe(true)
+    }
   })
 
-  it("un estado sano o indeterminado NO la baja", async () => {
-    for (const estado of ["connected", "pending", "none"]) {
-      expect(await laLineaSeCayo(proveedorQueDice(estado), INTEG), estado).toBe(false)
-    }
+  it("una línea sana no se toca", async () => {
+    expect(await laLineaSeCayo(proveedorQueDice("connected"), INTEG)).toBe(false)
   })
 
   it("si la consulta de estado TAMBIÉN falla, ante la duda queda conectada", async () => {

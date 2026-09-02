@@ -8,7 +8,7 @@
 
 import { useEffect, useRef, useState } from "react"
 import { useRouter } from "next/navigation"
-import { Loader2, MessageCircle, QrCode, RefreshCw } from "lucide-react"
+import { Loader2, MessageCircle, QrCode, RefreshCw, Unplug } from "lucide-react"
 import { toast } from "sonner"
 
 import { BarraDeAutonomia } from "@/components/settings/barra-de-autonomia"
@@ -82,6 +82,7 @@ export function WhatsappSettings({
   // vive en el servidor y no se filtra al cliente—, así que arranca en falso y lo enciende la
   // respuesta del endpoint.
   const [noHabilitado, setNoHabilitado] = useState(false)
+  const [confirmandoBaja, setConfirmandoBaja] = useState(false)
   const [needsConsent, setNeedsConsent] = useState(evolutionEnabled && initialStatus === "none")
   const [consentChecked, setConsentChecked] = useState(false)
   const checked = useRef(false)
@@ -272,8 +273,8 @@ export function WhatsappSettings({
 
   const connect = evolutionEnabled ? connectEvolution : metaEnabled ? connectMeta : connectKapso
 
-  async function refresh() {
-    setBusy(true)
+  async function refresh(silencioso = false) {
+    if (!silencioso) setBusy(true)
     try {
       const res = await fetch("/api/whatsapp/status", { method: "POST" })
       const json = (await res.json()) as {
@@ -285,6 +286,16 @@ export function WhatsappSettings({
       if (!res.ok) throw new Error(json.error ?? `HTTP ${res.status}`)
       setStatus(json.status ?? "pending")
       setPhone(json.phone_number ?? null)
+      // En la comprobación automática de la carga no se avisa NADA cuando todo está bien: un toast
+      // «WhatsApp conectado» cada vez que se abre la pantalla es ruido. Sí se avisa si la línea se
+      // cayó, porque eso es exactamente lo que el vet vino a saber sin saberlo.
+      if (silencioso) {
+        if (json.status !== "connected") {
+          toast.warning("WhatsApp se desconectó. Volvé a escanear el QR para seguir recibiendo mensajes.")
+          router.refresh()
+        }
+        return
+      }
       if (json.status === "connected") toast.success("WhatsApp conectado")
       else if (json.reason === "sin_numero_todavia")
         toast.info("Todavía no hay un número vinculado. Completa el escaneo del QR y vuelve a verificar.")
@@ -292,11 +303,71 @@ export function WhatsappSettings({
         toast.warning("El número se desvinculó (¿se desconectó desde el teléfono?). Reconecta para seguir recibiendo mensajes.")
       router.refresh()
     } catch (e) {
-      toast.error(`No se pudo verificar la conexión: ${(e as Error).message}`)
+      // La comprobación automática NO grita cuando falla: el vet no la pidió, y un error rojo al
+      // abrir la pantalla por un hipo del proveedor asusta sin darle nada que hacer. Se queda con
+      // el estado guardado, que es el comportamiento de siempre.
+      if (silencioso) console.warn("whatsapp: no se pudo comprobar el estado al abrir:", e)
+      else toast.error(`No se pudo verificar la conexión: ${(e as Error).message}`)
+    } finally {
+      if (!silencioso) setBusy(false)
+    }
+  }
+
+  // ── DESCONECTAR, QUE ERA UNA PROMESA SIN CUMPLIR ────────────────────────────────────────────
+  //
+  // El aviso que el vet acepta para conectar dice, literal: «el riesgo sobre el número es de la
+  // clínica. Puedo desconectar cuando quiera». Se podía conectar y no se podía desconectar — la
+  // ruta existía desde el 30-ago y ningún botón la llamaba. Y sin desconectar tampoco se puede
+  // CAMBIAR de número, que es lo que lo hizo evidente.
+  async function desconectar() {
+    setBusy(true)
+    try {
+      const res = await fetch("/api/whatsapp/disconnect", { method: "POST" })
+      const json = (await res.json().catch(() => ({}))) as { error?: string; proveedor_avisado?: boolean }
+      if (!res.ok) throw new Error(json.error ?? `HTTP ${res.status}`)
+      setStatus("disconnected")
+      setPhone(null)
+      // El modo automático vuelve a «sólo sugerir» del lado del servidor: reconectar tiene que ser
+      // reconectar y nada más, no reanudar un bot que nadie volvió a autorizar.
+      setAgentMode("review")
+      setConfirmaSolo(false)
+      setConfirmandoBaja(false)
+      if (json.proveedor_avisado === false) {
+        toast.warning(
+          "Tuvetia quedó desconectado, pero no pudimos cerrar la sesión en tu teléfono. Sacá «Tuvetia» de Dispositivos vinculados en WhatsApp.",
+        )
+      } else {
+        toast.success("WhatsApp desconectado. Podés vincular otro número escaneando el QR.")
+      }
+      router.refresh()
+    } catch (e) {
+      toast.error(`No se pudo desconectar: ${(e as Error).message}`)
     } finally {
       setBusy(false)
     }
   }
+
+  // ── LA PANTALLA SE CORRIGE SOLA AL ABRIRLA (2-sep) ──────────────────────────────────────────
+  //
+  // `whatsapp_integrations.status` es una foto: se escribe al conectar, cuando llega un
+  // `connection.update` del proveedor, o cuando alguien aprieta «Verificar». Si el vet desvincula
+  // desde el teléfono y ese evento no llega, la columna se queda en `connected` PARA SIEMPRE y esta
+  // pantalla la pinta tal cual — «Conectado · 573107663149» sobre una línea muerta. Reportado con
+  // captura: el vet ve verde, escribe, y recibe un 500 que no explica nada.
+  //
+  // Que el estado real dependa de que alguien se acuerde de apretar un botón es el defecto. Ésta es
+  // la pantalla de las conexiones: comprobarlo es literalmente su trabajo.
+  //
+  // Sólo cuando dice «conectado», y sólo una vez por montaje: es el único caso donde la foto puede
+  // estar mintiendo en la dirección peligrosa. Si ya dice desconectado o pendiente, la pantalla ya
+  // muestra el QR y no hay nada que corregir.
+  const comprobado = useRef(false)
+  useEffect(() => {
+    if (comprobado.current || initialStatus !== "connected") return
+    comprobado.current = true
+    void refresh(true)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   async function cambiarModo(next: NivelDeAutonomia) {
     setBusy(true)
@@ -335,11 +406,53 @@ export function WhatsappSettings({
             <MessageCircle className="size-4 text-ok" />
             Conectado{phone ? <span className="text-muted-foreground">· {phone}</span> : null}
           </span>
-          <Button size="sm" variant="outline" onClick={refresh} disabled={busy}>
-            {busy ? <Loader2 className="size-4 animate-spin" /> : <RefreshCw className="size-4" />}
-            Verificar
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button size="sm" variant="outline" onClick={() => void refresh()} disabled={busy}>
+              {busy ? <Loader2 className="size-4 animate-spin" /> : <RefreshCw className="size-4" />}
+              Verificar
+            </Button>
+            {/* DESCONECTAR CUESTA UN PASO MÁS, igual que desactivar una cuenta: corta la línea
+                ENTERA de la clínica y lo que entre mientras tanto no llega a la bandeja ni se
+                encola. Un clic suelto no puede hacer eso. */}
+            <Button
+              size="sm"
+              variant="ghost"
+              onClick={() => setConfirmandoBaja((v) => !v)}
+              disabled={busy}
+              title="Desconectar este número"
+            >
+              <Unplug className="size-4" />
+              Desconectar
+            </Button>
+          </div>
         </div>
+
+        {confirmandoBaja && (
+          <div className="flex flex-col gap-2 rounded-lg border border-warn/40 bg-warn/10 p-3">
+            {/* Qué se pierde y qué NO. «Desconectar» se lee como «borrar las conversaciones», y no
+                lo es: se corta el cable, no lo que se dijo. Decirlo es lo que hace que el botón se
+                pueda usar sin miedo — y lo que hace posible cambiar de número, que es para lo que
+                la mayoría lo va a apretar. */}
+            <p className="text-sm">
+              Se corta la línea: mientras esté desconectado, <b>los mensajes que te escriban no van a
+              llegar</b> a Tuvetia ni quedan guardados en ningún lado. Las conversaciones que ya
+              tenés <b>no se borran</b>, y podés vincular otro número escaneando el QR.
+            </p>
+            <p className="text-xs text-muted-foreground">
+              VetGPT vuelve a «sólo sugerir»: al reconectar tenés que volver a encender las
+              respuestas automáticas.
+            </p>
+            <div className="flex items-center justify-end gap-2">
+              <Button size="sm" variant="ghost" onClick={() => setConfirmandoBaja(false)} disabled={busy}>
+                Cancelar
+              </Button>
+              <Button size="sm" variant="destructive" onClick={() => void desconectar()} disabled={busy}>
+                {busy ? <Loader2 className="size-4 animate-spin" /> : <Unplug className="size-4" />}
+                Desconectar
+              </Button>
+            </div>
+          </div>
+        )}
         {/* ── LA BARRA DE AUTONOMÍA (28-ago, pedido de Luciano) ──────────────────────────────
             Reemplaza al switch binario del mismo día: la barrita gradúa el nivel de libertad del
             agente y muestra a dónde va (el tercer nivel, bloqueado, «se gana con el uso»). El
@@ -430,8 +543,11 @@ export function WhatsappSettings({
             {busy ? <Loader2 className="size-4 animate-spin" /> : <QrCode className="size-4" />}
             {status === "pending" ? "Continuar conexión" : status === "disconnected" ? "Reconectar WhatsApp" : "Conectar WhatsApp"}
           </Button>
+          {/* En arrow y no `onClick={refresh}`: desde que `refresh` toma un parámetro, pasarlo
+              directo le entregaría el evento del clic como `silencioso` — y un MouseEvent es
+              truthy, así que la verificación que el vet pidió a mano correría en silencio. */}
           {(status === "pending" || status === "disconnected") && (
-            <Button variant="outline" onClick={refresh} disabled={busy}>
+            <Button variant="outline" onClick={() => void refresh()} disabled={busy}>
               Verificar conexión
             </Button>
           )}
